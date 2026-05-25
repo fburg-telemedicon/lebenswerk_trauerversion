@@ -239,7 +239,8 @@ Regeln:
 - Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - Sei einfühlsam, respektiere die Trauer
-- Variiere: erste Begegnung, Charakterzüge, besondere Momente, Gewohnheiten, was die Person bedeutete
+- WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
+- Variiere die Themenfelder bewusst: erste Begegnung, Kindheit, Schule, Familie, Beruf, Hobbies, Reisen, Charakterzüge, kleine Marotten, Lieblingsorte, besondere Momente, Werte, was die Person bedeutete, Abschied — wähle pro neuer Frage ein anderes Feld.
 - Schreibe auf Deutsch`
 }
 
