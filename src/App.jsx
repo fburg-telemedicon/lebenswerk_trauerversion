@@ -387,7 +387,11 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
           })
           const data = await resp.json()
           if (!resp.ok) throw new Error(data.error)
-          setTranscript(data.text || '')
+          const text = data.text || ''
+          setTranscript(text)
+          setMicState('idle')
+          if (text.trim()) sendAnswer(text)
+          return
         } catch (e) {
           setErr(`Transkription: ${e.message}`)
         } finally {
@@ -404,8 +408,8 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
     }
   }
 
-  async function sendAnswer() {
-    const text = transcript.trim(); if (!text) return
+  async function sendAnswer(explicitText) {
+    const text = (explicitText ?? transcript).trim(); if (!text) return
     setTranscript(''); stopSpeaking(); setIsPlaying(false)
     const newMsgs = [...messages, { role: 'user', content: text }]
     setMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
@@ -480,9 +484,6 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
               <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginTop:12, fontSize:14, lineHeight:1.6, textAlign:'left' }}>
                 {transcript}
               </div>
-            )}
-            {transcript && micState === 'idle' && (
-              <button onClick={sendAnswer} style={{ marginTop:14, width:'100%', padding:12 }}>Antwort senden →</button>
             )}
           </div>
         )}
