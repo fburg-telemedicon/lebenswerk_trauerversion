@@ -66,7 +66,10 @@ export async function speakText(text, { onStart, onEnd, onError } = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     })
-    if (!res.ok) throw new Error('TTS-Anfrage fehlgeschlagen')
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error(d.error || `HTTP ${res.status}`)
+    }
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const audio = new Audio(url)
