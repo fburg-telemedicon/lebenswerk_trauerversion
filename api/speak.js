@@ -1,9 +1,8 @@
 // api/speak.js
-// POST /api/speak  { text }  → audio/mpeg binary
+// POST /api/speak  { text }  → audio/mpeg  (OpenAI TTS)
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
+  if (req.method !== 'POST') return res.status(405).end()
   try {
     const { text } = req.body
     if (!text) return res.status(400).json({ error: 'text fehlt.' })
@@ -17,14 +16,14 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: 'tts-1-hd',
         input: text,
-        voice: 'shimmer',   // warm, empathisch
+        voice: 'shimmer',
         speed: 0.95,
       }),
     })
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      return res.status(500).json({ error: err.error?.message || 'TTS fehlgeschlagen' })
+      return res.status(500).json({ error: err.error?.message || `HTTP ${response.status}` })
     }
 
     const buffer = await response.arrayBuffer()

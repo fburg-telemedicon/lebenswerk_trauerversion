@@ -301,22 +301,44 @@ function Dots() {
 
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, onDone }) {
-  const [messages, setMessages] = useState([])
-  const [round, setRound]       = useState(0)
-  const [aiLoading, setAiLoading] = useState(false)
+  const [messages,   setMessages]   = useState([])
+  const [round,      setRound]      = useState(0)
+  const [aiLoading,  setAiLoading]  = useState(false)
   const [ttsLoading, setTtsLoading] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [micState, setMicState] = useState('idle')
-  const [liveText, setLiveText] = useState('')
-  const [finalText, setFinalText] = useState('')
-  const [err, setErr]   = useState('')
-  const [saving, setSaving] = useState(false)
-  const recRef = useRef(null)
-  const endRef = useRef(null)
-  const hasSTT = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  const [isPlaying,  setIsPlaying]  = useState(false)
+  // micState: idle | recording | processing
+  const [micState,   setMicState]   = useState('idle')
+  const [transcript, setTranscript] = useState('')
+  const [err,        setErr]        = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const mediaRecRef  = useRef(null)
+  const chunksRef    = useRef([])
+  const endRef       = useRef(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiLoading])
   useEffect(() => { loadFirst() }, [])
+
+  // Auto-Start: neue Frage sofort vorlesen
+  useEffect(() => {
+    const last = messages[messages.length - 1]
+    if (last?.role === 'assistant' && !aiLoading) playText(last.content)
+  }, [messages, aiLoading])
+
+  function playText(text) {
+    stopSpeaking()
+    setIsPlaying(true); setTtsLoading(true); setErr('')
+    speakText(text, {
+      onEnd:   () => { setIsPlaying(false); setTtsLoading(false) },
+      onError: e  => { setErr(`TTS: ${e}`); setIsPlaying(false); setTtsLoading(false) },
+    })
+  }
+
+  function handleSpeak() {
+    const last = [...messages].reverse().find(m => m.role === 'assistant')
+    if (!last) return
+    if (isPlaying) { stopSpeaking(); setIsPlaying(false); setTtsLoading(false); return }
+    playText(last.content)
+  }
 
   async function loadFirst() {
     setAiLoading(true)
@@ -328,45 +350,67 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
     finally { setAiLoading(false) }
   }
 
-  function handleSpeak() {
-    const last = [...messages].reverse().find(m => m.role === 'assistant')
-    if (!last) return
-    if (isPlaying) { stopSpeaking(); setIsPlaying(false); return }
-    speakText(last.content, {
-      onStart: () => { setTtsLoading(true); setErr('') },
-      onEnd:   () => { setIsPlaying(false); setTtsLoading(false) },
-      onError: e  => { setErr(`TTS: ${e}`); setIsPlaying(false); setTtsLoading(false) },
-    }).then(audio => { if (audio) { setTtsLoading(false); setIsPlaying(true) } })
-  }
+  async function handleMic() {
+    if (micState === 'processing') return
 
-  function handleMic() {
-    if (!hasSTT) { setErr('SpeechRecognition nicht verfügbar – bitte Chrome oder Edge verwenden.'); return }
-    if (micState === 'recording') { recRef.current?.stop(); setMicState('idle'); setLiveText(''); return }
-    setFinalText(''); setLiveText(''); setErr('')
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    const rec = new SR(); rec.lang = 'de-DE'; rec.continuous = true; rec.interimResults = true
-    recRef.current = rec
-    let acc = ''
-    rec.onresult = e => {
-      let interim = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) acc += e.results[i][0].transcript + ' '
-        else interim += e.results[i][0].transcript
-      }
-      setFinalText(acc); setLiveText(interim)
+    if (micState === 'recording') {
+      // Aufnahme beenden → Whisper transkribieren
+      mediaRecRef.current?.stop()
+      return
     }
-    rec.onerror = e => { setMicState('idle'); if (e.error !== 'no-speech') setErr(`Mikrofon: ${e.error}`) }
-    rec.onend = () => setMicState(s => s === 'recording' ? 'idle' : s)
-    rec.start(); setMicState('recording')
+
+    // Aufnahme starten
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec    = new MediaRecorder(stream)
+      mediaRecRef.current = rec
+      chunksRef.current   = []
+
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setMicState('processing')
+        try {
+          const mimeType = rec.mimeType || 'audio/webm'
+          const blob     = new Blob(chunksRef.current, { type: mimeType })
+          const base64   = await new Promise((res, rej) => {
+            const reader = new FileReader()
+            reader.onloadend = () => res(reader.result.split(',')[1])
+            reader.onerror   = rej
+            reader.readAsDataURL(blob)
+          })
+          const resp = await fetch('/api/transcribe', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ audio: base64, mimeType }),
+          })
+          const data = await resp.json()
+          if (!resp.ok) throw new Error(data.error)
+          setTranscript(data.text || '')
+        } catch (e) {
+          setErr(`Transkription: ${e.message}`)
+        } finally {
+          setMicState('idle')
+        }
+      }
+
+      rec.start()
+      setMicState('recording')
+      setTranscript('')
+      setErr('')
+    } catch (e) {
+      setErr(`Mikrofon: ${e.message}`)
+    }
   }
 
   async function sendAnswer() {
-    const text = finalText.trim(); if (!text) return
-    setFinalText(''); setLiveText(''); setMicState('idle'); stopSpeaking(); setIsPlaying(false)
+    const text = transcript.trim(); if (!text) return
+    setTranscript(''); stopSpeaking(); setIsPlaying(false)
     const newMsgs = [...messages, { role: 'user', content: text }]
     setMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
     try {
-      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs])
       setMessages([...newMsgs, { role: 'assistant', content: reply }])
     } catch (e) { setErr(e.message) }
@@ -374,11 +418,21 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
   }
 
   async function finish() {
-    stopSpeaking(); recRef.current?.stop(); setSaving(true)
+    stopSpeaking()
+    if (mediaRecRef.current?.state === 'recording') mediaRecRef.current.stop()
+    setSaving(true)
     try { await onDone(messages) } catch (e) { setErr(e.message); setSaving(false) }
   }
 
   const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
+
+  const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
+  const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
+  const micAnim   = micState === 'recording' ? 'lw-mic 1.5s ease-in-out infinite' : 'none'
+  const micIcon   = micState === 'processing' ? '⏳' : '🎙'
+  const micLabel  = micState === 'recording'  ? 'Aufnahme läuft – erneut klicken zum Beenden'
+                  : micState === 'processing' ? 'Wird transkribiert …'
+                  : 'Mikrofon klicken, um zu antworten'
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -387,7 +441,7 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
           <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship} · 🎙 Sprach-Modus</div>
         </div>
-        {round >= 5 && <button onClick={finish} disabled={saving || micState === 'recording'} style={{ fontSize: 13, padding: '8px 16px' }}>{saving ? 'Wird gespeichert …' : '✓ Abschließen'}</button>}
+        {round >= 5 && <button onClick={finish} disabled={saving || micState !== 'idle'} style={{ fontSize: 13, padding: '8px 16px' }}>{saving ? 'Wird gespeichert …' : '✓ Abschließen'}</button>}
       </div>
       <div style={{ padding: '1.25rem 1.5rem' }}>
         <Err msg={err} />
@@ -402,7 +456,9 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
             <Lbl>Frage</Lbl>
             <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 1rem', color: '#292524' }}>{latestQ}</p>
             <button onClick={handleSpeak} disabled={ttsLoading || aiLoading} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              {ttsLoading ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> Lädt …</> : isPlaying ? '⏹ Stoppen' : '🔊 Frage vorlesen'}
+              {ttsLoading
+                ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> Lädt …</>
+                : isPlaying ? '⏹ Stoppen' : '🔊 Nochmal vorlesen'}
             </button>
           </div>
         )}
@@ -410,20 +466,27 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
         {!aiLoading && latestQ && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1.5rem 1rem' }}>
             <div style={{ marginBottom: 14 }}>
-              <button onClick={handleMic} style={{ width:72,height:72,borderRadius:'50%',fontSize:28,display:'inline-flex',alignItems:'center',justifyContent:'center',background:micState==='recording'?'#fee2e2':'#f5f5f4',border:micState==='recording'?'2px solid #ef4444':'1px solid #d6d3d1',color:'#1c1917',animation:micState==='recording'?'lw-mic 1.5s ease-in-out infinite':'none',transition:'all .2s' }} aria-label="Mikrofon">🎙</button>
+              <button
+                onClick={handleMic}
+                disabled={micState === 'processing'}
+                style={{ width:72, height:72, borderRadius:'50%', fontSize:28, display:'inline-flex', alignItems:'center', justifyContent:'center', background:micBg, border:micBorder, color:'#1c1917', animation:micAnim, transition:'all .2s' }}
+                aria-label={micLabel}
+              >{micIcon}</button>
             </div>
-            <div style={{ fontSize:13,fontWeight:500,color:micState==='recording'?'#dc2626':'#78716c',marginBottom:4 }}>
-              {micState === 'recording' ? 'Aufnahme läuft – erneut klicken zum Stoppen' : 'Mikrofon klicken, um zu antworten'}
+            <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
+              {micLabel}
             </div>
-            {(finalText || liveText) && (
-              <div style={{ background:'#fafaf9',border:'1px solid #e7e5e4',borderRadius:8,padding:'10px 14px',marginTop:12,fontSize:14,lineHeight:1.6,textAlign:'left' }}>
-                {finalText}<span style={{ color:'#a8a29e',fontStyle:'italic' }}>{liveText}</span>
+            {transcript && (
+              <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginTop:12, fontSize:14, lineHeight:1.6, textAlign:'left' }}>
+                {transcript}
               </div>
             )}
-            {finalText && micState === 'idle' && <button onClick={sendAnswer} style={{ marginTop:14,width:'100%',padding:12 }}>Antwort senden →</button>}
+            {transcript && micState === 'idle' && (
+              <button onClick={sendAnswer} style={{ marginTop:14, width:'100%', padding:12 }}>Antwort senden →</button>
+            )}
           </div>
         )}
-        {round >= 5 && !aiLoading && <p style={{ fontSize:12,color:'#78716c',textAlign:'center',marginTop:12 }}>Sie können noch mehr erzählen oder das Interview oben abschließen.</p>}
+        {round >= 5 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>Sie können noch mehr erzählen oder das Interview oben abschließen.</p>}
         <div ref={endRef} /><div style={{ height:'2rem' }} />
       </div>
     </div>
