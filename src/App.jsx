@@ -6,8 +6,30 @@ import {
 } from './api.js'
 
 // ── URL params ────────────────────────────────────────────────────
-const urlParams    = new URLSearchParams(window.location.search)
-const codeFromURL  = (urlParams.get('code') || '').toUpperCase().trim()
+const urlParams     = new URLSearchParams(window.location.search)
+const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
+const sessionFromURL = (urlParams.get('session') || '').trim()
+
+// ── Lokale Session-Persistenz (Option 1: localStorage) ────────────
+const SESSION_TTL_DAYS = 60
+function sessionKey(code) { return `lw_session_${code}` }
+function saveLocalSession(code, data) {
+  try { localStorage.setItem(sessionKey(code), JSON.stringify({ ...data, savedAt: Date.now() })) } catch {}
+}
+function loadLocalSession(code) {
+  try {
+    const raw = localStorage.getItem(sessionKey(code))
+    if (!raw) return null
+    const s = JSON.parse(raw)
+    if (!s?.contribId || !s?.savedAt) return null
+    const ageDays = (Date.now() - s.savedAt) / 86400000
+    if (ageDays > SESSION_TTL_DAYS) { localStorage.removeItem(sessionKey(code)); return null }
+    return s
+  } catch { return null }
+}
+function clearLocalSession(code) {
+  try { localStorage.removeItem(sessionKey(code)) } catch {}
+}
 
 // ── Hilfsfunktionen Download ──────────────────────────────────────
 function formatContribution(memorial, c) {
@@ -205,9 +227,9 @@ Beiträge:\n\n${blocks}`
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
-  const [messages,   setMessages]   = useState([])
-  const [round,      setRound]      = useState(0)
+function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initialMessages = [] }) {
+  const [messages,   setMessages]   = useState(initialMessages)
+  const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
   const [aiLoading,  setAiLoading]  = useState(false)
   const [ttsLoading, setTtsLoading] = useState(false)
   const [isPlaying,  setIsPlaying]  = useState(false)
@@ -221,7 +243,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
   const endRef       = useRef(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiLoading])
-  useEffect(() => { loadFirst() }, [])
+  useEffect(() => { if (messages.length === 0) loadFirst() }, [])
 
   // Auto-Start: neue Frage sofort vorlesen
   useEffect(() => {
@@ -334,10 +356,10 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
     finally { setAiLoading(false) }
   }
 
-  function finish() {
+  function pause() {
     stopSpeaking()
     if (mediaRecRef.current?.state === 'recording') mediaRecRef.current.stop()
-    onDone?.()
+    onPause?.()
   }
 
   const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
@@ -357,7 +379,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
           <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship} · 🎙 Sprach-Modus</div>
         </div>
-        <button onClick={finish} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>Ich bin fertig</button>
+        <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>Später fortsetzen oder beenden</button>
       </div>
       <div style={{ padding: '1.25rem 1.5rem' }}>
         <Err msg={err} />
@@ -400,7 +422,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
             )}
           </div>
         )}
-        {round >= 1 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>Ihre Antworten werden automatisch gespeichert. Sie können beliebig lange erzählen oder oben „Ich bin fertig" klicken.</p>}
+        {round >= 1 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>Ihre Antworten werden automatisch gespeichert. Sie können beliebig lange erzählen oder oben „Später fortsetzen oder beenden" klicken.</p>}
         <div ref={endRef} /><div style={{ height:'2rem' }} />
       </div>
     </div>
@@ -478,24 +500,90 @@ function TextInterview({ memorial, contribForm, onDone }) {
   )
 }
 
-// ── Beitragenden-Flow (Aufruf per ?code=XXX) ──────────────────────
+// ── Beitragenden-Flow (Aufruf per ?code=XXX[&session=…]) ──────────
 function ContributorFlow({ code }) {
-  const [view, setView]           = useState('loading') // loading | info | interview | done | error
-  const [memorial, setMemorial]   = useState(null)
-  const [contribForm, setContribForm] = useState({ name:'', gender:'', relationship:'', address:'Sie' })
-  const [err, setErr]             = useState('')
-  const [contribId]               = useState(() => genContribId())
-  const [saveErr, setSaveErr]     = useState('')
-  const saveQueueRef              = useRef(Promise.resolve())
+  const [view, setView]                       = useState('loading') // loading | info | interview | done | error
+  const [memorial, setMemorial]               = useState(null)
+  const [contribForm, setContribForm]         = useState({ name:'', gender:'', relationship:'', address:'Sie' })
+  const [err, setErr]                         = useState('')
+  const [contribId, setContribId]             = useState(() => genContribId())
+  const [initialMessages, setInitialMessages] = useState([])
+  const [resumePrompt, setResumePrompt]       = useState(null)
+  const [paused, setPaused]                   = useState(false)
+  const [copied, setCopied]                   = useState('')
+  const [saveErr, setSaveErr]                 = useState('')
+  const saveQueueRef                          = useRef(Promise.resolve())
 
   useEffect(() => {
     getMemorial(code)
-      .then(m => { setMemorial(m); setView('info') })
+      .then(m => setMemorial(m))
       .catch(e => { setErr(e.message); setView('error') })
   }, [code])
 
+  useEffect(() => {
+    if (!memorial) return
+    if (sessionFromURL) {
+      fetchContribution(code, sessionFromURL).then(contrib => {
+        if (contrib) { restoreFrom(contrib); setView('interview') }
+        else setView('info')
+      })
+      return
+    }
+    const local = loadLocalSession(code)
+    if (local) setResumePrompt(local)
+    else setView('info')
+  }, [memorial])
+
+  async function fetchContribution(memCode, id) {
+    try {
+      const all = await getContributions(memCode)
+      return all.find(c => c.id === id) || null
+    } catch { return null }
+  }
+
+  function restoreFrom(contrib) {
+    const form = {
+      name: contrib.contributor_name || '',
+      gender: contrib.contributor_gender || '',
+      relationship: contrib.relationship || '',
+      address: contrib.contributor_address || 'Sie',
+    }
+    setContribId(contrib.id)
+    setContribForm(form)
+    setInitialMessages(Array.isArray(contrib.messages) ? contrib.messages : [])
+    saveLocalSession(code, { contribId: contrib.id, contribForm: form })
+  }
+
+  async function resumeLocal() {
+    if (!resumePrompt) return
+    const local = resumePrompt
+    setResumePrompt(null); setView('loading')
+    const contrib = await fetchContribution(code, local.contribId)
+    if (contrib) { restoreFrom(contrib); setView('interview') }
+    else {
+      setContribId(local.contribId)
+      if (local.contribForm) setContribForm({ ...contribForm, ...local.contribForm })
+      setView('info')
+    }
+  }
+
+  function startFresh() {
+    clearLocalSession(code)
+    setResumePrompt(null)
+    setContribId(genContribId())
+    setInitialMessages([])
+    setContribForm({ name:'', gender:'', relationship:'', address:'Sie' })
+    setView('info')
+  }
+
+  function startInterview() {
+    saveLocalSession(code, { contribId, contribForm })
+    setView('interview')
+  }
+
   function saveProgress(messages) {
     if (!messages || messages.length === 0) return
+    saveLocalSession(code, { contribId, contribForm })
     saveQueueRef.current = saveQueueRef.current.then(async () => {
       try {
         await addContribution({
@@ -508,97 +596,174 @@ function ContributorFlow({ code }) {
           contributorAddress: contribForm.address || null,
         })
         setSaveErr('')
-      } catch (e) {
-        setSaveErr(e.message)
-      }
+      } catch (e) { setSaveErr(e.message) }
     })
   }
 
+  function handlePause() { setPaused(true) }
+  function handleResume() { setPaused(false) }
   function handleDone() {
-    setView('done')
+    clearLocalSession(code)
+    setPaused(false); setView('done')
   }
 
-  if (view === 'loading') return (
-    <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}><Dots /></div>
-  )
-  if (view === 'error') return (
-    <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-      <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Gedenkbuch nicht gefunden</h2>
-      <p style={S.muted}>{err}</p>
-    </div>
-  )
-  if (view === 'info') return (
-    <div style={{ ...S.page, paddingTop:'2rem' }}>
-      <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Ihre Erinnerung</h2>
-      <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
-        Gedenkbuch für <strong>{memorial?.name}</strong>
-      </p>
-      <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
-      <div style={{ marginBottom:14 }}>
-        <Lbl>Ihr Geschlecht *</Lbl>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-          {GENDERS.map(g => (
-            <div
-              key={g.value}
-              onClick={() => setContribForm({ ...contribForm, gender: g.value })}
-              style={{
-                ...S.card,
-                cursor:'pointer',
-                textAlign:'center',
-                padding:'12px 8px',
-                borderColor: contribForm.gender === g.value ? '#1c1917' : '#e7e5e4',
-                borderWidth: contribForm.gender === g.value ? 2 : 1,
-                fontSize: 14,
-                fontWeight: contribForm.gender === g.value ? 600 : 400,
-              }}
-            >
-              {g.label}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{ marginBottom:14 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
-      <div style={{ marginBottom:24 }}>
-        <Lbl>Wie möchten Sie angesprochen werden? *</Lbl>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          {[
-            { v:'Du',  title:'Du',  sub:'Informell, vertraut' },
-            { v:'Sie', title:'Sie', sub:'Förmlich, respektvoll' },
-          ].map(o => (
-            <div
-              key={o.v}
-              onClick={() => setContribForm({ ...contribForm, address: o.v })}
-              style={{
-                ...S.card,
-                cursor:'pointer',
-                textAlign:'center',
-                padding:'14px 10px',
-                borderColor: contribForm.address === o.v ? '#1c1917' : '#e7e5e4',
-                borderWidth: contribForm.address === o.v ? 2 : 1,
-              }}
-            >
-              <div style={{ fontWeight:600, fontSize:15 }}>{o.title}</div>
-              <div style={{ fontSize:12, color:'#78716c', marginTop:4 }}>{o.sub}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
-        🎙 Sprach-Interview beginnen →
-      </button>
-    </div>
-  )
-  if (view === 'interview') {
-    return <VoiceInterview memorial={memorial} contribForm={contribForm} onSave={saveProgress} onDone={handleDone} saveErr={saveErr} />
+  const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
+
+  function copyResumeUrl() {
+    navigator.clipboard.writeText(resumeUrl)
+    setCopied('link'); setTimeout(() => setCopied(''), 2000)
   }
-  if (view === 'done') return (
-    <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-      <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
-      <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Herzlichen Dank</h2>
-      <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihre Erinnerungen sind jetzt Teil des gemeinsamen Gedenkbuchs und werden für immer bewahrt.</p>
-    </div>
+  function mailResumeUrl() {
+    const subject = encodeURIComponent(`Mein Beitrag zum Gedenkbuch${memorial ? ' für ' + memorial.name : ''}`)
+    const body = encodeURIComponent(
+`Mit diesem persönlichen Link kann ich meinen Beitrag zum Gedenkbuch${memorial ? ' für ' + memorial.name : ''} später fortsetzen:
+
+${resumeUrl}
+
+(Bitte nicht weitergeben — der Link führt direkt zu meinem persönlichen Beitrag.)`)
+    window.location.href = `mailto:?subject=${subject}&body=${body}`
+  }
+
+  return (
+    <>
+      {view === 'loading' && (
+        <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}><Dots /></div>
+      )}
+
+      {view === 'error' && (
+        <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
+          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Gedenkbuch nicht gefunden</h2>
+          <p style={S.muted}>{err}</p>
+        </div>
+      )}
+
+      {view === 'info' && (
+        <div style={{ ...S.page, paddingTop:'2rem' }}>
+          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Ihre Erinnerung</h2>
+          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
+            Gedenkbuch für <strong>{memorial?.name}</strong>
+          </p>
+          <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
+          <div style={{ marginBottom:14 }}>
+            <Lbl>Ihr Geschlecht *</Lbl>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+              {GENDERS.map(g => (
+                <div
+                  key={g.value}
+                  onClick={() => setContribForm({ ...contribForm, gender: g.value })}
+                  style={{
+                    ...S.card,
+                    cursor:'pointer',
+                    textAlign:'center',
+                    padding:'12px 8px',
+                    borderColor: contribForm.gender === g.value ? '#1c1917' : '#e7e5e4',
+                    borderWidth: contribForm.gender === g.value ? 2 : 1,
+                    fontSize: 14,
+                    fontWeight: contribForm.gender === g.value ? 600 : 400,
+                  }}
+                >
+                  {g.label}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom:14 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
+          <div style={{ marginBottom:24 }}>
+            <Lbl>Wie möchten Sie angesprochen werden? *</Lbl>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              {[
+                { v:'Du',  title:'Du',  sub:'Informell, vertraut' },
+                { v:'Sie', title:'Sie', sub:'Förmlich, respektvoll' },
+              ].map(o => (
+                <div
+                  key={o.v}
+                  onClick={() => setContribForm({ ...contribForm, address: o.v })}
+                  style={{
+                    ...S.card,
+                    cursor:'pointer',
+                    textAlign:'center',
+                    padding:'14px 10px',
+                    borderColor: contribForm.address === o.v ? '#1c1917' : '#e7e5e4',
+                    borderWidth: contribForm.address === o.v ? 2 : 1,
+                  }}
+                >
+                  <div style={{ fontWeight:600, fontSize:15 }}>{o.title}</div>
+                  <div style={{ fontSize:12, color:'#78716c', marginTop:4 }}>{o.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
+            🎙 Sprach-Interview beginnen →
+          </button>
+        </div>
+      )}
+
+      {view === 'interview' && memorial && (
+        <VoiceInterview
+          memorial={memorial}
+          contribForm={contribForm}
+          onSave={saveProgress}
+          onPause={handlePause}
+          saveErr={saveErr}
+          initialMessages={initialMessages}
+        />
+      )}
+
+      {view === 'done' && (
+        <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
+          <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
+          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Herzlichen Dank</h2>
+          <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihre Erinnerungen sind jetzt Teil des gemeinsamen Gedenkbuchs und werden für immer bewahrt.</p>
+        </div>
+      )}
+
+      {/* Overlay: localStorage-Fortsetzung anbieten */}
+      {resumePrompt && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem' }}>
+          <div style={{ ...S.card, maxWidth: 460, width:'100%' }}>
+            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>Sie haben einen begonnenen Beitrag</h2>
+            <p style={{ ...S.muted, marginBottom:18 }}>
+              Letzte Aktivität: {new Date(resumePrompt.savedAt).toLocaleString('de-DE')}.<br />
+              Möchten Sie dort fortfahren, wo Sie aufgehört haben, oder neu beginnen?
+            </p>
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+              <button onClick={resumeLocal} style={{ fontSize:14, padding:'10px 16px' }}>↻ Fortsetzen</button>
+              <button className="secondary" onClick={startFresh} style={{ fontSize:14, padding:'10px 16px' }}>Neu beginnen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overlay: Später fortsetzen oder beenden */}
+      {paused && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+          <div style={{ ...S.card, maxWidth: 520, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
+            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>Später fortsetzen oder jetzt beenden?</h2>
+            <p style={{ ...S.muted, marginBottom:14 }}>
+              Ihre bisherigen Antworten sind bereits gespeichert. Sie können später jederzeit zurückkommen — auf zwei Wegen:
+            </p>
+            <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:10, padding:'12px 14px', marginBottom:12, fontSize:13, lineHeight:1.6 }}>
+              <strong>1. Einfach denselben Einladungslink wieder öffnen.</strong><br />
+              Ihr Browser merkt sich Ihre Session automatisch und bietet beim nächsten Aufruf an, dort weiterzumachen.
+            </div>
+            <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:10, padding:'12px 14px', marginBottom:14, fontSize:13, lineHeight:1.6 }}>
+              <strong>2. Optional:</strong> Sichern Sie sich zusätzlich diesen persönlichen Wiederaufnahme-Link — falls Sie das Gerät wechseln oder Browser-Daten gelöscht werden:
+              <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:8, padding:'8px 10px', marginTop:10, fontFamily:'monospace', fontSize:12, wordBreak:'break-all', color:'#44403c' }}>{resumeUrl}</div>
+              <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                <button className="secondary" onClick={copyResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>{copied === 'link' ? '✓ Kopiert' : '📋 Link kopieren'}</button>
+                <button className="secondary" onClick={mailResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>✉ Per Mail schicken</button>
+              </div>
+            </div>
+            <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:14, display:'flex', gap:10, flexWrap:'wrap', justifyContent:'space-between' }}>
+              <button className="ghost" onClick={handleResume} style={{ fontSize:14 }}>← Weiter sprechen</button>
+              <button onClick={handleDone} style={{ fontSize:14, padding:'10px 18px' }}>✓ Beitrag jetzt beenden</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
-  return null
 }
 
 // ── Admin-Dashboard (Standard-Eingang der Seite) ──────────────────
