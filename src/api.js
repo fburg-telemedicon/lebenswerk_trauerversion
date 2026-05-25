@@ -1,11 +1,11 @@
 // src/api.js – zentraler API-Client für das Frontend
 
 // ── Gedenkbuch ────────────────────────────────────────────────────
-export async function createMemorial({ name, organizer, gender, bookVariant, funeralDate }) {
+export async function createMemorial({ name, organizer, gender, bookVariant, funeralDate, cutoffDays }) {
   const res = await fetch('/api/memorial', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays }),
   })
   const d = await res.json()
   if (!res.ok) throw new Error(d.error)

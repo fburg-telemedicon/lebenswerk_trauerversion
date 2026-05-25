@@ -196,11 +196,21 @@ function qrCodeUrl(text, size = 240) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
 }
 
-function cutoffString(funeralDate) {
-  if (!funeralDate) return '—'
+function cutoffDays(memorial) {
+  const n = parseInt(memorial?.cutoff_days, 10)
+  return Number.isFinite(n) && n >= 0 ? n : 7
+}
+
+function cutoffDate(funeralDate, days) {
+  if (!funeralDate) return null
   const d = new Date(funeralDate)
-  d.setDate(d.getDate() - 7)
-  return d.toLocaleDateString('de-DE')
+  d.setDate(d.getDate() - (Number.isFinite(days) ? days : 7))
+  return d
+}
+
+function cutoffString(funeralDate, days = 7) {
+  const d = cutoffDate(funeralDate, days)
+  return d ? d.toLocaleDateString('de-DE') : '—'
 }
 
 function formatEur(n) {
@@ -550,13 +560,12 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
         <Err msg={err} />
         {saveErr && <div style={{ ...S.err }}>⚠ Speichern: {saveErr}</div>}
         {memorial.funeral_date && (() => {
-          const d = new Date(memorial.funeral_date)
-          d.setDate(d.getDate() - 7)
-          return (
+          const d = cutoffDate(memorial.funeral_date, cutoffDays(memorial))
+          return d ? (
             <div style={{ background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#78350f', marginBottom:14, lineHeight:1.55 }}>
               ℹ Eingaben bis zum <strong>{d.toLocaleDateString('de-DE')}</strong> werden berücksichtigt.
             </div>
-          )
+          ) : null
         })()}
         {messages.slice(0, -1).map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
@@ -957,7 +966,7 @@ function Dashboard() {
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
   const [selectedContrib, setSelectedContrib] = useState(null)
-  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '' })
+  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7 })
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1042,6 +1051,7 @@ function Dashboard() {
         gender: createForm.gender || null,
         bookVariant: createForm.bookVariant,
         funeralDate: createForm.funeralDate || null,
+        cutoffDays: createForm.cutoffDays,
       })
       setCreatedCode(code)
       setView('created')
@@ -1244,7 +1254,7 @@ function Dashboard() {
       <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Gedenkbücher</h2>
-          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '' }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
+          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7 }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
             + Neues Gedenkbuch
           </button>
         </div>
@@ -1274,7 +1284,7 @@ function Dashboard() {
                     <td style={{ ...col, fontWeight: 600, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.name}</td>
                     <td style={{ ...col, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.organizer}</td>
                     <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
-                    <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date)}</td>
+                    <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
                     <td style={{ ...col, color: '#1c1917', fontWeight:500, cursor:'pointer', textAlign:'right', whiteSpace:'nowrap' }} title="Aufschlüsselung anzeigen" onClick={() => openCosts(m)}>{formatEur(m.cost_total_eur)}</td>
                     <td style={{ ...col, textAlign:'right' }}>
                       <button
@@ -1343,7 +1353,25 @@ function Dashboard() {
         <div style={{ marginBottom: 14 }}>
           <Lbl>Geplantes Datum der Bestattung</Lbl>
           <input type="date" value={createForm.funeralDate} onChange={e => setCreateForm({ ...createForm, funeralDate: e.target.value })} />
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Beiträge bis sieben Tage vor diesem Datum fließen in das Gedenkbuch ein.</p>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Tage vor der Bestattung, bis zu denen Beiträge erfasst werden</Lbl>
+          <input
+            type="number"
+            min={0}
+            max={90}
+            step={1}
+            value={createForm.cutoffDays}
+            onChange={e => {
+              const v = e.target.value
+              setCreateForm({ ...createForm, cutoffDays: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) })
+            }}
+          />
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+            {createForm.funeralDate && Number.isFinite(parseInt(createForm.cutoffDays, 10))
+              ? <>Beiträge fließen bis zum <strong>{cutoffString(createForm.funeralDate, parseInt(createForm.cutoffDays, 10))}</strong> ein.</>
+              : <>Standard sind 7 Tage. Bei 0 endet die Erfassung am Bestattungstag selbst.</>}
+          </p>
         </div>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Buch-Variante *</Lbl>
@@ -1455,7 +1483,7 @@ function Dashboard() {
             {selected.gender ? ` · ${selected.gender}` : ''}
             {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
             {selected.funeral_date ? ` · Bestattung: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
-            {selected.funeral_date ? ` · Erfassung bis: ${cutoffString(selected.funeral_date)}` : ''}
+            {selected.funeral_date ? ` · Erfassung bis: ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : ''}
           </p>
 
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
