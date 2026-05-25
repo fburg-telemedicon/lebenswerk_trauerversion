@@ -369,9 +369,7 @@ function ContributorFlow({ code }) {
   const [view, setView]           = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]   = useState(null)
   const [contribForm, setContribForm] = useState({ name:'', relationship:'' })
-  const [mode, setMode]           = useState('text')
   const [err, setErr]             = useState('')
-  const hasSTT = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
   useEffect(() => {
     getMemorial(code)
@@ -401,26 +399,13 @@ function ContributorFlow({ code }) {
       </p>
       <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
       <div style={{ marginBottom:24 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
-      <div style={S.divider} />
-      <Lbl>Wie möchten Sie antworten?</Lbl>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:24 }}>
-        {[{m:'text',icon:'⌨️',title:'Tippen',sub:'Antworten eintippen'},{m:'voice',icon:'🎙',title:'Sprechen',sub:hasSTT?'KI-Stimme + Mikrofon':'Nur Chrome / Edge'}].map(({m,icon,title,sub})=>(
-          <div key={m} onClick={()=>setMode(m)} style={{ ...S.card, cursor:'pointer', textAlign:'center', padding:'1rem', borderColor:mode===m?'#1c1917':'#e7e5e4', borderWidth:mode===m?2:1 }}>
-            <div style={{ fontSize:26, marginBottom:6 }}>{icon}</div>
-            <div style={{ fontWeight:600, fontSize:14 }}>{title}</div>
-            <div style={{ fontSize:12, color:'#78716c', marginTop:4 }}>{sub}</div>
-          </div>
-        ))}
-      </div>
       <button disabled={!contribForm.name||!contribForm.relationship} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
-        {mode==='voice'?'🎙 Sprach-Interview beginnen →':'Interview beginnen →'}
+        🎙 Sprach-Interview beginnen →
       </button>
     </div>
   )
   if (view === 'interview') {
-    return mode === 'voice'
-      ? <VoiceInterview memorial={memorial} contribForm={contribForm} onDone={handleDone} />
-      : <TextInterview  memorial={memorial} contribForm={contribForm} onDone={handleDone} />
+    return <VoiceInterview memorial={memorial} contribForm={contribForm} onDone={handleDone} />
   }
   if (view === 'done') return (
     <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
@@ -659,10 +644,6 @@ function Dashboard() {
           <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Vollständiger Name" />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <Lbl>Ihr Name (Organisator) *</Lbl>
-          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
-        </div>
-        <div style={{ marginBottom: 24 }}>
           <Lbl>Geschlecht der verstorbenen Person *</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
             {GENDERS.map(g => (
@@ -684,6 +665,10 @@ function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Ihr Name (Organisator) *</Lbl>
+          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
         </div>
         <button
           disabled={!createForm.name || !createForm.organizer || !createForm.gender || busy}
