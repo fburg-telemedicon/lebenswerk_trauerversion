@@ -37,7 +37,6 @@ module.exports = async function handler(req, res) {
         size: '1792x1024',
         quality: 'hd',
         n: 1,
-        response_format: 'b64_json',
       }),
     })
     if (!dalleResp.ok) {
@@ -52,10 +51,21 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${msg}` })
     }
     const dalleData = await dalleResp.json()
-    const b64 = dalleData?.data?.[0]?.b64_json
-    if (!b64) return res.status(502).json({ error: 'Keine Bilddaten von OpenAI erhalten.' })
-
-    const buffer = Buffer.from(b64, 'base64')
+    const item = dalleData?.data?.[0]
+    let buffer = null
+    if (item?.b64_json) {
+      buffer = Buffer.from(item.b64_json, 'base64')
+    } else if (item?.url) {
+      const imgResp = await fetch(item.url)
+      if (!imgResp.ok) {
+        console.error('Bild-Download fehlgeschlagen:', imgResp.status)
+        return res.status(502).json({ error: `Bild-Download fehlgeschlagen: HTTP ${imgResp.status}` })
+      }
+      buffer = Buffer.from(await imgResp.arrayBuffer())
+    } else {
+      console.error('OpenAI lieferte weder b64_json noch url:', JSON.stringify(dalleData).slice(0, 500))
+      return res.status(502).json({ error: 'Keine Bilddaten von OpenAI erhalten.' })
+    }
     const code = String(memorialCode).toUpperCase().trim()
     const storagePath = `${code}/${crypto.randomUUID()}.png`
 
