@@ -575,12 +575,19 @@ function ContributorFlow({ code }) {
     const local = resumePrompt
     setResumePrompt(null); setView('loading')
     const contrib = await fetchContribution(code, local.contribId)
-    if (contrib) { restoreFrom(contrib); setView('interview') }
-    else {
-      setContribId(local.contribId)
-      if (local.contribForm) setContribForm({ ...contribForm, ...local.contribForm })
-      setView('info')
+    if (contrib) {
+      restoreFrom(contrib)
+      setView('interview')
+      return
     }
+    // Kein DB-Eintrag (noch keine Antwort gespeichert). Wenn das Formular in
+    // localStorage komplett ist, direkt ins Interview springen — sonst Info-Form.
+    const form = local.contribForm
+    const complete = form && form.name && form.gender && form.relationship && form.address
+    setContribId(local.contribId)
+    if (form) setContribForm({ ...contribForm, ...form })
+    setInitialMessages([])
+    setView(complete ? 'interview' : 'info')
   }
 
   function startFresh() {
@@ -1006,7 +1013,7 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Organisator', 'Geschlecht', 'Variante', 'Erfassung bis', ''].map(h => (
+                  {['Name', 'Organisator', 'Variante', 'Erfassung bis', ''].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -1019,7 +1026,6 @@ function Dashboard() {
                     onMouseLeave={e => e.currentTarget.style.background = ''}>
                     <td style={{ ...col, fontWeight: 600, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.name}</td>
                     <td style={{ ...col, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.organizer}</td>
-                    <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.gender || '—'}</td>
                     <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
                     <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date)}</td>
                     <td style={{ ...col, textAlign:'right' }}>
