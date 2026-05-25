@@ -1041,17 +1041,13 @@ function Dashboard() {
   }
 
   async function openMemorial(memorial) {
-    setSelected(memorial); setLoading(true); setCostData(null); setErr('')
+    setSelected(memorial); setLoading(true); setErr('')
     try {
-      const [contribsRes, costs] = await Promise.all([
-        fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } }),
-        getMemorialCosts(token, memorial.id).catch(() => null),
-      ])
+      const contribsRes = await fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } })
       if (contribsRes.status === 401) { logout(); return }
       const d = await contribsRes.json()
       if (!contribsRes.ok) throw new Error(d.error)
       setContribs(d)
-      if (costs) setCostData(costs)
       setView('detail')
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
@@ -1061,15 +1057,11 @@ function Dashboard() {
     if (!selected) return
     setLoading(true); setErr('')
     try {
-      const [cRes, costs] = await Promise.all([
-        fetch(`/api/admin/contributions?code=${selected.id}`, { headers: { Authorization: `Bearer ${token}` } }),
-        getMemorialCosts(token, selected.id).catch(() => null),
-      ])
+      const cRes = await fetch(`/api/admin/contributions?code=${selected.id}`, { headers: { Authorization: `Bearer ${token}` } })
       if (cRes.status === 401) { logout(); return }
       const d = await cRes.json()
       if (!cRes.ok) throw new Error(d.error)
       setContribs(d)
-      if (costs) setCostData(costs)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -1544,9 +1536,6 @@ function Dashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button className="secondary" onClick={() => openCosts(selected)} style={{ fontSize: 13, padding: '8px 14px' }}>
-              💶 Kosten
-            </button>
             <button className="secondary" onClick={reloadContributions} disabled={loading} style={{ fontSize: 13, padding: '8px 14px' }}>
               {loading ? '…' : '↻ Aktualisieren'}
             </button>
@@ -1675,55 +1664,6 @@ function Dashboard() {
               })}
             </div>
           </>)}
-
-          {(() => {
-            const detailKinds = costData?.byKind ? Object.entries(costData.byKind).sort((a, b) => b[1].cost_eur - a[1].cost_eur) : []
-            return (
-              <>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'.75rem' }}>
-                  <h3 style={{ fontSize:16, fontWeight:600 }}>Kosten – Aufschlüsselung nach Kategorie</h3>
-                  {costData && (
-                    <div style={{ fontSize:13, color:'#78716c' }}>
-                      Gesamt: <span style={{ fontWeight:600, color:'#1c1917' }}>{formatEur(costData.total_eur)}</span>
-                      <button className="ghost" onClick={() => openCosts(selected)} style={{ fontSize:12, padding:'4px 8px', marginLeft:10 }}>Details →</button>
-                    </div>
-                  )}
-                </div>
-                {!costData ? (
-                  <p style={S.muted}>Kosten werden geladen …</p>
-                ) : detailKinds.length === 0 ? (
-                  <p style={S.muted}>Noch keine Kosten erfasst.</p>
-                ) : (
-                  <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, overflow:'hidden', marginBottom:'1.5rem' }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                      <thead>
-                        <tr>
-                          {['Kategorie', 'Calls', 'Mengen', 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detailKinds.map(([k, agg]) => {
-                          const units = []
-                          if (agg.input_tokens || agg.output_tokens) units.push(`${agg.input_tokens.toLocaleString('de-DE')} in / ${agg.output_tokens.toLocaleString('de-DE')} out Tokens`)
-                          if (agg.characters)    units.push(`${agg.characters.toLocaleString('de-DE')} Zeichen`)
-                          if (agg.audio_seconds) units.push(`${Math.round(agg.audio_seconds)} Sek. Audio`)
-                          if (agg.images)        units.push(`${agg.images} Bild${agg.images > 1 ? 'er' : ''}`)
-                          return (
-                            <tr key={k}>
-                              <td style={{ ...col, fontWeight:500 }}>{costKindLabel(k)}</td>
-                              <td style={{ ...col, color:'#78716c' }}>{agg.count}</td>
-                              <td style={{ ...col, color:'#78716c', fontSize:13 }}>{units.join(' · ') || '—'}</td>
-                              <td style={{ ...col, textAlign:'right', fontWeight:600, whiteSpace:'nowrap' }}>{formatEur(agg.cost_eur)}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )
-          })()}
 
           <div style={S.divider} />
           <button
