@@ -121,6 +121,29 @@ Schreibe ein zusammenhängendes Gedenkkapitel "in einem Guss" – wie ein Kapite
 Beiträge:\n\n${blocks}`
 }
 
+function eulogySystem(memorial, contributions) {
+  const blocks = contributions.map(c => {
+    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
+    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
+  }).join('\n\n')
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein erfahrener Trauerredner. Verfasse eine persönliche, würdevolle Trauerrede über ${memorial.name}${g}, basierend auf den Erinnerungen von ${contributions.length} nahestehenden Menschen.
+
+Die Rede wird laut auf einer Trauerfeier vorgelesen.
+
+Anforderungen:
+- Sprich die Trauergemeinde direkt an („Liebe Trauergemeinde, …")
+- Würdevoll, warm, persönlich — kein religiöser Standardtext, sondern auf diesen konkreten Menschen zugeschnitten
+- Webe konkrete Erinnerungen und Geschichten ein, ohne die Quellen einzeln zu nennen
+- Zeichne ein vielschichtiges, lebensnahes Bild
+- Struktur: Hinführung · Wer war ${memorial.name}? · Geschichten und Wesenszüge · Abschluss/Verabschiedung
+- 400–700 Wörter, Absätze klar voneinander getrennt
+- Ton: gesprochene Sprache, gut zum Vorlesen geeignet — kurze Sätze sind willkommen
+- Direkt mit dem Redetext beginnen, kein Titel und keine Metakommentare
+
+Beiträge:\n\n${blocks}`
+}
+
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
   const [messages,   setMessages]   = useState([])
@@ -532,6 +555,8 @@ function Dashboard() {
   const [createdCode, setCreatedCode] = useState('')
   const [bookText, setBookText]       = useState('')
   const [bookLoading, setBookLoading] = useState(false)
+  const [eulogyText, setEulogyText]   = useState('')
+  const [eulogyLoading, setEulogyLoading] = useState(false)
   const [loading, setLoading]         = useState(false)
   const [busy, setBusy]               = useState(false)
   const [deletingId, setDeletingId]   = useState('')
@@ -665,6 +690,15 @@ function Dashboard() {
       setBookText(text)
     } catch (e) { setBookText(`Fehler: ${e.message}`) }
     finally { setBookLoading(false) }
+  }
+
+  async function generateEulogy() {
+    setEulogyText(''); setEulogyLoading(true); setView('eulogy')
+    try {
+      const text = await askClaude(eulogySystem(selected, contributions), [{ role:'user', content:'Schreibe jetzt die Trauerrede.' }])
+      setEulogyText(text)
+    } catch (e) { setEulogyText(`Fehler: ${e.message}`) }
+    finally { setEulogyLoading(false) }
   }
 
   const col = { padding: '11px 14px', textAlign: 'left', borderBottom: '1px solid #e7e5e4', fontSize: 14 }
@@ -991,6 +1025,7 @@ function Dashboard() {
               {[
                 { icon:'📄', title:'Version 1 – Einzelne Beiträge', sub:'Jede Person als eigenes Kapitel.', action:() => setView('book-v1') },
                 { icon:'✨', title:'Version 2 – Buch in einem Guss', sub:'KI webt alle Erinnerungen zu einem literarischen Text.', action: generateV2 },
+                { icon:'🕯', title:'Trauerrede', sub:'KI verfasst eine persönliche Rede aus allen Beiträgen, zum Vorlesen auf der Trauerfeier.', action: generateEulogy },
               ].map(({ icon, title, sub, action }) => (
                 <div key={title} style={{ ...S.card, cursor:'pointer' }} onClick={action}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -1144,6 +1179,35 @@ function Dashboard() {
         ) : (
           <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
             {bookText.split('\n\n').filter(Boolean).map((p, i) => <p key={i} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // ── TRAUERREDE ──
+  if (view === 'eulogy') return (
+    <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
+      <Back onClick={() => setView('detail')} />
+      <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
+        <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Trauerrede</p>
+        <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
+      </div>
+      <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
+        {eulogyLoading ? (
+          <div style={{ textAlign:'center', padding:'3rem 0' }}>
+            <Dots />
+            <p style={{ ...S.muted, marginTop:16 }}>Die KI verfasst die Trauerrede …</p>
+          </div>
+        ) : (
+          <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+            {eulogyText.split('\n\n').filter(Boolean).map((p, i) => <p key={i} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
+          </div>
+        )}
+        {!eulogyLoading && eulogyText && !eulogyText.startsWith('Fehler:') && (
+          <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10 }}>
+            <button onClick={() => downloadFile(`Trauerrede_${safeName(selected.name)}.txt`, eulogyText)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
+            <button className="secondary" onClick={generateEulogy} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
       </div>
