@@ -42,6 +42,11 @@ function downloadFile(filename, content) {
 
 function safeName(s) { return s.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').trim().replace(/\s+/g, '_') }
 
+function genContribId() {
+  const a = 'abcdefghjkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 14 }, () => a[Math.floor(Math.random() * a.length)]).join('')
+}
+
 const GENDERS = [
   { value: 'männlich', label: 'Männlich' },
   { value: 'weiblich', label: 'Weiblich' },
@@ -110,7 +115,7 @@ Beiträge:\n\n${blocks}`
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, onDone }) {
+function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
   const [messages,   setMessages]   = useState([])
   const [round,      setRound]      = useState(0)
   const [aiLoading,  setAiLoading]  = useState(false)
@@ -120,7 +125,6 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
   const [micState,   setMicState]   = useState('idle')
   const [transcript, setTranscript] = useState('')
   const [err,        setErr]        = useState('')
-  const [saving,     setSaving]     = useState(false)
   const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
   const chunksRef    = useRef([])
@@ -228,19 +232,22 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
     setTranscript(''); stopSpeaking(); setIsPlaying(false)
     const newMsgs = [...messages, { role: 'user', content: text }]
     setMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
+    // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
+    onSave?.(newMsgs)
     try {
       const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs])
-      setMessages([...newMsgs, { role: 'assistant', content: reply }])
+      const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
+      setMessages(finalMsgs)
+      onSave?.(finalMsgs)
     } catch (e) { setErr(e.message) }
     finally { setAiLoading(false) }
   }
 
-  async function finish() {
+  function finish() {
     stopSpeaking()
     if (mediaRecRef.current?.state === 'recording') mediaRecRef.current.stop()
-    setSaving(true)
-    try { await onDone(messages) } catch (e) { setErr(e.message); setSaving(false) }
+    onDone?.()
   }
 
   const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
@@ -260,10 +267,11 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
           <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship} · 🎙 Sprach-Modus</div>
         </div>
-        {round >= 5 && <button onClick={finish} disabled={saving || micState !== 'idle'} style={{ fontSize: 13, padding: '8px 16px' }}>{saving ? 'Wird gespeichert …' : '✓ Abschließen'}</button>}
+        <button onClick={finish} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>Ich bin fertig</button>
       </div>
       <div style={{ padding: '1.25rem 1.5rem' }}>
         <Err msg={err} />
+        {saveErr && <div style={{ ...S.err }}>⚠ Speichern: {saveErr}</div>}
         {messages.slice(0, -1).map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
             <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
@@ -302,7 +310,7 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
             )}
           </div>
         )}
-        {round >= 5 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>Sie können noch mehr erzählen oder das Interview oben abschließen.</p>}
+        {round >= 1 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>Ihre Antworten werden automatisch gespeichert. Sie können beliebig lange erzählen oder oben „Ich bin fertig" klicken.</p>}
         <div ref={endRef} /><div style={{ height:'2rem' }} />
       </div>
     </div>
@@ -386,6 +394,9 @@ function ContributorFlow({ code }) {
   const [memorial, setMemorial]   = useState(null)
   const [contribForm, setContribForm] = useState({ name:'', relationship:'' })
   const [err, setErr]             = useState('')
+  const [contribId]               = useState(() => genContribId())
+  const [saveErr, setSaveErr]     = useState('')
+  const saveQueueRef              = useRef(Promise.resolve())
 
   useEffect(() => {
     getMemorial(code)
@@ -393,8 +404,25 @@ function ContributorFlow({ code }) {
       .catch(e => { setErr(e.message); setView('error') })
   }, [code])
 
-  async function handleDone(messages) {
-    await addContribution({ memorialCode: code, contributorName: contribForm.name, relationship: contribForm.relationship, messages })
+  function saveProgress(messages) {
+    if (!messages || messages.length === 0) return
+    saveQueueRef.current = saveQueueRef.current.then(async () => {
+      try {
+        await addContribution({
+          contributionId: contribId,
+          memorialCode: code,
+          contributorName: contribForm.name,
+          relationship: contribForm.relationship,
+          messages,
+        })
+        setSaveErr('')
+      } catch (e) {
+        setSaveErr(e.message)
+      }
+    })
+  }
+
+  function handleDone() {
     setView('done')
   }
 
@@ -421,7 +449,7 @@ function ContributorFlow({ code }) {
     </div>
   )
   if (view === 'interview') {
-    return <VoiceInterview memorial={memorial} contribForm={contribForm} onDone={handleDone} />
+    return <VoiceInterview memorial={memorial} contribForm={contribForm} onSave={saveProgress} onDone={handleDone} saveErr={saveErr} />
   }
   if (view === 'done') return (
     <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>

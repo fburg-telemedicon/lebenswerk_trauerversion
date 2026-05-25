@@ -33,18 +33,18 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { memorialCode, contributorName, relationship, messages } = req.body
-      if (!memorialCode || !contributorName || !relationship || !messages) {
+      const { contributionId, memorialCode, contributorName, relationship, messages } = req.body
+      if (!memorialCode || !contributorName || !relationship || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'Pflichtfelder fehlen.' })
       }
-      const id = genCode()
-      const { error } = await supabase.from('contributions').insert({
+      const id = (contributionId && String(contributionId).trim()) || genCode()
+      const { error } = await supabase.from('contributions').upsert({
         id,
         memorial_id: memorialCode.toUpperCase(),
         contributor_name: contributorName,
         relationship,
         messages,
-      })
+      }, { onConflict: 'id' })
       if (error) throw error
       return res.json({ id })
     }
