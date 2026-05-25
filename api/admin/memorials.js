@@ -7,10 +7,44 @@ const { createClient } = require('@supabase/supabase-js')
 const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'lebenswerk-admin-secret'
 
+const IMAGE_BUCKET   = 'memorial-images'
+const SIGNED_URL_TTL = 3600 // 1 h
+
 function checkAuth(req, res) {
   const token = (req.headers.authorization || '').replace('Bearer ', '')
   if (token !== ADMIN_TOKEN) { res.status(401).json({ error: 'Nicht autorisiert.' }); return false }
   return true
+}
+
+function collectImagePaths(book) {
+  if (!book?.chapters) return []
+  return book.chapters.map(c => c?.image_path).filter(Boolean)
+}
+
+function applySignedUrls(book, urlMap) {
+  if (!book?.chapters) return
+  for (const ch of book.chapters) {
+    if (ch?.image_path && urlMap[ch.image_path]) ch.image_url = urlMap[ch.image_path]
+  }
+}
+
+async function signMemorialImages(memorials) {
+  const paths = new Set()
+  for (const m of memorials) {
+    collectImagePaths(m.book_v1).forEach(p => paths.add(p))
+    collectImagePaths(m.book_v2).forEach(p => paths.add(p))
+  }
+  if (paths.size === 0) return
+  const { data, error } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls([...paths], SIGNED_URL_TTL)
+  if (error || !Array.isArray(data)) return
+  const urlMap = {}
+  for (const entry of data) {
+    if (entry?.path && entry?.signedUrl) urlMap[entry.path] = entry.signedUrl
+  }
+  for (const m of memorials) {
+    applySignedUrls(m.book_v1, urlMap)
+    applySignedUrls(m.book_v2, urlMap)
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -22,7 +56,9 @@ module.exports = async function handler(req, res) {
         .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
-      return res.json(data || [])
+      const memorials = data || []
+      await signMemorialImages(memorials)
+      return res.json(memorials)
     }
 
     if (req.method === 'DELETE') {

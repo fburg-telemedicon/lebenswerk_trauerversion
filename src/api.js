@@ -33,6 +33,17 @@ export async function adminSaveMemorialText(token, code, field, text) {
   return d
 }
 
+export async function adminGenerateImage(token, memorialCode, prompt) {
+  const res = await fetch('/api/admin/generate-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ memorialCode, prompt }),
+  })
+  const d = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
+  return d // { storagePath }
+}
+
 export async function getMemorial(code) {
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`)
   const d = await res.json()

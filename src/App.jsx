@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { Document, Packer, Paragraph, HeadingLevel, AlignmentType } from 'docx'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun } from 'docx'
 import {
   createMemorial, getMemorial, getContributions, addContribution,
-  askClaude, speakText, stopSpeaking, adminDeleteMemorial, adminSaveMemorialText,
+  askClaude, speakText, stopSpeaking, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
 } from './api.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -87,8 +87,15 @@ function tryParseJSON(raw) {
   try { return JSON.parse(s) } catch { return null }
 }
 
+async function fetchImageBuffer(url) {
+  try {
+    const r = await fetch(url)
+    if (!r.ok) return null
+    return await r.arrayBuffer()
+  } catch { return null }
+}
+
 async function downloadStructuredDocx(filename, book) {
-  const { TextRun } = await import('docx')
   const children = []
   children.push(new Paragraph({
     children: [new TextRun({ text: book.title || '', size: 56, bold: true })],
@@ -114,6 +121,19 @@ async function downloadStructuredDocx(filename, book) {
       alignment: AlignmentType.CENTER,
       spacing: { after: 300 },
     }))
+    if (ch.image_url) {
+      const buf = await fetchImageBuffer(ch.image_url)
+      if (buf) {
+        children.push(new Paragraph({
+          children: [new ImageRun({
+            data: buf,
+            transformation: { width: 560, height: 320 }, // ~16:9, fits A4 minus Ränder
+          })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+        }))
+      }
+    }
     for (const raw of String(ch.body || '').split('\n\n')) {
       const chunk = raw.trim()
       if (chunk) children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
@@ -890,6 +910,7 @@ function Dashboard() {
   const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '' })
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
+  const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [loading, setLoading]         = useState(false)
   const [busy, setBusy]               = useState(false)
   const [deletingId, setDeletingId]   = useState('')
@@ -1027,21 +1048,56 @@ function Dashboard() {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
     if (selected[gen.field] && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
-    setErr(''); setGenerating(g => ({ ...g, [key]: true })); setView(gen.view)
+    setErr('')
+    setGenerating(g => ({ ...g, [key]: true }))
+    setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
+    setView(gen.view)
     try {
       const raw = await askClaude(gen.system(selected, contributions), [{ role:'user', content: gen.userPrompt }])
       let value
       if (gen.kind === 'book') {
         value = tryParseJSON(raw)
         if (!value || !Array.isArray(value.chapters)) throw new Error('KI-Antwort konnte nicht als Buch-JSON gelesen werden.')
-      } else {
-        value = raw
+
+        // Bilder pro Kapitel generieren (sequenziell, Fehler tolerieren)
+        const total = value.chapters.length
+        for (let i = 0; i < total; i++) {
+          const ch = value.chapters[i]
+          setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
+          if (!ch.image_prompt) continue
+          try {
+            const { storagePath } = await adminGenerateImage(token, selected.id, ch.image_prompt)
+            value.chapters[i] = { ...ch, image_path: storagePath }
+          } catch (e) {
+            console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
+          }
+        }
+        setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       }
       await adminSaveMemorialText(token, selected.id, gen.field, value)
-      setSelected(s => ({ ...s, [gen.field]: value }))
-      setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: value } : m))
+
+      // Neu laden, damit die signierten Bild-URLs ins selected/memorials kommen
+      setGenProgress(p => ({ ...p, [key]: 'Bilder werden geladen …' }))
+      try {
+        const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+        if (r.ok) {
+          const fresh = await r.json()
+          setMemorials(fresh)
+          const updated = fresh.find(m => m.id === selected.id)
+          if (updated) setSelected(updated)
+        } else {
+          setSelected(s => ({ ...s, [gen.field]: value }))
+          setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: value } : m))
+        }
+      } catch {
+        setSelected(s => ({ ...s, [gen.field]: value }))
+        setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: value } : m))
+      }
     } catch (e) { setErr(`Generieren fehlgeschlagen: ${e.message}`) }
-    finally { setGenerating(g => ({ ...g, [key]: false })) }
+    finally {
+      setGenerating(g => ({ ...g, [key]: false }))
+      setGenProgress(p => ({ ...p, [key]: '' }))
+    }
   }
 
   async function downloadGenerated(key) {
@@ -1519,7 +1575,7 @@ function Dashboard() {
         {busy ? (
           <div style={{ textAlign:'center', padding:'3rem 0' }}>
             <Dots />
-            <p style={{ ...S.muted, marginTop:16 }}>Die KI arbeitet …</p>
+            <p style={{ ...S.muted, marginTop:16 }}>{genProgress[key] || 'Die KI arbeitet …'}</p>
           </div>
         ) : !data ? (
           <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
@@ -1535,6 +1591,14 @@ function Dashboard() {
                   <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>Kapitel {ch.number ?? i + 1}</p>
                   <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif' }}>{ch.heading || ''}</h3>
                 </div>
+                {ch.image_url && (
+                  <img
+                    src={ch.image_url}
+                    alt={ch.heading || ''}
+                    loading="lazy"
+                    style={{ width:'100%', height:'auto', borderRadius:8, marginBottom:'2rem', display:'block', boxShadow:'0 2px 12px rgba(0,0,0,.08)' }}
+                  />
+                )}
                 <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
                   {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
                 </div>
