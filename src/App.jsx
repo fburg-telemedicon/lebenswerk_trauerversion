@@ -1152,16 +1152,22 @@ function Dashboard() {
 
         // Bilder pro Kapitel generieren (sequenziell, Fehler tolerieren)
         const total = value.chapters.length
+        const imageErrors = []
         for (let i = 0; i < total; i++) {
           const ch = value.chapters[i]
           setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
-          if (!ch.image_prompt) continue
+          if (!ch.image_prompt) { imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`); continue }
           try {
             const { storagePath } = await adminGenerateImage(token, selected.id, ch.image_prompt)
             value.chapters[i] = { ...ch, image_path: storagePath }
           } catch (e) {
             console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
+            imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
           }
+        }
+        if (imageErrors.length === total && total > 0) {
+          // Keines der Bilder konnte erzeugt werden → klare Sammelmeldung
+          setErr(`Alle Bildgenerierungen fehlgeschlagen. Erste Fehler: ${imageErrors.slice(0, 3).join(' · ')}`)
         }
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       }
@@ -1844,13 +1850,29 @@ function Dashboard() {
                   <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>Kapitel {ch.number ?? i + 1}</p>
                   <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif' }}>{ch.heading || ''}</h3>
                 </div>
-                {ch.image_url && (
+                {ch.image_url ? (
                   <img
                     src={ch.image_url}
                     alt={ch.heading || ''}
                     loading="lazy"
+                    onError={(e) => { console.warn('Bild-Load fehlgeschlagen:', ch.image_url); e.currentTarget.style.outline = '2px solid #ef4444' }}
                     style={{ width:'100%', height:'auto', borderRadius:8, marginBottom:'2rem', display:'block', boxShadow:'0 2px 12px rgba(0,0,0,.08)' }}
                   />
+                ) : ch.image_path ? (
+                  <div style={{ background:'#fef3c7', border:'1px dashed #fde68a', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#78350f', fontSize:13, lineHeight:1.5 }}>
+                    🖼 Bild wurde generiert und gespeichert, aber die Anzeige-URL fehlt.<br />
+                    <code style={{ fontFamily:'monospace', fontSize:12 }}>{ch.image_path}</code><br />
+                    <span style={{ fontSize:12, color:'#92400e' }}>(Signing schlägt fehl — Bucket-Name prüfen oder Liste neu laden)</span>
+                  </div>
+                ) : ch.image_prompt ? (
+                  <div style={{ background:'#fef2f2', border:'1px dashed #fecaca', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#991b1b', fontSize:13, lineHeight:1.5 }}>
+                    🖼 Kein Bild gespeichert — Generierung war nicht erfolgreich.<br />
+                    <span style={{ fontSize:12, color:'#7f1d1d' }}>Prompt war: „{ch.image_prompt}"</span>
+                  </div>
+                ) : (
+                  <div style={{ background:'#f5f5f4', border:'1px dashed #d6d3d1', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#78716c', fontSize:13 }}>
+                    🖼 Kein image_prompt im Kapitel-JSON.
+                  </div>
                 )}
                 <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
                   {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{p}</p>)}

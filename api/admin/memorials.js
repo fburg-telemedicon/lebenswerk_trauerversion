@@ -24,7 +24,9 @@ function collectImagePaths(book) {
 function applySignedUrls(book, urlMap) {
   if (!book?.chapters) return
   for (const ch of book.chapters) {
-    if (ch?.image_path && urlMap[ch.image_path]) ch.image_url = urlMap[ch.image_path]
+    if (!ch?.image_path) continue
+    const key = String(ch.image_path).replace(/^\/+/, '')
+    if (urlMap[key]) ch.image_url = urlMap[key]
   }
 }
 
@@ -35,11 +37,26 @@ async function signMemorialImages(memorials) {
     collectImagePaths(m.book_v2).forEach(p => paths.add(p))
   }
   if (paths.size === 0) return
-  const { data, error } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls([...paths], SIGNED_URL_TTL)
-  if (error || !Array.isArray(data)) return
+  const pathList = [...paths]
+  const { data, error } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls(pathList, SIGNED_URL_TTL)
+  if (error) {
+    console.error('createSignedUrls error:', error)
+    return
+  }
+  if (!Array.isArray(data)) {
+    console.error('createSignedUrls returned no array:', data)
+    return
+  }
   const urlMap = {}
   for (const entry of data) {
-    if (entry?.path && entry?.signedUrl) urlMap[entry.path] = entry.signedUrl
+    if (entry?.error) {
+      console.error('Signed-URL Eintrag mit Fehler:', entry.path, entry.error)
+      continue
+    }
+    if (entry?.path && entry?.signedUrl) {
+      const key = String(entry.path).replace(/^\/+/, '')
+      urlMap[key] = entry.signedUrl
+    }
   }
   for (const m of memorials) {
     applySignedUrls(m.book_v1, urlMap)
