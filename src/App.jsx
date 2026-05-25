@@ -76,6 +76,57 @@ function renderRichText(text) {
   }).filter(Boolean)
 }
 
+function tryParseJSON(raw) {
+  if (!raw) return null
+  let s = String(raw).trim()
+  if (s.startsWith('```')) s = s.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
+  // Falls Claude doch noch Text drumherum schreibt: ersten { bis letzten } isolieren
+  const first = s.indexOf('{')
+  const last  = s.lastIndexOf('}')
+  if (first > 0 || (first === 0 && last > 0 && last < s.length - 1)) s = s.slice(first, last + 1)
+  try { return JSON.parse(s) } catch { return null }
+}
+
+async function downloadStructuredDocx(filename, book) {
+  const { TextRun } = await import('docx')
+  const children = []
+  children.push(new Paragraph({
+    children: [new TextRun({ text: book.title || '', size: 56, bold: true })],
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 200 },
+  }))
+  if (book.subtitle) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: book.subtitle, size: 28, italics: true, color: '78716c' })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 800 },
+    }))
+  }
+  for (const ch of (book.chapters || [])) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: `Kapitel ${ch.number}`, size: 20, color: 'a8a29e' })],
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 600, after: 100 },
+    }))
+    children.push(new Paragraph({
+      text: ch.heading || '',
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 300 },
+    }))
+    for (const raw of String(ch.body || '').split('\n\n')) {
+      const chunk = raw.trim()
+      if (chunk) children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
+    }
+  }
+  const doc = new Document({ creator: 'Lebenswerk', title: book.title || '', sections: [{ children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 async function downloadAsDocx(filename, title, text) {
   const children = [
     new Paragraph({
@@ -172,42 +223,79 @@ Regeln:
 - Schreibe auf Deutsch`
 }
 
-function bookV1System(memorial, contributions) {
-  const blocks = contributions.map(c => {
+function contributionBlocks(contributions) {
+  return contributions.map(c => {
     const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
     return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
   }).join('\n\n')
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein einfühlsamer Buchautor. Du wandelst Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, in ein Gedenkbuch um.
-
-Schreibe für JEDE der ${contributions.length} Personen ein eigenes Kapitel:
-- Kapitelüberschrift exakt im Format: "## NAME (Beziehung)" auf einer eigenen Zeile
-- Danach Fließtext in Ich-Form aus Sicht der jeweiligen Person ("Ich erinnere mich, dass …")
-- Konkrete Geschichten und Details aus den Antworten beibehalten
-- Pro Kapitel ca. 200–400 Wörter
-- Warme, persönliche Sprache auf Deutsch
-- Absätze durch eine Leerzeile trennen
-- Beginne direkt mit dem ersten Kapitel; keine Einleitung, kein Vorwort, kein Titel über allem
-
-Beiträge:\n\n${blocks}`
 }
 
-function synthesisSystem(memorial, contributions) {
-  const blocks = contributions.map(c => {
-    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
-    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
-  }).join('\n\n')
+function bookV1System(memorial, contributions) {
   const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein renommierter Buchautor und Biograph. Du hast Erinnerungen von ${contributions.length} Menschen gesammelt, die ${memorial.name}${g} kannten.
+  return `Du bist ein einfühlsamer Buchautor. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, erstellst du ein Gedenkbuch.
 
-Schreibe ein zusammenhängendes Gedenkkapitel "in einem Guss" – wie ein Kapitel in einem hochwertigen Gedenkbuch.
-- Warme, literarische Sprache auf Deutsch
-- Alle Perspektiven harmonisch integrieren (kein "X sagte...")
-- Lebendiges, mehrdimensionales Bild der Person zeichnen
-- Konkrete Geschichten und Details einweben, 600–900 Wörter
-- Direkt mit dem Fließtext beginnen, kein Titel
+VARIANTE 1: Jede beitragende Person bekommt ein eigenes Kapitel.
 
-Beiträge:\n\n${blocks}`
+Gib das Ergebnis als REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen davor oder dahinter). Genau in diesem Format:
+
+{
+  "title": "Gesamttitel des Buches",
+  "subtitle": "Untertitel des Buches",
+  "chapters": [
+    {
+      "number": 1,
+      "heading": "Kapitel-Überschrift",
+      "body": "Fließtext des Kapitels …",
+      "image_prompt": "English image description, atmospheric, no people"
+    }
+  ]
+}
+
+Regeln:
+- Pro Beitragenden EIN Kapitel, durchnummeriert ab 1
+- "heading": prägnant, z. B. "Mit den Augen von [Name]" oder "[Aspekt] — [Name]"
+- "body": 250–450 Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); konkrete Geschichten und Details aus den Antworten beibehalten; Absätze durch \\n\\n trennen
+- "title" persönlich, würdevoll, bezogen auf ${memorial.name}
+- "subtitle" knapp, ergänzt den Titel
+- "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
+- Alles auf Deutsch (außer image_prompt)
+- Achte zwingend auf gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
+
+Beiträge:\n\n${contributionBlocks(contributions)}`
+}
+
+function bookV2System(memorial, contributions) {
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, schreibst du eine Lebensgeschichte.
+
+VARIANTE 2: Aufbau nach Stationen des Lebens (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle 5–9 Kapitel, die zu dem passen, was die Beiträge hergeben. Die einzelnen Beiträge dürfen NICHT als solche erkennbar sein — webe alle Stimmen zu einem stimmigen Text zusammen.
+
+Gib das Ergebnis als REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen davor oder dahinter). Genau in diesem Format:
+
+{
+  "title": "Gesamttitel des Buches",
+  "subtitle": "Untertitel des Buches",
+  "chapters": [
+    {
+      "number": 1,
+      "heading": "Kapitelüberschrift (z.B. Kindheit)",
+      "body": "Fließtext …",
+      "image_prompt": "English image description, atmospheric, no people"
+    }
+  ]
+}
+
+Regeln:
+- 5–9 Kapitel nach Lebensstationen, sinnvoll thematisch sortiert (Kindheit → späteres Leben)
+- "heading": kurz und prägnant (1–3 Wörter)
+- "body": 300–500 Wörter pro Kapitel, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); keine "X sagte…"-Zitate, keine Quellenangaben
+- "title" persönlich, würdevoll, bezogen auf ${memorial.name}
+- "subtitle" knapp, ergänzt den Titel
+- "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum jeweiligen Lebensabschnitt
+- Alles auf Deutsch (außer image_prompt)
+- Achte zwingend auf gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
+
+Beiträge:\n\n${contributionBlocks(contributions)}`
 }
 
 function eulogySystem(memorial, contributions) {
@@ -930,9 +1018,9 @@ function Dashboard() {
   }
 
   const GENERATORS = {
-    book_v1: { field: 'book_v1_text', view: 'book-v1', label: 'Version 1 – Einzelne Beiträge',  filename: 'Gedenkbuch_V1', system: bookV1System,    userPrompt: 'Schreibe jetzt das Gedenkbuch in Kapiteln.' },
-    book_v2: { field: 'book_v2_text', view: 'book-v2', label: 'Version 2 – Buch in einem Guss', filename: 'Gedenkbuch_V2', system: synthesisSystem, userPrompt: 'Schreibe jetzt das Gedenkkapitel.' },
-    eulogy:  { field: 'eulogy_text',  view: 'eulogy',  label: 'Trauerrede',                     filename: 'Trauerrede',    system: eulogySystem,    userPrompt: 'Schreibe jetzt die Trauerrede.' },
+    book_v1: { kind:'book', field:'book_v1',     view:'book-v1', label:'Version 1 – Einzelne Beiträge',  filename:'Gedenkbuch_V1', system: bookV1System, userPrompt:'Erzeuge jetzt das vollständige Buch als JSON.' },
+    book_v2: { kind:'book', field:'book_v2',     view:'book-v2', label:'Version 2 – Lebensstationen',     filename:'Gedenkbuch_V2', system: bookV2System, userPrompt:'Erzeuge jetzt das vollständige Buch als JSON.' },
+    eulogy:  { kind:'text', field:'eulogy_text', view:'eulogy',  label:'Trauerrede',                       filename:'Trauerrede',    system: eulogySystem, userPrompt:'Schreibe jetzt die Trauerrede.' },
   }
 
   async function generate(key) {
@@ -941,20 +1029,29 @@ function Dashboard() {
     if (selected[gen.field] && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
     setErr(''); setGenerating(g => ({ ...g, [key]: true })); setView(gen.view)
     try {
-      const text = await askClaude(gen.system(selected, contributions), [{ role:'user', content: gen.userPrompt }])
-      await adminSaveMemorialText(token, selected.id, gen.field, text)
-      setSelected(s => ({ ...s, [gen.field]: text }))
-      setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: text } : m))
+      const raw = await askClaude(gen.system(selected, contributions), [{ role:'user', content: gen.userPrompt }])
+      let value
+      if (gen.kind === 'book') {
+        value = tryParseJSON(raw)
+        if (!value || !Array.isArray(value.chapters)) throw new Error('KI-Antwort konnte nicht als Buch-JSON gelesen werden.')
+      } else {
+        value = raw
+      }
+      await adminSaveMemorialText(token, selected.id, gen.field, value)
+      setSelected(s => ({ ...s, [gen.field]: value }))
+      setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: value } : m))
     } catch (e) { setErr(`Generieren fehlgeschlagen: ${e.message}`) }
     finally { setGenerating(g => ({ ...g, [key]: false })) }
   }
 
   async function downloadGenerated(key) {
     const gen = GENERATORS[key]
-    const text = selected?.[gen.field]
-    if (!text) return
+    const data = selected?.[gen.field]
+    if (!data) return
     try {
-      await downloadAsDocx(`${gen.filename}_${safeName(selected.name)}.docx`, `${gen.label} – ${selected.name}`, text)
+      const filename = `${gen.filename}_${safeName(selected.name)}.docx`
+      if (gen.kind === 'book') await downloadStructuredDocx(filename, data)
+      else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data)
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
 
@@ -1406,38 +1503,56 @@ function Dashboard() {
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') {
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
-    const text = selected[gen.field]
+    const data = selected[gen.field]
     const busy = !!generating[key]
     const subtitle = view === 'book-v1' ? 'Gedenkbuch · Version 1'
                    : view === 'book-v2' ? 'Gedenkbuch · Version 2'
                    : 'Trauerrede'
     return (
-      <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
+      <div style={{ maxWidth:720, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
         <Back onClick={() => setView('detail')} />
         <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
           <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}</p>
-          <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
+          <h1 style={{ fontSize:24, fontWeight:600, fontFamily:'Georgia,serif', color:'#78716c' }}>{selected.name}</h1>
         </div>
-        <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
-          {busy ? (
-            <div style={{ textAlign:'center', padding:'3rem 0' }}>
-              <Dots />
-              <p style={{ ...S.muted, marginTop:16 }}>Die KI arbeitet …</p>
+
+        {busy ? (
+          <div style={{ textAlign:'center', padding:'3rem 0' }}>
+            <Dots />
+            <p style={{ ...S.muted, marginTop:16 }}>Die KI arbeitet …</p>
+          </div>
+        ) : !data ? (
+          <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
+        ) : gen.kind === 'book' ? (
+          <>
+            <div style={{ textAlign:'center', padding:'2rem 0 3rem', borderTop:'1px solid #e7e5e4' }}>
+              <h2 style={{ fontSize:36, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:12, color:'#1c1917' }}>{data.title || '—'}</h2>
+              {data.subtitle && <p style={{ fontSize:18, fontStyle:'italic', color:'#78716c', fontFamily:'Georgia,serif' }}>{data.subtitle}</p>}
             </div>
-          ) : text ? (
-            <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
-              {renderRichText(text)}
-            </div>
-          ) : (
-            <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
-          )}
-          {!busy && text && (
-            <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
-              <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
-              <button className="secondary" onClick={() => generate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
-            </div>
-          )}
-        </div>
+            {(data.chapters || []).map((ch, i) => (
+              <div key={i} style={{ marginBottom:'3rem' }}>
+                <div style={{ textAlign:'center', marginBottom:'1.25rem' }}>
+                  <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>Kapitel {ch.number ?? i + 1}</p>
+                  <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif' }}>{ch.heading || ''}</h3>
+                </div>
+                <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+                  {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
+                </div>
+              </div>
+            ))}
+          </>
+        ) : (
+          <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem', fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+            {renderRichText(data)}
+          </div>
+        )}
+
+        {!busy && data && (
+          <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
+            <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
+            <button className="secondary" onClick={() => generate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
+          </div>
+        )}
       </div>
     )
   }
