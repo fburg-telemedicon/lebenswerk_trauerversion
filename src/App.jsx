@@ -1006,6 +1006,7 @@ function Dashboard() {
   const [deletingId, setDeletingId]   = useState('')
   const [copied, setCopied]           = useState('')
   const [err, setErr]                 = useState('')
+  const [hoveredRow, setHoveredRow]   = useState(null) // { id, zone: 'main' | 'cost' }
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
 
@@ -1040,13 +1041,18 @@ function Dashboard() {
   }
 
   async function openMemorial(memorial) {
-    setSelected(memorial); setLoading(true); setErr('')
+    setSelected(memorial); setLoading(true); setCostData(null); setErr('')
     try {
-      const res = await fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } })
-      if (res.status === 401) { logout(); return }
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error)
-      setContribs(d); setView('detail')
+      const [contribsRes, costs] = await Promise.all([
+        fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } }),
+        getMemorialCosts(token, memorial.id).catch(() => null),
+      ])
+      if (contribsRes.status === 401) { logout(); return }
+      const d = await contribsRes.json()
+      if (!contribsRes.ok) throw new Error(d.error)
+      setContribs(d)
+      if (costs) setCostData(costs)
+      setView('detail')
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -1055,11 +1061,15 @@ function Dashboard() {
     if (!selected) return
     setLoading(true); setErr('')
     try {
-      const res = await fetch(`/api/admin/contributions?code=${selected.id}`, { headers: { Authorization: `Bearer ${token}` } })
-      if (res.status === 401) { logout(); return }
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error)
+      const [cRes, costs] = await Promise.all([
+        fetch(`/api/admin/contributions?code=${selected.id}`, { headers: { Authorization: `Bearer ${token}` } }),
+        getMemorialCosts(token, selected.id).catch(() => null),
+      ])
+      if (cRes.status === 401) { logout(); return }
+      const d = await cRes.json()
+      if (!cRes.ok) throw new Error(d.error)
       setContribs(d)
+      if (costs) setCostData(costs)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -1314,29 +1324,64 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {memorials.map(m => (
-                  <tr key={m.id}
-                    style={{ transition: 'background .1s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}>
-                    <td style={{ ...col, fontWeight: 600, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.name}</td>
-                    <td style={{ ...col, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.organizer}</td>
-                    <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
-                    <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
-                    <td style={{ ...col, color: '#1c1917', fontWeight:500, cursor:'pointer', textAlign:'right', whiteSpace:'nowrap' }} title="Aufschlüsselung anzeigen" onClick={() => openCosts(m)}>{formatEur(m.cost_total_eur)}</td>
-                    <td style={{ ...col, textAlign:'right' }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
-                        disabled={deletingId === m.id}
-                        className="secondary"
-                        style={{ fontSize:12, padding:'6px 12px', color:'#dc2626', borderColor:'#fecaca' }}
-                        title="Gedenkbuch löschen"
+                {memorials.map(m => {
+                  const isHover    = hoveredRow?.id === m.id
+                  const mainHover  = isHover && hoveredRow.zone === 'main'
+                  const costHover  = isHover && hoveredRow.zone === 'cost'
+                  const MAIN_BG    = '#fef3c7' // warm amber
+                  const COST_BG    = '#dbeafe' // cool blue
+                  const mainCellBg = mainHover ? MAIN_BG : ''
+                  const mainCell   = { ...col, cursor:'pointer', background: mainCellBg, transition:'background .1s' }
+                  const enterMain  = () => setHoveredRow({ id: m.id, zone: 'main' })
+                  const leaveRow   = () => setHoveredRow(null)
+                  return (
+                    <tr key={m.id}>
+                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name}</td>
+                      <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
+                      <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
+                      <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
+                      <td
+                        style={{ ...col, textAlign:'right', whiteSpace:'nowrap', padding:'6px 14px', background: costHover ? COST_BG : '', transition:'background .1s' }}
+                        onMouseEnter={() => setHoveredRow({ id: m.id, zone: 'cost' })}
+                        onMouseLeave={leaveRow}
                       >
-                        {deletingId === m.id ? '…' : '🗑 Löschen'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openCosts(m) }}
+                          title="Aufschlüsselung anzeigen"
+                          style={{
+                            background: costHover ? '#bfdbfe' : '#fff',
+                            border:'1px solid #93c5fd',
+                            borderRadius:8,
+                            padding:'6px 12px',
+                            fontSize:13,
+                            fontWeight:600,
+                            color:'#1d4ed8',
+                            cursor:'pointer',
+                            display:'inline-flex',
+                            alignItems:'center',
+                            gap:6,
+                            transition:'background .1s, border-color .1s',
+                            whiteSpace:'nowrap',
+                          }}
+                        >
+                          <span aria-hidden="true">💶</span>
+                          <span style={{ textDecoration:'underline', textUnderlineOffset:2 }}>{formatEur(m.cost_total_eur)}</span>
+                        </button>
+                      </td>
+                      <td style={{ ...col, textAlign:'right' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
+                          disabled={deletingId === m.id}
+                          className="secondary"
+                          style={{ fontSize:12, padding:'6px 12px', color:'#dc2626', borderColor:'#fecaca' }}
+                          title="Gedenkbuch löschen"
+                        >
+                          {deletingId === m.id ? '…' : '🗑 Löschen'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -1630,6 +1675,55 @@ function Dashboard() {
               })}
             </div>
           </>)}
+
+          {(() => {
+            const detailKinds = costData?.byKind ? Object.entries(costData.byKind).sort((a, b) => b[1].cost_eur - a[1].cost_eur) : []
+            return (
+              <>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'.75rem' }}>
+                  <h3 style={{ fontSize:16, fontWeight:600 }}>Kosten – Aufschlüsselung nach Kategorie</h3>
+                  {costData && (
+                    <div style={{ fontSize:13, color:'#78716c' }}>
+                      Gesamt: <span style={{ fontWeight:600, color:'#1c1917' }}>{formatEur(costData.total_eur)}</span>
+                      <button className="ghost" onClick={() => openCosts(selected)} style={{ fontSize:12, padding:'4px 8px', marginLeft:10 }}>Details →</button>
+                    </div>
+                  )}
+                </div>
+                {!costData ? (
+                  <p style={S.muted}>Kosten werden geladen …</p>
+                ) : detailKinds.length === 0 ? (
+                  <p style={S.muted}>Noch keine Kosten erfasst.</p>
+                ) : (
+                  <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, overflow:'hidden', marginBottom:'1.5rem' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                      <thead>
+                        <tr>
+                          {['Kategorie', 'Calls', 'Mengen', 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailKinds.map(([k, agg]) => {
+                          const units = []
+                          if (agg.input_tokens || agg.output_tokens) units.push(`${agg.input_tokens.toLocaleString('de-DE')} in / ${agg.output_tokens.toLocaleString('de-DE')} out Tokens`)
+                          if (agg.characters)    units.push(`${agg.characters.toLocaleString('de-DE')} Zeichen`)
+                          if (agg.audio_seconds) units.push(`${Math.round(agg.audio_seconds)} Sek. Audio`)
+                          if (agg.images)        units.push(`${agg.images} Bild${agg.images > 1 ? 'er' : ''}`)
+                          return (
+                            <tr key={k}>
+                              <td style={{ ...col, fontWeight:500 }}>{costKindLabel(k)}</td>
+                              <td style={{ ...col, color:'#78716c' }}>{agg.count}</td>
+                              <td style={{ ...col, color:'#78716c', fontSize:13 }}>{units.join(' · ') || '—'}</td>
+                              <td style={{ ...col, textAlign:'right', fontWeight:600, whiteSpace:'nowrap' }}>{formatEur(agg.cost_eur)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )
+          })()}
 
           <div style={S.divider} />
           <button
