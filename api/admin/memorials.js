@@ -58,6 +58,20 @@ module.exports = async function handler(req, res) {
       if (error) throw error
       const memorials = data || []
       await signMemorialImages(memorials)
+
+      // Gesamtkosten pro Memorial aggregieren
+      const { data: costRows } = await supabase.from('cost_events').select('memorial_id, cost_eur, cost_usd')
+      const totalsEur = {}
+      const totalsUsd = {}
+      for (const r of costRows || []) {
+        totalsEur[r.memorial_id] = (totalsEur[r.memorial_id] || 0) + Number(r.cost_eur || 0)
+        totalsUsd[r.memorial_id] = (totalsUsd[r.memorial_id] || 0) + Number(r.cost_usd || 0)
+      }
+      for (const m of memorials) {
+        m.cost_total_eur = totalsEur[m.id] || 0
+        m.cost_total_usd = totalsUsd[m.id] || 0
+      }
+
       return res.json(memorials)
     }
 

@@ -71,15 +71,31 @@ export async function addContribution({ contributionId, memorialCode, contributo
 }
 
 // ── Claude ────────────────────────────────────────────────────────
-export async function askClaude(system, messages) {
+export async function askClaude(system, messages, opts = {}) {
   const res = await fetch('/api/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ system, messages }),
+    body: JSON.stringify({
+      system,
+      messages,
+      memorialCode: opts.memorialCode,
+      contributionId: opts.contributionId,
+      kind: opts.kind,
+    }),
   })
   const d = await res.json()
   if (!res.ok) throw new Error(d.error)
   return d.text
+}
+
+// ── Kosten ────────────────────────────────────────────────────────
+export async function getMemorialCosts(token, code) {
+  const res = await fetch(`/api/admin/costs?code=${encodeURIComponent(code)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const d = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
+  return d // { events, byKind, total_eur, total_usd }
 }
 
 // ── Sprachausgabe (OpenAI TTS) ────────────────────────────────────
@@ -89,14 +105,14 @@ export function stopSpeaking() {
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 }
 
-export async function speakText(text, { onStart, onEnd, onError } = {}) {
+export async function speakText(text, { onStart, onEnd, onError, memorialCode, contributionId } = {}) {
   stopSpeaking()
   onStart?.()
   try {
     const res = await fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, memorialCode, contributionId }),
     })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))

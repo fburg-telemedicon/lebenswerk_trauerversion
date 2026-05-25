@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Tex
 import {
   createMemorial, getMemorial, getContributions, addContribution,
   askClaude, speakText, stopSpeaking, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
+  getMemorialCosts,
 } from './api.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -202,6 +203,23 @@ function cutoffString(funeralDate) {
   return d.toLocaleDateString('de-DE')
 }
 
+function formatEur(n) {
+  const v = Number(n || 0)
+  return v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 })
+}
+
+const COST_KIND_LABEL = {
+  interview:  'Interview-Fragen (Claude)',
+  reasoning:  'Sonstiges Claude-Reasoning',
+  book_v1:    'Buch V1 – Generierung',
+  book_v2:    'Buch V2 – Generierung',
+  eulogy:     'Trauerrede – Generierung',
+  tts:        'Sprachausgabe (TTS)',
+  stt:        'Spracherkennung (STT)',
+  image:      'Bildgenerierung (DALL·E)',
+}
+function costKindLabel(k) { return COST_KIND_LABEL[k] || k || 'Sonstiges' }
+
 // ── Stile ─────────────────────────────────────────────────────────
 const S = {
   page:    { maxWidth: 600, margin: '0 auto', padding: '1.5rem' },
@@ -398,6 +416,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
     stopSpeaking()
     setIsPlaying(true); setTtsLoading(true); setErr('')
     speakText(text, {
+      memorialCode: memorial?.id,
       onEnd:   () => { setIsPlaying(false); setTtsLoading(false); setHasPlayed(true) },
       onError: (msg, name) => {
         setIsPlaying(false); setTtsLoading(false)
@@ -420,7 +439,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
     setAiLoading(true)
     try {
       const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
-      const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }])
+      const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
     finally { setAiLoading(false) }
@@ -439,11 +458,13 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
       const rec    = new MediaRecorder(stream)
       mediaRecRef.current = rec
       chunksRef.current   = []
+      let recStartedAt = 0
 
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
 
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
+        const audioSeconds = recStartedAt ? (Date.now() - recStartedAt) / 1000 : 0
         setMicState('processing')
         try {
           const mimeType = rec.mimeType || 'audio/webm'
@@ -457,7 +478,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
           const resp = await fetch('/api/transcribe', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ audio: base64, mimeType }),
+            body:    JSON.stringify({ audio: base64, mimeType, audioSeconds, memorialCode: memorial?.id }),
           })
           const data = await resp.json()
           if (!resp.ok) throw new Error(data.error)
@@ -473,6 +494,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
         }
       }
 
+      recStartedAt = Date.now()
       rec.start()
       setMicState('recording')
       setTranscript('')
@@ -491,7 +513,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
     onSave?.(newMsgs)
     try {
       const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
-      const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs])
+      const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
       onSave?.(finalMsgs)
@@ -940,6 +962,8 @@ function Dashboard() {
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
+  const [costData, setCostData]       = useState(null)
+  const [costsLoading, setCostsLoading] = useState(false)
   const [loading, setLoading]         = useState(false)
   const [busy, setBusy]               = useState(false)
   const [deletingId, setDeletingId]   = useState('')
@@ -1082,7 +1106,7 @@ function Dashboard() {
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setView(gen.view)
     try {
-      const raw = await askClaude(gen.system(selected, contributions, extraArg), [{ role:'user', content: gen.userPrompt }])
+      const raw = await askClaude(gen.system(selected, contributions, extraArg), [{ role:'user', content: gen.userPrompt }], { memorialCode: selected.id, kind: key })
       let value
       if (gen.kind === 'book') {
         value = tryParseJSON(raw)
@@ -1143,6 +1167,16 @@ function Dashboard() {
   function pickEulogyStyle(style) {
     setEulogyStyleModal(false)
     generate('eulogy', style.instruction, { skipConfirm: true })
+  }
+
+  async function openCosts(memorial) {
+    setSelected(memorial); setCostData(null); setCostsLoading(true); setErr('')
+    setView('costs')
+    try {
+      const d = await getMemorialCosts(token, memorial.id)
+      setCostData(d)
+    } catch (e) { setErr(e.message) }
+    finally { setCostsLoading(false) }
   }
 
   const eulogyStyleOverlay = eulogyStyleModal ? (
@@ -1226,7 +1260,7 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Organisator', 'Variante', 'Erfassung bis', ''].map(h => (
+                  {['Name', 'Organisator', 'Variante', 'Erfassung bis', 'Kosten', ''].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -1241,6 +1275,7 @@ function Dashboard() {
                     <td style={{ ...col, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.organizer}</td>
                     <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
                     <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date)}</td>
+                    <td style={{ ...col, color: '#1c1917', fontWeight:500, cursor:'pointer', textAlign:'right', whiteSpace:'nowrap' }} title="Aufschlüsselung anzeigen" onClick={() => openCosts(m)}>{formatEur(m.cost_total_eur)}</td>
                     <td style={{ ...col, textAlign:'right' }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
@@ -1398,6 +1433,9 @@ function Dashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
+            <button className="secondary" onClick={() => openCosts(selected)} style={{ fontSize: 13, padding: '8px 14px' }}>
+              💶 Kosten
+            </button>
             <button className="secondary" onClick={reloadContributions} disabled={loading} style={{ fontSize: 13, padding: '8px 14px' }}>
               {loading ? '…' : '↻ Aktualisieren'}
             </button>
@@ -1538,6 +1576,104 @@ function Dashboard() {
           </button>
         </div>
         {eulogyStyleOverlay}
+      </div>
+    )
+  }
+
+  // ── KOSTEN-AUFSCHLÜSSELUNG ──
+  if (view === 'costs' && selected) {
+    const kinds = costData?.byKind ? Object.entries(costData.byKind).sort((a, b) => b[1].cost_eur - a[1].cost_eur) : []
+    return (
+      <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>Kosten</span>
+              <span style={{ fontSize:13, color:'#78716c', marginLeft:10 }}>· {selected.name}</span>
+            </div>
+          </div>
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        </div>
+
+        <div style={{ maxWidth: 920, margin: '2rem auto', padding: '0 1.5rem' }}>
+          <Err msg={err} />
+          {costsLoading && <p style={S.muted}>Wird geladen …</p>}
+          {!costsLoading && costData && (
+            <>
+              <div style={{ ...S.card, marginBottom:'1.5rem', textAlign:'center' }}>
+                <Lbl>Gesamtkosten dieses Gedenkbuchs</Lbl>
+                <div style={{ fontSize:32, fontWeight:700, fontFamily:'Georgia,serif', marginTop:6 }}>{formatEur(costData.total_eur)}</div>
+                <div style={{ fontSize:13, color:'#78716c', marginTop:4 }}>≈ {Number(costData.total_usd || 0).toFixed(4)} USD</div>
+              </div>
+
+              <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Aufschlüsselung nach Kategorie</h3>
+              {kinds.length === 0 ? (
+                <p style={S.muted}>Noch keine Kosten erfasst.</p>
+              ) : (
+                <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, overflow:'hidden', marginBottom:'1.5rem' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr>
+                        {['Kategorie', 'Calls', 'Mengen', 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {kinds.map(([k, agg]) => {
+                        const units = []
+                        if (agg.input_tokens || agg.output_tokens) units.push(`${agg.input_tokens.toLocaleString('de-DE')} in / ${agg.output_tokens.toLocaleString('de-DE')} out Tokens`)
+                        if (agg.characters)    units.push(`${agg.characters.toLocaleString('de-DE')} Zeichen`)
+                        if (agg.audio_seconds) units.push(`${Math.round(agg.audio_seconds)} Sek. Audio`)
+                        if (agg.images)        units.push(`${agg.images} Bild${agg.images > 1 ? 'er' : ''}`)
+                        return (
+                          <tr key={k}>
+                            <td style={{ ...col, fontWeight:500 }}>{costKindLabel(k)}</td>
+                            <td style={{ ...col, color:'#78716c' }}>{agg.count}</td>
+                            <td style={{ ...col, color:'#78716c', fontSize:13 }}>{units.join(' · ') || '—'}</td>
+                            <td style={{ ...col, textAlign:'right', fontWeight:600, whiteSpace:'nowrap' }}>{formatEur(agg.cost_eur)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Alle Vorgänge ({costData.events.length})</h3>
+              {costData.events.length === 0 ? (
+                <p style={S.muted}>Keine Einträge.</p>
+              ) : (
+                <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, overflow:'hidden' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr>
+                        {['Zeit', 'Kategorie', 'Modell', 'Detail', 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {costData.events.map(e => {
+                        const parts = []
+                        if (e.input_tokens || e.output_tokens) parts.push(`${e.input_tokens || 0} in / ${e.output_tokens || 0} out`)
+                        if (e.characters)    parts.push(`${e.characters} Zeichen`)
+                        if (e.audio_seconds) parts.push(`${Math.round(e.audio_seconds)} s`)
+                        if (e.images)        parts.push(`${e.images} Bild`)
+                        return (
+                          <tr key={e.id}>
+                            <td style={{ ...col, fontSize:12, color:'#78716c', whiteSpace:'nowrap' }}>{new Date(e.created_at).toLocaleString('de-DE')}</td>
+                            <td style={{ ...col }}>{costKindLabel(e.kind)}</td>
+                            <td style={{ ...col, fontFamily:'monospace', fontSize:12, color:'#78716c' }}>{e.model || '—'}</td>
+                            <td style={{ ...col, fontSize:12, color:'#78716c' }}>{parts.join(' · ') || '—'}</td>
+                            <td style={{ ...col, textAlign:'right', fontWeight:500, whiteSpace:'nowrap' }}>{formatEur(e.cost_eur)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     )
   }

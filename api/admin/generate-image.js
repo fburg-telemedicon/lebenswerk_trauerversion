@@ -5,12 +5,14 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const crypto = require('crypto')
+const { costImage, recordCost } = require('../_lib/cost')
 
 const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN    || 'lebenswerk-admin-secret'
 const OPENAI_KEY  = process.env.OPENAI_API_KEY
 
 const BUCKET = 'memorial-images'
+const IMAGE_MODEL = 'dall-e-3-hd-1792x1024'
 
 function checkAuth(req, res) {
   const token = (req.headers.authorization || '').replace('Bearer ', '')
@@ -59,6 +61,16 @@ module.exports = async function handler(req, res) {
       console.error('Storage upload error:', upErr)
       return res.status(500).json({ error: `Storage-Upload fehlgeschlagen: ${upErr.message}` })
     }
+
+    await recordCost({
+      memorial_id: code,
+      kind: 'image',
+      provider: 'openai',
+      model: IMAGE_MODEL,
+      images: 1,
+      cost_usd: costImage(IMAGE_MODEL, 1),
+      metadata: { storage_path: storagePath },
+    })
 
     return res.json({ storagePath })
   } catch (e) {
