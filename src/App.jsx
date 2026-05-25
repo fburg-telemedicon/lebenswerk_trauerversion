@@ -124,6 +124,13 @@ function qrCodeUrl(text, size = 240) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
 }
 
+function cutoffString(funeralDate) {
+  if (!funeralDate) return '—'
+  const d = new Date(funeralDate)
+  d.setDate(d.getDate() - 7)
+  return d.toLocaleDateString('de-DE')
+}
+
 // ── Stile ─────────────────────────────────────────────────────────
 const S = {
   page:    { maxWidth: 600, margin: '0 auto', padding: '1.5rem' },
@@ -999,7 +1006,7 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Organisator', 'Geschlecht', 'Code', 'Erstellt', ''].map(h => (
+                  {['Name', 'Organisator', 'Geschlecht', 'Variante', 'Erfassung bis', ''].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -1013,8 +1020,8 @@ function Dashboard() {
                     <td style={{ ...col, fontWeight: 600, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.name}</td>
                     <td style={{ ...col, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.organizer}</td>
                     <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.gender || '—'}</td>
-                    <td style={{ ...col, fontFamily: 'monospace', fontSize: 13, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.id}</td>
-                    <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{new Date(m.created_at).toLocaleDateString('de-DE')}</td>
+                    <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
+                    <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date)}</td>
                     <td style={{ ...col, textAlign:'right' }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
@@ -1128,11 +1135,7 @@ function Dashboard() {
         <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem', textAlign:'center' }}>
           <div style={{ fontSize: 40, marginBottom: '1rem' }}>✅</div>
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Gedenkbuch erstellt</h2>
-          <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Teilen Sie diesen Code oder Link mit Familie und Freunden:</p>
-          <div style={{ ...S.card, marginBottom: '1rem' }}>
-            <Lbl>Einladungscode</Lbl>
-            <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '.18em', fontFamily: 'monospace', margin: '8px 0' }}>{createdCode}</div>
-          </div>
+          <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Teilen Sie diesen Link oder den QR-Code mit Familie und Freunden:</p>
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
             <Lbl>Einladungslink</Lbl>
             <a
@@ -1195,7 +1198,7 @@ function Dashboard() {
             {selected.gender ? ` · ${selected.gender}` : ''}
             {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
             {selected.funeral_date ? ` · Bestattung: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
-            {' · Code: '}<span style={{ fontFamily: 'monospace' }}>{selected.id}</span>
+            {selected.funeral_date ? ` · Erfassung bis: ${cutoffString(selected.funeral_date)}` : ''}
           </p>
 
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
