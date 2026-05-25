@@ -1,5 +1,25 @@
 // src/api.js – zentraler API-Client für das Frontend
 
+// Liest eine fetch-Response defensiv als JSON. Wenn Vercel/der Server
+// kein JSON liefert (Timeout-/Crash-Page, 502/504 in Plain-Text/HTML),
+// wirft die Funktion einen Fehler mit HTTP-Status + Antwort-Auszug,
+// statt eines kryptischen "Unexpected token"-Parse-Fehlers.
+async function parseResponse(res) {
+  const text = await res.text()
+  let data
+  try { data = text ? JSON.parse(text) : {} }
+  catch {
+    const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim()
+    throw new Error(
+      res.ok
+        ? `Unerwartete Server-Antwort: ${snippet}`
+        : `HTTP ${res.status}${snippet ? ` – ${snippet}` : ''}`
+    )
+  }
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
+}
+
 // ── Gedenkbuch ────────────────────────────────────────────────────
 export async function createMemorial({ name, organizer, gender, bookVariant, funeralDate, cutoffDays }) {
   const res = await fetch('/api/memorial', {
@@ -7,9 +27,7 @@ export async function createMemorial({ name, organizer, gender, bookVariant, fun
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays }),
   })
-  const d = await res.json()
-  if (!res.ok) throw new Error(d.error)
-  return d // { code }
+  return parseResponse(res) // { code }
 }
 
 export async function adminDeleteMemorial(token, code) {
@@ -17,9 +35,7 @@ export async function adminDeleteMemorial(token, code) {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
-  const d = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
-  return d
+  return parseResponse(res)
 }
 
 export async function adminSaveMemorialText(token, code, field, text) {
@@ -28,9 +44,7 @@ export async function adminSaveMemorialText(token, code, field, text) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ field, text }),
   })
-  const d = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
-  return d
+  return parseResponse(res)
 }
 
 export async function adminGenerateImage(token, memorialCode, prompt) {
@@ -39,24 +53,18 @@ export async function adminGenerateImage(token, memorialCode, prompt) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ memorialCode, prompt }),
   })
-  const d = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
-  return d // { storagePath }
+  return parseResponse(res) // { storagePath }
 }
 
 export async function getMemorial(code) {
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`)
-  const d = await res.json()
-  if (!res.ok) throw new Error(d.error)
-  return d // { id, name, birth_year, death_year, organizer, created_at }
+  return parseResponse(res) // { id, name, birth_year, death_year, organizer, created_at }
 }
 
 // ── Beiträge ──────────────────────────────────────────────────────
 export async function getContributions(code) {
   const res = await fetch(`/api/contributions?code=${encodeURIComponent(code)}`)
-  const d = await res.json()
-  if (!res.ok) throw new Error(d.error)
-  return d // array of contributions
+  return parseResponse(res) // array of contributions
 }
 
 export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress }) {
@@ -65,9 +73,7 @@ export async function addContribution({ contributionId, memorialCode, contributo
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress }),
   })
-  const d = await res.json()
-  if (!res.ok) throw new Error(d.error)
-  return d // { id }
+  return parseResponse(res) // { id }
 }
 
 // ── Claude ────────────────────────────────────────────────────────
@@ -83,8 +89,7 @@ export async function askClaude(system, messages, opts = {}) {
       kind: opts.kind,
     }),
   })
-  const d = await res.json()
-  if (!res.ok) throw new Error(d.error)
+  const d = await parseResponse(res)
   return d.text
 }
 
@@ -93,9 +98,7 @@ export async function getMemorialCosts(token, code) {
   const res = await fetch(`/api/admin/costs?code=${encodeURIComponent(code)}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  const d = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
-  return d // { events, byKind, total_eur, total_usd }
+  return parseResponse(res) // { events, byKind, total_eur, total_usd }
 }
 
 // ── Sprachausgabe (OpenAI TTS) ────────────────────────────────────

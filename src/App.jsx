@@ -303,70 +303,106 @@ function contributionBlocks(contributions) {
   }).join('\n\n')
 }
 
-function bookV1System(memorial, contributions) {
+// ── V1: jede beitragende Person bekommt ein eigenes Kapitel ──────
+function bookV1OutlineSystem(memorial, contributions) {
   const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein einfühlsamer Buchautor. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, erstellst du ein Gedenkbuch.
+  return `Du bist ein einfühlsamer Buchautor. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du ein Gedenkbuch (Variante 1: jede Person ein Kapitel).
 
-VARIANTE 1: Jede beitragende Person bekommt ein eigenes Kapitel.
+Plane jetzt NUR den Gesamt-Titel und -Untertitel des Buches. Die einzelnen Kapitel werden später separat geschrieben.
 
-Gib das Ergebnis als REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen davor oder dahinter). Genau in diesem Format:
-
+Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
   "title": "Gesamttitel des Buches",
-  "subtitle": "Untertitel des Buches",
-  "chapters": [
-    {
-      "number": 1,
-      "heading": "Kapitel-Überschrift",
-      "body": "Fließtext des Kapitels …",
-      "image_prompt": "English image description, atmospheric, no people"
-    }
-  ]
+  "subtitle": "Untertitel des Buches"
 }
 
 Regeln:
-- Pro Beitragenden EIN Kapitel, durchnummeriert ab 1
-- "heading": prägnant, z. B. "Mit den Augen von [Name]" oder "[Aspekt] — [Name]"
-- "body": 250–450 Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); konkrete Geschichten und Details aus den Antworten beibehalten; Absätze durch \\n\\n trennen
 - "title" persönlich, würdevoll, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
-- "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
-- Alles auf Deutsch (außer image_prompt)
-- Achte zwingend auf gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
+- Auf Deutsch
+- Gültiges JSON, keine trailing commas
 
 Beiträge:\n\n${contributionBlocks(contributions)}`
 }
 
-function bookV2System(memorial, contributions) {
+function bookV1ChapterSystem(memorial, contribution, number) {
   const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, schreibst du eine Lebensgeschichte.
+  const lines = contribution.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
+  return `Du bist ein einfühlsamer Buchautor. Du schreibst EIN Kapitel eines Gedenkbuchs für ${memorial.name}${g} (Variante 1: jede Person ein Kapitel).
 
-VARIANTE 2: Aufbau nach Stationen des Lebens (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle 5–9 Kapitel, die zu dem passen, was die Beiträge hergeben. Die einzelnen Beiträge dürfen NICHT als solche erkennbar sein — webe alle Stimmen zu einem stimmigen Text zusammen.
+Dieses Kapitel: Nummer ${number}, basierend ausschließlich auf dem Interview mit ${contribution.contributor_name} (${contribution.relationship}).
 
-Gib das Ergebnis als REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen davor oder dahinter). Genau in diesem Format:
+Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Codeblock, keine Erklärungen):
+{
+  "number": ${number},
+  "heading": "Kapitel-Überschrift",
+  "body": "Fließtext …",
+  "image_prompt": "English image description, atmospheric, no people"
+}
 
+Regeln:
+- "heading": prägnant, z. B. "Mit den Augen von ${contribution.contributor_name}" oder "[Aspekt] — ${contribution.contributor_name}"
+- "body": 250–450 Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); konkrete Geschichten und Details aus den Antworten beibehalten; Absätze durch \\n\\n trennen
+- "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
+- Alles auf Deutsch (außer image_prompt)
+- Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
+
+Interview:
+=== ${contribution.contributor_name} (${contribution.relationship}) ===
+${lines.join('\n')}`
+}
+
+// ── V2: Lebensstationen, mehrere Stimmen zu einem Text verwoben ──
+function bookV2OutlineSystem(memorial, contributions) {
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du eine Lebensgeschichte (Variante 2: Aufbau nach Lebensstationen).
+
+Plane jetzt das Gerüst: Titel, Untertitel und 5–9 Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+
+Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
   "title": "Gesamttitel des Buches",
   "subtitle": "Untertitel des Buches",
   "chapters": [
-    {
-      "number": 1,
-      "heading": "Kapitelüberschrift (z.B. Kindheit)",
-      "body": "Fließtext …",
-      "image_prompt": "English image description, atmospheric, no people"
-    }
+    { "number": 1, "heading": "Kindheit", "themes": "2–4 Sätze: welche konkreten Aspekte/Erinnerungen aus den Beiträgen sollen in DIESES Kapitel — als Anweisung für das spätere Schreiben." }
   ]
 }
 
 Regeln:
-- 5–9 Kapitel nach Lebensstationen, sinnvoll thematisch sortiert (Kindheit → späteres Leben)
+- 5–9 Kapitel, thematisch chronologisch sortiert (früh → spät)
 - "heading": kurz und prägnant (1–3 Wörter)
-- "body": 300–500 Wörter pro Kapitel, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); keine "X sagte…"-Zitate, keine Quellenangaben
+- "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
 - "title" persönlich, würdevoll, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
+- Auf Deutsch
+- Gültiges JSON, keine trailing commas
+
+Beiträge:\n\n${contributionBlocks(contributions)}`
+}
+
+function bookV2ChapterSystem(memorial, contributions, plan) {
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel einer Lebensgeschichte von ${memorial.name}${g} (Variante 2: Lebensstationen).
+
+Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
+Inhaltliche Schwerpunkte für dieses Kapitel:
+${plan.themes || '(keine spezifischen Schwerpunkte aus dem Gerüst)'}
+
+Webe die folgenden Interviews zu einem stimmigen Text zusammen — die einzelnen Beiträge dürfen NICHT als solche erkennbar sein.
+
+Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Codeblock, keine Erklärungen):
+{
+  "number": ${plan.number},
+  "heading": ${JSON.stringify(plan.heading || '')},
+  "body": "Fließtext …",
+  "image_prompt": "English image description, atmospheric, no people"
+}
+
+Regeln:
+- "body": 300–500 Wörter, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); keine "X sagte …"-Zitate, keine Quellenangaben
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum jeweiligen Lebensabschnitt
 - Alles auf Deutsch (außer image_prompt)
-- Achte zwingend auf gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
+- Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 
 Beiträge:\n\n${contributionBlocks(contributions)}`
 }
@@ -1132,9 +1168,52 @@ function Dashboard() {
   }
 
   const GENERATORS = {
-    book_v1: { kind:'book', field:'book_v1',     view:'book-v1', label:'Version 1 – Einzelne Beiträge',  filename:'Gedenkbuch_V1', system: bookV1System, userPrompt:'Erzeuge jetzt das vollständige Buch als JSON.' },
-    book_v2: { kind:'book', field:'book_v2',     view:'book-v2', label:'Version 2 – Lebensstationen',     filename:'Gedenkbuch_V2', system: bookV2System, userPrompt:'Erzeuge jetzt das vollständige Buch als JSON.' },
-    eulogy:  { kind:'text', field:'eulogy_text', view:'eulogy',  label:'Trauerrede',                       filename:'Trauerrede',    system: eulogySystem, userPrompt:'Schreibe jetzt die Trauerrede.' },
+    book_v1: {
+      kind: 'book',
+      field: 'book_v1',
+      view: 'book-v1',
+      label: 'Version 1 – Einzelne Beiträge',
+      filename: 'Gedenkbuch_V1',
+      outlineSystem: bookV1OutlineSystem,
+      chapterSystem: bookV1ChapterSystem,
+    },
+    book_v2: {
+      kind: 'book',
+      field: 'book_v2',
+      view: 'book-v2',
+      label: 'Version 2 – Lebensstationen',
+      filename: 'Gedenkbuch_V2',
+      outlineSystem: bookV2OutlineSystem,
+      chapterSystem: bookV2ChapterSystem,
+    },
+    eulogy: {
+      kind: 'text',
+      field: 'eulogy_text',
+      view: 'eulogy',
+      label: 'Trauerrede',
+      filename: 'Trauerrede',
+      system: eulogySystem,
+      userPrompt: 'Schreibe jetzt die Trauerrede.',
+    },
+  }
+
+  // Bildgenerierung mit Auto-Retry: kurze Pause zwischen Versuchen,
+  // damit transiente 5xx/Timeouts (gpt-image-1 läuft am 60s-Limit)
+  // nicht sofort als endgültiger Fehler markiert werden.
+  async function generateImageWithRetry(memorialId, prompt, { maxAttempts = 3 } = {}) {
+    let lastErr
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await adminGenerateImage(token, memorialId, prompt)
+      } catch (e) {
+        lastErr = e
+        const msg = String(e?.message || '')
+        const transient = /HTTP 5\d\d|timeout|timed out|FUNCTION_INVOCATION_TIMEOUT|fetch failed/i.test(msg)
+        if (!transient || attempt === maxAttempts) throw e
+        await new Promise(r => setTimeout(r, 3000 * attempt))
+      }
+    }
+    throw lastErr
   }
 
   async function generate(key, extraArg, opts = {}) {
@@ -1146,13 +1225,67 @@ function Dashboard() {
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setView(gen.view)
     try {
-      const raw = await askClaude(gen.system(selected, contributions, extraArg), [{ role:'user', content: gen.userPrompt }], { memorialCode: selected.id, kind: key })
       let value
-      if (gen.kind === 'book') {
-        value = tryParseJSON(raw)
-        if (!value || !Array.isArray(value.chapters)) throw new Error('KI-Antwort konnte nicht als Buch-JSON gelesen werden.')
 
-        // Bilder pro Kapitel generieren (sequenziell, Fehler tolerieren)
+      if (gen.kind === 'book') {
+        // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
+        setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
+        const outlineRaw = await askClaude(
+          gen.outlineSystem(selected, contributions),
+          [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
+          { memorialCode: selected.id, kind: `${key}_outline` }
+        )
+        const outline = tryParseJSON(outlineRaw)
+        if (!outline || !outline.title) throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden.')
+
+        // Kapitel-Plan: V1 = aus Beiträgen abgeleitet, V2 = aus Outline
+        const chapterPlans = key === 'book_v1'
+          ? contributions.map((c, i) => ({ number: i + 1, contribution: c }))
+          : (Array.isArray(outline.chapters) ? outline.chapters : [])
+        if (chapterPlans.length === 0) throw new Error('Keine Kapitel im Buch-Gerüst gefunden.')
+
+        // Phase 2: jedes Kapitel einzeln schreiben ──────────────────────
+        const chapters = []
+        const writeErrors = []
+        for (let i = 0; i < chapterPlans.length; i++) {
+          const plan = chapterPlans[i]
+          setGenProgress(p => ({ ...p, [key]: `Kapitel ${i + 1}/${chapterPlans.length} wird geschrieben …` }))
+          try {
+            const sys = key === 'book_v1'
+              ? gen.chapterSystem(selected, plan.contribution, plan.number)
+              : gen.chapterSystem(selected, contributions, plan)
+            const chRaw = await askClaude(
+              sys,
+              [{ role: 'user', content: 'Erzeuge jetzt dieses eine Kapitel als JSON.' }],
+              { memorialCode: selected.id, kind: `${key}_chapter` }
+            )
+            const ch = tryParseJSON(chRaw)
+            if (!ch || !ch.body) throw new Error('Kapitel-JSON ungültig oder leer.')
+            chapters.push({
+              number: ch.number || plan.number,
+              heading: ch.heading || plan.heading || `Kapitel ${plan.number}`,
+              body: ch.body,
+              image_prompt: ch.image_prompt || '',
+            })
+          } catch (e) {
+            writeErrors.push(`Kapitel ${plan.number}: ${e.message}`)
+            chapters.push({
+              number: plan.number,
+              heading: plan.heading || `Kapitel ${plan.number}`,
+              body: '',
+              image_prompt: '',
+              generate_error: e.message || String(e),
+            })
+          }
+        }
+
+        value = {
+          title: outline.title,
+          subtitle: outline.subtitle || '',
+          chapters,
+        }
+
+        // Phase 3: Bilder pro Kapitel (sequenziell, mit Auto-Retry) ─────
         const total = value.chapters.length
         const imageErrors = []
         for (let i = 0; i < total; i++) {
@@ -1164,7 +1297,7 @@ function Dashboard() {
             continue
           }
           try {
-            const { storagePath } = await adminGenerateImage(token, selected.id, ch.image_prompt)
+            const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt)
             value.chapters[i] = { ...ch, image_path: storagePath, image_error: null }
           } catch (e) {
             console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
@@ -1172,11 +1305,23 @@ function Dashboard() {
             imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
           }
         }
-        if (imageErrors.length > 0) {
-          setErr(`${imageErrors.length}/${total} Bildgenerierungen fehlgeschlagen. Erster Fehler: ${imageErrors[0]}`)
-        }
+
+        const errLines = []
+        if (writeErrors.length > 0) errLines.push(`${writeErrors.length}/${chapterPlans.length} Kapitel-Fehler. Erster: ${writeErrors[0]}`)
+        if (imageErrors.length > 0) errLines.push(`${imageErrors.length}/${total} Bildgenerierungen fehlgeschlagen. Erster Fehler: ${imageErrors[0]}`)
+        if (errLines.length > 0) setErr(errLines.join(' · '))
+
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
+      } else {
+        // Eulogy / Text — unverändert
+        const raw = await askClaude(
+          gen.system(selected, contributions, extraArg),
+          [{ role: 'user', content: gen.userPrompt }],
+          { memorialCode: selected.id, kind: key }
+        )
+        value = raw
       }
+
       await adminSaveMemorialText(token, selected.id, gen.field, value)
 
       // Neu laden, damit die signierten Bild-URLs ins selected/memorials kommen
