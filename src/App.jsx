@@ -431,30 +431,66 @@ const EULOGY_STYLES = [
   },
 ]
 
-function eulogySystem(memorial, contributions, styleInstruction) {
-  const blocks = contributions.map(c => {
+// Trauerrede wird in 4 Sections aufgeteilt und separat generiert, damit
+// jeder einzelne Claude-Call sicher unter dem 60s-Timeout von api/ask.js
+// bleibt. Die Sections werden anschließend zu einem Fließtext gefügt.
+const EULOGY_SECTIONS = [
+  {
+    key: 'hinfuehrung',
+    label: 'Hinführung',
+    brief: 'Beginne mit „Liebe Trauergemeinde, …" und einer warmen, würdevollen Eröffnung. Stimme die Anwesenden auf den Abschied ein. Ca. 80–130 Wörter.',
+    greets: true,
+  },
+  {
+    key: 'wuerdigung',
+    label: 'Wer war diese Person',
+    brief: 'Skizziere, wer der/die Verstorbene als Mensch war — Wesenszüge, was diese Person ausgemacht hat, was sie anderen bedeutete. Ca. 100–180 Wörter.',
+    greets: false,
+  },
+  {
+    key: 'geschichten',
+    label: 'Geschichten und Wesenszüge',
+    brief: 'Webe konkrete Erinnerungen, Anekdoten und kleine Eigenheiten aus den Beiträgen ein, ohne die Quellen einzeln zu nennen. Mehrere konkrete Details, kein Allgemeinplatz. Ca. 150–260 Wörter.',
+    greets: false,
+  },
+  {
+    key: 'abschluss',
+    label: 'Abschluss und Verabschiedung',
+    brief: 'Würdiger, persönlicher Abschluss; Verabschiedung der Trauergemeinde. Ca. 80–140 Wörter.',
+    greets: false,
+  },
+]
+
+function eulogyBlocks(contributions) {
+  return contributions.map(c => {
     const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
     return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
   }).join('\n\n')
+}
+
+function eulogySectionSystem(memorial, contributions, section, styleInstruction) {
   const g = memorial.gender ? ` (${memorial.gender})` : ''
   const styleBlock = styleInstruction
-    ? `\nSTIL-VORGABE FÜR DIESE REDE (verbindlich umsetzen):\n${styleInstruction}\n`
+    ? `\nSTIL-VORGABE FÜR DIE GESAMTE REDE (verbindlich umsetzen):\n${styleInstruction}\n`
     : ''
-  return `Du bist ein erfahrener Trauerredner. Verfasse eine persönliche, würdevolle Trauerrede über ${memorial.name}${g}, basierend auf den Erinnerungen von ${contributions.length} nahestehenden Menschen.
+  const greetRule = section.greets
+    ? '- Beginne diesen Abschnitt mit „Liebe Trauergemeinde, …"'
+    : '- KEINE Anrede der Trauergemeinde, KEIN „Liebe Trauergemeinde" — dieser Abschnitt schließt sich nahtlos an einen vorhergehenden Teil der Rede an'
+  return `Du bist ein erfahrener Trauerredner. Du schreibst EINEN Abschnitt einer Trauerrede über ${memorial.name}${g}, basierend auf den Erinnerungen von ${contributions.length} nahestehenden Menschen. Die Rede wird laut auf einer Trauerfeier vorgelesen.
 
-Die Rede wird laut auf einer Trauerfeier vorgelesen.
+DIESER ABSCHNITT: „${section.label}"
+${section.brief}
 ${styleBlock}
 Anforderungen:
-- Sprich die Trauergemeinde direkt an („Liebe Trauergemeinde, …")
+${greetRule}
 - Würdevoll, warm, persönlich — kein religiöser Standardtext, sondern auf diesen konkreten Menschen zugeschnitten
-- Webe konkrete Erinnerungen und Geschichten ein, ohne die Quellen einzeln zu nennen
-- Zeichne ein vielschichtiges, lebensnahes Bild
-- Struktur: Hinführung · Wer war ${memorial.name}? · Geschichten und Wesenszüge · Abschluss/Verabschiedung
-- 400–700 Wörter, Absätze klar voneinander getrennt
+- Webe konkrete Erinnerungen und Geschichten aus den Beiträgen ein, ohne die Quellen einzeln zu nennen
 - Ton: gesprochene Sprache, gut zum Vorlesen geeignet — kurze Sätze sind willkommen
-- Direkt mit dem Redetext beginnen, kein Titel und keine Metakommentare
+- Auf Deutsch
+- Absätze durch eine Leerzeile (\\n\\n) trennen
+- Gib AUSSCHLIESSLICH den fertigen Redetext dieses Abschnitts aus. Keine Überschrift, kein Titel, keine Metakommentare, keine Einleitung wie „Hier ist der Abschnitt …", kein Markdown.
 
-Beiträge:\n\n${blocks}`
+Beiträge:\n\n${eulogyBlocks(contributions)}`
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
@@ -1187,13 +1223,12 @@ function Dashboard() {
       chapterSystem: bookV2ChapterSystem,
     },
     eulogy: {
-      kind: 'text',
+      kind: 'eulogy',
       field: 'eulogy_text',
       view: 'eulogy',
       label: 'Trauerrede',
       filename: 'Trauerrede',
-      system: eulogySystem,
-      userPrompt: 'Schreibe jetzt die Trauerrede.',
+      sectionSystem: eulogySectionSystem,
     },
   }
 
@@ -1312,8 +1347,33 @@ function Dashboard() {
         if (errLines.length > 0) setErr(errLines.join(' · '))
 
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
+      } else if (gen.kind === 'eulogy') {
+        // Trauerrede in 4 Sections — jede ein eigener Claude-Call, damit
+        // niemand am 60s-Limit von api/ask.js stirbt.
+        const parts = []
+        const sectionErrors = []
+        for (let i = 0; i < EULOGY_SECTIONS.length; i++) {
+          const section = EULOGY_SECTIONS[i]
+          setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${EULOGY_SECTIONS.length}: ${section.label} …` }))
+          try {
+            const raw = await askClaude(
+              gen.sectionSystem(selected, contributions, section, extraArg),
+              [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der Trauerrede.` }],
+              { memorialCode: selected.id, kind: key }
+            )
+            const text = String(raw || '').trim()
+            if (!text) throw new Error('leere Antwort')
+            parts.push(text)
+          } catch (e) {
+            sectionErrors.push(`${section.label}: ${e.message}`)
+          }
+        }
+        if (parts.length === 0) throw new Error('Kein Abschnitt der Trauerrede konnte generiert werden.')
+        value = parts.join('\n\n')
+        if (sectionErrors.length > 0) setErr(`${sectionErrors.length}/${EULOGY_SECTIONS.length} Abschnitt-Fehler. Erster: ${sectionErrors[0]}`)
+        setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       } else {
-        // Eulogy / Text — unverändert
+        // Sonstige Plain-Text-Generatoren (derzeit keiner)
         const raw = await askClaude(
           gen.system(selected, contributions, extraArg),
           [{ role: 'user', content: gen.userPrompt }],
