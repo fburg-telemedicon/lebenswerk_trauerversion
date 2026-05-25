@@ -81,13 +81,17 @@ function Dots() {
 }
 
 // ── Claude-Prompts ────────────────────────────────────────────────
-function interviewSystem(memorial, name, rel) {
+function interviewSystem(memorial, name, rel, address) {
   const g = memorial.gender ? ` (${memorial.gender})` : ''
+  const addr = address === 'Du'
+    ? 'Sprich die Person konsequent informell mit „du" an.'
+    : 'Sprich die Person konsequent förmlich mit „Sie" an.'
   return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name}${g} kannte.
 
 Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
 
 Regeln:
+- ${addr}
 - Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
 - Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
@@ -164,7 +168,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
   async function loadFirst() {
     setAiLoading(true)
     try {
-      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address)
       const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }])
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
@@ -235,7 +239,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
     try {
-      const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs])
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
@@ -392,7 +396,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
 function ContributorFlow({ code }) {
   const [view, setView]           = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]   = useState(null)
-  const [contribForm, setContribForm] = useState({ name:'', relationship:'' })
+  const [contribForm, setContribForm] = useState({ name:'', relationship:'', address:'Sie' })
   const [err, setErr]             = useState('')
   const [contribId]               = useState(() => genContribId())
   const [saveErr, setSaveErr]     = useState('')
@@ -442,8 +446,33 @@ function ContributorFlow({ code }) {
         Gedenkbuch für <strong>{memorial?.name}</strong>
       </p>
       <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
-      <div style={{ marginBottom:24 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
-      <button disabled={!contribForm.name||!contribForm.relationship} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
+      <div style={{ marginBottom:14 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
+      <div style={{ marginBottom:24 }}>
+        <Lbl>Wie möchten Sie angesprochen werden? *</Lbl>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          {[
+            { v:'Du',  title:'Du',  sub:'Informell, vertraut' },
+            { v:'Sie', title:'Sie', sub:'Förmlich, respektvoll' },
+          ].map(o => (
+            <div
+              key={o.v}
+              onClick={() => setContribForm({ ...contribForm, address: o.v })}
+              style={{
+                ...S.card,
+                cursor:'pointer',
+                textAlign:'center',
+                padding:'14px 10px',
+                borderColor: contribForm.address === o.v ? '#1c1917' : '#e7e5e4',
+                borderWidth: contribForm.address === o.v ? 2 : 1,
+              }}
+            >
+              <div style={{ fontWeight:600, fontSize:15 }}>{o.title}</div>
+              <div style={{ fontSize:12, color:'#78716c', marginTop:4 }}>{o.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <button disabled={!contribForm.name||!contribForm.relationship||!contribForm.address} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
         🎙 Sprach-Interview beginnen →
       </button>
     </div>
@@ -573,6 +602,22 @@ function Dashboard() {
     const url = `${window.location.origin}/?code=${code}`
     navigator.clipboard.writeText(url)
     setCopied(code); setTimeout(() => setCopied(''), 2000)
+  }
+
+  async function copyQR(code) {
+    const url = `${window.location.origin}/?code=${code}`
+    setErr('')
+    try {
+      const resp = await fetch(qrCodeUrl(url, 320))
+      const blob = await resp.blob()
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error('Bild-Kopieren wird in diesem Browser nicht unterstützt. Stattdessen Rechtsklick → Bild kopieren.')
+      }
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+      setCopied(`qr-${code}`); setTimeout(() => setCopied(''), 2000)
+    } catch (e) {
+      setErr(`QR kopieren: ${e.message}`)
+    }
   }
 
   function dlOne(c) {
@@ -779,11 +824,16 @@ function Dashboard() {
           </div>
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
             <Lbl>Einladungslink</Lbl>
-            <div style={{ fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#44403c', margin:'6px 0 10px' }}>{inviteUrl}</div>
+            <a
+              href={inviteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display:'block', fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#1d4ed8', margin:'6px 0 10px', textDecoration:'underline' }}
+            >{inviteUrl}</a>
             <button className="secondary" onClick={() => copyInvite(createdCode)} style={{ fontSize: 13 }}>
               {copied === createdCode ? '✓ Kopiert' : '📋 Link kopieren'}
             </button>
-            <div style={{ marginTop:16, display:'flex', justifyContent:'center' }}>
+            <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
               <img
                 src={qrCodeUrl(inviteUrl, 240)}
                 alt={`QR-Code für ${inviteUrl}`}
@@ -791,6 +841,9 @@ function Dashboard() {
                 height={240}
                 style={{ borderRadius:8, background:'#fff' }}
               />
+              <button className="secondary" onClick={() => copyQR(createdCode)} style={{ fontSize: 13 }}>
+                {copied === `qr-${createdCode}` ? '✓ QR kopiert' : '📋 QR-Code kopieren'}
+              </button>
             </div>
           </div>
           <button onClick={() => loadMemorials(token)} style={{ padding: '11px 28px' }}>Zur Übersicht</button>
@@ -837,13 +890,18 @@ function Dashboard() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
               <div style={{ minWidth:0 }}>
                 <Lbl>Einladungslink (für Beitragende)</Lbl>
-                <div style={{ fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#44403c', marginTop:6 }}>{inviteUrl}</div>
+                <a
+                  href={inviteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display:'block', fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#1d4ed8', marginTop:6, textDecoration:'underline' }}
+                >{inviteUrl}</a>
               </div>
               <button className="secondary" onClick={() => copyInvite(selected.id)} style={{ fontSize:13, flexShrink:0 }}>
                 {copied === selected.id ? '✓ Kopiert' : '📋 Kopieren'}
               </button>
             </div>
-            <div style={{ marginTop:16, display:'flex', justifyContent:'center' }}>
+            <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
               <img
                 src={qrCodeUrl(inviteUrl, 220)}
                 alt={`QR-Code für ${inviteUrl}`}
@@ -851,6 +909,9 @@ function Dashboard() {
                 height={220}
                 style={{ borderRadius:8, background:'#fff' }}
               />
+              <button className="secondary" onClick={() => copyQR(selected.id)} style={{ fontSize: 13 }}>
+                {copied === `qr-${selected.id}` ? '✓ QR kopiert' : '📋 QR-Code kopieren'}
+              </button>
             </div>
           </div>
 
