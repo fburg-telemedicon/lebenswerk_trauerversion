@@ -48,6 +48,15 @@ const GENDERS = [
   { value: 'divers',   label: 'Divers'   },
 ]
 
+const BOOK_VARIANTS = [
+  { value: 1, title: 'Variante 1', sub: 'Alle Beiträge werden als separate Buchkapitel veröffentlicht.' },
+  { value: 2, title: 'Variante 2', sub: 'Die Biographie wird aus allen Inhalten neu erstellt; einzelne Beiträge sind nicht mehr erkennbar.' },
+]
+
+function qrCodeUrl(text, size = 240) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
+}
+
 // ── Stile ─────────────────────────────────────────────────────────
 const S = {
   page:    { maxWidth: 600, margin: '0 auto', padding: '1.5rem' },
@@ -112,6 +121,7 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
   const [transcript, setTranscript] = useState('')
   const [err,        setErr]        = useState('')
   const [saving,     setSaving]     = useState(false)
+  const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
   const chunksRef    = useRef([])
   const endRef       = useRef(null)
@@ -129,8 +139,14 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
     stopSpeaking()
     setIsPlaying(true); setTtsLoading(true); setErr('')
     speakText(text, {
-      onEnd:   () => { setIsPlaying(false); setTtsLoading(false) },
-      onError: e  => { setErr(`TTS: ${e}`); setIsPlaying(false); setTtsLoading(false) },
+      onEnd:   () => { setIsPlaying(false); setTtsLoading(false); setHasPlayed(true) },
+      onError: (msg, name) => {
+        setIsPlaying(false); setTtsLoading(false)
+        // iOS Safari blockiert Audio ohne direkte User-Geste — kein Fehler zeigen,
+        // Nutzer kann den „Anhören"-Button tippen.
+        if (name === 'NotAllowedError' || /not allowed|denied permission|user gesture/i.test(msg || '')) return
+        setErr(`TTS: ${msg}`)
+      },
     })
   }
 
@@ -261,7 +277,7 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
             <button onClick={handleSpeak} disabled={ttsLoading || aiLoading} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               {ttsLoading
                 ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> Lädt …</>
-                : isPlaying ? '⏹ Stoppen' : '🔊 Nochmal vorlesen'}
+                : isPlaying ? '⏹ Stoppen' : hasPlayed ? '🔊 Nochmal vorlesen' : '🔊 Anhören'}
             </button>
           </div>
         )}
@@ -426,7 +442,7 @@ function Dashboard() {
   const [memorials, setMemorials]     = useState([])
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
-  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'' })
+  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1 })
   const [createdCode, setCreatedCode] = useState('')
   const [bookText, setBookText]       = useState('')
   const [bookLoading, setBookLoading] = useState(false)
@@ -493,6 +509,7 @@ function Dashboard() {
         name: createForm.name.trim(),
         organizer: createForm.organizer.trim(),
         gender: createForm.gender || null,
+        bookVariant: createForm.bookVariant,
       })
       setCreatedCode(code)
       setView('created')
@@ -574,7 +591,7 @@ function Dashboard() {
       <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Gedenkbücher</h2>
-          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'' }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
+          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1 }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
             + Neues Gedenkbuch
           </button>
         </div>
@@ -666,9 +683,30 @@ function Dashboard() {
             ))}
           </div>
         </div>
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 14 }}>
           <Lbl>Ihr Name (Organisator) *</Lbl>
           <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Buch-Variante *</Lbl>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
+            {BOOK_VARIANTS.map(v => (
+              <div
+                key={v.value}
+                onClick={() => setCreateForm({ ...createForm, bookVariant: v.value })}
+                style={{
+                  ...S.card,
+                  cursor:'pointer',
+                  padding:'14px 14px',
+                  borderColor: createForm.bookVariant === v.value ? '#1c1917' : '#e7e5e4',
+                  borderWidth: createForm.bookVariant === v.value ? 2 : 1,
+                }}
+              >
+                <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
+                <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+              </div>
+            ))}
+          </div>
         </div>
         <button
           disabled={!createForm.name || !createForm.organizer || !createForm.gender || busy}
@@ -704,6 +742,15 @@ function Dashboard() {
             <button className="secondary" onClick={() => copyInvite(createdCode)} style={{ fontSize: 13 }}>
               {copied === createdCode ? '✓ Kopiert' : '📋 Link kopieren'}
             </button>
+            <div style={{ marginTop:16, display:'flex', justifyContent:'center' }}>
+              <img
+                src={qrCodeUrl(inviteUrl, 240)}
+                alt={`QR-Code für ${inviteUrl}`}
+                width={240}
+                height={240}
+                style={{ borderRadius:8, background:'#fff' }}
+              />
+            </div>
           </div>
           <button onClick={() => loadMemorials(token)} style={{ padding: '11px 28px' }}>Zur Übersicht</button>
         </div>
@@ -738,17 +785,29 @@ function Dashboard() {
           <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
             Organisator: {selected.organizer}
             {selected.gender ? ` · ${selected.gender}` : ''}
+            {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
             {' · Code: '}<span style={{ fontFamily: 'monospace' }}>{selected.id}</span>
           </p>
 
-          <div style={{ ...S.card, marginBottom: '1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
-            <div style={{ minWidth:0 }}>
-              <Lbl>Einladungslink (für Beitragende)</Lbl>
-              <div style={{ fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#44403c', marginTop:6 }}>{inviteUrl}</div>
+          <div style={{ ...S.card, marginBottom: '1.5rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+              <div style={{ minWidth:0 }}>
+                <Lbl>Einladungslink (für Beitragende)</Lbl>
+                <div style={{ fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#44403c', marginTop:6 }}>{inviteUrl}</div>
+              </div>
+              <button className="secondary" onClick={() => copyInvite(selected.id)} style={{ fontSize:13, flexShrink:0 }}>
+                {copied === selected.id ? '✓ Kopiert' : '📋 Kopieren'}
+              </button>
             </div>
-            <button className="secondary" onClick={() => copyInvite(selected.id)} style={{ fontSize:13, flexShrink:0 }}>
-              {copied === selected.id ? '✓ Kopiert' : '📋 Kopieren'}
-            </button>
+            <div style={{ marginTop:16, display:'flex', justifyContent:'center' }}>
+              <img
+                src={qrCodeUrl(inviteUrl, 220)}
+                alt={`QR-Code für ${inviteUrl}`}
+                width={220}
+                height={220}
+                style={{ borderRadius:8, background:'#fff' }}
+              />
+            </div>
           </div>
 
           <Err msg={err} />

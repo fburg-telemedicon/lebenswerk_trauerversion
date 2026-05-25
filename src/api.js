@@ -1,11 +1,11 @@
 // src/api.js – zentraler API-Client für das Frontend
 
 // ── Gedenkbuch ────────────────────────────────────────────────────
-export async function createMemorial({ name, organizer, gender }) {
+export async function createMemorial({ name, organizer, gender, bookVariant }) {
   const res = await fetch('/api/memorial', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, organizer, gender }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant }),
   })
   const d = await res.json()
   if (!res.ok) throw new Error(d.error)
@@ -86,10 +86,18 @@ export async function speakText(text, { onStart, onEnd, onError } = {}) {
     currentAudio = audio
     audio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; onEnd?.(); }
     audio.onerror = () => { URL.revokeObjectURL(url); currentAudio = null; onError?.('Audiowiedergabe fehlgeschlagen.'); }
-    await audio.play()
-    return audio
+    try {
+      await audio.play()
+      return audio
+    } catch (playErr) {
+      URL.revokeObjectURL(url)
+      if (currentAudio === audio) currentAudio = null
+      const err = new Error(playErr.message || 'Wiedergabe blockiert')
+      err.name = playErr.name
+      throw err
+    }
   } catch (e) {
-    onError?.(e.message)
+    onError?.(e.message, e.name)
     return null
   }
 }

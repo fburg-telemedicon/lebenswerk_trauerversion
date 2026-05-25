@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('memorials')
-        .select('id, name, organizer, gender, created_at')
+        .select('id, name, organizer, gender, book_variant, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
       return res.json(data || [])
