@@ -20,12 +20,12 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'POST') {
-      const { name, birthYear, deathYear, organizer } = req.body
+      const { name, organizer } = req.body
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const code = genCode()
       const { error } = await supabase.from('memorials').insert({
-        id: code, name, birth_year: birthYear || null, death_year: deathYear || null, organizer,
+        id: code, name, organizer,
       })
       if (error) throw error
       return res.json({ code })

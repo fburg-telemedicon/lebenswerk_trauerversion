@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
   try {
     const { data, error } = await supabase
       .from('memorials')
-      .select('id, name, birth_year, death_year, organizer, created_at')
+      .select('id, name, organizer, created_at')
       .order('created_at', { ascending: false })
     if (error) throw error
     return res.json(data || [])

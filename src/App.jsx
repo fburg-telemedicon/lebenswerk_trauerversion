@@ -9,11 +9,8 @@ const isDashboard = window.location.pathname.startsWith('/dashboard')
 
 // ── Hilfsfunktionen Download ──────────────────────────────────────
 function formatContribution(memorial, c) {
-  const years = memorial.birth_year
-    ? `${memorial.birth_year}–${memorial.death_year || '†'}`
-    : ''
   const lines = [
-    `GEDENKBUCH: ${memorial.name}${years ? ` (${years})` : ''}`,
+    `GEDENKBUCH: ${memorial.name}`,
     `Organisator: ${memorial.organizer}`,
     '',
     `Beitrag von: ${c.contributor_name}`,
@@ -167,7 +164,7 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Geburtsjahr', 'Sterbejahr', 'Organisator', 'Code', 'Erstellt'].map(h => (
+                  {['Name', 'Organisator', 'Code', 'Erstellt'].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -179,8 +176,6 @@ function Dashboard() {
                     onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
                     onMouseLeave={e => e.currentTarget.style.background = ''}>
                     <td style={{ ...col, fontWeight: 600 }}>{m.name}</td>
-                    <td style={col}>{m.birth_year || '–'}</td>
-                    <td style={col}>{m.death_year || '–'}</td>
                     <td style={col}>{m.organizer}</td>
                     <td style={{ ...col, fontFamily: 'monospace', fontSize: 13 }}>{m.id}</td>
                     <td style={{ ...col, color: '#78716c' }}>{new Date(m.created_at).toLocaleDateString('de-DE')}</td>
@@ -202,7 +197,6 @@ function Dashboard() {
           <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
           <div>
             <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name}</span>
-            {selected.birth_year && <span style={{ fontSize: 13, color: '#78716c', marginLeft: 10 }}>{selected.birth_year}–{selected.death_year || '†'}</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -257,8 +251,7 @@ function Dashboard() {
 
 // ── Claude-Prompts ────────────────────────────────────────────────
 function interviewSystem(memorial, name, rel) {
-  const years = memorial.birth_year ? ` (${memorial.birth_year}–${memorial.death_year || '†'})` : ''
-  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name}${years} kannte.
+  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name} kannte.
 
 Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
 
@@ -272,12 +265,11 @@ Regeln:
 }
 
 function synthesisSystem(memorial, contributions) {
-  const years = memorial.birth_year ? ` (${memorial.birth_year}–${memorial.death_year || '†'})` : ''
   const blocks = contributions.map(c => {
     const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
     return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
   }).join('\n\n')
-  return `Du bist ein renommierter Buchautor und Biograph. Du hast Erinnerungen von ${contributions.length} Menschen gesammelt, die ${memorial.name}${years} kannten.
+  return `Du bist ein renommierter Buchautor und Biograph. Du hast Erinnerungen von ${contributions.length} Menschen gesammelt, die ${memorial.name} kannten.
 
 Schreibe ein zusammenhängendes Gedenkkapitel "in einem Guss" – wie ein Kapitel in einem hochwertigen Gedenkbuch.
 - Warme, literarische Sprache auf Deutsch
@@ -518,7 +510,7 @@ export default function App() {
   const [memorial, setMemorial] = useState(null)
   const [contributions, setContribs] = useState([])
   const [code, setCode]     = useState('')
-  const [createForm, setCreateForm] = useState({ name:'', birthYear:'', deathYear:'', organizer:'' })
+  const [createForm, setCreateForm] = useState({ name:'', organizer:'' })
   const [codeInput, setCodeInput]   = useState('')
   const [contribForm, setContribForm] = useState({ name:'', relationship:'' })
   const [interviewMode, setInterviewMode] = useState('text')
@@ -606,10 +598,6 @@ export default function App() {
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>Erstellen Sie ein Gedenkbuch und laden Sie Familie und Freunde ein.</p>
           <Err msg={err} />
           <div style={{ marginBottom:14 }}><Lbl>Name der verstorbenen Person *</Lbl><input value={createForm.name} onChange={e=>setCreateForm({...createForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
-            <div><Lbl>Geburtsjahr</Lbl><input value={createForm.birthYear} onChange={e=>setCreateForm({...createForm,birthYear:e.target.value})} placeholder="z.B. 1942" /></div>
-            <div><Lbl>Sterbejahr</Lbl><input value={createForm.deathYear} onChange={e=>setCreateForm({...createForm,deathYear:e.target.value})} placeholder="z.B. 2024" /></div>
-          </div>
           <div style={{ marginBottom:24 }}><Lbl>Ihr Name (Organisator) *</Lbl><input value={createForm.organizer} onChange={e=>setCreateForm({...createForm,organizer:e.target.value})} placeholder="Ihr Name" /></div>
           <button disabled={!createForm.name||!createForm.organizer||busy} onClick={handleCreate} style={{ width:'100%', padding:13, fontSize:15 }}>{busy?'Wird erstellt …':'Gedenkbuch anlegen →'}</button>
         </div>
@@ -657,7 +645,6 @@ export default function App() {
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Ihre Erinnerung</h2>
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
             Gedenkbuch für <strong>{memorial?.name}</strong>
-            {memorial?.birth_year&&<span style={{ color:'#78716c' }}> · {memorial.birth_year}–{memorial.death_year||'†'}</span>}
           </p>
           <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
           <div style={{ marginBottom:24 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
@@ -696,8 +683,7 @@ export default function App() {
       {view==='dashboard-user' && (
         <div style={{ ...S.page, paddingTop:'2rem' }}>
           <Back onClick={()=>go('home')} />
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:2 }}>{memorial?.name}</h2>
-          {memorial?.birth_year&&<p style={{ ...S.muted, marginBottom:'1.25rem' }}>{memorial.birth_year} – {memorial.death_year||'†'}</p>}
+          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:'1.25rem' }}>{memorial?.name}</h2>
           <Err msg={err} />
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:'1.25rem' }}>
             <div style={{ background:'#f5f5f4', borderRadius:10, padding:'1rem', textAlign:'center' }}>
@@ -753,7 +739,6 @@ export default function App() {
           <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
             <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 1</p>
             <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{memorial?.name}</h1>
-            {memorial?.birth_year&&<p style={{ color:'#78716c', marginTop:6 }}>{memorial.birth_year} – {memorial.death_year||'†'}</p>}
           </div>
           {contributions.map((c,i)=>{
             const pairs=[]
@@ -782,7 +767,6 @@ export default function App() {
           <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
             <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 2</p>
             <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{memorial?.name}</h1>
-            {memorial?.birth_year&&<p style={{ color:'#78716c', marginTop:6 }}>{memorial.birth_year} – {memorial.death_year||'†'}</p>}
           </div>
           <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
             {bookLoading?(
