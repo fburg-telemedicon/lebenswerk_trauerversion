@@ -12,7 +12,7 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN    || 'lebenswerk-admin-secret'
 const OPENAI_KEY  = process.env.OPENAI_API_KEY
 
 const BUCKET = 'memorial-images'
-const IMAGE_MODEL = 'dall-e-3-hd-1792x1024'
+const IMAGE_MODEL = 'gpt-image-1-high-1536x1024'
 
 function checkAuth(req, res) {
   const token = (req.headers.authorization || '').replace('Bearer ', '')
@@ -32,10 +32,10 @@ module.exports = async function handler(req, res) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt,
-        size: '1792x1024',
-        quality: 'hd',
+        size: '1536x1024',
+        quality: 'high',
         n: 1,
       }),
     })

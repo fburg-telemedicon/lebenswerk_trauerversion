@@ -128,7 +128,7 @@ async function downloadStructuredDocx(filename, book) {
         children.push(new Paragraph({
           children: [new ImageRun({
             data: buf,
-            transformation: { width: 560, height: 320 }, // ~16:9, fits A4 minus Ränder
+            transformation: { width: 560, height: 373 }, // 3:2 wie gpt-image-1 1536×1024, fits A4 minus Ränder
           })],
           alignment: AlignmentType.CENTER,
           spacing: { after: 300 },

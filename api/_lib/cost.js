@@ -22,13 +22,24 @@ const PRICING = {
   // OpenAI STT (USD pro Minute)
   'whisper-1': { perMinute: 0.006 },
 
-  // OpenAI DALL-E 3 (USD pro Bild). Key = `${model}-${quality}-${size}`
+  // OpenAI DALL-E 3 (USD pro Bild). Legacy, falls noch verfügbar.
   'dall-e-3-hd-1792x1024':       { perImage: 0.120 },
   'dall-e-3-hd-1024x1792':       { perImage: 0.120 },
   'dall-e-3-hd-1024x1024':       { perImage: 0.080 },
   'dall-e-3-standard-1792x1024': { perImage: 0.080 },
   'dall-e-3-standard-1024x1792': { perImage: 0.080 },
   'dall-e-3-standard-1024x1024': { perImage: 0.040 },
+
+  // OpenAI gpt-image-1 (USD pro Bild). Key = `${model}-${quality}-${size}`
+  'gpt-image-1-high-1536x1024':   { perImage: 0.25 },
+  'gpt-image-1-high-1024x1536':   { perImage: 0.25 },
+  'gpt-image-1-high-1024x1024':   { perImage: 0.167 },
+  'gpt-image-1-medium-1536x1024': { perImage: 0.063 },
+  'gpt-image-1-medium-1024x1536': { perImage: 0.063 },
+  'gpt-image-1-medium-1024x1024': { perImage: 0.042 },
+  'gpt-image-1-low-1536x1024':    { perImage: 0.016 },
+  'gpt-image-1-low-1024x1536':    { perImage: 0.016 },
+  'gpt-image-1-low-1024x1024':    { perImage: 0.011 },
 }
 
 function costClaude(model, inT, outT) {
