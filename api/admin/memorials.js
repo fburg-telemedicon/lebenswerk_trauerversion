@@ -1,5 +1,6 @@
 // api/admin/memorials.js
-// GET /api/admin/memorials  →  alle Gedenkbücher (auth required)
+// GET    /api/admin/memorials              →  alle Gedenkbücher (auth required)
+// DELETE /api/admin/memorials?code=ABC123  →  Gedenkbuch + Beiträge löschen (auth required)
 
 const { createClient } = require('@supabase/supabase-js')
 
@@ -14,14 +15,28 @@ function checkAuth(req, res) {
 
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
-  if (req.method !== 'GET') return res.status(405).end()
   try {
-    const { data, error } = await supabase
-      .from('memorials')
-      .select('id, name, organizer, created_at')
-      .order('created_at', { ascending: false })
-    if (error) throw error
-    return res.json(data || [])
+    if (req.method === 'GET') {
+      const { data, error } = await supabase
+        .from('memorials')
+        .select('id, name, organizer, gender, created_at')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return res.json(data || [])
+    }
+
+    if (req.method === 'DELETE') {
+      const code = (req.query.code || '').toUpperCase().trim()
+      if (!code) return res.status(400).json({ error: 'code fehlt.' })
+
+      const { error: cErr } = await supabase.from('contributions').delete().eq('memorial_id', code)
+      if (cErr) throw cErr
+      const { error: mErr } = await supabase.from('memorials').delete().eq('id', code)
+      if (mErr) throw mErr
+      return res.json({ ok: true })
+    }
+
+    return res.status(405).end()
   } catch (e) {
     console.error('/api/admin/memorials:', e)
     res.status(500).json({ error: e.message })

@@ -1,15 +1,25 @@
 // src/api.js – zentraler API-Client für das Frontend
 
 // ── Gedenkbuch ────────────────────────────────────────────────────
-export async function createMemorial({ name, birthYear, deathYear, organizer }) {
+export async function createMemorial({ name, organizer, gender }) {
   const res = await fetch('/api/memorial', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, birthYear, deathYear, organizer }),
+    body: JSON.stringify({ name, organizer, gender }),
   })
   const d = await res.json()
   if (!res.ok) throw new Error(d.error)
   return d // { code }
+}
+
+export async function adminDeleteMemorial(token, code) {
+  const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const d = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
+  return d
 }
 
 export async function getMemorial(code) {

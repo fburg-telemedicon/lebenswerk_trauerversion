@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   createMemorial, getMemorial, getContributions, addContribution,
-  askClaude, speakText, stopSpeaking,
+  askClaude, speakText, stopSpeaking, adminDeleteMemorial,
 } from './api.js'
 
-// ── Routing ───────────────────────────────────────────────────────
-const isDashboard = window.location.pathname.startsWith('/dashboard')
+// ── URL params ────────────────────────────────────────────────────
+const urlParams    = new URLSearchParams(window.location.search)
+const codeFromURL  = (urlParams.get('code') || '').toUpperCase().trim()
 
 // ── Hilfsfunktionen Download ──────────────────────────────────────
 function formatContribution(memorial, c) {
@@ -41,245 +42,11 @@ function downloadFile(filename, content) {
 
 function safeName(s) { return s.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').trim().replace(/\s+/g, '_') }
 
-// ── Admin Dashboard ───────────────────────────────────────────────
-function Dashboard() {
-  const [view, setView]         = useState('login')
-  const [token, setToken]       = useState(() => sessionStorage.getItem('lw_admin_token') || '')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [memorials, setMemorials]       = useState([])
-  const [selected, setSelected]         = useState(null)
-  const [contributions, setContribs]    = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [err, setErr]           = useState('')
-
-  useEffect(() => { if (token) loadMemorials(token) }, [])
-
-  async function login(e) {
-    e.preventDefault()
-    setLoading(true); setErr('')
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error)
-      sessionStorage.setItem('lw_admin_token', d.token)
-      setToken(d.token)
-      await loadMemorials(d.token)
-    } catch (e) { setErr(e.message) }
-    finally { setLoading(false) }
-  }
-
-  async function loadMemorials(t) {
-    setLoading(true); setErr('')
-    try {
-      const res = await fetch('/api/admin/memorials', {
-        headers: { Authorization: `Bearer ${t}` },
-      })
-      if (res.status === 401) { logout(); return }
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error)
-      setMemorials(d); setView('list')
-    } catch (e) { setErr(e.message) }
-    finally { setLoading(false) }
-  }
-
-  async function openMemorial(memorial) {
-    setSelected(memorial); setLoading(true); setErr('')
-    try {
-      const res = await fetch(`/api/admin/contributions?code=${memorial.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.status === 401) { logout(); return }
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error)
-      setContribs(d); setView('detail')
-    } catch (e) { setErr(e.message) }
-    finally { setLoading(false) }
-  }
-
-  function logout() {
-    sessionStorage.removeItem('lw_admin_token')
-    setToken(''); setView('login'); setUsername(''); setPassword('')
-  }
-
-  function dlOne(c) {
-    downloadFile(`${safeName(c.contributor_name)}_${safeName(selected.name)}.txt`, formatContribution(selected, c))
-  }
-
-  function dlAll() {
-    const sep = '\n\n' + '═'.repeat(60) + '\n\n'
-    const text = contributions.map(c => formatContribution(selected, c)).join(sep)
-    downloadFile(`${safeName(selected.name)}_alle-Beitraege.txt`, text)
-  }
-
-  const col = { padding: '11px 14px', textAlign: 'left', borderBottom: '1px solid #e7e5e4', fontSize: 14 }
-  const th  = { ...col, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: '#78716c', background: '#fafaf9' }
-
-  // ── LOGIN ──
-  if (view === 'login') return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
-      <form onSubmit={login} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Lebenswerk Admin</h1>
-        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Bitte melden Sie sich an.</p>
-        {err && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626', marginBottom: 12 }}>⚠ {err}</div>}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 12, color: '#78716c', letterSpacing: '.06em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Benutzername</label>
-          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" autoFocus />
-        </div>
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, color: '#78716c', letterSpacing: '.06em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Passwort</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••" />
-        </div>
-        <button type="submit" disabled={loading || !username || !password} style={{ width: '100%', padding: 12, fontSize: 15 }}>
-          {loading ? 'Wird überprüft …' : 'Anmelden'}
-        </button>
-      </form>
-    </div>
-  )
-
-  // ── GEDENKBÜCHER-LISTE ──
-  if (view === 'list') return (
-    <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
-          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>{memorials.length} Gedenkbücher</span>
-        </div>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
-      </div>
-
-      <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: '1.25rem' }}>Alle Gedenkbücher</h2>
-        {err && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626', marginBottom: 16 }}>⚠ {err}</div>}
-        {loading ? (
-          <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
-        ) : memorials.length === 0 ? (
-          <p style={{ color: '#78716c', fontSize: 14 }}>Noch keine Gedenkbücher vorhanden.</p>
-        ) : (
-          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Name', 'Organisator', 'Code', 'Erstellt'].map(h => (
-                    <th key={h} style={th}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {memorials.map(m => (
-                  <tr key={m.id} onClick={() => openMemorial(m)}
-                    style={{ cursor: 'pointer', transition: 'background .1s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}>
-                    <td style={{ ...col, fontWeight: 600 }}>{m.name}</td>
-                    <td style={col}>{m.organizer}</td>
-                    <td style={{ ...col, fontFamily: 'monospace', fontSize: 13 }}>{m.id}</td>
-                    <td style={{ ...col, color: '#78716c' }}>{new Date(m.created_at).toLocaleDateString('de-DE')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  // ── BEITRÄGE-DETAIL ──
-  if (view === 'detail') return (
-    <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
-          <div>
-            <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name}</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {contributions.length > 0 && (
-            <button onClick={dlAll} style={{ fontSize: 13, padding: '8px 16px' }}>
-              ⬇ Alle herunterladen ({contributions.length})
-            </button>
-          )}
-          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Beiträge</h2>
-        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.25rem' }}>Organisator: {selected.organizer} · Code: <span style={{ fontFamily: 'monospace' }}>{selected.id}</span></p>
-        {err && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626', marginBottom: 16 }}>⚠ {err}</div>}
-        {loading ? (
-          <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
-        ) : contributions.length === 0 ? (
-          <p style={{ color: '#78716c', fontSize: 14 }}>Noch keine Beiträge für dieses Gedenkbuch.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {contributions.map((c, i) => {
-              const answerCount = c.messages.filter(m => m.role === 'user').length
-              return (
-                <div key={i} style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, color: '#1d4ed8', flexShrink: 0 }}>
-                      {c.contributor_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{c.contributor_name}</div>
-                      <div style={{ fontSize: 13, color: '#78716c' }}>
-                        {c.relationship} · {new Date(c.created_at).toLocaleDateString('de-DE')} · {answerCount} Antwort{answerCount !== 1 ? 'en' : ''}
-                      </div>
-                    </div>
-                  </div>
-                  <button onClick={() => dlOne(c)} style={{ fontSize: 13, padding: '8px 16px', flexShrink: 0 }}>
-                    ⬇ Herunterladen
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  return null
-}
-
-// ── Claude-Prompts ────────────────────────────────────────────────
-function interviewSystem(memorial, name, rel) {
-  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name} kannte.
-
-Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
-
-Regeln:
-- Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
-- Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
-- Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
-- Sei einfühlsam, respektiere die Trauer
-- Variiere: erste Begegnung, Charakterzüge, besondere Momente, Gewohnheiten, was die Person bedeutete
-- Schreibe auf Deutsch`
-}
-
-function synthesisSystem(memorial, contributions) {
-  const blocks = contributions.map(c => {
-    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
-    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
-  }).join('\n\n')
-  return `Du bist ein renommierter Buchautor und Biograph. Du hast Erinnerungen von ${contributions.length} Menschen gesammelt, die ${memorial.name} kannten.
-
-Schreibe ein zusammenhängendes Gedenkkapitel "in einem Guss" – wie ein Kapitel in einem hochwertigen Gedenkbuch.
-- Warme, literarische Sprache auf Deutsch
-- Alle Perspektiven harmonisch integrieren (kein "X sagte...")
-- Lebendiges, mehrdimensionales Bild der Person zeichnen
-- Konkrete Geschichten und Details einweben, 600–900 Wörter
-- Direkt mit dem Fließtext beginnen, kein Titel
-
-Beiträge:\n\n${blocks}`
-}
+const GENDERS = [
+  { value: 'männlich', label: 'Männlich' },
+  { value: 'weiblich', label: 'Weiblich' },
+  { value: 'divers',   label: 'Divers'   },
+]
 
 // ── Stile ─────────────────────────────────────────────────────────
 const S = {
@@ -297,6 +64,40 @@ function Back({ onClick }) {
 }
 function Dots() {
   return <div style={{ display: 'flex', gap: 6, padding: '8px 0' }}>{[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: '#a8a29e', animation: 'lw-dot 1.2s ease-in-out infinite', animationDelay: `${i*.2}s` }} />)}</div>
+}
+
+// ── Claude-Prompts ────────────────────────────────────────────────
+function interviewSystem(memorial, name, rel) {
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name}${g} kannte.
+
+Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
+
+Regeln:
+- Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
+- Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
+- Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
+- Sei einfühlsam, respektiere die Trauer
+- Variiere: erste Begegnung, Charakterzüge, besondere Momente, Gewohnheiten, was die Person bedeutete
+- Schreibe auf Deutsch`
+}
+
+function synthesisSystem(memorial, contributions) {
+  const blocks = contributions.map(c => {
+    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
+    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
+  }).join('\n\n')
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein renommierter Buchautor und Biograph. Du hast Erinnerungen von ${contributions.length} Menschen gesammelt, die ${memorial.name}${g} kannten.
+
+Schreibe ein zusammenhängendes Gedenkkapitel "in einem Guss" – wie ein Kapitel in einem hochwertigen Gedenkbuch.
+- Warme, literarische Sprache auf Deutsch
+- Alle Perspektiven harmonisch integrieren (kein "X sagte...")
+- Lebendiges, mehrdimensionales Bild der Person zeichnen
+- Konkrete Geschichten und Details einweben, 600–900 Wörter
+- Direkt mit dem Fließtext beginnen, kein Titel
+
+Beiträge:\n\n${blocks}`
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
@@ -354,12 +155,10 @@ function VoiceInterview({ memorial, contribForm, onDone }) {
     if (micState === 'processing') return
 
     if (micState === 'recording') {
-      // Aufnahme beenden → Whisper transkribieren
       mediaRecRef.current?.stop()
       return
     }
 
-    // Aufnahme starten
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const rec    = new MediaRecorder(stream)
@@ -565,77 +364,535 @@ function TextInterview({ memorial, contribForm, onDone }) {
   )
 }
 
-// ── Haupt-App ─────────────────────────────────────────────────────
-export default function App() {
-  // Routing: /dashboard → Dashboard, alles andere → normale App
-  if (isDashboard) return <Dashboard />
-
-  const [view, setView]     = useState('home')
-  const [memorial, setMemorial] = useState(null)
-  const [contributions, setContribs] = useState([])
-  const [code, setCode]     = useState('')
-  const [createForm, setCreateForm] = useState({ name:'', organizer:'' })
-  const [codeInput, setCodeInput]   = useState('')
+// ── Beitragenden-Flow (Aufruf per ?code=XXX) ──────────────────────
+function ContributorFlow({ code }) {
+  const [view, setView]           = useState('loading') // loading | info | interview | done | error
+  const [memorial, setMemorial]   = useState(null)
   const [contribForm, setContribForm] = useState({ name:'', relationship:'' })
-  const [interviewMode, setInterviewMode] = useState('text')
-  const [bookText, setBookText]   = useState('')
-  const [bookLoading, setBookLoading] = useState(false)
-  const [err, setErr]   = useState('')
-  const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [mode, setMode]           = useState('text')
+  const [err, setErr]             = useState('')
   const hasSTT = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
-  function go(v) { setErr(''); setView(v) }
+  useEffect(() => {
+    getMemorial(code)
+      .then(m => { setMemorial(m); setView('info') })
+      .catch(e => { setErr(e.message); setView('error') })
+  }, [code])
+
+  async function handleDone(messages) {
+    await addContribution({ memorialCode: code, contributorName: contribForm.name, relationship: contribForm.relationship, messages })
+    setView('done')
+  }
+
+  if (view === 'loading') return (
+    <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}><Dots /></div>
+  )
+  if (view === 'error') return (
+    <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
+      <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Gedenkbuch nicht gefunden</h2>
+      <p style={S.muted}>{err}</p>
+    </div>
+  )
+  if (view === 'info') return (
+    <div style={{ ...S.page, paddingTop:'2rem' }}>
+      <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Ihre Erinnerung</h2>
+      <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
+        Gedenkbuch für <strong>{memorial?.name}</strong>
+      </p>
+      <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
+      <div style={{ marginBottom:24 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
+      <div style={S.divider} />
+      <Lbl>Wie möchten Sie antworten?</Lbl>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:24 }}>
+        {[{m:'text',icon:'⌨️',title:'Tippen',sub:'Antworten eintippen'},{m:'voice',icon:'🎙',title:'Sprechen',sub:hasSTT?'KI-Stimme + Mikrofon':'Nur Chrome / Edge'}].map(({m,icon,title,sub})=>(
+          <div key={m} onClick={()=>setMode(m)} style={{ ...S.card, cursor:'pointer', textAlign:'center', padding:'1rem', borderColor:mode===m?'#1c1917':'#e7e5e4', borderWidth:mode===m?2:1 }}>
+            <div style={{ fontSize:26, marginBottom:6 }}>{icon}</div>
+            <div style={{ fontWeight:600, fontSize:14 }}>{title}</div>
+            <div style={{ fontSize:12, color:'#78716c', marginTop:4 }}>{sub}</div>
+          </div>
+        ))}
+      </div>
+      <button disabled={!contribForm.name||!contribForm.relationship} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
+        {mode==='voice'?'🎙 Sprach-Interview beginnen →':'Interview beginnen →'}
+      </button>
+    </div>
+  )
+  if (view === 'interview') {
+    return mode === 'voice'
+      ? <VoiceInterview memorial={memorial} contribForm={contribForm} onDone={handleDone} />
+      : <TextInterview  memorial={memorial} contribForm={contribForm} onDone={handleDone} />
+  }
+  if (view === 'done') return (
+    <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
+      <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
+      <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Herzlichen Dank</h2>
+      <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihre Erinnerungen sind jetzt Teil des gemeinsamen Gedenkbuchs und werden für immer bewahrt.</p>
+    </div>
+  )
+  return null
+}
+
+// ── Admin-Dashboard (Standard-Eingang der Seite) ──────────────────
+function Dashboard() {
+  const [view, setView]               = useState('login') // login|list|create|created|detail|book-v1|book-v2
+  const [token, setToken]             = useState(() => sessionStorage.getItem('lw_admin_token') || '')
+  const [username, setUsername]       = useState('')
+  const [password, setPassword]       = useState('')
+  const [memorials, setMemorials]     = useState([])
+  const [selected, setSelected]       = useState(null)
+  const [contributions, setContribs]  = useState([])
+  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'' })
+  const [createdCode, setCreatedCode] = useState('')
+  const [bookText, setBookText]       = useState('')
+  const [bookLoading, setBookLoading] = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [busy, setBusy]               = useState(false)
+  const [deletingId, setDeletingId]   = useState('')
+  const [copied, setCopied]           = useState('')
+  const [err, setErr]                 = useState('')
+
+  useEffect(() => { if (token) loadMemorials(token) }, [])
+
+  async function login(e) {
+    e.preventDefault()
+    setLoading(true); setErr('')
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      sessionStorage.setItem('lw_admin_token', d.token)
+      setToken(d.token)
+      await loadMemorials(d.token)
+    } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
+  async function loadMemorials(t) {
+    setLoading(true); setErr('')
+    try {
+      const res = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${t}` } })
+      if (res.status === 401) { logout(); return }
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      setMemorials(d); setView('list')
+    } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
+  async function openMemorial(memorial) {
+    setSelected(memorial); setLoading(true); setErr('')
+    try {
+      const res = await fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      if (res.status === 401) { logout(); return }
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      setContribs(d); setView('detail')
+    } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
+  function logout() {
+    sessionStorage.removeItem('lw_admin_token')
+    setToken(''); setView('login'); setUsername(''); setPassword('')
+    setMemorials([]); setContribs([]); setSelected(null)
+  }
 
   async function handleCreate() {
     setErr(''); setBusy(true)
     try {
-      const { code: c } = await createMemorial(createForm)
-      setCode(c); go('created')
-    } catch(e) { setErr(e.message) }
+      const { code } = await createMemorial({
+        name: createForm.name.trim(),
+        organizer: createForm.organizer.trim(),
+        gender: createForm.gender || null,
+      })
+      setCreatedCode(code)
+      setView('created')
+    } catch (e) { setErr(e.message) }
     finally { setBusy(false) }
   }
 
-  async function handleEnterCode(mode) {
-    setErr(''); setBusy(true)
-    const c = codeInput.toUpperCase().replace(/\s/g,'')
+  async function handleDelete(m) {
+    if (!window.confirm(`„${m.name}" wirklich löschen? Alle Beiträge gehen unwiderruflich verloren.`)) return false
+    setDeletingId(m.id); setErr('')
     try {
-      const m = await getMemorial(c)
-      const contribs = await getContributions(c)
-      setMemorial(m); setCode(c); setContribs(contribs)
-      if (mode==='contribute') { setContribForm({ name:'', relationship:'' }); go('contribute-info') }
-      else go('dashboard-user')
-    } catch(e) { setErr(e.message) }
-    finally { setBusy(false) }
+      await adminDeleteMemorial(token, m.id)
+      setMemorials(ms => ms.filter(x => x.id !== m.id))
+      return true
+    } catch (e) { setErr(e.message); return false }
+    finally { setDeletingId('') }
   }
 
-  async function handleInterviewDone(messages) {
-    await addContribution({ memorialCode:code, contributorName:contribForm.name, relationship:contribForm.relationship, messages })
-    go('done')
+  function copyInvite(code) {
+    const url = `${window.location.origin}/?code=${code}`
+    navigator.clipboard.writeText(url)
+    setCopied(code); setTimeout(() => setCopied(''), 2000)
   }
 
-  async function reloadDashboardUser(c) {
-    setErr(''); setBusy(true)
-    const id = (c||code).toUpperCase().replace(/\s/g,'')
-    try {
-      const m = await getMemorial(id)
-      const contribs = await getContributions(id)
-      setMemorial(m); setCode(id); setContribs(contribs); go('dashboard-user')
-    } catch(e) { setErr(e.message) }
-    finally { setBusy(false) }
+  function dlOne(c) {
+    downloadFile(`${safeName(c.contributor_name)}_${safeName(selected.name)}.txt`, formatContribution(selected, c))
+  }
+  function dlAll() {
+    const sep = '\n\n' + '═'.repeat(60) + '\n\n'
+    const text = contributions.map(c => formatContribution(selected, c)).join(sep)
+    downloadFile(`${safeName(selected.name)}_alle-Beitraege.txt`, text)
   }
 
   async function generateV2() {
-    setBookText(''); setBookLoading(true); go('book-v2')
+    setBookText(''); setBookLoading(true); setView('book-v2')
     try {
-      const text = await askClaude(synthesisSystem(memorial, contributions), [{ role:'user', content:'Schreibe jetzt das Gedenkkapitel.' }])
+      const text = await askClaude(synthesisSystem(selected, contributions), [{ role:'user', content:'Schreibe jetzt das Gedenkkapitel.' }])
       setBookText(text)
-    } catch(e) { setBookText(`Fehler: ${e.message}`) }
+    } catch (e) { setBookText(`Fehler: ${e.message}`) }
     finally { setBookLoading(false) }
   }
 
-  function copyCode() { navigator.clipboard.writeText(code); setCopied(true); setTimeout(()=>setCopied(false),2000) }
+  const col = { padding: '11px 14px', textAlign: 'left', borderBottom: '1px solid #e7e5e4', fontSize: 14 }
+  const th  = { ...col, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: '#78716c', background: '#fafaf9' }
 
+  // ── LOGIN ──
+  if (view === 'login') return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
+      <form onSubmit={login} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Lebenswerk Admin</h1>
+        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Bitte melden Sie sich an.</p>
+        <Err msg={err} />
+        <div style={{ marginBottom: 12 }}>
+          <Lbl>Benutzername</Lbl>
+          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" autoFocus />
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <Lbl>Passwort</Lbl>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••" />
+        </div>
+        <button type="submit" disabled={loading || !username || !password} style={{ width: '100%', padding: 12, fontSize: 15 }}>
+          {loading ? 'Wird überprüft …' : 'Anmelden'}
+        </button>
+      </form>
+    </div>
+  )
+
+  // ── LISTE ──
+  if (view === 'list') return (
+    <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>{memorials.length} Gedenkbücher</span>
+        </div>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+
+      <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Gedenkbücher</h2>
+          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'' }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
+            + Neues Gedenkbuch
+          </button>
+        </div>
+        <Err msg={err} />
+        {loading ? (
+          <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
+        ) : memorials.length === 0 ? (
+          <div style={{ ...S.card, textAlign:'center', padding:'2rem' }}>
+            <p style={S.muted}>Noch keine Gedenkbücher angelegt. Beginnen Sie mit „+ Neues Gedenkbuch".</p>
+          </div>
+        ) : (
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['Name', 'Organisator', 'Geschlecht', 'Code', 'Erstellt', ''].map(h => (
+                    <th key={h} style={th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {memorials.map(m => (
+                  <tr key={m.id}
+                    style={{ transition: 'background .1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <td style={{ ...col, fontWeight: 600, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.name}</td>
+                    <td style={{ ...col, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.organizer}</td>
+                    <td style={{ ...col, color:'#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.gender || '—'}</td>
+                    <td style={{ ...col, fontFamily: 'monospace', fontSize: 13, cursor:'pointer' }} onClick={() => openMemorial(m)}>{m.id}</td>
+                    <td style={{ ...col, color: '#78716c', cursor:'pointer' }} onClick={() => openMemorial(m)}>{new Date(m.created_at).toLocaleDateString('de-DE')}</td>
+                    <td style={{ ...col, textAlign:'right' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
+                        disabled={deletingId === m.id}
+                        className="secondary"
+                        style={{ fontSize:12, padding:'6px 12px', color:'#dc2626', borderColor:'#fecaca' }}
+                        title="Gedenkbuch löschen"
+                      >
+                        {deletingId === m.id ? '…' : '🗑 Löschen'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // ── NEUES GEDENKBUCH ──
+  if (view === 'create') return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView('list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Neues Gedenkbuch anlegen</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Erstellen Sie ein Gedenkbuch und teilen Sie anschließend den Einladungslink.</p>
+        <Err msg={err} />
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Name der verstorbenen Person *</Lbl>
+          <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Vollständiger Name" />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Ihr Name (Organisator) *</Lbl>
+          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Geschlecht der verstorbenen Person *</Lbl>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+            {GENDERS.map(g => (
+              <div
+                key={g.value}
+                onClick={() => setCreateForm({ ...createForm, gender: g.value })}
+                style={{
+                  ...S.card,
+                  cursor:'pointer',
+                  textAlign:'center',
+                  padding:'12px 8px',
+                  borderColor: createForm.gender === g.value ? '#1c1917' : '#e7e5e4',
+                  borderWidth: createForm.gender === g.value ? 2 : 1,
+                  fontSize: 14,
+                  fontWeight: createForm.gender === g.value ? 600 : 400,
+                }}
+              >
+                {g.label}
+              </div>
+            ))}
+          </div>
+        </div>
+        <button
+          disabled={!createForm.name || !createForm.organizer || !createForm.gender || busy}
+          onClick={handleCreate}
+          style={{ width: '100%', padding: 13, fontSize: 15 }}
+        >
+          {busy ? 'Wird erstellt …' : 'Gedenkbuch anlegen →'}
+        </button>
+      </div>
+    </div>
+  )
+
+  // ── GERADE ERSTELLT ──
+  if (view === 'created') {
+    const inviteUrl = `${window.location.origin}/?code=${createdCode}`
+    return (
+      <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+        <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+        </div>
+        <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem', textAlign:'center' }}>
+          <div style={{ fontSize: 40, marginBottom: '1rem' }}>✅</div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Gedenkbuch erstellt</h2>
+          <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Teilen Sie diesen Code oder Link mit Familie und Freunden:</p>
+          <div style={{ ...S.card, marginBottom: '1rem' }}>
+            <Lbl>Einladungscode</Lbl>
+            <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '.18em', fontFamily: 'monospace', margin: '8px 0' }}>{createdCode}</div>
+          </div>
+          <div style={{ ...S.card, marginBottom: '1.5rem' }}>
+            <Lbl>Einladungslink</Lbl>
+            <div style={{ fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#44403c', margin:'6px 0 10px' }}>{inviteUrl}</div>
+            <button className="secondary" onClick={() => copyInvite(createdCode)} style={{ fontSize: 13 }}>
+              {copied === createdCode ? '✓ Kopiert' : '📋 Link kopieren'}
+            </button>
+          </div>
+          <button onClick={() => loadMemorials(token)} style={{ padding: '11px 28px' }}>Zur Übersicht</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── DETAIL ──
+  if (view === 'detail') {
+    const inviteUrl = `${window.location.origin}/?code=${selected.id}`
+    return (
+      <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {contributions.length > 0 && (
+              <button onClick={dlAll} style={{ fontSize: 13, padding: '8px 16px' }}>
+                ⬇ Alle herunterladen ({contributions.length})
+              </button>
+            )}
+            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Beiträge</h2>
+          <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
+            Organisator: {selected.organizer}
+            {selected.gender ? ` · ${selected.gender}` : ''}
+            {' · Code: '}<span style={{ fontFamily: 'monospace' }}>{selected.id}</span>
+          </p>
+
+          <div style={{ ...S.card, marginBottom: '1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+            <div style={{ minWidth:0 }}>
+              <Lbl>Einladungslink (für Beitragende)</Lbl>
+              <div style={{ fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#44403c', marginTop:6 }}>{inviteUrl}</div>
+            </div>
+            <button className="secondary" onClick={() => copyInvite(selected.id)} style={{ fontSize:13, flexShrink:0 }}>
+              {copied === selected.id ? '✓ Kopiert' : '📋 Kopieren'}
+            </button>
+          </div>
+
+          <Err msg={err} />
+          {loading ? (
+            <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
+          ) : contributions.length === 0 ? (
+            <div style={{ ...S.card, textAlign:'center', padding:'1.5rem' }}>
+              <p style={S.muted}>Noch keine Beiträge für dieses Gedenkbuch.</p>
+            </div>
+          ) : (<>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom:'1.5rem' }}>
+              {contributions.map((c, i) => {
+                const answerCount = c.messages.filter(m => m.role === 'user').length
+                return (
+                  <div key={i} style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, color: '#1d4ed8', flexShrink: 0 }}>
+                        {c.contributor_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>{c.contributor_name}</div>
+                        <div style={{ fontSize: 13, color: '#78716c' }}>
+                          {c.relationship} · {new Date(c.created_at).toLocaleDateString('de-DE')} · {answerCount} Antwort{answerCount !== 1 ? 'en' : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => dlOne(c)} style={{ fontSize: 13, padding: '8px 16px', flexShrink: 0 }}>
+                      ⬇ Herunterladen
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch erstellen</h3>
+            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
+              {[
+                { icon:'📄', title:'Version 1 – Einzelne Beiträge', sub:'Jede Person als eigenes Kapitel.', action:() => setView('book-v1') },
+                { icon:'✨', title:'Version 2 – Buch in einem Guss', sub:'KI webt alle Erinnerungen zu einem literarischen Text.', action: generateV2 },
+              ].map(({ icon, title, sub, action }) => (
+                <div key={title} style={{ ...S.card, cursor:'pointer' }} onClick={action}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
+                      <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
+                    </div>
+                    <span style={{ color:'#a8a29e', marginLeft:12 }}>→</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>)}
+
+          <div style={S.divider} />
+          <button
+            onClick={async () => { if (await handleDelete(selected)) setView('list') }}
+            disabled={deletingId === selected.id}
+            className="secondary"
+            style={{ fontSize:13, padding:'10px 18px', color:'#dc2626', borderColor:'#fecaca' }}
+          >
+            {deletingId === selected.id ? 'Wird gelöscht …' : '🗑 Dieses Gedenkbuch löschen'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── BUCH V1 ──
+  if (view === 'book-v1') return (
+    <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
+      <Back onClick={() => setView('detail')} />
+      <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
+        <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 1</p>
+        <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
+      </div>
+      {contributions.map((c, i) => {
+        const pairs = []
+        for (let j = 0; j < c.messages.length; j++) {
+          if (c.messages[j].role === 'assistant') {
+            pairs.push({ q: c.messages[j].content, a: c.messages[j + 1]?.content })
+            j++
+          }
+        }
+        return (
+          <div key={i} style={{ marginBottom:'3rem' }}>
+            <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
+              <h2 style={{ fontSize:21, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:2 }}>{c.contributor_name}</h2>
+              <p style={{ fontSize:13, color:'#78716c', marginBottom:'1.5rem' }}>{c.relationship}</p>
+              {pairs.filter(p => p.a).map((p, j) => (
+                <div key={j} style={{ marginBottom:'1.5rem' }}>
+                  <p style={{ fontSize:13, color:'#a8a29e', fontStyle:'italic', marginBottom:6 }}>{p.q}</p>
+                  <p style={{ fontSize:16, lineHeight:1.85 }}>{p.a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  // ── BUCH V2 ──
+  if (view === 'book-v2') return (
+    <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
+      <Back onClick={() => setView('detail')} />
+      <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
+        <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 2</p>
+        <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
+      </div>
+      <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
+        {bookLoading ? (
+          <div style={{ textAlign:'center', padding:'3rem 0' }}>
+            <Dots />
+            <p style={{ ...S.muted, marginTop:16 }}>Die KI webt die Erinnerungen zusammen …</p>
+          </div>
+        ) : (
+          <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+            {bookText.split('\n\n').filter(Boolean).map((p, i) => <p key={i} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  return null
+}
+
+// ── Haupt-App ─────────────────────────────────────────────────────
+export default function App() {
   return (
     <>
       <style>{`
@@ -643,209 +900,7 @@ export default function App() {
         @keyframes lw-spin { to{transform:rotate(360deg)} }
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-
-      {view==='home' && (
-        <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-          <h1 style={{ fontSize:28, fontWeight:700, marginBottom:8 }}>Gemeinsames Gedenkbuch</h1>
-          <p style={{ ...S.muted, maxWidth:400, margin:'0 auto 2.5rem' }}>Familie, Freunde und Wegbegleiter erinnern sich gemeinsam – jede Geschichte ein Teil des Lebenswerks.</p>
-          <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:300, margin:'0 auto' }}>
-            <button onClick={()=>go('create')} style={{ padding:'13px 0', fontSize:15 }}>📖 Gedenkbuch erstellen</button>
-            <button className="secondary" onClick={()=>{setCodeInput('');go('enter-code')}} style={{ padding:'13px 0', fontSize:15 }}>🔑 Mit Einladungscode beitreten</button>
-          </div>
-        </div>
-      )}
-
-      {view==='create' && (
-        <div style={{ ...S.page, paddingTop:'2rem' }}>
-          <Back onClick={()=>go('home')} />
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Gedenkbuch anlegen</h2>
-          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>Erstellen Sie ein Gedenkbuch und laden Sie Familie und Freunde ein.</p>
-          <Err msg={err} />
-          <div style={{ marginBottom:14 }}><Lbl>Name der verstorbenen Person *</Lbl><input value={createForm.name} onChange={e=>setCreateForm({...createForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
-          <div style={{ marginBottom:24 }}><Lbl>Ihr Name (Organisator) *</Lbl><input value={createForm.organizer} onChange={e=>setCreateForm({...createForm,organizer:e.target.value})} placeholder="Ihr Name" /></div>
-          <button disabled={!createForm.name||!createForm.organizer||busy} onClick={handleCreate} style={{ width:'100%', padding:13, fontSize:15 }}>{busy?'Wird erstellt …':'Gedenkbuch anlegen →'}</button>
-        </div>
-      )}
-
-      {view==='created' && (
-        <div style={{ ...S.page, paddingTop:'2rem', textAlign:'center' }}>
-          <div style={{ fontSize:40, marginBottom:'1rem' }}>✅</div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>Gedenkbuch erstellt</h2>
-          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>Teilen Sie diesen Code mit Familie und Freunden:</p>
-          <div style={{ ...S.card, display:'inline-block', padding:'1.5rem 3rem', marginBottom:'1.5rem' }}>
-            <Lbl>Einladungscode</Lbl>
-            <div style={{ fontSize:38, fontWeight:700, letterSpacing:'.18em', fontFamily:'monospace', margin:'8px 0' }}>{code}</div>
-            <button className="secondary" onClick={copyCode} style={{ fontSize:13 }}>{copied?'✓ Kopiert':'📋 Code kopieren'}</button>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:260, margin:'0 auto' }}>
-            <button onClick={()=>reloadDashboardUser(code)}>🗂 Zum Dashboard</button>
-            <button className="ghost" onClick={()=>go('home')} style={{ fontSize:14 }}>Zur Startseite</button>
-          </div>
-        </div>
-      )}
-
-      {view==='enter-code' && (
-        <div style={{ ...S.page, paddingTop:'2rem' }}>
-          <Back onClick={()=>go('home')} />
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Code eingeben</h2>
-          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>Geben Sie den Einladungscode ein, den Sie erhalten haben.</p>
-          <Err msg={err} />
-          <div style={{ marginBottom:20 }}>
-            <Lbl>Einladungscode</Lbl>
-            <input value={codeInput} onChange={e=>{setCodeInput(e.target.value.toUpperCase());setErr('')}} placeholder="z.B. ABC123" maxLength={6} style={{ fontFamily:'monospace', fontSize:24, letterSpacing:'.15em', textAlign:'center' }} />
-          </div>
-          <div style={S.divider} />
-          <p style={{ ...S.muted, fontSize:13, marginBottom:'.75rem' }}>Was möchten Sie tun?</p>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <button onClick={()=>handleEnterCode('contribute')} disabled={codeInput.length<4||busy}>{busy?'…':'✏️ Erinnerung beitragen'}</button>
-            <button className="secondary" onClick={()=>handleEnterCode('dashboard')} disabled={codeInput.length<4||busy}>{busy?'…':'🗂 Dashboard'}</button>
-          </div>
-        </div>
-      )}
-
-      {view==='contribute-info' && (
-        <div style={{ ...S.page, paddingTop:'2rem' }}>
-          <Back onClick={()=>go('enter-code')} />
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Ihre Erinnerung</h2>
-          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
-            Gedenkbuch für <strong>{memorial?.name}</strong>
-          </p>
-          <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
-          <div style={{ marginBottom:24 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
-          <div style={S.divider} />
-          <Lbl>Wie möchten Sie antworten?</Lbl>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:24 }}>
-            {[{mode:'text',icon:'⌨️',title:'Tippen',sub:'Antworten eintippen'},{mode:'voice',icon:'🎙',title:'Sprechen',sub:hasSTT?'KI-Stimme + Mikrofon':'Nur Chrome / Edge'}].map(({mode,icon,title,sub})=>(
-              <div key={mode} onClick={()=>setInterviewMode(mode)} style={{ ...S.card, cursor:'pointer', textAlign:'center', padding:'1rem', borderColor:interviewMode===mode?'#1c1917':'#e7e5e4', borderWidth:interviewMode===mode?2:1 }}>
-                <div style={{ fontSize:26, marginBottom:6 }}>{icon}</div>
-                <div style={{ fontWeight:600, fontSize:14 }}>{title}</div>
-                <div style={{ fontSize:12, color:'#78716c', marginTop:4 }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-          <button disabled={!contribForm.name||!contribForm.relationship} onClick={()=>go('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
-            {interviewMode==='voice'?'🎙 Sprach-Interview beginnen →':'Interview beginnen →'}
-          </button>
-        </div>
-      )}
-
-      {view==='interview' && (
-        interviewMode==='voice'
-          ? <VoiceInterview memorial={memorial} contribForm={contribForm} onDone={handleInterviewDone} />
-          : <TextInterview  memorial={memorial} contribForm={contribForm} onDone={handleInterviewDone} />
-      )}
-
-      {view==='done' && (
-        <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-          <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Herzlichen Dank</h2>
-          <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihre Erinnerungen sind jetzt Teil des gemeinsamen Gedenkbuchs und werden für immer bewahrt.</p>
-          <button onClick={()=>go('home')} style={{ padding:'11px 28px' }}>Zur Startseite</button>
-        </div>
-      )}
-
-      {view==='dashboard-user' && (
-        <div style={{ ...S.page, paddingTop:'2rem' }}>
-          <Back onClick={()=>go('home')} />
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:'1.25rem' }}>{memorial?.name}</h2>
-          <Err msg={err} />
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:'1.25rem' }}>
-            <div style={{ background:'#f5f5f4', borderRadius:10, padding:'1rem', textAlign:'center' }}>
-              <div style={{ fontSize:36, fontWeight:700 }}>{contributions.length}</div>
-              <div style={{ fontSize:13, color:'#78716c' }}>Beiträge</div>
-            </div>
-            <div style={{ background:'#f5f5f4', borderRadius:10, padding:'1rem', textAlign:'center' }}>
-              <div style={{ fontSize:12, color:'#78716c', marginBottom:4 }}>Einladungscode</div>
-              <div style={{ fontFamily:'monospace', fontWeight:700, fontSize:24, letterSpacing:'.12em' }}>{code}</div>
-              <button className="ghost" onClick={copyCode} style={{ fontSize:12, marginTop:4 }}>{copied?'✓ Kopiert':'📋 Kopieren'}</button>
-            </div>
-          </div>
-          <button className="secondary" onClick={()=>reloadDashboardUser(code)} style={{ fontSize:13, marginBottom:'1.25rem' }}>↻ Beiträge aktualisieren</button>
-          {contributions.length>0?(<>
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Eingegangene Beiträge</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:'1.25rem' }}>
-              {contributions.map((c,i)=>(
-                <div key={i} style={{ ...S.card, display:'flex', alignItems:'center', gap:12 }}>
-                  <div style={{ width:38,height:38,borderRadius:'50%',background:'#dbeafe',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:15,color:'#1d4ed8',flexShrink:0 }}>{c.contributor_name.charAt(0).toUpperCase()}</div>
-                  <div>
-                    <div style={{ fontWeight:600 }}>{c.contributor_name}</div>
-                    <div style={{ fontSize:12, color:'#78716c' }}>{c.relationship} · {new Date(c.created_at).toLocaleDateString('de-DE')}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={S.divider} />
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch erstellen</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {[
-                {icon:'📄',title:'Version 1 – Einzelne Beiträge',sub:'Jede Person als eigenes Kapitel.',action:()=>go('book-v1')},
-                {icon:'✨',title:'Version 2 – Buch in einem Guss',sub:'KI webt alle Erinnerungen zu einem literarischen Text.',action:generateV2},
-              ].map(({icon,title,sub,action})=>(
-                <div key={title} style={{ ...S.card, cursor:'pointer' }} onClick={action}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div><div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div><p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p></div>
-                    <span style={{ color:'#a8a29e', marginLeft:12 }}>→</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>):(
-            <div style={{ ...S.card, textAlign:'center', padding:'2rem' }}>
-              <p style={S.muted}>Noch keine Beiträge. Teilen Sie den Code, damit andere beitragen können.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {view==='book-v1' && (
-        <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-          <Back onClick={()=>go('dashboard-user')} />
-          <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-            <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 1</p>
-            <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{memorial?.name}</h1>
-          </div>
-          {contributions.map((c,i)=>{
-            const pairs=[]
-            for(let j=0;j<c.messages.length;j++){if(c.messages[j].role==='assistant'){pairs.push({q:c.messages[j].content,a:c.messages[j+1]?.content});j++}}
-            return(
-              <div key={i} style={{ marginBottom:'3rem' }}>
-                <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
-                  <h2 style={{ fontSize:21, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:2 }}>{c.contributor_name}</h2>
-                  <p style={{ fontSize:13, color:'#78716c', marginBottom:'1.5rem' }}>{c.relationship}</p>
-                  {pairs.filter(p=>p.a).map((p,j)=>(
-                    <div key={j} style={{ marginBottom:'1.5rem' }}>
-                      <p style={{ fontSize:13, color:'#a8a29e', fontStyle:'italic', marginBottom:6 }}>{p.q}</p>
-                      <p style={{ fontSize:16, lineHeight:1.85 }}>{p.a}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {view==='book-v2' && (
-        <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-          <Back onClick={()=>go('dashboard-user')} />
-          <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-            <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 2</p>
-            <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{memorial?.name}</h1>
-          </div>
-          <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
-            {bookLoading?(
-              <div style={{ textAlign:'center', padding:'3rem 0' }}>
-                <Dots />
-                <p style={{ ...S.muted, marginTop:16 }}>Die KI webt Ihre Erinnerungen zusammen …</p>
-              </div>
-            ):(
-              <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
-                {bookText.split('\n\n').filter(Boolean).map((p,i)=><p key={i} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {codeFromURL ? <ContributorFlow code={codeFromURL} /> : <Dashboard />}
     </>
   )
 }
