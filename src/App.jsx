@@ -319,16 +319,43 @@ Regeln:
 Beiträge:\n\n${contributionBlocks(contributions)}`
 }
 
-function eulogySystem(memorial, contributions) {
+const EULOGY_STYLES = [
+  {
+    key: 'klassisch',
+    title: 'Klassisch-würdevoll',
+    sub:  'Formell, traditionell, ernst-respektvoll',
+    instruction:
+      'Klassisch-würdevoll: formelle, traditionelle Trauerrede. Ernster, respektvoller Ton; gehobene Sprache, keine Umgangssprache. Klarer Aufbau: Hinführung → Würdigung → Lebensskizze → Abschied. Vermeide Anekdoten-Pointen und humorvolle Wendungen; halte die Distanz, die man von einer öffentlichen Rede erwartet.',
+  },
+  {
+    key: 'persoenlich',
+    title: 'Persönlich-warm',
+    sub:  'Anekdotenhaft, intim, viele kleine Geschichten',
+    instruction:
+      'Persönlich-warm: intime, erzählerische Trauerrede. Beginne mit einer kleinen sprechenden Anekdote aus den Beiträgen. Verwebe viele konkrete Erinnerungen, Details und kleine Eigenheiten — der Eindruck soll sein, als spräche ein nahestehender Mensch. Weicher, erzählerischer Ton.',
+  },
+  {
+    key: 'lebensfroh',
+    title: 'Lebensfroh-erinnernd',
+    sub:  'Würdigt das Leben mehr als den Verlust',
+    instruction:
+      'Lebensfroh-erinnernd: Fokus auf das gelebte Leben, nicht auf den Verlust. Heitere und ernste Momente werden bewusst verwoben; auch ein leises Lächeln ist erlaubt. Würdige Freude, Wesen und Eigenheiten der Person. Der Schluss endet hoffnungsvoll und dankbar — als Feier eines Lebens, nicht als Klage über einen Tod.',
+  },
+]
+
+function eulogySystem(memorial, contributions, styleInstruction) {
   const blocks = contributions.map(c => {
     const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
     return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
   }).join('\n\n')
   const g = memorial.gender ? ` (${memorial.gender})` : ''
+  const styleBlock = styleInstruction
+    ? `\nSTIL-VORGABE FÜR DIESE REDE (verbindlich umsetzen):\n${styleInstruction}\n`
+    : ''
   return `Du bist ein erfahrener Trauerredner. Verfasse eine persönliche, würdevolle Trauerrede über ${memorial.name}${g}, basierend auf den Erinnerungen von ${contributions.length} nahestehenden Menschen.
 
 Die Rede wird laut auf einer Trauerfeier vorgelesen.
-
+${styleBlock}
 Anforderungen:
 - Sprich die Trauergemeinde direkt an („Liebe Trauergemeinde, …")
 - Würdevoll, warm, persönlich — kein religiöser Standardtext, sondern auf diesen konkreten Menschen zugeschnitten
@@ -912,6 +939,7 @@ function Dashboard() {
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
+  const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [loading, setLoading]         = useState(false)
   const [busy, setBusy]               = useState(false)
   const [deletingId, setDeletingId]   = useState('')
@@ -1045,16 +1073,16 @@ function Dashboard() {
     eulogy:  { kind:'text', field:'eulogy_text', view:'eulogy',  label:'Trauerrede',                       filename:'Trauerrede',    system: eulogySystem, userPrompt:'Schreibe jetzt die Trauerrede.' },
   }
 
-  async function generate(key) {
+  async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
-    if (selected[gen.field] && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
+    if (selected[gen.field] && !opts.skipConfirm && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
     setErr('')
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setView(gen.view)
     try {
-      const raw = await askClaude(gen.system(selected, contributions), [{ role:'user', content: gen.userPrompt }])
+      const raw = await askClaude(gen.system(selected, contributions, extraArg), [{ role:'user', content: gen.userPrompt }])
       let value
       if (gen.kind === 'book') {
         value = tryParseJSON(raw)
@@ -1111,6 +1139,37 @@ function Dashboard() {
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data)
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
+
+  function pickEulogyStyle(style) {
+    setEulogyStyleModal(false)
+    generate('eulogy', style.instruction, { skipConfirm: true })
+  }
+
+  const eulogyStyleOverlay = eulogyStyleModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 520, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Stil der Trauerrede wählen</h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>In welchem Ton soll die Rede verfasst werden?</p>
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:14 }}>
+          {EULOGY_STYLES.map(s => (
+            <div
+              key={s.key}
+              onClick={() => pickEulogyStyle(s)}
+              style={{ ...S.card, cursor:'pointer', padding:'14px 16px', transition:'border-color .15s, background .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.background = '#fafaf9' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.background = '#fff' }}
+            >
+              <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{s.title}</div>
+              <p style={{ ...S.muted, fontSize:13, margin:0 }}>{s.sub}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+          <button className="ghost" onClick={() => setEulogyStyleModal(false)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
 
   const col = { padding: '11px 14px', textAlign: 'left', borderBottom: '1px solid #e7e5e4', fontSize: 14 }
   const th  = { ...col, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: '#78716c', background: '#fafaf9' }
@@ -1452,7 +1511,7 @@ function Dashboard() {
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Generiert</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      <button onClick={() => generate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                      <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : generate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
                         {busy ? 'Wird generiert …' : has ? '↻ Neu generieren' : '✨ Generieren'}
                       </button>
                       <button onClick={() => setView(gen.view)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
@@ -1478,6 +1537,7 @@ function Dashboard() {
             {deletingId === selected.id ? 'Wird gelöscht …' : '🗑 Dieses Gedenkbuch löschen'}
           </button>
         </div>
+        {eulogyStyleOverlay}
       </div>
     )
   }
@@ -1615,9 +1675,10 @@ function Dashboard() {
         {!busy && data && (
           <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
             <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
-            <button className="secondary" onClick={() => generate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
+            <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : generate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
+        {eulogyStyleOverlay}
       </div>
     )
   }
