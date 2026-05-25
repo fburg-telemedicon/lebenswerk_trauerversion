@@ -1156,18 +1156,22 @@ function Dashboard() {
         for (let i = 0; i < total; i++) {
           const ch = value.chapters[i]
           setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
-          if (!ch.image_prompt) { imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`); continue }
+          if (!ch.image_prompt) {
+            value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
+            imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
+            continue
+          }
           try {
             const { storagePath } = await adminGenerateImage(token, selected.id, ch.image_prompt)
-            value.chapters[i] = { ...ch, image_path: storagePath }
+            value.chapters[i] = { ...ch, image_path: storagePath, image_error: null }
           } catch (e) {
             console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
+            value.chapters[i] = { ...ch, image_error: e.message || String(e) }
             imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
           }
         }
-        if (imageErrors.length === total && total > 0) {
-          // Keines der Bilder konnte erzeugt werden → klare Sammelmeldung
-          setErr(`Alle Bildgenerierungen fehlgeschlagen. Erste Fehler: ${imageErrors.slice(0, 3).join(' · ')}`)
+        if (imageErrors.length > 0) {
+          setErr(`${imageErrors.length}/${total} Bildgenerierungen fehlgeschlagen. Erster Fehler: ${imageErrors[0]}`)
         }
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       }
@@ -1869,7 +1873,12 @@ function Dashboard() {
                 ) : ch.image_prompt ? (
                   <div style={{ background:'#fef2f2', border:'1px dashed #fecaca', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#991b1b', fontSize:13, lineHeight:1.5 }}>
                     🖼 Kein Bild gespeichert — Generierung war nicht erfolgreich.<br />
-                    <span style={{ fontSize:12, color:'#7f1d1d' }}>Prompt war: „{ch.image_prompt}"</span>
+                    {ch.image_error && (
+                      <span style={{ display:'inline-block', marginTop:6, padding:'4px 10px', background:'#fff', border:'1px solid #fecaca', borderRadius:6, fontFamily:'monospace', fontSize:12, color:'#7f1d1d' }}>
+                        {ch.image_error}
+                      </span>
+                    )}
+                    <div style={{ fontSize:12, color:'#7f1d1d', marginTop:8 }}>Prompt war: „{ch.image_prompt}"</div>
                   </div>
                 ) : (
                   <div style={{ background:'#f5f5f4', border:'1px dashed #d6d3d1', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#78716c', fontSize:13 }}>
