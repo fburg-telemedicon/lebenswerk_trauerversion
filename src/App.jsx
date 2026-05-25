@@ -496,6 +496,19 @@ function Dashboard() {
     finally { setLoading(false) }
   }
 
+  async function reloadContributions() {
+    if (!selected) return
+    setLoading(true); setErr('')
+    try {
+      const res = await fetch(`/api/admin/contributions?code=${selected.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      if (res.status === 401) { logout(); return }
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      setContribs(d)
+    } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
   function logout() {
     sessionStorage.removeItem('lw_admin_token')
     setToken(''); setView('login'); setUsername(''); setPassword('')
@@ -771,6 +784,9 @@ function Dashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
+            <button className="secondary" onClick={reloadContributions} disabled={loading} style={{ fontSize: 13, padding: '8px 14px' }}>
+              {loading ? '…' : '↻ Aktualisieren'}
+            </button>
             {contributions.length > 0 && (
               <button onClick={dlAll} style={{ fontSize: 13, padding: '8px 16px' }}>
                 ⬇ Alle herunterladen ({contributions.length})
