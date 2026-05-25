@@ -527,6 +527,7 @@ function Dashboard() {
   const [memorials, setMemorials]     = useState([])
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
+  const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1 })
   const [createdCode, setCreatedCode] = useState('')
   const [bookText, setBookText]       = useState('')
@@ -955,7 +956,13 @@ function Dashboard() {
               {contributions.map((c, i) => {
                 const answerCount = c.messages.filter(m => m.role === 'user').length
                 return (
-                  <div key={i} style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div
+                    key={i}
+                    onClick={() => { setSelectedContrib(c); setView('contribution') }}
+                    style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, cursor:'pointer', transition:'background .1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, color: '#1d4ed8', flexShrink: 0 }}>
                         {c.contributor_name.charAt(0).toUpperCase()}
@@ -967,7 +974,11 @@ function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => dlOne(c)} style={{ fontSize: 13, padding: '8px 16px', flexShrink: 0 }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); dlOne(c) }}
+                      className="secondary"
+                      style={{ fontSize: 13, padding: '8px 16px', flexShrink: 0 }}
+                    >
                       ⬇ Herunterladen
                     </button>
                   </div>
@@ -1003,6 +1014,80 @@ function Dashboard() {
           >
             {deletingId === selected.id ? 'Wird gelöscht …' : '🗑 Dieses Gedenkbuch löschen'}
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── EINZELNER BEITRAG ──
+  if (view === 'contribution' && selectedContrib) {
+    const c = selectedContrib
+    const pairs = []
+    for (let j = 0; j < c.messages.length; j++) {
+      if (c.messages[j].role === 'assistant') {
+        pairs.push({ q: c.messages[j].content, a: c.messages[j + 1]?.content })
+        if (c.messages[j + 1]?.role === 'user') j++
+      } else {
+        pairs.push({ q: null, a: c.messages[j].content })
+      }
+    }
+    return (
+      <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <button className="ghost" onClick={() => setView('detail')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{c.contributor_name}</span>
+              <span style={{ fontSize:13, color:'#78716c', marginLeft:10 }}>· {selected.name}</span>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={() => dlOne(c)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
+            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: 760, margin: '2rem auto', padding: '0 1.5rem' }}>
+          <div style={{ ...S.card, marginBottom:'1.5rem' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:12 }}>
+              <div style={{ width:48, height:48, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:18, color:'#1d4ed8' }}>
+                {c.contributor_name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontWeight:700, fontSize:18 }}>{c.contributor_name}</div>
+                <div style={{ fontSize:13, color:'#78716c' }}>{c.relationship}</div>
+              </div>
+            </div>
+            <div style={{ fontSize:13, color:'#57534e', lineHeight:1.8 }}>
+              {c.contributor_gender && <div><span style={{ color:'#a8a29e' }}>Geschlecht:</span> {c.contributor_gender}</div>}
+              {c.contributor_address && <div><span style={{ color:'#a8a29e' }}>Anrede:</span> {c.contributor_address}</div>}
+              <div><span style={{ color:'#a8a29e' }}>Erstellt:</span> {new Date(c.created_at).toLocaleString('de-DE')}</div>
+              <div><span style={{ color:'#a8a29e' }}>Antworten:</span> {c.messages.filter(m => m.role === 'user').length}</div>
+            </div>
+          </div>
+
+          {pairs.length === 0 ? (
+            <p style={S.muted}>Dieser Beitrag enthält noch keine Inhalte.</p>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+              {pairs.map((p, j) => (
+                <div key={j} style={{ ...S.card }}>
+                  {p.q && (
+                    <div style={{ marginBottom: p.a ? 12 : 0 }}>
+                      <Lbl>Frage</Lbl>
+                      <p style={{ fontSize:15, lineHeight:1.65, fontStyle:'italic', color:'#44403c', margin:'4px 0 0' }}>{p.q}</p>
+                    </div>
+                  )}
+                  {p.a && (
+                    <div>
+                      <Lbl>Antwort</Lbl>
+                      <p style={{ fontSize:15, lineHeight:1.7, color:'#1c1917', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{p.a}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     )
