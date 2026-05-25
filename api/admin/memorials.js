@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1_text, book_v2_text, eulogy_text, created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
       return res.json(data || [])
@@ -33,6 +33,19 @@ module.exports = async function handler(req, res) {
       if (cErr) throw cErr
       const { error: mErr } = await supabase.from('memorials').delete().eq('id', code)
       if (mErr) throw mErr
+      return res.json({ ok: true })
+    }
+
+    if (req.method === 'PATCH') {
+      const code = (req.query.code || '').toUpperCase().trim()
+      if (!code) return res.status(400).json({ error: 'code fehlt.' })
+      const { field, text } = req.body || {}
+      const allowedFields = new Set(['book_v1_text', 'book_v2_text', 'eulogy_text'])
+      if (!allowedFields.has(field)) {
+        return res.status(400).json({ error: 'Ungültiges Feld.' })
+      }
+      const { error } = await supabase.from('memorials').update({ [field]: text ?? null }).eq('id', code)
+      if (error) throw error
       return res.json({ ok: true })
     }
 

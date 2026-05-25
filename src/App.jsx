@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType } from 'docx'
 import {
   createMemorial, getMemorial, getContributions, addContribution,
-  askClaude, speakText, stopSpeaking, adminDeleteMemorial,
+  askClaude, speakText, stopSpeaking, adminDeleteMemorial, adminSaveMemorialText,
 } from './api.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -41,6 +42,45 @@ function downloadFile(filename, content) {
 }
 
 function safeName(s) { return s.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').trim().replace(/\s+/g, '_') }
+
+function renderRichText(text) {
+  if (!text) return null
+  return text.split('\n\n').map((chunk, i) => {
+    const c = chunk.trim()
+    if (!c) return null
+    if (c.startsWith('## ')) return <h2 key={i} style={{ fontSize:22, fontWeight:700, fontFamily:'Georgia,serif', marginTop: i === 0 ? 0 : '2rem', marginBottom:'.75rem' }}>{c.slice(3)}</h2>
+    if (c.startsWith('# '))  return <h1 key={i} style={{ fontSize:28, fontWeight:700, fontFamily:'Georgia,serif' }}>{c.slice(2)}</h1>
+    return <p key={i} style={{ marginBottom:'1.4rem' }}>{c}</p>
+  }).filter(Boolean)
+}
+
+async function downloadAsDocx(filename, title, text) {
+  const children = [
+    new Paragraph({
+      text: title,
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 400 },
+    }),
+  ]
+  for (const raw of text.split('\n\n')) {
+    const chunk = raw.trim()
+    if (!chunk) continue
+    if (chunk.startsWith('## ')) {
+      children.push(new Paragraph({ text: chunk.slice(3), heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 120 } }))
+    } else if (chunk.startsWith('# ')) {
+      children.push(new Paragraph({ text: chunk.slice(2), heading: HeadingLevel.HEADING_1, spacing: { before: 300, after: 120 } }))
+    } else {
+      children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
+    }
+  }
+  const doc = new Document({ creator: 'Lebenswerk', title, sections: [{ children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
 
 function genContribId() {
   const a = 'abcdefghjkmnpqrstuvwxyz23456789'
@@ -101,6 +141,26 @@ Regeln:
 - Sei einfühlsam, respektiere die Trauer
 - Variiere: erste Begegnung, Charakterzüge, besondere Momente, Gewohnheiten, was die Person bedeutete
 - Schreibe auf Deutsch`
+}
+
+function bookV1System(memorial, contributions) {
+  const blocks = contributions.map(c => {
+    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
+    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
+  }).join('\n\n')
+  const g = memorial.gender ? ` (${memorial.gender})` : ''
+  return `Du bist ein einfühlsamer Buchautor. Du wandelst Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, in ein Gedenkbuch um.
+
+Schreibe für JEDE der ${contributions.length} Personen ein eigenes Kapitel:
+- Kapitelüberschrift exakt im Format: "## NAME (Beziehung)" auf einer eigenen Zeile
+- Danach Fließtext in Ich-Form aus Sicht der jeweiligen Person ("Ich erinnere mich, dass …")
+- Konkrete Geschichten und Details aus den Antworten beibehalten
+- Pro Kapitel ca. 200–400 Wörter
+- Warme, persönliche Sprache auf Deutsch
+- Absätze durch eine Leerzeile trennen
+- Beginne direkt mit dem ersten Kapitel; keine Einleitung, kein Vorwort, kein Titel über allem
+
+Beiträge:\n\n${blocks}`
 }
 
 function synthesisSystem(memorial, contributions) {
@@ -553,10 +613,7 @@ function Dashboard() {
   const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1 })
   const [createdCode, setCreatedCode] = useState('')
-  const [bookText, setBookText]       = useState('')
-  const [bookLoading, setBookLoading] = useState(false)
-  const [eulogyText, setEulogyText]   = useState('')
-  const [eulogyLoading, setEulogyLoading] = useState(false)
+  const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [loading, setLoading]         = useState(false)
   const [busy, setBusy]               = useState(false)
   const [deletingId, setDeletingId]   = useState('')
@@ -683,22 +740,33 @@ function Dashboard() {
     downloadFile(`${safeName(selected.name)}_alle-Beitraege.txt`, text)
   }
 
-  async function generateV2() {
-    setBookText(''); setBookLoading(true); setView('book-v2')
-    try {
-      const text = await askClaude(synthesisSystem(selected, contributions), [{ role:'user', content:'Schreibe jetzt das Gedenkkapitel.' }])
-      setBookText(text)
-    } catch (e) { setBookText(`Fehler: ${e.message}`) }
-    finally { setBookLoading(false) }
+  const GENERATORS = {
+    book_v1: { field: 'book_v1_text', view: 'book-v1', label: 'Version 1 – Einzelne Beiträge',  filename: 'Gedenkbuch_V1', system: bookV1System,    userPrompt: 'Schreibe jetzt das Gedenkbuch in Kapiteln.' },
+    book_v2: { field: 'book_v2_text', view: 'book-v2', label: 'Version 2 – Buch in einem Guss', filename: 'Gedenkbuch_V2', system: synthesisSystem, userPrompt: 'Schreibe jetzt das Gedenkkapitel.' },
+    eulogy:  { field: 'eulogy_text',  view: 'eulogy',  label: 'Trauerrede',                     filename: 'Trauerrede',    system: eulogySystem,    userPrompt: 'Schreibe jetzt die Trauerrede.' },
   }
 
-  async function generateEulogy() {
-    setEulogyText(''); setEulogyLoading(true); setView('eulogy')
+  async function generate(key) {
+    const gen = GENERATORS[key]
+    if (!gen || !selected) return
+    if (selected[gen.field] && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
+    setErr(''); setGenerating(g => ({ ...g, [key]: true })); setView(gen.view)
     try {
-      const text = await askClaude(eulogySystem(selected, contributions), [{ role:'user', content:'Schreibe jetzt die Trauerrede.' }])
-      setEulogyText(text)
-    } catch (e) { setEulogyText(`Fehler: ${e.message}`) }
-    finally { setEulogyLoading(false) }
+      const text = await askClaude(gen.system(selected, contributions), [{ role:'user', content: gen.userPrompt }])
+      await adminSaveMemorialText(token, selected.id, gen.field, text)
+      setSelected(s => ({ ...s, [gen.field]: text }))
+      setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: text } : m))
+    } catch (e) { setErr(`Generieren fehlgeschlagen: ${e.message}`) }
+    finally { setGenerating(g => ({ ...g, [key]: false })) }
+  }
+
+  async function downloadGenerated(key) {
+    const gen = GENERATORS[key]
+    const text = selected?.[gen.field]
+    if (!text) return
+    try {
+      await downloadAsDocx(`${gen.filename}_${safeName(selected.name)}.docx`, `${gen.label} – ${selected.name}`, text)
+    } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
 
   const col = { padding: '11px 14px', textAlign: 'left', borderBottom: '1px solid #e7e5e4', fontSize: 14 }
@@ -1020,23 +1088,39 @@ function Dashboard() {
               })}
             </div>
 
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch erstellen</h3>
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & Trauerrede</h3>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
-                { icon:'📄', title:'Version 1 – Einzelne Beiträge', sub:'Jede Person als eigenes Kapitel.', action:() => setView('book-v1') },
-                { icon:'✨', title:'Version 2 – Buch in einem Guss', sub:'KI webt alle Erinnerungen zu einem literarischen Text.', action: generateV2 },
-                { icon:'🕯', title:'Trauerrede', sub:'KI verfasst eine persönliche Rede aus allen Beiträgen, zum Vorlesen auf der Trauerfeier.', action: generateEulogy },
-              ].map(({ icon, title, sub, action }) => (
-                <div key={title} style={{ ...S.card, cursor:'pointer' }} onClick={action}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
-                      <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
+                { key:'book_v1', icon:'📄', title:'Version 1 – Einzelne Beiträge', sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
+                { key:'book_v2', icon:'✨', title:'Version 2 – Buch in einem Guss', sub:'KI webt alle Erinnerungen zu einem literarischen Text.' },
+                { key:'eulogy',  icon:'🕯', title:'Trauerrede',                    sub:'KI verfasst eine persönliche Rede zum Vorlesen auf der Trauerfeier.' },
+              ].map(({ key, icon, title, sub }) => {
+                const gen   = GENERATORS[key]
+                const has   = !!selected[gen.field]
+                const busy  = !!generating[key]
+                return (
+                  <div key={key} style={{ ...S.card }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+                      <div>
+                        <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
+                        <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
+                      </div>
+                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Generiert</span>}
                     </div>
-                    <span style={{ color:'#a8a29e', marginLeft:12 }}>→</span>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      <button onClick={() => generate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                        {busy ? 'Wird generiert …' : has ? '↻ Neu generieren' : '✨ Generieren'}
+                      </button>
+                      <button onClick={() => setView(gen.view)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        👁 Ansehen
+                      </button>
+                      <button onClick={() => downloadGenerated(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        ⬇ Download .docx
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>)}
 
@@ -1128,91 +1212,45 @@ function Dashboard() {
     )
   }
 
-  // ── BUCH V1 ──
-  if (view === 'book-v1') return (
-    <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-      <Back onClick={() => setView('detail')} />
-      <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-        <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 1</p>
-        <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
-      </div>
-      {contributions.map((c, i) => {
-        const pairs = []
-        for (let j = 0; j < c.messages.length; j++) {
-          if (c.messages[j].role === 'assistant') {
-            pairs.push({ q: c.messages[j].content, a: c.messages[j + 1]?.content })
-            j++
-          }
-        }
-        return (
-          <div key={i} style={{ marginBottom:'3rem' }}>
-            <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
-              <h2 style={{ fontSize:21, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:2 }}>{c.contributor_name}</h2>
-              <p style={{ fontSize:13, color:'#78716c', marginBottom:'1.5rem' }}>{c.relationship}</p>
-              {pairs.filter(p => p.a).map((p, j) => (
-                <div key={j} style={{ marginBottom:'1.5rem' }}>
-                  <p style={{ fontSize:13, color:'#a8a29e', fontStyle:'italic', marginBottom:6 }}>{p.q}</p>
-                  <p style={{ fontSize:16, lineHeight:1.85 }}>{p.a}</p>
-                </div>
-              ))}
+  // ── ANSEHEN (Bücher + Trauerrede) ──
+  if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') {
+    const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
+    const gen  = GENERATORS[key]
+    const text = selected[gen.field]
+    const busy = !!generating[key]
+    const subtitle = view === 'book-v1' ? 'Gedenkbuch · Version 1'
+                   : view === 'book-v2' ? 'Gedenkbuch · Version 2'
+                   : 'Trauerrede'
+    return (
+      <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
+        <Back onClick={() => setView('detail')} />
+        <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
+          <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}</p>
+          <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
+        </div>
+        <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
+          {busy ? (
+            <div style={{ textAlign:'center', padding:'3rem 0' }}>
+              <Dots />
+              <p style={{ ...S.muted, marginTop:16 }}>Die KI arbeitet …</p>
             </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-
-  // ── BUCH V2 ──
-  if (view === 'book-v2') return (
-    <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-      <Back onClick={() => setView('detail')} />
-      <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-        <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Gedenkbuch · Version 2</p>
-        <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
+          ) : text ? (
+            <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+              {renderRichText(text)}
+            </div>
+          ) : (
+            <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
+          )}
+          {!busy && text && (
+            <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
+              <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
+              <button className="secondary" onClick={() => generate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
+            </div>
+          )}
+        </div>
       </div>
-      <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
-        {bookLoading ? (
-          <div style={{ textAlign:'center', padding:'3rem 0' }}>
-            <Dots />
-            <p style={{ ...S.muted, marginTop:16 }}>Die KI webt die Erinnerungen zusammen …</p>
-          </div>
-        ) : (
-          <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
-            {bookText.split('\n\n').filter(Boolean).map((p, i) => <p key={i} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  // ── TRAUERREDE ──
-  if (view === 'eulogy') return (
-    <div style={{ maxWidth:680, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-      <Back onClick={() => setView('detail')} />
-      <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-        <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>Trauerrede</p>
-        <h1 style={{ fontSize:30, fontWeight:700, fontFamily:'Georgia,serif' }}>{selected.name}</h1>
-      </div>
-      <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem' }}>
-        {eulogyLoading ? (
-          <div style={{ textAlign:'center', padding:'3rem 0' }}>
-            <Dots />
-            <p style={{ ...S.muted, marginTop:16 }}>Die KI verfasst die Trauerrede …</p>
-          </div>
-        ) : (
-          <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
-            {eulogyText.split('\n\n').filter(Boolean).map((p, i) => <p key={i} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
-          </div>
-        )}
-        {!eulogyLoading && eulogyText && !eulogyText.startsWith('Fehler:') && (
-          <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10 }}>
-            <button onClick={() => downloadFile(`Trauerrede_${safeName(selected.name)}.txt`, eulogyText)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
-            <button className="secondary" onClick={generateEulogy} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+    )
+  }
 
   return null
 }

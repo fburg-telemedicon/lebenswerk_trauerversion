@@ -22,6 +22,17 @@ export async function adminDeleteMemorial(token, code) {
   return d
 }
 
+export async function adminSaveMemorialText(token, code, field, text) {
+  const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ field, text }),
+  })
+  const d = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`)
+  return d
+}
+
 export async function getMemorial(code) {
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`)
   const d = await res.json()
