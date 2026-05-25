@@ -1251,6 +1251,30 @@ function Dashboard() {
     throw lastErr
   }
 
+  // Kapitel-Generierung mit Auto-Retry: Claude liefert gelegentlich
+  // ungültiges JSON oder läuft ins 60s-Timeout — beides ist transient,
+  // ein zweiter/dritter Versuch klappt meistens.
+  async function generateChapterWithRetry(sys, memorialCode, kind, { maxAttempts = 3 } = {}) {
+    let lastErr
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const chRaw = await askClaude(
+          sys,
+          [{ role: 'user', content: 'Erzeuge jetzt dieses eine Kapitel als JSON.' }],
+          { memorialCode, kind }
+        )
+        const ch = tryParseJSON(chRaw)
+        if (!ch || !ch.body) throw new Error('Kapitel-JSON ungültig oder leer.')
+        return ch
+      } catch (e) {
+        lastErr = e
+        if (attempt === maxAttempts) throw e
+        await new Promise(r => setTimeout(r, 2000 * attempt))
+      }
+    }
+    throw lastErr
+  }
+
   async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
@@ -1289,13 +1313,7 @@ function Dashboard() {
             const sys = key === 'book_v1'
               ? gen.chapterSystem(selected, plan.contribution, plan.number)
               : gen.chapterSystem(selected, contributions, plan)
-            const chRaw = await askClaude(
-              sys,
-              [{ role: 'user', content: 'Erzeuge jetzt dieses eine Kapitel als JSON.' }],
-              { memorialCode: selected.id, kind: `${key}_chapter` }
-            )
-            const ch = tryParseJSON(chRaw)
-            if (!ch || !ch.body) throw new Error('Kapitel-JSON ungültig oder leer.')
+            const ch = await generateChapterWithRetry(sys, selected.id, `${key}_chapter`)
             chapters.push({
               number: ch.number || plan.number,
               heading: ch.heading || plan.heading || `Kapitel ${plan.number}`,
