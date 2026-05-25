@@ -384,6 +384,15 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
       <div style={{ padding: '1.25rem 1.5rem' }}>
         <Err msg={err} />
         {saveErr && <div style={{ ...S.err }}>⚠ Speichern: {saveErr}</div>}
+        {memorial.funeral_date && (() => {
+          const d = new Date(memorial.funeral_date)
+          d.setDate(d.getDate() - 7)
+          return (
+            <div style={{ background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#78350f', marginBottom:14, lineHeight:1.55 }}>
+              ℹ Eingaben bis zum <strong>{d.toLocaleDateString('de-DE')}</strong> werden berücksichtigt.
+            </div>
+          )
+        })()}
         {messages.slice(0, -1).map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
             <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
@@ -776,7 +785,7 @@ function Dashboard() {
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
   const [selectedContrib, setSelectedContrib] = useState(null)
-  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1 })
+  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '' })
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [loading, setLoading]         = useState(false)
@@ -856,6 +865,7 @@ function Dashboard() {
         organizer: createForm.organizer.trim(),
         gender: createForm.gender || null,
         bookVariant: createForm.bookVariant,
+        funeralDate: createForm.funeralDate || null,
       })
       setCreatedCode(code)
       setView('created')
@@ -973,7 +983,7 @@ function Dashboard() {
       <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Gedenkbücher</h2>
-          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1 }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
+          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '' }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
             + Neues Gedenkbuch
           </button>
         </div>
@@ -1068,6 +1078,11 @@ function Dashboard() {
         <div style={{ marginBottom: 14 }}>
           <Lbl>Ihr Name (Organisator) *</Lbl>
           <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Geplantes Datum der Bestattung</Lbl>
+          <input type="date" value={createForm.funeralDate} onChange={e => setCreateForm({ ...createForm, funeralDate: e.target.value })} />
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Beiträge bis sieben Tage vor diesem Datum fließen in das Gedenkbuch ein.</p>
         </div>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Buch-Variante *</Lbl>
@@ -1179,6 +1194,7 @@ function Dashboard() {
             Organisator: {selected.organizer}
             {selected.gender ? ` · ${selected.gender}` : ''}
             {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
+            {selected.funeral_date ? ` · Bestattung: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
             {' · Code: '}<span style={{ fontFamily: 'monospace' }}>{selected.id}</span>
           </p>
 
