@@ -81,17 +81,20 @@ function Dots() {
 }
 
 // ── Claude-Prompts ────────────────────────────────────────────────
-function interviewSystem(memorial, name, rel, address) {
+function interviewSystem(memorial, name, rel, address, contributorGender) {
   const g = memorial.gender ? ` (${memorial.gender})` : ''
   const addr = address === 'Du'
     ? 'Sprich die Person konsequent informell mit „du" an.'
     : 'Sprich die Person konsequent förmlich mit „Sie" an.'
+  const gen = contributorGender
+    ? `Die Person ist ${contributorGender} — verwende passende grammatische Formen (Adjektivendungen, Pronomen, ggf. „Herr"/„Frau").`
+    : ''
   return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name}${g} kannte.
 
 Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
 
 Regeln:
-- ${addr}
+- ${addr}${gen ? `\n- ${gen}` : ''}
 - Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
 - Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
@@ -168,7 +171,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
   async function loadFirst() {
     setAiLoading(true)
     try {
-      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address)
+      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
       const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }])
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
@@ -239,7 +242,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onDone, saveErr }) {
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
     try {
-      const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address)
+      const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs])
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
@@ -396,7 +399,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
 function ContributorFlow({ code }) {
   const [view, setView]           = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]   = useState(null)
-  const [contribForm, setContribForm] = useState({ name:'', relationship:'', address:'Sie' })
+  const [contribForm, setContribForm] = useState({ name:'', gender:'', relationship:'', address:'Sie' })
   const [err, setErr]             = useState('')
   const [contribId]               = useState(() => genContribId())
   const [saveErr, setSaveErr]     = useState('')
@@ -418,6 +421,8 @@ function ContributorFlow({ code }) {
           contributorName: contribForm.name,
           relationship: contribForm.relationship,
           messages,
+          contributorGender: contribForm.gender || null,
+          contributorAddress: contribForm.address || null,
         })
         setSaveErr('')
       } catch (e) {
@@ -446,6 +451,29 @@ function ContributorFlow({ code }) {
         Gedenkbuch für <strong>{memorial?.name}</strong>
       </p>
       <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
+      <div style={{ marginBottom:14 }}>
+        <Lbl>Ihr Geschlecht *</Lbl>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+          {GENDERS.map(g => (
+            <div
+              key={g.value}
+              onClick={() => setContribForm({ ...contribForm, gender: g.value })}
+              style={{
+                ...S.card,
+                cursor:'pointer',
+                textAlign:'center',
+                padding:'12px 8px',
+                borderColor: contribForm.gender === g.value ? '#1c1917' : '#e7e5e4',
+                borderWidth: contribForm.gender === g.value ? 2 : 1,
+                fontSize: 14,
+                fontWeight: contribForm.gender === g.value ? 600 : 400,
+              }}
+            >
+              {g.label}
+            </div>
+          ))}
+        </div>
+      </div>
       <div style={{ marginBottom:14 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
       <div style={{ marginBottom:24 }}>
         <Lbl>Wie möchten Sie angesprochen werden? *</Lbl>
@@ -472,7 +500,7 @@ function ContributorFlow({ code }) {
           ))}
         </div>
       </div>
-      <button disabled={!contribForm.name||!contribForm.relationship||!contribForm.address} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
+      <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address} onClick={()=>setView('interview')} style={{ width:'100%', padding:13, fontSize:15 }}>
         🎙 Sprach-Interview beginnen →
       </button>
     </div>

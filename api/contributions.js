@@ -33,7 +33,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { contributionId, memorialCode, contributorName, relationship, messages } = req.body
+      const { contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress } = req.body
       if (!memorialCode || !contributorName || !relationship || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'Pflichtfelder fehlen.' })
       }
@@ -44,6 +44,8 @@ module.exports = async function handler(req, res) {
         contributor_name: contributorName,
         relationship,
         messages,
+        contributor_gender: contributorGender || null,
+        contributor_address: contributorAddress || null,
       }, { onConflict: 'id' })
       if (error) throw error
       return res.json({ id })

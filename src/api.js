@@ -37,11 +37,11 @@ export async function getContributions(code) {
   return d // array of contributions
 }
 
-export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages }) {
+export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress }) {
   const res = await fetch('/api/contributions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contributionId, memorialCode, contributorName, relationship, messages }),
+    body: JSON.stringify({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress }),
   })
   const d = await res.json()
   if (!res.ok) throw new Error(d.error)
