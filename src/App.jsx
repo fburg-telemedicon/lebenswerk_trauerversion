@@ -1831,6 +1831,8 @@ function Dashboard() {
           <h1 style={{ fontSize:24, fontWeight:600, fontFamily:'Georgia,serif', color:'#78716c' }}>{selected.name}</h1>
         </div>
 
+        <Err msg={err} />
+
         {busy ? (
           <div style={{ textAlign:'center', padding:'3rem 0' }}>
             <Dots />

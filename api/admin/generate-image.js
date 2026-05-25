@@ -43,7 +43,13 @@ module.exports = async function handler(req, res) {
     if (!dalleResp.ok) {
       const errBody = await dalleResp.text()
       console.error('DALL-E error:', dalleResp.status, errBody)
-      return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen (HTTP ${dalleResp.status}).` })
+      let msg = `HTTP ${dalleResp.status}`
+      try {
+        const j = JSON.parse(errBody)
+        if (j?.error?.message) msg = j.error.message
+        else if (j?.error?.code) msg = j.error.code
+      } catch {}
+      return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${msg}` })
     }
     const dalleData = await dalleResp.json()
     const b64 = dalleData?.data?.[0]?.b64_json
