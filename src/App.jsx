@@ -494,6 +494,7 @@ Beiträge:\n\n${eulogyBlocks(contributions)}`
 }
 
 function unlockAudio() {
+  // Web Audio API unlock
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
     const buf = ctx.createBuffer(1, 1, 22050)
@@ -502,6 +503,13 @@ function unlockAudio() {
     src.connect(ctx.destination)
     src.start(0)
     ctx.resume().catch(() => {})
+  } catch (_) {}
+  // HTMLMediaElement unlock — iOS blockiert new Audio().play() separat
+  try {
+    const a = new Audio()
+    a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+    a.volume = 0
+    a.play().catch(() => {})
   } catch (_) {}
 }
 
