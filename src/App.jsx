@@ -493,6 +493,18 @@ ${greetRule}
 Beiträge:\n\n${eulogyBlocks(contributions)}`
 }
 
+function unlockAudio() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const buf = ctx.createBuffer(1, 1, 22050)
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.connect(ctx.destination)
+    src.start(0)
+    ctx.resume().catch(() => {})
+  } catch (_) {}
+}
+
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initialMessages = [] }) {
   const [messages,   setMessages]   = useState(initialMessages)
@@ -864,6 +876,7 @@ function ContributorFlow({ code }) {
   }
 
   function startInterview() {
+    unlockAudio()
     saveLocalSession(code, { contribId, contribForm })
     setView(memorial?.show_intro_video !== false ? 'intro-video' : 'interview')
   }
@@ -999,7 +1012,7 @@ ${resumeUrl}
             onEnded={() => setView('interview')}
           />
           <button
-            onClick={() => setView('interview')}
+            onClick={() => { unlockAudio(); setView('interview') }}
             style={{
               position:'absolute', top:20, right:20,
               background:'rgba(0,0,0,0.5)', color:'#fff',
