@@ -103,6 +103,17 @@ export async function getMemorialCosts(token, code) {
 
 // ── Sprachausgabe (OpenAI TTS) ────────────────────────────────────
 let currentAudio = null
+// iOS-Workaround: Audio-Element wird während der User-Geste vorbelegt,
+// damit play() nach dem async fetch noch im aktivierten Kontext läuft.
+let _primedAudio = null
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+
+export function primeAudio() {
+  _primedAudio = new Audio()
+  _primedAudio.src = SILENT_WAV
+  _primedAudio.volume = 0
+  _primedAudio.play().catch(() => {})
+}
 
 export function stopSpeaking() {
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
@@ -123,8 +134,12 @@ export async function speakText(text, { onStart, onEnd, onError, memorialCode, c
     }
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
-    const audio = new Audio(url)
+    // Primed element wiederverwenden (iOS: bereits im aktivierten Zustand)
+    const audio = _primedAudio ?? new Audio()
+    _primedAudio = null
     currentAudio = audio
+    audio.volume = 1
+    audio.src = url
     audio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; onEnd?.(); }
     audio.onerror = () => { URL.revokeObjectURL(url); currentAudio = null; onError?.('Audiowiedergabe fehlgeschlagen.'); }
     try {

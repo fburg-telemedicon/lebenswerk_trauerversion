@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun } from 'docx'
 import {
   createMemorial, getMemorial, getContributions, addContribution,
-  askClaude, speakText, stopSpeaking, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
+  askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
   getMemorialCosts,
 } from './api.js'
 
@@ -494,23 +494,8 @@ Beiträge:\n\n${eulogyBlocks(contributions)}`
 }
 
 function unlockAudio() {
-  // Web Audio API unlock
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const buf = ctx.createBuffer(1, 1, 22050)
-    const src = ctx.createBufferSource()
-    src.buffer = buf
-    src.connect(ctx.destination)
-    src.start(0)
-    ctx.resume().catch(() => {})
-  } catch (_) {}
-  // HTMLMediaElement unlock — iOS blockiert new Audio().play() separat
-  try {
-    const a = new Audio()
-    a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
-    a.volume = 0
-    a.play().catch(() => {})
-  } catch (_) {}
+  // Bereitet das Audio-Element vor, das speakText() später wiederverwendet
+  primeAudio()
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
