@@ -21,11 +21,11 @@ async function parseResponse(res) {
 }
 
 // ── Gedenkbuch ────────────────────────────────────────────────────
-export async function createMemorial({ name, organizer, gender, bookVariant, funeralDate, cutoffDays }) {
+export async function createMemorial({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo }) {
   const res = await fetch('/api/memorial', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo }),
   })
   return parseResponse(res) // { code }
 }

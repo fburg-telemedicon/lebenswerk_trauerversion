@@ -865,7 +865,7 @@ function ContributorFlow({ code }) {
 
   function startInterview() {
     saveLocalSession(code, { contribId, contribForm })
-    setView('interview')
+    setView(memorial?.show_intro_video !== false ? 'intro-video' : 'interview')
   }
 
   function saveProgress(messages) {
@@ -989,6 +989,30 @@ ${resumeUrl}
         </>
       )}
 
+      {view === 'intro-video' && (
+        <div style={{ position:'fixed', inset:0, background:'#000', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
+          <video
+            src="/intro-video.mp4"
+            autoPlay
+            playsInline
+            style={{ width:'100%', height:'100%', objectFit:'contain', maxHeight:'100vh' }}
+            onEnded={() => setView('interview')}
+          />
+          <button
+            onClick={() => setView('interview')}
+            style={{
+              position:'absolute', top:20, right:20,
+              background:'rgba(0,0,0,0.5)', color:'#fff',
+              border:'1px solid rgba(255,255,255,0.5)', borderRadius:8,
+              padding:'10px 20px', fontSize:14, cursor:'pointer',
+              backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)',
+            }}
+          >
+            Überspringen →
+          </button>
+        </div>
+      )}
+
       {view === 'interview' && memorial && (
         <VoiceInterview
           memorial={memorial}
@@ -1066,7 +1090,7 @@ function Dashboard() {
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
   const [selectedContrib, setSelectedContrib] = useState(null)
-  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7 })
+  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7, showIntroVideo: true })
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1154,6 +1178,7 @@ function Dashboard() {
         bookVariant: createForm.bookVariant,
         funeralDate: createForm.funeralDate || null,
         cutoffDays: createForm.cutoffDays,
+        showIntroVideo: createForm.showIntroVideo,
       })
       setCreatedCode(code)
       setView('created')
@@ -1517,7 +1542,7 @@ function Dashboard() {
       <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Gedenkbücher</h2>
-          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7 }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
+          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7, showIntroVideo: true }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
             + Neues Gedenkbuch
           </button>
         </div>
@@ -1691,6 +1716,21 @@ function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Einführungsvideo</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input
+              type="checkbox"
+              checked={createForm.showIntroVideo}
+              onChange={e => setCreateForm({ ...createForm, showIntroVideo: e.target.checked })}
+              style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
+            />
+            <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
+          </p>
         </div>
         <button
           disabled={!createForm.name || !createForm.organizer || !createForm.gender || busy}

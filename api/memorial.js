@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays } = req.body
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo } = req.body
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const code = genCode()
@@ -31,6 +31,7 @@ module.exports = async function handler(req, res) {
         id: code, name, organizer, gender: gender || null, book_variant: variant,
         funeral_date: funeralDate || null,
         cutoff_days: days,
+        show_intro_video: showIntroVideo !== false,
       })
       if (error) throw error
       return res.json({ code })
