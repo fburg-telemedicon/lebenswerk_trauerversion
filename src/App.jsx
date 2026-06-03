@@ -992,7 +992,7 @@ ${resumeUrl}
       {view === 'intro-video' && (
         <div style={{ position:'fixed', inset:0, background:'#000', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
           <video
-            src="/intro-video.mp4"
+            src="https://bniwrvfjqewjlzruslnd.supabase.co/storage/v1/object/public/memorial-videos/Intro_LD.mp4"
             autoPlay
             playsInline
             style={{ width:'100%', height:'100%', objectFit:'contain', maxHeight:'100vh' }}
