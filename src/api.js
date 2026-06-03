@@ -47,6 +47,23 @@ export async function adminSaveMemorialText(token, code, field, text) {
   return parseResponse(res)
 }
 
+export async function adminDeleteContribution(token, id) {
+  const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res)
+}
+
+export async function adminUpdateContributionMessages(token, id, messages) {
+  const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ messages }),
+  })
+  return parseResponse(res) // updated contribution row
+}
+
 export async function adminGenerateImage(token, memorialCode, prompt) {
   const res = await fetch('/api/admin/generate-image', {
     method: 'POST',

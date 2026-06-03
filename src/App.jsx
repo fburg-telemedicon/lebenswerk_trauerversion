@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Tex
 import {
   createMemorial, getMemorial, getContributions, addContribution,
   askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
+  adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
 } from './api.js'
 
@@ -1203,6 +1204,29 @@ function Dashboard() {
     finally { setDeletingId('') }
   }
 
+  async function deleteContribution(c) {
+    if (!window.confirm(`Beitrag von „${c.contributor_name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return
+    setErr('')
+    try {
+      await adminDeleteContribution(token, c.id)
+      setContribs(cs => cs.filter(x => x.id !== c.id))
+      if (selectedContrib?.id === c.id) { setSelectedContrib(null); setView('detail') }
+    } catch (e) { setErr(e.message) }
+  }
+
+  // Entfernt die Nachrichten an den angegebenen Indizes (Frage + Antwort) aus einem Beitrag.
+  async function deleteMessages(c, indices) {
+    if (!window.confirm('Diese Frage und Antwort wirklich aus dem Beitrag löschen?')) return
+    setErr('')
+    const drop = new Set(indices)
+    const newMessages = c.messages.filter((_, idx) => !drop.has(idx))
+    try {
+      const updated = await adminUpdateContributionMessages(token, c.id, newMessages)
+      setContribs(cs => cs.map(x => x.id === c.id ? updated : x))
+      if (selectedContrib?.id === c.id) setSelectedContrib(updated)
+    } catch (e) { setErr(e.message) }
+  }
+
   function copyInvite(code) {
     const url = `${window.location.origin}/?code=${code}`
     navigator.clipboard.writeText(url)
@@ -1564,7 +1588,7 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Organisator', 'Variante', 'Erfassung bis', 'Kosten', ''].map(h => (
+                  {['Name', 'Organisator', 'Variante', 'Erfassung bis', 'Antworten', 'Kosten', ''].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -1593,6 +1617,9 @@ function Dashboard() {
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
+                      <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        {(m.contribution_count || 0)} {(m.contribution_count === 1) ? 'Beitrag' : 'Beiträge'} · {(m.answer_count || 0)} {(m.answer_count === 1) ? 'Antwort' : 'Antworten'}
+                      </td>
                       <td
                         style={{ ...col, textAlign:'right', whiteSpace:'nowrap', padding:'6px 14px', background: costHover ? COST_BG : '', transition:'background .1s' }}
                         onMouseEnter={() => setHoveredRow({ id: m.id, zone: 'cost' })}
@@ -1893,13 +1920,23 @@ function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); dlOne(c) }}
-                      className="secondary"
-                      style={{ fontSize: 13, padding: '8px 16px', flexShrink: 0 }}
-                    >
-                      ⬇ Herunterladen
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); dlOne(c) }}
+                        className="secondary"
+                        style={{ fontSize: 13, padding: '8px 16px' }}
+                      >
+                        ⬇ Herunterladen
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteContribution(c) }}
+                        className="secondary"
+                        title="Beitrag löschen"
+                        style={{ fontSize: 15, padding: '8px 12px', color: '#dc2626' }}
+                      >
+                        🗑
+                      </button>
+                    </div>
                   </div>
                 )
               })}
@@ -2060,10 +2097,15 @@ function Dashboard() {
     const pairs = []
     for (let j = 0; j < c.messages.length; j++) {
       if (c.messages[j].role === 'assistant') {
-        pairs.push({ q: c.messages[j].content, a: c.messages[j + 1]?.content })
-        if (c.messages[j + 1]?.role === 'user') j++
+        const hasAnswer = c.messages[j + 1]?.role === 'user'
+        pairs.push({
+          q: c.messages[j].content,
+          a: hasAnswer ? c.messages[j + 1].content : undefined,
+          indices: hasAnswer ? [j, j + 1] : [j],
+        })
+        if (hasAnswer) j++
       } else {
-        pairs.push({ q: null, a: c.messages[j].content })
+        pairs.push({ q: null, a: c.messages[j].content, indices: [j] })
       }
     }
     return (
@@ -2078,6 +2120,7 @@ function Dashboard() {
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <button onClick={() => dlOne(c)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
+            <button className="secondary" onClick={() => deleteContribution(c)} title="Beitrag löschen" style={{ fontSize:15, padding:'7px 12px', color:'#dc2626' }}>🗑</button>
             <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
           </div>
         </div>
@@ -2106,7 +2149,15 @@ function Dashboard() {
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
               {pairs.map((p, j) => (
-                <div key={j} style={{ ...S.card }}>
+                <div key={j} style={{ ...S.card, position:'relative' }}>
+                  <button
+                    onClick={() => deleteMessages(c, p.indices)}
+                    title="Frage & Antwort löschen"
+                    className="ghost"
+                    style={{ position:'absolute', top:10, right:10, fontSize:14, color:'#dc2626', padding:'4px 8px', lineHeight:1 }}
+                  >
+                    🗑
+                  </button>
                   {p.q && (
                     <div style={{ marginBottom: p.a ? 12 : 0 }}>
                       <Lbl>Frage</Lbl>

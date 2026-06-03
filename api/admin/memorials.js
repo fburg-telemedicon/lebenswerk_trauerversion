@@ -89,6 +89,20 @@ module.exports = async function handler(req, res) {
         m.cost_total_usd = totalsUsd[m.id] || 0
       }
 
+      // Beiträge und Antworten (User-Nachrichten) pro Memorial aggregieren
+      const { data: contribRows } = await supabase.from('contributions').select('memorial_id, messages')
+      const contribCounts = {}
+      const answerCounts  = {}
+      for (const r of contribRows || []) {
+        contribCounts[r.memorial_id] = (contribCounts[r.memorial_id] || 0) + 1
+        const answers = Array.isArray(r.messages) ? r.messages.filter(msg => msg?.role === 'user').length : 0
+        answerCounts[r.memorial_id] = (answerCounts[r.memorial_id] || 0) + answers
+      }
+      for (const m of memorials) {
+        m.contribution_count = contribCounts[m.id] || 0
+        m.answer_count       = answerCounts[m.id] || 0
+      }
+
       return res.json(memorials)
     }
 
