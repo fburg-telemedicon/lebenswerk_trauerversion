@@ -1564,7 +1564,14 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {memorials.map(m => {
+                {[...memorials].sort((a, b) => {
+                  const da = cutoffDate(a.funeral_date, cutoffDays(a))
+                  const db = cutoffDate(b.funeral_date, cutoffDays(b))
+                  if (!da && !db) return 0
+                  if (!da) return 1
+                  if (!db) return -1
+                  return da - db
+                }).map(m => {
                   const isHover    = hoveredRow?.id === m.id
                   const mainHover  = isHover && hoveredRow.zone === 'main'
                   const costHover  = isHover && hoveredRow.zone === 'cost'
