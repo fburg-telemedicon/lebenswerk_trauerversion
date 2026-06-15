@@ -22,7 +22,7 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 | `ANTHROPIC_API_KEY` | Claude (interview + book/eulogy generation) |
 | `OPENAI_API_KEY` | TTS (`tts-1-hd`), Whisper STT, `gpt-image-1` |
 | `SUPABASE_URL` | Project URL |
-| `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key, RLS is not configured |
+| `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key. The whole backend uses service_role (which bypasses RLS). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`) |
 
@@ -71,6 +71,8 @@ Supabase Postgres. **`supabase/schema.sql` is incomplete** — it only defines t
 - A `cost_events` table (columns inferred from `recordCost` inserts: `memorial_id`, `contribution_id`, `kind`, `provider`, `model`, `input_tokens`, `output_tokens`, `audio_seconds`, `characters`, `images`, `cost_usd`, `cost_eur`, `metadata`, `created_at`).
 
 Treat the running Supabase project as the source of truth; do not assume `schema.sql` reflects production.
+
+**RLS is enabled** on `memorials`, `contributions`, and `cost_events` (see `supabase/rls.sql`) with **no policies** — so `anon`/`authenticated` get zero access via the public PostgREST API; only the backend's `service_role` (which bypasses RLS) can read/write. When adding a new table, enable RLS on it too (re-run / extend `supabase/rls.sql`) or it will be world-accessible through the public API.
 
 Images generated for books live in the **private** Supabase Storage bucket `memorial-images` under `<MEMORIAL_CODE>/<uuid>.png`. The admin memorials endpoint mints 1-hour signed URLs (`signMemorialImages`) and attaches them as `image_url` on each chapter before returning to the frontend — `image_path` is the canonical reference stored in `book_v1` / `book_v2` JSON; `image_url` is regenerated on each load.
 
