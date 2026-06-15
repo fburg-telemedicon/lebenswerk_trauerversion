@@ -6,19 +6,13 @@
 const { createClient } = require('@supabase/supabase-js')
 const crypto = require('crypto')
 const { costImage, recordCost } = require('../_lib/cost')
+const { checkAuth } = require('../_lib/auth')
 
 const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN    || 'lebenswerk-admin-secret'
 const OPENAI_KEY  = process.env.OPENAI_API_KEY
 
 const BUCKET = 'memorial-images'
 const IMAGE_MODEL = 'gpt-image-1-high-1536x1024'
-
-function checkAuth(req, res) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '')
-  if (token !== ADMIN_TOKEN) { res.status(401).json({ error: 'Nicht autorisiert.' }); return false }
-  return true
-}
 
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return

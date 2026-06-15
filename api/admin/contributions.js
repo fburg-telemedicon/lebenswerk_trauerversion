@@ -4,15 +4,9 @@
 // DELETE /api/admin/contributions?id=YYY    →  einen Beitrag löschen (auth required)
 
 const { createClient } = require('@supabase/supabase-js')
+const { checkAuth } = require('../_lib/auth')
 
-const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'lebenswerk-admin-secret'
-
-function checkAuth(req, res) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '')
-  if (token !== ADMIN_TOKEN) { res.status(401).json({ error: 'Nicht autorisiert.' }); return false }
-  return true
-}
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return

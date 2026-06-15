@@ -1,15 +1,17 @@
 // api/admin/login.js
 // POST /api/admin/login  { username, password }  →  { token }
+// Zugangsdaten und Token-Logik liegen zentral in ../_lib/auth.js.
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin'
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '1234'
-const ADMIN_TOKEN    = process.env.ADMIN_TOKEN    || 'lebenswerk-admin-secret'
+const { verifyCredentials, issueToken, isConfigured } = require('../_lib/auth')
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
+  if (!isConfigured()) {
+    return res.status(503).json({ error: 'Server nicht konfiguriert (Admin-Zugangsdaten fehlen).' })
+  }
   const { username, password } = req.body || {}
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    return res.json({ token: ADMIN_TOKEN })
+  if (verifyCredentials(username, password)) {
+    return res.json({ token: issueToken() })
   }
   return res.status(401).json({ error: 'Ungültige Zugangsdaten.' })
 }

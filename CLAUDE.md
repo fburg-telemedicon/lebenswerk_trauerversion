@@ -23,7 +23,7 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 | `OPENAI_API_KEY` | TTS (`tts-1-hd`), Whisper STT, `gpt-image-1` |
 | `SUPABASE_URL` | Project URL |
 | `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key, RLS is not configured |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN` | Admin login. All have insecure defaults (`admin` / `1234` / `lebenswerk-admin-secret`) — override in production |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`) |
 
 ## Architecture
@@ -44,7 +44,7 @@ DOCX export uses the `docx` npm package directly in the browser (`downloadStruct
 Two namespaces under `/api/`:
 
 - **Public** (`/api/ask`, `/api/contributions`, `/api/memorial`, `/api/speak`, `/api/transcribe`) — no auth, called from the contributor flow.
-- **Admin** (`/api/admin/*`) — every handler calls `checkAuth(req, res)` and rejects requests whose `Authorization: Bearer <token>` does not match `ADMIN_TOKEN`. The login endpoint compares username/password in plain text and returns that same static token.
+- **Admin** (`/api/admin/*`) — auth logic lives centrally in `api/_lib/auth.js`. Every handler calls `checkAuth(req, res)`, which verifies a `Authorization: Bearer <token>` whose token is an HMAC-SHA256-signed payload with an embedded expiry (12 h TTL). The login endpoint (`api/admin/login.js`) compares username/password with a constant-time hash compare (`verifyCredentials`) and, on success, returns a freshly signed token (`issueToken`). If `ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_TOKEN_SECRET` are not all set, every request is refused (503) — there are no fallback defaults. The frontend treats a 401 as an expired session and logs out.
 
 Function timeouts are overridden in `vercel.json`: `ask` and `admin/generate-image` get 60 s, `transcribe` gets 30 s. The book-generation flow can sequentially call `admin/generate-image` once per chapter from the browser, so each call must stay inside its own 60 s budget.
 
