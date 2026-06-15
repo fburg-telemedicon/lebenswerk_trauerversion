@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — starts `vercel dev`, which runs both the Vite dev server and the `/api/*` serverless functions locally (default http://localhost:3000). Requires env vars to be present (see below). `vite` alone will not start the API.
 - `npm run build` — Vite production build to `dist/`.
 - `npm run preview` — preview the built bundle (static only, no API).
-- Deploy: production runs on Vercel and is wired to the `main` branch (production URL: gedenkbuch.vercel.app). `vercel --prod` from the project root deploys manually.
+- Deploy: production runs on Vercel and is wired to the `main` branch (production URL: lebensgeschichten.vercel.app). `vercel --prod` from the project root deploys manually.
 
 There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail.
 
