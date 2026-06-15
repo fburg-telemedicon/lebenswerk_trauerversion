@@ -33,12 +33,12 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress } = req.body
+      const { contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress, consentAt, consentVersion } = req.body
       if (!memorialCode || !contributorName || !relationship || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'Pflichtfelder fehlen.' })
       }
       const id = (contributionId && String(contributionId).trim()) || genCode()
-      const { error } = await supabase.from('contributions').upsert({
+      const row = {
         id,
         memorial_id: memorialCode.toUpperCase(),
         contributor_name: contributorName,
@@ -46,7 +46,13 @@ module.exports = async function handler(req, res) {
         messages,
         contributor_gender: contributorGender || null,
         contributor_address: contributorAddress || null,
-      }, { onConflict: 'id' })
+      }
+      // Einwilligung nur setzen, wenn übergeben – so überschreibt ein späterer
+      // Speichervorgang (z.B. nach Resume ohne Consent im State) den einmal
+      // protokollierten Zeitpunkt nicht.
+      if (consentAt) row.consent_at = consentAt
+      if (consentVersion) row.consent_version = consentVersion
+      const { error } = await supabase.from('contributions').upsert(row, { onConflict: 'id' })
       if (error) throw error
       return res.json({ id })
     }

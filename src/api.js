@@ -84,11 +84,11 @@ export async function getContributions(code) {
   return parseResponse(res) // array of contributions
 }
 
-export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress }) {
+export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress, consentAt, consentVersion }) {
   const res = await fetch('/api/contributions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress }),
+    body: JSON.stringify({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress, consentAt, consentVersion }),
   })
   return parseResponse(res) // { id }
 }

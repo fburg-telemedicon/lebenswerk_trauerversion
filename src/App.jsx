@@ -14,6 +14,11 @@ const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const sessionFromURL = (urlParams.get('session') || '').trim()
 
+// Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
+// Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
+// Fassung zugestimmt wurde.
+const CONSENT_VERSION = '1.0 (2026-06-15)'
+
 // ── Lokale Session-Persistenz (Option 1: localStorage) ────────────
 const SESSION_TTL_DAYS = 60
 function sessionKey(code) { return `lw_session_${code}` }
@@ -878,6 +883,8 @@ function ContributorFlow({ code }) {
   const [contribForm, setContribForm]         = useState({ name:'', gender:'', relationship:'', address:'Sie' })
   const [err, setErr]                         = useState('')
   const [contribId, setContribId]             = useState(() => genContribId())
+  const [consentChecked, setConsentChecked]   = useState(false)
+  const [consentAt, setConsentAt]             = useState(null)
   const [initialMessages, setInitialMessages] = useState([])
   const [resumePrompt, setResumePrompt]       = useState(null)
   const [paused, setPaused]                   = useState(false)
@@ -922,7 +929,8 @@ function ContributorFlow({ code }) {
     setContribId(contrib.id)
     setContribForm(form)
     setInitialMessages(Array.isArray(contrib.messages) ? contrib.messages : [])
-    saveLocalSession(code, { contribId: contrib.id, contribForm: form })
+    if (contrib.consent_at) { setConsentAt(contrib.consent_at); setConsentChecked(true) }
+    saveLocalSession(code, { contribId: contrib.id, contribForm: form, consentAt: contrib.consent_at || null })
   }
 
   async function resumeLocal() {
@@ -938,7 +946,10 @@ function ContributorFlow({ code }) {
     // Kein DB-Eintrag (noch keine Antwort gespeichert). Wenn das Formular in
     // localStorage komplett ist, direkt ins Interview springen — sonst Info-Form.
     const form = local.contribForm
-    const complete = form && form.name && form.gender && form.relationship && form.address
+    if (local.consentAt) { setConsentAt(local.consentAt); setConsentChecked(true) }
+    // Nur direkt ins Interview, wenn Formular vollständig UND bereits eingewilligt
+    // wurde – sonst zurück zur Info-Maske inkl. Einwilligungsschritt.
+    const complete = form && form.name && form.gender && form.relationship && form.address && local.consentAt
     setContribId(local.contribId)
     if (form) setContribForm({ ...contribForm, ...form })
     setInitialMessages([])
@@ -951,18 +962,23 @@ function ContributorFlow({ code }) {
     setContribId(genContribId())
     setInitialMessages([])
     setContribForm({ name:'', gender:'', relationship:'', address:'Sie' })
+    setConsentChecked(false)
+    setConsentAt(null)
     setView('info')
   }
 
   function startInterview() {
     unlockAudio()
-    saveLocalSession(code, { contribId, contribForm })
+    // Zeitpunkt der Einwilligung festhalten (einmalig, beim Start).
+    const ts = consentAt || new Date().toISOString()
+    if (!consentAt) setConsentAt(ts)
+    saveLocalSession(code, { contribId, contribForm, consentAt: ts })
     setView(memorial?.show_intro_video !== false ? 'intro-video' : 'interview')
   }
 
   function saveProgress(messages) {
     if (!messages || messages.length === 0) return
-    saveLocalSession(code, { contribId, contribForm })
+    saveLocalSession(code, { contribId, contribForm, consentAt })
     saveQueueRef.current = saveQueueRef.current.then(async () => {
       try {
         await addContribution({
@@ -973,6 +989,8 @@ function ContributorFlow({ code }) {
           messages,
           contributorGender: contribForm.gender || null,
           contributorAddress: contribForm.address || null,
+          consentAt: consentAt || null,
+          consentVersion: consentAt ? CONSENT_VERSION : null,
         })
         setSaveErr('')
       } catch (e) { setSaveErr(e.message) }
@@ -1074,7 +1092,28 @@ ${resumeUrl}
               ))}
             </div>
           </div>
-          <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
+          <div style={{ ...S.card, background:'#fffbeb', borderColor:'#fde68a', marginBottom:18 }}>
+            <label style={{ display:'flex', gap:11, alignItems:'flex-start', cursor:'pointer', fontSize:13.5, lineHeight:1.6, color:'#57534e' }}>
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={e => setConsentChecked(e.target.checked)}
+                style={{ marginTop:3, width:18, height:18, flexShrink:0, cursor:'pointer' }}
+              />
+              <span>
+                Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich
+                möglicher Angaben zu Gesundheit, Todesumständen oder Religion (besondere Kategorien
+                personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des Gedenkbuchs verarbeitet
+                werden. Dabei kommen KI-Dienste der Anbieter <strong>Anthropic</strong> und{' '}
+                <strong>OpenAI</strong> in den <strong>USA</strong> zum Einsatz; ich willige in die damit
+                verbundene Übermittlung in die USA ein (Art. 49 Abs. 1 lit. a DSGVO), wo kein mit der EU
+                vergleichbares Datenschutzniveau besteht. Die Einwilligung ist freiwillig und jederzeit
+                mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der{' '}
+                <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8' }}>Datenschutzerklärung</a>.
+              </span>
+            </label>
+          </div>
+          <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             🎙 Sprach-Interview beginnen →
           </button>
           </div>
@@ -2390,8 +2429,161 @@ function Dashboard() {
   return null
 }
 
+// ── Rechtstexte (Impressum / Datenschutz) ─────────────────────────
+// HINWEIS (intern): Der Datenschutztext ist ein fundierter Entwurf, der die
+// tatsächliche Verarbeitung abbildet. Vor produktivem Verlass darauf bitte
+// juristisch prüfen lassen. Verantwortliche: HealthCare Futurists GmbH.
+
+function LegalLayout({ title, children }) {
+  const back = () => { if (window.history.length > 1) window.history.back(); else window.location.href = '/' }
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ maxWidth:760, margin:'0 auto', padding:'2.5rem 1.5rem 4rem' }}>
+        <button className="ghost" onClick={back} style={{ fontSize:14, color:'#78716c', marginBottom:'1rem' }}>← Zurück</button>
+        <h1 style={{ fontSize:26, fontWeight:800, margin:'0 0 1.5rem' }}>{title}</h1>
+        <div style={{ fontSize:15, lineHeight:1.7, color:'#44403c' }}>{children}</div>
+      </div>
+    </div>
+  )
+}
+
+const LH = { fontSize:18, fontWeight:700, margin:'1.8rem 0 .6rem', color:'#1c1917' }
+
+function Impressum() {
+  return (
+    <LegalLayout title="Impressum">
+      <p><strong>Angaben gemäß § 5 DDG</strong></p>
+      <p>HealthCare Futurists GmbH<br/>Stadtwaldgürtel 13<br/>50935 Köln<br/>Deutschland</p>
+      <p>Zweigstelle:<br/>Walter-Schneider-Straße 11<br/>06317 Seegebiet Mansfelder Land<br/>Deutschland</p>
+      <h2 style={LH}>Vertreten durch</h2>
+      <p>Geschäftsführer Dr. Tobias D. Gantner</p>
+      <h2 style={LH}>Kontakt</h2>
+      <p>E-Mail: info@healthcarefuturists.com<br/>Telefon: +49 151 4129 6999</p>
+      <h2 style={LH}>Registereintrag</h2>
+      <p>Eintragung im Handelsregister.<br/>Registergericht: Amtsgericht Köln<br/>Registernummer: HRB 91294</p>
+      <h2 style={LH}>Umsatzsteuer-Identifikationsnummer</h2>
+      <p>USt-IdNr. gemäß § 27a UStG: DE291805257</p>
+      <h2 style={LH}>Verantwortlich für den Inhalt</h2>
+      <p>gemäß § 18 Abs. 2 MStV: Dr. Tobias D. Gantner, Anschrift wie oben.</p>
+    </LegalLayout>
+  )
+}
+
+function Datenschutz() {
+  return (
+    <LegalLayout title="Datenschutzerklärung">
+      <p style={{ color:'#78716c' }}>Stand: 15. Juni 2026 · Fassung {CONSENT_VERSION}</p>
+
+      <h2 style={LH}>1. Verantwortlicher</h2>
+      <p>
+        Verantwortlich für die Datenverarbeitung im Sinne der DSGVO ist:<br/>
+        HealthCare Futurists GmbH, Stadtwaldgürtel 13, 50935 Köln, Deutschland<br/>
+        Geschäftsführer: Dr. Tobias D. Gantner<br/>
+        E-Mail: info@healthcarefuturists.com · Telefon: +49 151 4129 6999
+      </p>
+
+      <h2 style={LH}>2. Worum es geht</h2>
+      <p>
+        Mit dieser Anwendung erstellen wir ein persönliches Gedenkbuch für eine verstorbene
+        Person. Dazu führen Angehörige und Nahestehende ein sprach- oder textbasiertes Interview,
+        aus dessen Inhalten ein Erinnerungstext entsteht.
+      </p>
+
+      <h2 style={LH}>3. Welche Daten wir verarbeiten</h2>
+      <p>
+        Von Ihnen als beitragender Person: Name, Beziehung zur verstorbenen Person, Geschlecht,
+        gewünschte Anrede, Ihre Stimmaufnahmen während des Interviews sowie deren Verschriftlichung
+        und sämtliche Interview-Inhalte. Diese Inhalte können <strong>besondere Kategorien
+        personenbezogener Daten</strong> enthalten (Art. 9 DSGVO), insbesondere Angaben zu Gesundheit
+        und Todesumständen sowie ggf. religiöse oder weltanschauliche Angaben. Technisch fallen
+        zudem Zeitstempel und die Protokollierung Ihrer Einwilligung an.
+      </p>
+
+      <h2 style={LH}>4. Rechtsgrundlage</h2>
+      <p>
+        Wir verarbeiten diese Daten ausschließlich auf Grundlage Ihrer <strong>ausdrücklichen
+        Einwilligung</strong> (Art. 6 Abs. 1 lit. a und Art. 9 Abs. 2 lit. a DSGVO). Die Einwilligung
+        ist freiwillig; ohne sie können wir das Gedenkbuch nicht erstellen. Sie können Ihre
+        Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen, ohne dass die Rechtmäßigkeit
+        der bis dahin erfolgten Verarbeitung berührt wird (siehe Abschnitt 8).
+      </p>
+
+      <h2 style={LH}>5. KI-Verarbeitung, Empfänger und Übermittlung in die USA</h2>
+      <p>
+        Zur Verarbeitung setzen wir Dienstleister als Auftragsverarbeiter ein:
+      </p>
+      <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
+        <li><strong>Anthropic</strong> (Claude) – KI-gestützte Interviewführung und Texterstellung; USA.</li>
+        <li><strong>OpenAI</strong> – Sprachausgabe (Text-to-Speech), Spracherkennung (Transkription) und Bilderzeugung; USA.</li>
+        <li><strong>Supabase</strong> – Speicherung von Datenbank- und Bildinhalten.</li>
+        <li><strong>Vercel</strong> – Betrieb und Auslieferung der Anwendung.</li>
+      </ul>
+      <p>
+        Dabei werden Ihre Daten an Anbieter in den <strong>USA</strong> übermittelt. Für die USA
+        besteht kein generell mit dem EU-Recht vergleichbares Datenschutzniveau; insbesondere können
+        US-Behörden unter bestimmten Voraussetzungen auf Daten zugreifen, und Ihre Betroffenenrechte
+        sind dort ggf. schwerer durchsetzbar. Die Übermittlung erfolgt auf Grundlage Ihrer
+        ausdrücklichen Einwilligung in die Datenübermittlung in ein Drittland gemäß
+        <strong> Art. 49 Abs. 1 lit. a DSGVO</strong>. Eine automatisierte Entscheidung mit
+        rechtlicher Wirkung Ihnen gegenüber findet nicht statt.
+      </p>
+
+      <h2 style={LH}>6. Speicherdauer</h2>
+      <p>
+        Wir löschen die zu einem Gedenkbuch gehörenden personenbezogenen Daten automatisch
+        <strong> 90 Tage nach dem Bestattungstermin</strong> (ist kein Bestattungstermin hinterlegt,
+        90 Tage nach Anlage des Gedenkbuchs). Auf Ihren Wunsch löschen wir Ihre Daten auch früher.
+      </p>
+
+      <h2 style={LH}>7. Ihre Rechte</h2>
+      <p>Ihnen stehen gegenüber uns folgende Rechte zu:</p>
+      <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
+        <li>Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18),</li>
+        <li>Datenübertragbarkeit (Art. 20) – wir stellen Ihre Daten auf Anfrage als maschinenlesbare Datei bereit,</li>
+        <li>Widerspruch (Art. 21) sowie Widerruf einer erteilten Einwilligung (Art. 7 Abs. 3).</li>
+      </ul>
+      <p>Zur Ausübung genügt eine Nachricht an info@healthcarefuturists.com.</p>
+
+      <h2 style={LH}>8. Widerruf der Einwilligung</h2>
+      <p>
+        Sie können Ihre Einwilligung jederzeit widerrufen – formlos per E-Mail an
+        info@healthcarefuturists.com. Nach einem Widerruf stellen wir die weitere Verarbeitung ein
+        und löschen Ihre Daten, soweit keine gesetzliche Aufbewahrungspflicht entgegensteht.
+      </p>
+
+      <h2 style={LH}>9. Beschwerderecht</h2>
+      <p>
+        Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Für uns
+        zuständig ist die Landesbeauftragte für Datenschutz und Informationsfreiheit
+        Nordrhein-Westfalen (LDI NRW), Postfach 20 04 44, 40102 Düsseldorf.
+      </p>
+    </LegalLayout>
+  )
+}
+
+function LegalFooter() {
+  const a = { color:'#57534e', margin:'0 10px', textDecoration:'none' }
+  return (
+    <footer style={{ borderTop:'1px solid #e7e5e4', padding:'18px 1.5rem', textAlign:'center', fontSize:13, color:'#78716c', background:'#fafaf9' }}>
+      <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={a}>Datenschutzerklärung</a>
+      <span style={{ color:'#d6d3d1' }}>·</span>
+      <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={a}>Impressum</a>
+    </footer>
+  )
+}
+
 // ── Haupt-App ─────────────────────────────────────────────────────
 export default function App() {
+  const [hash, setHash] = useState(() => window.location.hash)
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const route = hash.replace(/^#/, '')
+  if (route === 'impressum')  return <Impressum />
+  if (route === 'datenschutz') return <Datenschutz />
+
   return (
     <>
       <style>{`
@@ -2400,6 +2592,7 @@ export default function App() {
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
       {codeFromURL ? <ContributorFlow code={codeFromURL} /> : <Dashboard />}
+      <LegalFooter />
     </>
   )
 }
