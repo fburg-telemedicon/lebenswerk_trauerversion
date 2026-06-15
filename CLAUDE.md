@@ -25,6 +25,8 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 | `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key. The whole backend uses service_role (which bypasses RLS). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`) |
+| `CRON_SECRET` | Secret for the daily retention purge cron (`/api/cron/purge`). Vercel auto-sends it as `Authorization: Bearer <CRON_SECRET>` on cron calls; the endpoint refuses everything if unset. |
+| `RETENTION_DAYS` | Optional. Days after `funeral_date` (else `created_at`) before a memorial is auto-deleted (default `90`). |
 
 ## Architecture
 
