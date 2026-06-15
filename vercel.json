@@ -9,6 +9,10 @@
   "functions": {
     "api/ask.js":                  { "maxDuration": 60 },
     "api/admin/generate-image.js": { "maxDuration": 60 },
-    "api/transcribe.js":           { "maxDuration": 30 }
-  }
+    "api/transcribe.js":           { "maxDuration": 30 },
+    "api/cron/purge.js":           { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/purge", "schedule": "0 3 * * *" }
+  ]
 }
