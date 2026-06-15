@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun } from 'docx'
+import jsPDF from 'jspdf'
+import JSZip from 'jszip'
 import {
   createMemorial, getMemorial, getContributions, addContribution,
   askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
@@ -66,6 +68,89 @@ function downloadFile(filename, content) {
 }
 
 function safeName(s) { return s.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').trim().replace(/\s+/g, '_') }
+
+function downloadBlob(filename, blob) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// Wandelt den messages-Array eines Beitrags in Frage/Antwort-Paare um.
+function contributionQAPairs(messages = []) {
+  const pairs = []
+  for (let j = 0; j < messages.length; j++) {
+    if (messages[j].role === 'assistant') {
+      const hasAnswer = messages[j + 1]?.role === 'user'
+      pairs.push({ q: messages[j].content, a: hasAnswer ? messages[j + 1].content : null })
+      if (hasAnswer) j++
+    } else {
+      pairs.push({ q: null, a: messages[j].content })
+    }
+  }
+  return pairs
+}
+
+// Baut ein gut lesbares PDF mit den Daten EINES Beitragenden (DSGVO Art. 15).
+// Gibt einen Blob zurück.
+function buildContributionPdf(c, memorial) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 20
+  const maxW = pageW - margin * 2
+  let y = margin
+
+  const lineHeight = size => size * 0.3528 * 1.32 // pt → mm, mit Zeilenabstand
+
+  const ensure = h => { if (y + h > pageH - margin) { doc.addPage(); y = margin } }
+
+  function write(text, { size = 11, style = 'normal', color = [40, 40, 40], indent = 0, gapAfter = 2 } = {}) {
+    doc.setFont('helvetica', style)
+    doc.setFontSize(size)
+    doc.setTextColor(color[0], color[1], color[2])
+    const lh = lineHeight(size)
+    const lines = doc.splitTextToSize(String(text ?? ''), maxW - indent)
+    for (const line of lines) { ensure(lh); doc.text(line, margin + indent, y); y += lh }
+    y += gapAfter
+  }
+  function rule() { ensure(4); doc.setDrawColor(210); doc.line(margin, y, pageW - margin, y); y += 5 }
+
+  write('Datenauskunft', { size: 20, style: 'bold', color: [30, 30, 30], gapAfter: 1 })
+  write('gemäß DSGVO Art. 15 (Auskunft) und Art. 20 (Datenübertragbarkeit)', { size: 10, color: [120, 120, 120], gapAfter: 3 })
+  write(`Gedenkbuch: ${memorial.name}  (Code ${memorial.id})`, { size: 10, color: [90, 90, 90], gapAfter: 1 })
+  write(`Erstellt am: ${new Date().toLocaleString('de-DE')}`, { size: 10, color: [90, 90, 90], gapAfter: 3 })
+  rule()
+
+  write('Angaben zur Person', { size: 14, style: 'bold', gapAfter: 2.5 })
+  const fields = [
+    ['Name', c.contributor_name],
+    ['Beziehung zur verstorbenen Person', c.relationship],
+    ['Geschlecht', c.contributor_gender],
+    ['Anrede', c.contributor_address],
+    ['Beitrag erstellt am', c.created_at ? new Date(c.created_at).toLocaleString('de-DE') : null],
+  ]
+  for (const [label, value] of fields) {
+    if (!value) continue
+    write(`${label}:`, { size: 10, style: 'bold', color: [110, 110, 110], gapAfter: 0.5 })
+    write(String(value), { size: 11, indent: 2, gapAfter: 2 })
+  }
+  y += 2
+  rule()
+
+  write('Interview-Verlauf', { size: 14, style: 'bold', gapAfter: 3 })
+  const pairs = contributionQAPairs(c.messages)
+  if (pairs.length === 0) {
+    write('Dieser Beitrag enthält keine Inhalte.', { size: 11, color: [120, 120, 120] })
+  } else {
+    pairs.forEach((p, i) => {
+      if (p.q) write(`Frage ${i + 1}: ${p.q}`, { size: 11, style: 'bold', color: [60, 60, 60], gapAfter: 1 })
+      write(p.a || '(keine Antwort)', { size: 11, indent: 3, gapAfter: 4 })
+    })
+  }
+
+  return doc.output('blob')
+}
 
 function renderRichText(text) {
   if (!text) return null
@@ -1204,26 +1289,36 @@ function Dashboard() {
     finally { setDeletingId('') }
   }
 
-  // DSGVO Art. 15/20: maschinenlesbarer Export der Daten EINES Beitragenden.
+  // DSGVO-Export der Daten EINES Beitragenden als .zip mit zwei Dateien:
+  //  - daten.json  (maschinenlesbar, Art. 20 Datenübertragbarkeit)
+  //  - auskunft.pdf (menschenlesbar, Art. 15 Auskunft)
   // Bewusst pro Beitrag (jeder Beitragende ist eigener Betroffener) – enthält
   // nur dessen eigene Daten, nicht die anderer Beitragender desselben Buchs.
-  function exportContribution(c) {
-    const bundle = {
-      export_version: 1,
-      generated_at: new Date().toISOString(),
-      hinweis: 'Personenbezogene Daten dieses Beitrags gemäß DSGVO Art. 15 (Auskunft) / Art. 20 (Datenübertragbarkeit).',
-      gedenkbuch: { code: selected.id, name: selected.name },
-      beitrag: {
-        id: c.id,
-        contributor_name: c.contributor_name,
-        relationship: c.relationship,
-        contributor_gender: c.contributor_gender ?? null,
-        contributor_address: c.contributor_address ?? null,
-        created_at: c.created_at,
-        messages: c.messages,
-      },
-    }
-    downloadFile(`dsgvo-export_${safeName(c.contributor_name)}.json`, JSON.stringify(bundle, null, 2))
+  async function exportContribution(c) {
+    setErr('')
+    try {
+      const bundle = {
+        export_version: 1,
+        generated_at: new Date().toISOString(),
+        hinweis: 'Personenbezogene Daten dieses Beitrags gemäß DSGVO Art. 15 (Auskunft) / Art. 20 (Datenübertragbarkeit).',
+        gedenkbuch: { code: selected.id, name: selected.name },
+        beitrag: {
+          id: c.id,
+          contributor_name: c.contributor_name,
+          relationship: c.relationship,
+          contributor_gender: c.contributor_gender ?? null,
+          contributor_address: c.contributor_address ?? null,
+          created_at: c.created_at,
+          messages: c.messages,
+        },
+      }
+      const base = safeName(c.contributor_name)
+      const zip = new JSZip()
+      zip.file(`${base}_daten.json`, JSON.stringify(bundle, null, 2))
+      zip.file(`${base}_auskunft.pdf`, buildContributionPdf(c, selected))
+      const blob = await zip.generateAsync({ type: 'blob' })
+      downloadBlob(`dsgvo-export_${base}.zip`, blob)
+    } catch (e) { setErr(`Export fehlgeschlagen: ${e.message}`) }
   }
 
   async function deleteContribution(c) {
@@ -2142,7 +2237,7 @@ function Dashboard() {
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <button onClick={() => dlOne(c)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
-            <button className="secondary" onClick={() => exportContribution(c)} title="Personenbezogene Daten dieses Beitragenden als JSON exportieren (DSGVO Art. 15/20)" style={{ fontSize:13, padding:'8px 16px' }}>⬇ DSGVO-Export</button>
+            <button className="secondary" onClick={() => exportContribution(c)} title="Daten dieses Beitragenden als .zip (lesbares PDF + JSON) exportieren – DSGVO Art. 15/20" style={{ fontSize:13, padding:'8px 16px' }}>⬇ DSGVO-Export</button>
             <button className="secondary" onClick={() => deleteContribution(c)} title="Beitrag löschen" style={{ fontSize:15, padding:'7px 12px', color:'#dc2626' }}>🗑</button>
             <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
           </div>
