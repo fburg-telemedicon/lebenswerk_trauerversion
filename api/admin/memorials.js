@@ -24,6 +24,28 @@ function applySignedUrls(book, urlMap) {
   }
 }
 
+// Löscht ALLE Storage-Objekte unter <CODE>/ im Bilder-Bucket (für die
+// vollständige Löschung nach Art. 17 DSGVO). Listet den ganzen Ordner, damit
+// auch verwaiste/neu generierte Bilder erfasst werden, die nicht (mehr) in
+// book_v1/book_v2 referenziert sind. Wirft NICHT — gibt stattdessen eine Liste
+// von Warnungen zurück (leer = alles gelöscht), damit die DB-Löschung in jedem
+// Fall durchläuft.
+async function deleteMemorialImages(code) {
+  const warnings = []
+  try {
+    const { data: files, error: listErr } =
+      await supabase.storage.from(IMAGE_BUCKET).list(code, { limit: 1000 })
+    if (listErr) { warnings.push(`Storage-Liste fehlgeschlagen: ${listErr.message}`); return warnings }
+    const paths = (files || []).filter(f => f?.name).map(f => `${code}/${f.name}`)
+    if (paths.length === 0) return warnings
+    const { error: rmErr } = await supabase.storage.from(IMAGE_BUCKET).remove(paths)
+    if (rmErr) warnings.push(`Storage-Löschung fehlgeschlagen: ${rmErr.message}`)
+  } catch (e) {
+    warnings.push(`Storage-Löschung Ausnahme: ${e.message}`)
+  }
+  return warnings
+}
+
 async function signMemorialImages(memorials) {
   const paths = new Set()
   for (const m of memorials) {
@@ -104,11 +126,19 @@ module.exports = async function handler(req, res) {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'code fehlt.' })
 
+      // Vollständige Löschung (Art. 17 DSGVO) in dieser Reihenfolge:
+      // 1. Storage-Bilder (best effort), 2. cost_events, 3. contributions, 4. memorial.
+      const storageWarnings = await deleteMemorialImages(code)
+
+      const { error: costErr } = await supabase.from('cost_events').delete().eq('memorial_id', code)
+      if (costErr) throw costErr
       const { error: cErr } = await supabase.from('contributions').delete().eq('memorial_id', code)
       if (cErr) throw cErr
       const { error: mErr } = await supabase.from('memorials').delete().eq('id', code)
       if (mErr) throw mErr
-      return res.json({ ok: true })
+
+      if (storageWarnings.length) console.warn('Löschung memorial', code, 'Storage-Warnungen:', storageWarnings)
+      return res.json({ ok: true, ...(storageWarnings.length ? { storageWarnings } : {}) })
     }
 
     if (req.method === 'PATCH') {
