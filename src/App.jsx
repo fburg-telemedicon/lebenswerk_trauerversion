@@ -1204,6 +1204,28 @@ function Dashboard() {
     finally { setDeletingId('') }
   }
 
+  // DSGVO Art. 15/20: maschinenlesbarer Export der Daten EINES Beitragenden.
+  // Bewusst pro Beitrag (jeder Beitragende ist eigener Betroffener) – enthält
+  // nur dessen eigene Daten, nicht die anderer Beitragender desselben Buchs.
+  function exportContribution(c) {
+    const bundle = {
+      export_version: 1,
+      generated_at: new Date().toISOString(),
+      hinweis: 'Personenbezogene Daten dieses Beitrags gemäß DSGVO Art. 15 (Auskunft) / Art. 20 (Datenübertragbarkeit).',
+      gedenkbuch: { code: selected.id, name: selected.name },
+      beitrag: {
+        id: c.id,
+        contributor_name: c.contributor_name,
+        relationship: c.relationship,
+        contributor_gender: c.contributor_gender ?? null,
+        contributor_address: c.contributor_address ?? null,
+        created_at: c.created_at,
+        messages: c.messages,
+      },
+    }
+    downloadFile(`dsgvo-export_${safeName(c.contributor_name)}.json`, JSON.stringify(bundle, null, 2))
+  }
+
   async function deleteContribution(c) {
     if (!window.confirm(`Beitrag von „${c.contributor_name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return
     setErr('')
@@ -2120,6 +2142,7 @@ function Dashboard() {
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <button onClick={() => dlOne(c)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
+            <button className="secondary" onClick={() => exportContribution(c)} title="Personenbezogene Daten dieses Beitragenden als JSON exportieren (DSGVO Art. 15/20)" style={{ fontSize:13, padding:'8px 16px' }}>⬇ DSGVO-Export</button>
             <button className="secondary" onClick={() => deleteContribution(c)} title="Beitrag löschen" style={{ fontSize:15, padding:'7px 12px', color:'#dc2626' }}>🗑</button>
             <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
           </div>
