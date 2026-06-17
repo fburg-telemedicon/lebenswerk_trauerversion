@@ -191,6 +191,19 @@ async function fetchImageBuffer(url) {
   } catch { return null }
 }
 
+// Beitragende mit exakt gleichem Namen UND gleicher Beziehung nur einmal listen.
+function dedupeContributors(list) {
+  const seen = new Set()
+  const out = []
+  for (const c of (list || [])) {
+    const key = `${(c.contributor_name || '').trim()} ${(c.relationship || '').trim()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(c)
+  }
+  return out
+}
+
 async function downloadStructuredDocx(filename, book, contributors = []) {
   const bt = uiText(book.language)
   const children = []
@@ -245,7 +258,7 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
       pageBreakBefore: true,
       spacing: { after: 300 },
     }))
-    for (const c of contributors) {
+    for (const c of dedupeContributors(contributors)) {
       const rel = c.relationship ? ` — ${c.relationship}` : ''
       children.push(new Paragraph({
         children: [
@@ -2543,7 +2556,7 @@ function Dashboard() {
             {contributions.length > 0 && (
               <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
                 <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:'1.5rem' }}>{bt.contributorsHeading}</h3>
-                {contributions.map(c => (
+                {dedupeContributors(contributions).map(c => (
                   <p key={c.id} style={{ fontSize:16, lineHeight:1.7, fontFamily:'Georgia,serif', margin:'0 0 6px' }}>
                     <strong>{c.contributor_name}</strong>{c.relationship ? <span style={{ color:'#78716c' }}> — {c.relationship}</span> : null}
                   </p>
