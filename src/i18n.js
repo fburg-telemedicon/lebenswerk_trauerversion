@@ -85,6 +85,9 @@ ${url}
   errTranscribe: 'Transkription', errMic: 'Mikrofon',
   // Sprachauswahl
   langPickTitle: 'In welcher Sprache möchten Sie fortfahren?',
+  // Buch-Überschriften
+  chapterLabel: 'Kapitel',
+  contributorsHeading: 'Mitwirkende',
 }
 
 const PL = {
@@ -137,6 +140,8 @@ ${url}
   autosaveNote: 'Twoje odpowiedzi są zapisywane automatycznie. Możesz mówić dowolnie długo lub kliknąć u góry „Kontynuuj później lub zakończ".',
   errTranscribe: 'Transkrypcja', errMic: 'Mikrofon',
   langPickTitle: 'W jakim języku chcesz kontynuować?',
+  chapterLabel: 'Rozdział',
+  contributorsHeading: 'Współtwórcy',
 }
 
 const EN = {
@@ -189,6 +194,8 @@ ${url}
   autosaveNote: 'Your answers are saved automatically. You can talk for as long as you like, or click “Continue later or finish” above.',
   errTranscribe: 'Transcription', errMic: 'Microphone',
   langPickTitle: 'Which language would you like to continue in?',
+  chapterLabel: 'Chapter',
+  contributorsHeading: 'Contributors',
 }
 
 const UI = { de: DE, pl: PL, en: EN }

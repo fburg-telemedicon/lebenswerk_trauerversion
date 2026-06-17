@@ -192,6 +192,7 @@ async function fetchImageBuffer(url) {
 }
 
 async function downloadStructuredDocx(filename, book, contributors = []) {
+  const bt = uiText(book.language)
   const children = []
   children.push(new Paragraph({
     children: [new TextRun({ text: book.title || '', size: 56, bold: true })],
@@ -207,7 +208,7 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
   }
   for (const ch of (book.chapters || [])) {
     children.push(new Paragraph({
-      children: [new TextRun({ text: `Kapitel ${ch.number}`, size: 20, color: 'a8a29e' })],
+      children: [new TextRun({ text: `${bt.chapterLabel} ${ch.number}`, size: 20, color: 'a8a29e' })],
       alignment: AlignmentType.CENTER,
       spacing: { before: 600, after: 100 },
     }))
@@ -238,7 +239,7 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
   // Mitwirkende-Seite am Ende: Name + Beziehung jeder beitragenden Person.
   if (contributors && contributors.length) {
     children.push(new Paragraph({
-      text: 'Mitwirkende',
+      text: bt.contributorsHeading,
       heading: HeadingLevel.HEADING_1,
       alignment: AlignmentType.CENTER,
       pageBreakBefore: true,
@@ -1478,6 +1479,7 @@ function Dashboard() {
         value = {
           title: outline.title,
           subtitle: outline.subtitle || '',
+          language: genLang,
           chapters,
         }
 
@@ -2467,6 +2469,7 @@ function Dashboard() {
     const gen  = GENERATORS[key]
     const data = selected[gen.field]
     const busy = !!generating[key]
+    const bt = uiText(data?.language)
     const subtitle = view === 'book-v1' ? `${getCategory(selected?.product_category).nounBook} · Version 1`
                    : view === 'book-v2' ? `${getCategory(selected?.product_category).nounBook} · Version 2`
                    : GENERATORS.eulogy.label
@@ -2496,7 +2499,7 @@ function Dashboard() {
             {(data.chapters || []).map((ch, i) => (
               <div key={i} style={{ marginBottom:'3rem' }}>
                 <div style={{ textAlign:'center', marginBottom:'1.25rem' }}>
-                  <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>Kapitel {ch.number ?? i + 1}</p>
+                  <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>{bt.chapterLabel} {ch.number ?? i + 1}</p>
                   <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif' }}>{ch.heading || ''}</h3>
                 </div>
                 {ch.image_url ? (
@@ -2535,7 +2538,7 @@ function Dashboard() {
             ))}
             {contributions.length > 0 && (
               <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
-                <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:'1.5rem' }}>Mitwirkende</h3>
+                <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:'1.5rem' }}>{bt.contributorsHeading}</h3>
                 {contributions.map(c => (
                   <p key={c.id} style={{ fontSize:16, lineHeight:1.7, fontFamily:'Georgia,serif', margin:'0 0 6px' }}>
                     <strong>{c.contributor_name}</strong>{c.relationship ? <span style={{ color:'#78716c' }}> — {c.relationship}</span> : null}
