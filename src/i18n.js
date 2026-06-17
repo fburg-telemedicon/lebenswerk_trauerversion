@@ -92,7 +92,7 @@ ${url}
   langPickTitle: 'In welcher Sprache möchten Sie fortfahren?',
   // Buch-Überschriften
   chapterLabel: 'Kapitel',
-  contributorsHeading: 'Mitwirkende',
+  contributorsHeading: 'An diesem Buch haben mitgewirkt:',
 }
 
 const PL = {
@@ -151,7 +151,7 @@ ${url}
   errTranscribe: 'Transkrypcja', errMic: 'Mikrofon',
   langPickTitle: 'W jakim języku chcesz kontynuować?',
   chapterLabel: 'Rozdział',
-  contributorsHeading: 'Współtwórcy',
+  contributorsHeading: 'W tej księdze wzięli udział:',
 }
 
 const EN = {
@@ -210,7 +210,7 @@ ${url}
   errTranscribe: 'Transcription', errMic: 'Microphone',
   langPickTitle: 'Which language would you like to continue in?',
   chapterLabel: 'Chapter',
-  contributorsHeading: 'Contributors',
+  contributorsHeading: 'Contributors to this book:',
 }
 
 const UI = { de: DE, pl: PL, en: EN }
