@@ -11,6 +11,7 @@ import {
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
+import CategoryIcon from './CategoryIcon.jsx'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -476,7 +477,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           const resp = await fetch('/api/transcribe', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ audio: base64, mimeType, audioSeconds, memorialCode: memorial?.id }),
+            body:    JSON.stringify({ audio: base64, mimeType, audioSeconds, memorialCode: memorial?.id, language: lang }),
           })
           const data = await resp.json()
           if (!resp.ok) throw new Error(data.error)
@@ -1718,7 +1719,12 @@ function Dashboard() {
                     <tr key={m.id}>
                       <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name}</td>
                       {showCategoryColumn && (
-                        <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{getCategory(m.product_category).icon} {getCategory(m.product_category).label}</td>
+                        <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}>
+                          <span style={{ color:'#57534e', lineHeight:0 }}><CategoryIcon slug={m.product_category} size={18} /></span>
+                          {getCategory(m.product_category).label}
+                        </span>
+                      </td>
                       )}
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
@@ -1798,7 +1804,7 @@ function Dashboard() {
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.background = '#fff' }}
             >
               <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-                <span style={{ fontSize:26, lineHeight:1, flexShrink:0 }} aria-hidden="true">{CATEGORIES[slug].icon}</span>
+                <span style={{ color:'#1c1917', flexShrink:0, lineHeight:0, marginTop:1 }}><CategoryIcon slug={slug} size={28} /></span>
                 <div>
                   <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{CATEGORIES[slug].label}</div>
                   <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{CATEGORIES[slug].description}</div>

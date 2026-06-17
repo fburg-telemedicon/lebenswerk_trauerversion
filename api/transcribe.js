@@ -6,7 +6,7 @@ const { costSTT, recordCost } = require('./_lib/cost')
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   try {
-    const { audio, mimeType, audioSeconds, memorialCode, contributionId } = req.body
+    const { audio, mimeType, audioSeconds, memorialCode, contributionId, language } = req.body
     if (!audio) return res.status(400).json({ error: 'audio fehlt.' })
 
     const buffer = Buffer.from(audio, 'base64')
@@ -21,8 +21,11 @@ module.exports = async function handler(req, res) {
       new Blob([buffer], { type: mimeType || 'audio/webm' }),
       `audio.${ext}`
     )
-    formData.append('model',    model)
-    formData.append('language', 'de')
+    formData.append('model', model)
+    // Sprache der Aufnahme an Whisper geben (vom Beitragenden gewählt). Nur
+    // unterstützte Codes setzen; sonst Auto-Erkennung durch Whisper.
+    const sttLang = ['de', 'pl', 'en'].includes(language) ? language : null
+    if (sttLang) formData.append('language', sttLang)
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method:  'POST',
