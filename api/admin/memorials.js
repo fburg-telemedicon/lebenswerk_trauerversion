@@ -71,14 +71,14 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_group, intake, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, created_at')
         .order('created_at', { ascending: false })
 
-      // Nicht-Admins sehen nur Bücher ihrer Gruppe und nur erlaubte Kategorien.
+      // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
       if (!req.auth.admin) {
         const cats = Array.isArray(req.auth.cats) ? req.auth.cats : []
-        if (!req.auth.group || cats.length === 0) return res.json([])
-        query = query.eq('owner_group', req.auth.group).in('product_category', cats)
+        if (!req.auth.uid || cats.length === 0) return res.json([])
+        query = query.eq('owner_user', req.auth.uid).in('product_category', cats)
       }
 
       const { data, error } = await query
@@ -135,7 +135,7 @@ module.exports = async function handler(req, res) {
         cutoff_days: days,
         show_intro_video: showIntroVideo !== false,
         product_category: category,
-        owner_group: req.auth.admin ? null : (req.auth.group || null),
+        owner_user: req.auth.admin ? null : (req.auth.uid || null),
         intake: intake && typeof intake === 'object' ? intake : null,
       })
       if (error) throw error

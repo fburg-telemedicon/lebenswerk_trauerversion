@@ -7,8 +7,7 @@ import {
   askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
-  adminListUsers, adminCreateGroup, adminUpdateGroup, adminDeleteGroup,
-  adminCreateUser, adminUpdateUser, adminDeleteUser,
+  adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
 
@@ -1021,9 +1020,8 @@ function Dashboard() {
   const [contributions, setContribs]  = useState([])
   const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
-  const [usersData, setUsersData]     = useState({ groups: [], users: [] })
-  const [groupForm, setGroupForm]     = useState({ name: '', cats: [] })
-  const [userForm, setUserForm]       = useState({ username: '', password: '', group_id: '' })
+  const [usersData, setUsersData]     = useState({ users: [] })
+  const [userForm, setUserForm]       = useState({ username: '', password: '', cats: [] })
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1157,36 +1155,11 @@ function Dashboard() {
       setUsersData(d)
     } catch (e) { setErr(e.message) }
   }
-  function toggleGroupFormCat(slug) {
-    setGroupForm(f => ({
+  function toggleUserFormCat(slug) {
+    setUserForm(f => ({
       ...f,
       cats: f.cats.includes(slug) ? f.cats.filter(s => s !== slug) : [...f.cats, slug],
     }))
-  }
-  async function submitGroup() {
-    if (!groupForm.name.trim()) return
-    setErr(''); setBusy(true)
-    try {
-      await adminCreateGroup(token, { name: groupForm.name.trim(), allowed_categories: groupForm.cats })
-      setGroupForm({ name: '', cats: [] })
-      await loadUsers()
-    } catch (e) { setErr(e.message) } finally { setBusy(false) }
-  }
-  async function saveGroupCats(group, slug) {
-    const next = (group.allowed_categories || []).includes(slug)
-      ? group.allowed_categories.filter(s => s !== slug)
-      : [...(group.allowed_categories || []), slug]
-    setErr('')
-    try {
-      await adminUpdateGroup(token, group.id, { allowed_categories: next })
-      await loadUsers()
-    } catch (e) { setErr(e.message) }
-  }
-  async function removeGroup(group) {
-    if (!window.confirm(`Gruppe „${group.name}" löschen?`)) return
-    setErr('')
-    try { await adminDeleteGroup(token, group.id); await loadUsers() }
-    catch (e) { setErr(e.message) }
   }
   async function submitUser() {
     if (!userForm.username.trim() || userForm.password.length < 6) {
@@ -1197,11 +1170,19 @@ function Dashboard() {
       await adminCreateUser(token, {
         username: userForm.username.trim(),
         password: userForm.password,
-        group_id: userForm.group_id || null,
+        allowed_categories: userForm.cats,
       })
-      setUserForm({ username: '', password: '', group_id: '' })
+      setUserForm({ username: '', password: '', cats: [] })
       await loadUsers()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function saveUserCats(user, slug) {
+    const next = (user.allowed_categories || []).includes(slug)
+      ? user.allowed_categories.filter(s => s !== slug)
+      : [...(user.allowed_categories || []), slug]
+    setErr('')
+    try { await adminUpdateUser(token, user.id, { allowed_categories: next }); await loadUsers() }
+    catch (e) { setErr(e.message) }
   }
   async function resetUserPassword(user) {
     const pw = window.prompt(`Neues Passwort für „${user.username}" (min. 6 Zeichen):`)
@@ -1210,20 +1191,11 @@ function Dashboard() {
     try { await adminUpdateUser(token, user.id, { password: pw }); window.alert('Passwort geändert.') }
     catch (e) { setErr(e.message) }
   }
-  async function changeUserGroup(user, group_id) {
-    setErr('')
-    try { await adminUpdateUser(token, user.id, { group_id: group_id || null }); await loadUsers() }
-    catch (e) { setErr(e.message) }
-  }
   async function removeUser(user) {
     if (!window.confirm(`Benutzer „${user.username}" löschen?`)) return
     setErr('')
     try { await adminDeleteUser(token, user.id); await loadUsers() }
     catch (e) { setErr(e.message) }
-  }
-  function groupName(id) {
-    const g = usersData.groups.find(x => x.id === id)
-    return g ? g.name : '—'
   }
 
   async function handleDelete(m) {
@@ -1634,7 +1606,7 @@ function Dashboard() {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           {auth.admin && (
-            <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer & Gruppen</button>
+            <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer</button>
           )}
           <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
         </div>
@@ -1898,7 +1870,7 @@ function Dashboard() {
     )
   }
 
-  // ── BENUTZER & GRUPPEN (nur Admin) ──
+  // ── BENUTZER (nur Admin) ──
   if (view === 'users') return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -1907,43 +1879,55 @@ function Dashboard() {
       </div>
       <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1.5rem' }}>
         <Back onClick={() => setView('list')} />
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Benutzer & Gruppen</h2>
-        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Kundengruppen legen fest, welche Produktkategorien ihre Benutzer anlegen dürfen.</p>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Benutzer</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Pro Benutzer legen Sie fest, welche Produktkategorien er anlegen darf.</p>
         <Err msg={err} />
 
-        {/* Gruppen */}
-        <h3 style={{ fontSize:16, fontWeight:700, margin:'1rem 0 .75rem' }}>Kundengruppen</h3>
-        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-          {usersData.groups.map(g => (
-            <div key={g.id} style={{ ...S.card }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <strong style={{ fontSize:15 }}>{g.name}</strong>
-                <button className="secondary" onClick={() => removeGroup(g)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+        {/* Bestehende Benutzer */}
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:24 }}>
+          {usersData.users.map(u => (
+            <div key={u.id} style={{ ...S.card }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, gap:12, flexWrap:'wrap' }}>
+                <div>
+                  <strong style={{ fontSize:15 }}>{u.username}</strong>{u.is_admin && <span style={{ fontSize:11, marginLeft:8, color:'#1d4ed8' }}>Admin</span>}
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button className="secondary" onClick={() => resetUserPassword(u)} style={{ fontSize:12, padding:'5px 10px' }}>Passwort</button>
+                  <button className="secondary" onClick={() => removeUser(u)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+                </div>
               </div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                {CATEGORY_ORDER.map(slug => {
-                  const on = (g.allowed_categories || []).includes(slug)
-                  return (
-                    <span key={slug} onClick={() => saveGroupCats(g, slug)}
-                      style={{ cursor:'pointer', fontSize:12, padding:'5px 10px', borderRadius:999, border:'1px solid',
-                        borderColor: on ? '#1c1917' : '#e7e5e4', background: on ? '#1c1917' : '#fff', color: on ? '#fafaf9' : '#78716c' }}>
-                      {CATEGORIES[slug].label}
-                    </span>
-                  )
-                })}
-              </div>
+              {u.is_admin ? (
+                <p style={{ ...S.muted, fontSize:12, margin:0 }}>Administrator – sieht alle Produktkategorien.</p>
+              ) : (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                  {CATEGORY_ORDER.map(slug => {
+                    const on = (u.allowed_categories || []).includes(slug)
+                    return (
+                      <span key={slug} onClick={() => saveUserCats(u, slug)}
+                        style={{ cursor:'pointer', fontSize:12, padding:'5px 10px', borderRadius:999, border:'1px solid',
+                          borderColor: on ? '#1c1917' : '#e7e5e4', background: on ? '#1c1917' : '#fff', color: on ? '#fafaf9' : '#78716c' }}>
+                        {CATEGORIES[slug].label}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           ))}
-          {usersData.groups.length === 0 && <p style={S.muted}>Noch keine Gruppen.</p>}
+          {usersData.users.length === 0 && <p style={S.muted}>Noch keine Benutzer.</p>}
         </div>
-        <div style={{ ...S.card, marginBottom:24 }}>
-          <Lbl>Neue Gruppe</Lbl>
-          <input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} placeholder="Name der Kundengruppe" style={{ marginBottom:10 }} />
-          <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:12 }}>
+
+        {/* Neuer Benutzer */}
+        <div style={{ ...S.card }}>
+          <Lbl>Neuer Benutzer</Lbl>
+          <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:10 }} />
+          <input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="Passwort (min. 6 Zeichen)" style={{ marginBottom:12 }} />
+          <Lbl>Erlaubte Produktkategorien</Lbl>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'6px 0 14px' }}>
             {CATEGORY_ORDER.map(slug => {
-              const on = groupForm.cats.includes(slug)
+              const on = userForm.cats.includes(slug)
               return (
-                <span key={slug} onClick={() => toggleGroupFormCat(slug)}
+                <span key={slug} onClick={() => toggleUserFormCat(slug)}
                   style={{ cursor:'pointer', fontSize:12, padding:'5px 10px', borderRadius:999, border:'1px solid',
                     borderColor: on ? '#1c1917' : '#e7e5e4', background: on ? '#1c1917' : '#fff', color: on ? '#fafaf9' : '#78716c' }}>
                   {CATEGORIES[slug].label}
@@ -1951,40 +1935,6 @@ function Dashboard() {
               )
             })}
           </div>
-          <button onClick={submitGroup} disabled={busy || !groupForm.name.trim()} style={{ fontSize:14, padding:'9px 16px' }}>Gruppe anlegen</button>
-        </div>
-
-        {/* Benutzer */}
-        <h3 style={{ fontSize:16, fontWeight:700, margin:'1rem 0 .75rem' }}>Benutzer</h3>
-        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-          {usersData.users.map(u => (
-            <div key={u.id} style={{ ...S.card, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-              <div>
-                <strong style={{ fontSize:15 }}>{u.username}</strong>{u.is_admin && <span style={{ fontSize:11, marginLeft:8, color:'#1d4ed8' }}>Admin</span>}
-                <div style={{ fontSize:12, color:'#78716c', marginTop:2 }}>Gruppe: {groupName(u.group_id)}</div>
-              </div>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                {!u.is_admin && (
-                  <select value={u.group_id || ''} onChange={e => changeUserGroup(u, e.target.value)} style={{ fontSize:13, padding:'6px 8px' }}>
-                    <option value="">(keine Gruppe)</option>
-                    {usersData.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                )}
-                <button className="secondary" onClick={() => resetUserPassword(u)} style={{ fontSize:12, padding:'5px 10px' }}>Passwort</button>
-                <button className="secondary" onClick={() => removeUser(u)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
-              </div>
-            </div>
-          ))}
-          {usersData.users.length === 0 && <p style={S.muted}>Noch keine Benutzer.</p>}
-        </div>
-        <div style={{ ...S.card }}>
-          <Lbl>Neuer Benutzer</Lbl>
-          <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:10 }} />
-          <input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="Passwort (min. 6 Zeichen)" style={{ marginBottom:10 }} />
-          <select value={userForm.group_id} onChange={e => setUserForm({ ...userForm, group_id: e.target.value })} style={{ fontSize:14, padding:'9px 8px', marginBottom:12, width:'100%' }}>
-            <option value="">Gruppe wählen …</option>
-            {usersData.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
           <button onClick={submitUser} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
         </div>
       </div>

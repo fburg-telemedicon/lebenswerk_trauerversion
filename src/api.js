@@ -33,38 +33,16 @@ export async function createMemorial(token, { name, organizer, gender, bookVaria
   return parseResponse(res) // { code }
 }
 
-// ── Benutzer & Kundengruppen (Admin) ──────────────────────────────
+// ── Benutzer (Admin) ──────────────────────────────────────────────
 export async function adminListUsers(token) {
   const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
-  return parseResponse(res) // { groups, users }
+  return parseResponse(res) // { users }
 }
-export async function adminCreateGroup(token, { name, allowed_categories }) {
+export async function adminCreateUser(token, { username, password, allowed_categories, is_admin }) {
   const res = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ type: 'group', name, allowed_categories }),
-  })
-  return parseResponse(res)
-}
-export async function adminUpdateGroup(token, id, patch) {
-  const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ type: 'group', ...patch }),
-  })
-  return parseResponse(res)
-}
-export async function adminDeleteGroup(token, id) {
-  const res = await fetch(`/api/admin/users?type=group&id=${encodeURIComponent(id)}`, {
-    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
-  })
-  return parseResponse(res)
-}
-export async function adminCreateUser(token, { username, password, group_id, is_admin }) {
-  const res = await fetch('/api/admin/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ type: 'user', username, password, group_id, is_admin }),
+    body: JSON.stringify({ username, password, allowed_categories, is_admin }),
   })
   return parseResponse(res)
 }
@@ -72,12 +50,12 @@ export async function adminUpdateUser(token, id, patch) {
   const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ type: 'user', ...patch }),
+    body: JSON.stringify(patch),
   })
   return parseResponse(res)
 }
 export async function adminDeleteUser(token, id) {
-  const res = await fetch(`/api/admin/users?type=user&id=${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
     method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
   })
   return parseResponse(res)

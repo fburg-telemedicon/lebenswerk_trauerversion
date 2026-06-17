@@ -3,7 +3,8 @@
 //
 // Zwei Login-Wege:
 //   1. Env-Admin (ADMIN_USERNAME/PASSWORD)  → Superuser, sieht alle Kategorien.
-//   2. app_users-Benutzer einer Kundengruppe → sieht nur erlaubte Kategorien.
+//   2. app_users-Benutzer → sieht nur die für ihn freigeschalteten Kategorien
+//      (allowed_categories).
 // Zugangsdaten-/Token-Logik liegt zentral in ../_lib/auth.js.
 
 const { createClient } = require('@supabase/supabase-js')
@@ -23,30 +24,17 @@ module.exports = async function handler(req, res) {
     return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*' })
   }
 
-  // 2. Kundengruppen-Benutzer
+  // 2. Benutzer aus app_users
   try {
     const { data: user } = await supabase
       .from('app_users')
-      .select('id, pw_hash, pw_salt, group_id, is_admin')
+      .select('id, pw_hash, pw_salt, allowed_categories, is_admin')
       .eq('username', username || '')
       .single()
 
     if (user && verifyPassword(password, user.pw_hash, user.pw_salt)) {
-      let cats = []
-      if (user.group_id) {
-        const { data: group } = await supabase
-          .from('customer_groups')
-          .select('allowed_categories')
-          .eq('id', user.group_id)
-          .single()
-        cats = Array.isArray(group?.allowed_categories) ? group.allowed_categories : []
-      }
-      const token = issueToken({
-        uid: user.id,
-        admin: Boolean(user.is_admin),
-        cats,
-        group: user.group_id || null,
-      })
+      const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
+      const token = issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats })
       return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats })
     }
   } catch (e) {
