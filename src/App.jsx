@@ -1672,7 +1672,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
+      <div style={{ maxWidth: 1200, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Bücher</h2>
           <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
