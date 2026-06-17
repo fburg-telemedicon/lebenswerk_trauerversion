@@ -191,7 +191,7 @@ async function fetchImageBuffer(url) {
   } catch { return null }
 }
 
-async function downloadStructuredDocx(filename, book) {
+async function downloadStructuredDocx(filename, book, contributors = []) {
   const children = []
   children.push(new Paragraph({
     children: [new TextRun({ text: book.title || '', size: 56, bold: true })],
@@ -233,6 +233,27 @@ async function downloadStructuredDocx(filename, book) {
     for (const raw of String(ch.body || '').split('\n\n')) {
       const chunk = raw.trim()
       if (chunk) children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
+    }
+  }
+  // Mitwirkende-Seite am Ende: Name + Beziehung jeder beitragenden Person.
+  if (contributors && contributors.length) {
+    children.push(new Paragraph({
+      text: 'Mitwirkende',
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.CENTER,
+      pageBreakBefore: true,
+      spacing: { after: 300 },
+    }))
+    for (const c of contributors) {
+      const rel = c.relationship ? ` — ${c.relationship}` : ''
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: c.contributor_name || '', bold: true }),
+          new TextRun({ text: rel, color: '78716c' }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 120 },
+      }))
     }
   }
   const doc = new Document({ creator: 'Lebenswerk', title: book.title || '', sections: [{ children }] })
@@ -1555,7 +1576,7 @@ function Dashboard() {
     if (!data) return
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
-      if (gen.kind === 'book') await downloadStructuredDocx(filename, data)
+      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions)
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data)
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
@@ -2512,6 +2533,16 @@ function Dashboard() {
                 </div>
               </div>
             ))}
+            {contributions.length > 0 && (
+              <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
+                <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:'1.5rem' }}>Mitwirkende</h3>
+                {contributions.map(c => (
+                  <p key={c.id} style={{ fontSize:16, lineHeight:1.7, fontFamily:'Georgia,serif', margin:'0 0 6px' }}>
+                    <strong>{c.contributor_name}</strong>{c.relationship ? <span style={{ color:'#78716c' }}> — {c.relationship}</span> : null}
+                  </p>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem', fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
