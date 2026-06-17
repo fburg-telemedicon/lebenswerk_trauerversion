@@ -568,6 +568,7 @@ function buildGenericCategory(slug, cfg) {
   return {
     slug,
     label: cfg.label,
+    icon: cfg.icon,
     description: cfg.description,
     nounBook: cfg.nounBook,
     intake: cfg.intake,
@@ -591,6 +592,7 @@ export const CATEGORIES = {
   memorial: {
     slug: 'memorial',
     label: 'Gedenkbuch',
+    icon: '🕯️',
     description: 'Zum Gedenken an eine verstorbene Person – die Trauergemeinschaft trägt Erinnerungen zusammen.',
     nounBook: 'Gedenkbuch',
     intake: {
@@ -624,7 +626,7 @@ export const CATEGORIES = {
   },
 
   birthday: buildGenericCategory('birthday', {
-    label: 'Geburtstagsbuch', description: 'Zu einem besonderen Geburtstag – Freunde und Familie sammeln Geschichten und Glückwünsche.', nounBook: 'Geburtstagsbuch',
+    label: 'Geburtstagsbuch', icon: '🎂', description: 'Zu einem besonderen Geburtstag – Freunde und Familie sammeln Geschichten und Glückwünsche.', nounBook: 'Geburtstagsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Geburtstagsbuch_V1',
     v2Label: 'Version 2 – Lebensstationen', v2Filename: 'Geburtstagsbuch_V2',
     intake: {
@@ -645,7 +647,7 @@ export const CATEGORIES = {
   }),
 
   anniversary: buildGenericCategory('anniversary', {
-    label: 'Hochzeitsjubiläum', description: 'Zur silbernen oder goldenen Hochzeit – Erinnerungen und Anekdoten über das Paar.', nounBook: 'Jubiläumsbuch',
+    label: 'Hochzeitsjubiläum', icon: '💍', description: 'Zur silbernen oder goldenen Hochzeit – Erinnerungen und Anekdoten über das Paar.', nounBook: 'Jubiläumsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Jubilaeumsbuch_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Jubilaeumsbuch_V2',
     intake: {
@@ -666,7 +668,7 @@ export const CATEGORIES = {
   }),
 
   farewell: buildGenericCategory('farewell', {
-    label: 'Abschied & Ruhestand', description: 'Abschied einer Person aus Unternehmen, Institution oder Verein – oder in den Ruhestand.', nounBook: 'Abschiedsbuch',
+    label: 'Abschied & Ruhestand', icon: '👋', description: 'Abschied einer Person aus Unternehmen, Institution oder Verein – oder in den Ruhestand.', nounBook: 'Abschiedsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Abschiedsbuch_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Abschiedsbuch_V2',
     intake: {
@@ -687,7 +689,7 @@ export const CATEGORIES = {
   }),
 
   company: buildGenericCategory('company', {
-    label: 'Betriebsjubiläum', description: 'Jubiläum der Organisation selbst (Unternehmen, Institution, Verein) – Geschichten über das Haus.', nounBook: 'Jubiläumsbuch',
+    label: 'Betriebsjubiläum', icon: '🏢', description: 'Jubiläum der Organisation selbst (Unternehmen, Institution, Verein) – Geschichten über das Haus.', nounBook: 'Jubiläumsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Jubilaeumsbuch_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Jubilaeumsbuch_V2',
     intake: {
@@ -708,7 +710,7 @@ export const CATEGORIES = {
   }),
 
   service: buildGenericCategory('service', {
-    label: 'Dienstjubiläum', description: 'Dienstjubiläum einer Person – z. B. 25 Jahre im selben Unternehmen.', nounBook: 'Jubiläumsbuch',
+    label: 'Dienstjubiläum', icon: '🏅', description: 'Dienstjubiläum einer Person – z. B. 25 Jahre im selben Unternehmen.', nounBook: 'Jubiläumsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Dienstjubilaeum_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Dienstjubilaeum_V2',
     intake: {
@@ -732,7 +734,7 @@ export const CATEGORIES = {
   }),
 
   newborn: buildGenericCategory('newborn', {
-    label: 'Willkommensbuch', description: 'Zur Geburt eines Kindes – Hoffnungen, Wünsche und Botschaften für das Kind.', nounBook: 'Willkommensbuch',
+    label: 'Willkommensbuch', icon: '👶', description: 'Zur Geburt eines Kindes – Hoffnungen, Wünsche und Botschaften für das Kind.', nounBook: 'Willkommensbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Willkommensbuch_V1',
     v2Label: 'Version 2 – Nach Themen', v2Filename: 'Willkommensbuch_V2',
     intake: {
@@ -753,7 +755,7 @@ export const CATEGORIES = {
   }),
 
   encouragement: buildGenericCategory('encouragement', {
-    label: 'Mutmachbuch', description: 'Für einen Menschen in schwerer Krankheit – Ermutigung, Motivation und gemeinsame Erinnerungen.', nounBook: 'Mutmachbuch',
+    label: 'Mutmachbuch', icon: '🌈', description: 'Für einen Menschen in schwerer Krankheit – Ermutigung, Motivation und gemeinsame Erinnerungen.', nounBook: 'Mutmachbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Mutmachbuch_V1',
     v2Label: 'Version 2 – Nach Themen', v2Filename: 'Mutmachbuch_V2',
     intake: {

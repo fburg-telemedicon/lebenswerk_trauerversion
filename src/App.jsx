@@ -1718,7 +1718,7 @@ function Dashboard() {
                     <tr key={m.id}>
                       <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name}</td>
                       {showCategoryColumn && (
-                        <td style={{ ...mainCell, color:'#78716c' }}                     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{getCategory(m.product_category).label}</td>
+                        <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{getCategory(m.product_category).icon} {getCategory(m.product_category).label}</td>
                       )}
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
@@ -1797,8 +1797,13 @@ function Dashboard() {
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.background = '#fafaf9' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.background = '#fff' }}
             >
-              <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{CATEGORIES[slug].label}</div>
-              <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{CATEGORIES[slug].description}</div>
+              <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                <span style={{ fontSize:26, lineHeight:1, flexShrink:0 }} aria-hidden="true">{CATEGORIES[slug].icon}</span>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{CATEGORIES[slug].label}</div>
+                  <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{CATEGORIES[slug].description}</div>
+                </div>
+              </div>
             </div>
           ))}
         </div>
