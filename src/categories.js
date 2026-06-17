@@ -461,6 +461,31 @@ const PROFILES = {
       'Anekdoten und Wegmarken', 'Webe konkrete gemeinsame Erinnerungen, Erfolge und Anekdoten aus den Beiträgen ein, ohne Quellen einzeln zu nennen. Ca. 150–260 Wörter.',
       'Gute Wünsche und Abschluss', 'Gute Wünsche für den neuen Lebensabschnitt und ein herzlicher Abschluss. Ca. 80–140 Wörter.'),
   },
+  company: {
+    interviewRole: 'wertschätzender, interessierter Gesprächspartner',
+    relationClause: (m, g) => ` für ein Jubiläumsbuch über die Organisation ${m.name}`,
+    interviewGoal: 'Geschichten, Meilensteine und Anekdoten über die Organisation für ein Jubiläumsbuch sammeln.',
+    empathyRule: 'Sei wertschätzend und würdige die Geschichte der Organisation.',
+    themeFields: 'Gründung und Anfänge, prägende Persönlichkeiten, Meilensteine und Erfolge, schwierige Zeiten und wie sie gemeistert wurden, Wandel über die Jahre, besondere Ereignisse, Unternehmens- bzw. Vereinskultur, lustige Anekdoten aus dem Alltag, was die Organisation ausmacht, Ausblick in die Zukunft',
+    knowVerb: 'begleitet haben', bookNounIndef: 'ein Jubiläumsbuch', bookNounGen: 'eines Jubiläumsbuchs',
+    titleTone: 'würdigend und festlich', chapterVoice: 'fließender Text in Ich-Form aus Sicht der beitragenden Person ("Ich erinnere mich …")',
+    v2Role: 'erfahrener Chronist', v2NounIndef: 'eine Festschrift zum Jubiläum', v2NounGen: 'einer Festschrift',
+    v2Concept: 'Aufbau nach Stationen der Geschichte', v2Arrange: 'nach Stationen der Geschichte',
+    v2StationExamples: 'Gründung, Anfänge, Wachstum, Meilensteine, prägende Personen, schwierige Zeiten, Wandel, Gegenwart, Ausblick', v2Chronological: true,
+    v2Voice: 'warme, würdigende Sprache',
+    finalRole: 'erfahrener Festredner', finalNounGen: 'einer Festrede zum Jubiläum', finalAbout: 'über die Organisation', finalContext: 'Die Rede wird laut auf der Jubiläumsfeier vorgetragen.', finalToneRule: 'Festlich, würdigend und persönlich — würdige die Geschichte und die Menschen der Organisation', finalGreeting: 'Liebe Festgesellschaft, …',
+    finalLabel: 'Festrede', finalFilename: 'Festrede', finalNoun: 'Festrede',
+    finalStyles: [
+      { key: 'klassisch', title: 'Klassisch-würdevoll', sub: 'Feierlich, gehoben', instruction: 'Klassisch-würdevoll: feierliche Festrede in gehobener Sprache, klarer Aufbau, würdigt die Geschichte der Organisation ernst und respektvoll.' },
+      { key: 'humorvoll', title: 'Humorvoll-herzlich', sub: 'Mit Augenzwinkern', instruction: 'Humorvoll-herzlich: heitere Festrede mit liebevollem Augenzwinkern und Anekdoten aus dem Alltag der Organisation; nie verletzend.' },
+      { key: 'geschichte', title: 'Geschichtsträchtig-bewegend', sub: 'Erzählt den Weg', instruction: 'Geschichtsträchtig-bewegend: erzählerische Festrede, die den Weg der Organisation von den Anfängen bis heute lebendig nachzeichnet.' },
+    ],
+    finalSections: FOUR_GREETS(
+      { key: 'begruessung', label: 'Begrüßung', brief: 'Warme, festliche Eröffnung. Stimme die Gäste auf das Jubiläum ein. Ca. 80–130 Wörter.', greets: true },
+      'Die Organisation', 'Würdige, wofür die Organisation steht und was sie ausmacht. Ca. 100–180 Wörter.',
+      'Geschichte und Anekdoten', 'Webe konkrete Meilensteine, Erinnerungen und Anekdoten aus den Beiträgen ein, ohne Quellen einzeln zu nennen. Ca. 150–260 Wörter.',
+      'Dank und Ausblick', 'Dank an die Menschen der Organisation und ein hoffnungsvoller Ausblick. Ca. 80–140 Wörter.'),
+  },
   newborn: {
     interviewRole: 'warmherziger Gesprächspartner',
     relationClause: (m, g) => ` für ein Willkommensbuch für das neugeborene Kind ${m.name}`,
@@ -634,6 +659,27 @@ export const CATEGORIES = {
     },
   }),
 
+  company: buildGenericCategory('company', {
+    label: 'Betriebsjubiläum', nounBook: 'Jubiläumsbuch',
+    v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Jubilaeumsbuch_V1',
+    v2Label: 'Version 2 – Festschrift', v2Filename: 'Jubilaeumsbuch_V2',
+    intake: {
+      subjectLabel: 'Name des Unternehmens / der Institution / des Vereins *', subjectPlaceholder: 'z. B. Müller GmbH, TSV Musterstadt',
+      useGender: false,
+      useDate: true, dateLabel: 'Tag der Jubiläumsfeier',
+      useCutoff: true, cutoffLabel: 'Tage vor der Feier, bis zu denen Beiträge erfasst werden',
+      extra: [{ key: 'anniversaryType', label: 'Art des Jubiläums', placeholder: 'z. B. 50-jähriges Bestehen' }],
+      createHeading: 'Neues Jubiläumsbuch anlegen',
+      createIntro: 'Erstellen Sie ein Jubiläumsbuch für die Organisation und teilen Sie anschließend den Einladungslink.',
+      createButton: 'Jubiläumsbuch anlegen →',
+    },
+    contributor: {
+      heading: 'Ihr Beitrag', introNoun: 'Jubiläumsbuch für',
+      relationshipLabel: 'Ihre Verbindung zu {name} *', relationshipPlaceholder: 'z.B. Mitarbeiterin, Gründer, Mitglied, Kundin …',
+      consentNoun: 'Jubiläumsbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
+    },
+  }),
+
   newborn: buildGenericCategory('newborn', {
     label: 'Willkommensbuch', nounBook: 'Willkommensbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Willkommensbuch_V1',
@@ -677,7 +723,7 @@ export const CATEGORIES = {
   }),
 }
 
-export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'company', 'newborn', 'encouragement']
 
 export function getCategory(slug) {
   return CATEGORIES[slug] || CATEGORIES[DEFAULT_CATEGORY]
