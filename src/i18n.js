@@ -41,7 +41,11 @@ const DE = {
   fullName: 'Vollständiger Name',
   yourGender: 'Ihr Geschlecht *',
   relationshipFallback: 'Ihre Beziehung *',
-  relationshipHint: (name) => `Aus Ihrer Sicht: Wer sind Sie für ${name || 'diese Person'}? Beispiel: Wenn ${name || 'die Person'} Ihre Mutter ist, schreiben Sie „Tochter" oder „Sohn" (im Sinne von „Ich bin die Tochter / der Sohn von ${name || 'der Person'}").`,
+  relationshipHint: (name, gender) => {
+    const n = name || 'die Person'
+    const role = gender === 'männlich' ? 'Ihr Vater' : gender === 'weiblich' ? 'Ihre Mutter' : 'ein Elternteil von Ihnen'
+    return `Aus Ihrer Sicht: Wer sind Sie für ${name || 'diese Person'}? Beispiel: Wenn ${n} ${role} ist, schreiben Sie „Tochter" oder „Sohn" (im Sinne von „Ich bin die Tochter / der Sohn von ${n}").`
+  },
   addressQ: 'Wie möchten Sie angesprochen werden? *',
   addrInformalTitle: 'Du', addrInformalSub: 'Informell, vertraut',
   addrFormalTitle: 'Sie', addrFormalSub: 'Förmlich, respektvoll',
@@ -99,7 +103,11 @@ const PL = {
   fullName: 'Imię i nazwisko',
   yourGender: 'Twoja płeć *',
   relationshipFallback: 'Twoja relacja *',
-  relationshipHint: (name) => `Z Twojej perspektywy: kim jesteś dla osoby ${name || 'tej osoby'}? Np. jeśli ${name || 'ta osoba'} jest Twoją mamą, wpisz „córka" lub „syn" (w sensie „jestem córką / synem osoby ${name || 'tej osoby'}").`,
+  relationshipHint: (name, gender) => {
+    const n = name || 'tej osoby'
+    const role = gender === 'männlich' ? 'Twoim tatą' : gender === 'weiblich' ? 'Twoją mamą' : 'Twoim rodzicem'
+    return `Z Twojej perspektywy: kim jesteś dla osoby ${n}? Np. jeśli ${name || 'ta osoba'} jest ${role}, wpisz „córka" lub „syn" (w sensie „jestem córką / synem osoby ${n}").`
+  },
   addressQ: 'Jak mamy się do Ciebie zwracać? *',
   addrInformalTitle: 'Ty', addrInformalSub: 'Nieformalnie, na „ty"',
   addrFormalTitle: 'Pan/Pani', addrFormalSub: 'Formalnie, z szacunkiem',
@@ -154,7 +162,11 @@ const EN = {
   fullName: 'Full name',
   yourGender: 'Your gender *',
   relationshipFallback: 'Your relationship *',
-  relationshipHint: (name) => `From your perspective: who are you to ${name || 'this person'}? E.g. if ${name || 'the person'} is your mother, enter “daughter” or “son” (meaning “I am ${name || 'the person'}’s daughter / son”).`,
+  relationshipHint: (name, gender) => {
+    const n = name || 'the person'
+    const role = gender === 'männlich' ? 'your father' : gender === 'weiblich' ? 'your mother' : 'your parent'
+    return `From your perspective: who are you to ${name || 'this person'}? E.g. if ${n} is ${role}, enter “daughter” or “son” (meaning “I am ${n}’s daughter / son”).`
+  },
   addressQ: 'How would you like to be addressed? *',
   addrInformalTitle: 'Casual', addrInformalSub: 'Informal, on first-name terms',
   addrFormalTitle: 'Formal', addrFormalSub: 'Polite, respectful',

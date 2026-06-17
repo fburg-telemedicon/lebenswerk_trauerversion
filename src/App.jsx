@@ -912,7 +912,7 @@ function ContributorFlow({ code }) {
           <div style={{ marginBottom:14 }}>
             <Lbl>{ct.relationshipLabel.replace('{name}', memorial?.name || '')}</Lbl>
             <input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder={ct.relationshipPlaceholder} />
-            <p style={{ fontSize:12, color:'#78716c', marginTop:6, lineHeight:1.5 }}>{t.relationshipHint(memorial?.name)}</p>
+            <p style={{ fontSize:12, color:'#78716c', marginTop:6, lineHeight:1.5 }}>{t.relationshipHint(memorial?.name, memorial?.gender)}</p>
           </div>
           <div style={{ marginBottom:24 }}>
             <Lbl>{t.addressQ}</Lbl>
