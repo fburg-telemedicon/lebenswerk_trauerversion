@@ -23,7 +23,7 @@
 do $$
 declare
   t text;
-  tables text[] := array['memorials', 'contributions', 'cost_events'];
+  tables text[] := array['memorials', 'contributions', 'cost_events', 'customer_groups', 'app_users'];
 begin
   foreach t in array tables loop
     if to_regclass('public.' || t) is not null then
@@ -48,5 +48,5 @@ select relname            as tabelle,
        relforcerowsecurity as rls_erzwungen
 from   pg_class
 where  relnamespace = 'public'::regnamespace
-  and  relname in ('memorials', 'contributions', 'cost_events')
+  and  relname in ('memorials', 'contributions', 'cost_events', 'customer_groups', 'app_users')
 order  by relname;

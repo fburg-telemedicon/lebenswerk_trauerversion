@@ -3,12 +3,19 @@
 // DELETE /api/admin/memorials?code=ABC123  →  Gedenkbuch + Beiträge löschen (auth required)
 
 const { createClient } = require('@supabase/supabase-js')
-const { checkAuth } = require('../_lib/auth')
+const { checkAuth, canAccessCategory } = require('../_lib/auth')
+const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const SIGNED_URL_TTL = 3600 // 1 h
+
+function genCode() {
+  return Array.from({ length: 6 }, () =>
+    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
+  ).join('')
+}
 
 function collectImagePaths(book) {
   if (!book?.chapters) return []
@@ -62,10 +69,19 @@ module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   try {
     if (req.method === 'GET') {
-      const { data, error } = await supabase
+      let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_group, intake, created_at')
         .order('created_at', { ascending: false })
+
+      // Nicht-Admins sehen nur Bücher ihrer Gruppe und nur erlaubte Kategorien.
+      if (!req.auth.admin) {
+        const cats = Array.isArray(req.auth.cats) ? req.auth.cats : []
+        if (!req.auth.group || cats.length === 0) return res.json([])
+        query = query.eq('owner_group', req.auth.group).in('product_category', cats)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       const memorials = data || []
       await signMemorialImages(memorials)
@@ -98,6 +114,32 @@ module.exports = async function handler(req, res) {
       }
 
       return res.json(memorials)
+    }
+
+    if (req.method === 'POST') {
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake } = req.body || {}
+      if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
+
+      const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
+      if (!canAccessCategory(req.auth, category)) {
+        return res.status(403).json({ error: 'Keine Berechtigung für diese Produktkategorie.' })
+      }
+
+      const code = genCode()
+      const variant = (bookVariant === 2 || bookVariant === '2') ? 2 : 1
+      let days = parseInt(cutoffDays, 10)
+      if (!Number.isFinite(days) || days < 0) days = 7
+      const { error } = await supabase.from('memorials').insert({
+        id: code, name, organizer, gender: gender || null, book_variant: variant,
+        funeral_date: funeralDate || null,
+        cutoff_days: days,
+        show_intro_video: showIntroVideo !== false,
+        product_category: category,
+        owner_group: req.auth.admin ? null : (req.auth.group || null),
+        intake: intake && typeof intake === 'object' ? intake : null,
+      })
+      if (error) throw error
+      return res.json({ code })
     }
 
     if (req.method === 'DELETE') {

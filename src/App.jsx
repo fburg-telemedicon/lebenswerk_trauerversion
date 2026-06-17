@@ -7,7 +7,10 @@ import {
   askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
+  adminListUsers, adminCreateGroup, adminUpdateGroup, adminDeleteGroup,
+  adminCreateUser, adminUpdateUser, adminDeleteUser,
 } from './api.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -17,7 +20,7 @@ const sessionFromURL = (urlParams.get('session') || '').trim()
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
 // Fassung zugestimmt wurde.
-const CONSENT_VERSION = '1.0 (2026-06-15)'
+const CONSENT_VERSION = '1.1 (2026-06-17)'
 
 // ── Lokale Session-Persistenz (Option 1: localStorage) ────────────
 const SESSION_TTL_DAYS = 60
@@ -283,6 +286,13 @@ const BOOK_VARIANTS = [
   { value: 2, title: 'Variante 2', sub: 'Die Biographie wird aus allen Inhalten neu erstellt; einzelne Beiträge sind nicht mehr erkennbar.' },
 ]
 
+// Leeres Anlage-Formular (inkl. Produktkategorie + kategorieabhängige Felder).
+const EMPTY_CREATE = {
+  name: '', organizer: '', gender: '', bookVariant: 1,
+  funeralDate: '', cutoffDays: 7, showIntroVideo: true,
+  productCategory: DEFAULT_CATEGORY, intake: {},
+}
+
 function qrCodeUrl(text, size = 240) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
 }
@@ -314,7 +324,7 @@ const COST_KIND_LABEL = {
   reasoning:  'Sonstiges Claude-Reasoning',
   book_v1:    'Buch V1 – Generierung',
   book_v2:    'Buch V2 – Generierung',
-  eulogy:     'Trauerrede – Generierung',
+  eulogy:     'Endtext (Rede) – Generierung',
   tts:        'Sprachausgabe (TTS)',
   stt:        'Spracherkennung (STT)',
   image:      'Bildgenerierung (DALL·E)',
@@ -364,225 +374,9 @@ function PartnerBanner() {
 }
 
 // ── Claude-Prompts ────────────────────────────────────────────────
-function interviewSystem(memorial, name, rel, address, contributorGender) {
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  const addr = address === 'Du'
-    ? 'Sprich die Person konsequent informell mit „du" an.'
-    : 'Sprich die Person konsequent förmlich mit „Sie" an.'
-  const gen = contributorGender
-    ? `Die Person ist ${contributorGender} — verwende passende grammatische Formen (Adjektivendungen, Pronomen, ggf. „Herr"/„Frau").`
-    : ''
-  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name}${g} kannte.
-
-Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
-
-Regeln:
-- ${addr}${gen ? `\n- ${gen}` : ''}
-- Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
-- Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
-- Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
-- Sei einfühlsam, respektiere die Trauer
-- WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
-- Variiere die Themenfelder bewusst: erste Begegnung, Kindheit, Schule, Familie, Beruf, Hobbies, Reisen, Charakterzüge, kleine Marotten, Lieblingsorte, besondere Momente, Werte, was die Person bedeutete, Abschied — wähle pro neuer Frage ein anderes Feld.
-- Schreibe auf Deutsch`
-}
-
-function contributionBlocks(contributions) {
-  return contributions.map(c => {
-    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
-    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
-  }).join('\n\n')
-}
-
-// ── V1: jede beitragende Person bekommt ein eigenes Kapitel ──────
-function bookV1OutlineSystem(memorial, contributions) {
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein einfühlsamer Buchautor. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du ein Gedenkbuch (Variante 1: jede Person ein Kapitel).
-
-Plane jetzt NUR den Gesamt-Titel und -Untertitel des Buches. Die einzelnen Kapitel werden später separat geschrieben.
-
-Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
-{
-  "title": "Gesamttitel des Buches",
-  "subtitle": "Untertitel des Buches"
-}
-
-Regeln:
-- "title" persönlich, würdevoll, bezogen auf ${memorial.name}
-- "subtitle" knapp, ergänzt den Titel
-- Auf Deutsch
-- Gültiges JSON, keine trailing commas
-
-Beiträge:\n\n${contributionBlocks(contributions)}`
-}
-
-function bookV1ChapterSystem(memorial, contribution, number) {
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  const lines = contribution.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
-  return `Du bist ein einfühlsamer Buchautor. Du schreibst EIN Kapitel eines Gedenkbuchs für ${memorial.name}${g} (Variante 1: jede Person ein Kapitel).
-
-Dieses Kapitel: Nummer ${number}, basierend ausschließlich auf dem Interview mit ${contribution.contributor_name} (${contribution.relationship}).
-
-Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Codeblock, keine Erklärungen):
-{
-  "number": ${number},
-  "heading": "Kapitel-Überschrift",
-  "body": "Fließtext …",
-  "image_prompt": "English image description, atmospheric, no people"
-}
-
-Regeln:
-- "heading": prägnant, z. B. "Mit den Augen von ${contribution.contributor_name}" oder "[Aspekt] — ${contribution.contributor_name}"
-- "body": 250–450 Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); konkrete Geschichten und Details aus den Antworten beibehalten; Absätze durch \\n\\n trennen
-- "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
-- Alles auf Deutsch (außer image_prompt)
-- Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
-
-Interview:
-=== ${contribution.contributor_name} (${contribution.relationship}) ===
-${lines.join('\n')}`
-}
-
-// ── V2: Lebensstationen, mehrere Stimmen zu einem Text verwoben ──
-function bookV2OutlineSystem(memorial, contributions) {
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du eine Lebensgeschichte (Variante 2: Aufbau nach Lebensstationen).
-
-Plane jetzt das Gerüst: Titel, Untertitel und 5–9 Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
-
-Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
-{
-  "title": "Gesamttitel des Buches",
-  "subtitle": "Untertitel des Buches",
-  "chapters": [
-    { "number": 1, "heading": "Kindheit", "themes": "2–4 Sätze: welche konkreten Aspekte/Erinnerungen aus den Beiträgen sollen in DIESES Kapitel — als Anweisung für das spätere Schreiben." }
-  ]
-}
-
-Regeln:
-- 5–9 Kapitel, thematisch chronologisch sortiert (früh → spät)
-- "heading": kurz und prägnant (1–3 Wörter)
-- "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
-- "title" persönlich, würdevoll, bezogen auf ${memorial.name}
-- "subtitle" knapp, ergänzt den Titel
-- Auf Deutsch
-- Gültiges JSON, keine trailing commas
-
-Beiträge:\n\n${contributionBlocks(contributions)}`
-}
-
-function bookV2ChapterSystem(memorial, contributions, plan) {
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel einer Lebensgeschichte von ${memorial.name}${g} (Variante 2: Lebensstationen).
-
-Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
-Inhaltliche Schwerpunkte für dieses Kapitel:
-${plan.themes || '(keine spezifischen Schwerpunkte aus dem Gerüst)'}
-
-Webe die folgenden Interviews zu einem stimmigen Text zusammen — die einzelnen Beiträge dürfen NICHT als solche erkennbar sein.
-
-Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Codeblock, keine Erklärungen):
-{
-  "number": ${plan.number},
-  "heading": ${JSON.stringify(plan.heading || '')},
-  "body": "Fließtext …",
-  "image_prompt": "English image description, atmospheric, no people"
-}
-
-Regeln:
-- "body": 300–500 Wörter, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); keine "X sagte …"-Zitate, keine Quellenangaben
-- "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum jeweiligen Lebensabschnitt
-- Alles auf Deutsch (außer image_prompt)
-- Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
-
-Beiträge:\n\n${contributionBlocks(contributions)}`
-}
-
-const EULOGY_STYLES = [
-  {
-    key: 'klassisch',
-    title: 'Klassisch-würdevoll',
-    sub:  'Formell, traditionell, ernst-respektvoll',
-    instruction:
-      'Klassisch-würdevoll: formelle, traditionelle Trauerrede. Ernster, respektvoller Ton; gehobene Sprache, keine Umgangssprache. Klarer Aufbau: Hinführung → Würdigung → Lebensskizze → Abschied. Vermeide Anekdoten-Pointen und humorvolle Wendungen; halte die Distanz, die man von einer öffentlichen Rede erwartet.',
-  },
-  {
-    key: 'persoenlich',
-    title: 'Persönlich-warm',
-    sub:  'Anekdotenhaft, intim, viele kleine Geschichten',
-    instruction:
-      'Persönlich-warm: intime, erzählerische Trauerrede. Beginne mit einer kleinen sprechenden Anekdote aus den Beiträgen. Verwebe viele konkrete Erinnerungen, Details und kleine Eigenheiten — der Eindruck soll sein, als spräche ein nahestehender Mensch. Weicher, erzählerischer Ton.',
-  },
-  {
-    key: 'lebensfroh',
-    title: 'Lebensfroh-erinnernd',
-    sub:  'Würdigt das Leben mehr als den Verlust',
-    instruction:
-      'Lebensfroh-erinnernd: Fokus auf das gelebte Leben, nicht auf den Verlust. Heitere und ernste Momente werden bewusst verwoben; auch ein leises Lächeln ist erlaubt. Würdige Freude, Wesen und Eigenheiten der Person. Der Schluss endet hoffnungsvoll und dankbar — als Feier eines Lebens, nicht als Klage über einen Tod.',
-  },
-]
-
-// Trauerrede wird in 4 Sections aufgeteilt und separat generiert, damit
-// jeder einzelne Claude-Call sicher unter dem 60s-Timeout von api/ask.js
-// bleibt. Die Sections werden anschließend zu einem Fließtext gefügt.
-const EULOGY_SECTIONS = [
-  {
-    key: 'hinfuehrung',
-    label: 'Hinführung',
-    brief: 'Beginne mit „Liebe Trauergemeinde, …" und einer warmen, würdevollen Eröffnung. Stimme die Anwesenden auf den Abschied ein. Ca. 80–130 Wörter.',
-    greets: true,
-  },
-  {
-    key: 'wuerdigung',
-    label: 'Wer war diese Person',
-    brief: 'Skizziere, wer der/die Verstorbene als Mensch war — Wesenszüge, was diese Person ausgemacht hat, was sie anderen bedeutete. Ca. 100–180 Wörter.',
-    greets: false,
-  },
-  {
-    key: 'geschichten',
-    label: 'Geschichten und Wesenszüge',
-    brief: 'Webe konkrete Erinnerungen, Anekdoten und kleine Eigenheiten aus den Beiträgen ein, ohne die Quellen einzeln zu nennen. Mehrere konkrete Details, kein Allgemeinplatz. Ca. 150–260 Wörter.',
-    greets: false,
-  },
-  {
-    key: 'abschluss',
-    label: 'Abschluss und Verabschiedung',
-    brief: 'Würdiger, persönlicher Abschluss; Verabschiedung der Trauergemeinde. Ca. 80–140 Wörter.',
-    greets: false,
-  },
-]
-
-function eulogyBlocks(contributions) {
-  return contributions.map(c => {
-    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
-    return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
-  }).join('\n\n')
-}
-
-function eulogySectionSystem(memorial, contributions, section, styleInstruction) {
-  const g = memorial.gender ? ` (${memorial.gender})` : ''
-  const styleBlock = styleInstruction
-    ? `\nSTIL-VORGABE FÜR DIE GESAMTE REDE (verbindlich umsetzen):\n${styleInstruction}\n`
-    : ''
-  const greetRule = section.greets
-    ? '- Beginne diesen Abschnitt mit „Liebe Trauergemeinde, …"'
-    : '- KEINE Anrede der Trauergemeinde, KEIN „Liebe Trauergemeinde" — dieser Abschnitt schließt sich nahtlos an einen vorhergehenden Teil der Rede an'
-  return `Du bist ein erfahrener Trauerredner. Du schreibst EINEN Abschnitt einer Trauerrede über ${memorial.name}${g}, basierend auf den Erinnerungen von ${contributions.length} nahestehenden Menschen. Die Rede wird laut auf einer Trauerfeier vorgelesen.
-
-DIESER ABSCHNITT: „${section.label}"
-${section.brief}
-${styleBlock}
-Anforderungen:
-${greetRule}
-- Würdevoll, warm, persönlich — kein religiöser Standardtext, sondern auf diesen konkreten Menschen zugeschnitten
-- Webe konkrete Erinnerungen und Geschichten aus den Beiträgen ein, ohne die Quellen einzeln zu nennen
-- Ton: gesprochene Sprache, gut zum Vorlesen geeignet — kurze Sätze sind willkommen
-- Auf Deutsch
-- Absätze durch eine Leerzeile (\\n\\n) trennen
-- Gib AUSSCHLIESSLICH den fertigen Redetext dieses Abschnitts aus. Keine Überschrift, kein Titel, keine Metakommentare, keine Einleitung wie „Hier ist der Abschnitt …", kein Markdown.
-
-Beiträge:\n\n${eulogyBlocks(contributions)}`
-}
+// Die kategoriespezifischen Prompt-Builder liegen in src/categories.js.
+// Sie werden über GENERATORS (Admin) bzw. getCategory(...).interviewSystem
+// (Contributor-Flow) angesprochen.
 
 function unlockAudio() {
   // Bereitet das Audio-Element vor, das speakText() später wiederverwendet
@@ -640,7 +434,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
   async function loadFirst() {
     setAiLoading(true)
     try {
-      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
       const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
@@ -714,7 +508,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
     try {
-      const sys   = interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
@@ -820,7 +614,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
   async function loadFirst() {
     setLoading(true)
     try {
-      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
       const q = await askClaude(sys, [{ role:'user', content:'[Interview beginnt]' }])
       setMessages([{ role:'assistant', content:q }])
     } catch(e) { setErr(e.message) }
@@ -833,7 +627,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
     const newMsgs = [...messages, { role:'user', content:text }]
     setMessages(newMsgs); setRound(r=>r+1); setLoading(true)
     try {
-      const sys = interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
       const reply = await askClaude(sys, [{ role:'user', content:'[Interview beginnt]' }, ...newMsgs])
       setMessages([...newMsgs, { role:'assistant', content:reply }])
     } catch(e) { setErr(e.message) }
@@ -1004,6 +798,7 @@ function ContributorFlow({ code }) {
     setPaused(false); setView('done')
   }
 
+  const cat = getCategory(memorial?.product_category)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
 
   function copyResumeUrl() {
@@ -1011,9 +806,9 @@ function ContributorFlow({ code }) {
     setCopied('link'); setTimeout(() => setCopied(''), 2000)
   }
   function mailResumeUrl() {
-    const subject = encodeURIComponent(`Mein Beitrag zum Gedenkbuch${memorial ? ' für ' + memorial.name : ''}`)
+    const subject = encodeURIComponent(`Mein Beitrag zum ${cat.nounBook}${memorial ? ' für ' + memorial.name : ''}`)
     const body = encodeURIComponent(
-`Mit diesem persönlichen Link kann ich meinen Beitrag zum Gedenkbuch${memorial ? ' für ' + memorial.name : ''} später fortsetzen:
+`Mit diesem persönlichen Link kann ich meinen Beitrag zum ${cat.nounBook}${memorial ? ' für ' + memorial.name : ''} später fortsetzen:
 
 ${resumeUrl}
 
@@ -1029,7 +824,7 @@ ${resumeUrl}
 
       {view === 'error' && (
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Gedenkbuch nicht gefunden</h2>
+          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>{cat.nounBook} nicht gefunden</h2>
           <p style={S.muted}>{err}</p>
         </div>
       )}
@@ -1038,9 +833,9 @@ ${resumeUrl}
         <>
           <PartnerBanner />
           <div style={{ ...S.page, paddingTop:'2rem' }}>
-            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Ihre Erinnerung</h2>
+            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{cat.contributor.heading}</h2>
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
-            Gedenkbuch für <strong>{memorial?.name}</strong>
+            {cat.contributor.introNoun} <strong>{memorial?.name}</strong>
           </p>
           <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
           <div style={{ marginBottom:14 }}>
@@ -1066,7 +861,7 @@ ${resumeUrl}
               ))}
             </div>
           </div>
-          <div style={{ marginBottom:14 }}><Lbl>Ihre Beziehung zu {memorial?.name} *</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder="z.B. Tochter, Freund, Kollege, Nachbar …" /></div>
+          <div style={{ marginBottom:14 }}><Lbl>{cat.contributor.relationshipLabel.replace('{name}', memorial?.name || '')}</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder={cat.contributor.relationshipPlaceholder} /></div>
           <div style={{ marginBottom:24 }}>
             <Lbl>Wie möchten Sie angesprochen werden? *</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
@@ -1102,8 +897,8 @@ ${resumeUrl}
               />
               <span>
                 Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich
-                möglicher Angaben zu Gesundheit, Todesumständen oder Religion (besondere Kategorien
-                personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des Gedenkbuchs verarbeitet
+                möglicher Angaben zu {memorial?.product_category === 'memorial' ? 'Gesundheit, Todesumständen oder Religion' : 'Gesundheit oder Religion'} (besondere Kategorien
+                personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des {cat.contributor.consentNoun} verarbeitet
                 werden. Dabei kommen KI-Dienste der Anbieter <strong>Anthropic</strong> und{' '}
                 <strong>OpenAI</strong> in den <strong>USA</strong> zum Einsatz; ich willige in die damit
                 verbundene Übermittlung in die USA ein (Art. 49 Abs. 1 lit. a DSGVO), wo kein mit der EU
@@ -1114,7 +909,7 @@ ${resumeUrl}
             </label>
           </div>
           <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
-            🎙 Sprach-Interview beginnen →
+            {cat.contributor.interviewButton}
           </button>
           </div>
         </>
@@ -1159,7 +954,7 @@ ${resumeUrl}
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
           <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Herzlichen Dank</h2>
-          <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihre Erinnerungen sind jetzt Teil des gemeinsamen Gedenkbuchs und werden für immer bewahrt.</p>
+          <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihr Beitrag ist jetzt Teil des gemeinsamen {cat.nounBook}s und wird bewahrt.</p>
         </div>
       )}
 
@@ -1213,15 +1008,22 @@ ${resumeUrl}
 
 // ── Admin-Dashboard (Standard-Eingang der Seite) ──────────────────
 function Dashboard() {
-  const [view, setView]               = useState('login') // login|list|create|created|detail|book-v1|book-v2
+  const [view, setView]               = useState('login') // login|list|create-category|create|created|detail|book-v1|book-v2|users
   const [token, setToken]             = useState(() => sessionStorage.getItem('lw_admin_token') || '')
+  const [auth, setAuth]               = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('lw_admin_auth') || '') || { admin: false, cats: [] } }
+    catch { return { admin: false, cats: [] } }
+  })
   const [username, setUsername]       = useState('')
   const [password, setPassword]       = useState('')
   const [memorials, setMemorials]     = useState([])
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
   const [selectedContrib, setSelectedContrib] = useState(null)
-  const [createForm, setCreateForm]   = useState({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7, showIntroVideo: true })
+  const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
+  const [usersData, setUsersData]     = useState({ groups: [], users: [] })
+  const [groupForm, setGroupForm]     = useState({ name: '', cats: [] })
+  const [userForm, setUserForm]       = useState({ username: '', password: '', group_id: '' })
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1249,7 +1051,9 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       sessionStorage.setItem('lw_admin_token', d.token)
-      setToken(d.token)
+      const authInfo = { admin: Boolean(d.admin), cats: d.cats ?? [] }
+      sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
+      setToken(d.token); setAuth(authInfo)
       await loadMemorials(d.token)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
@@ -1295,26 +1099,131 @@ function Dashboard() {
 
   function logout() {
     sessionStorage.removeItem('lw_admin_token')
-    setToken(''); setView('login'); setUsername(''); setPassword('')
+    sessionStorage.removeItem('lw_admin_auth')
+    setToken(''); setAuth({ admin: false, cats: [] }); setView('login'); setUsername(''); setPassword('')
     setMemorials([]); setContribs([]); setSelected(null)
+  }
+
+  // Für den eingeloggten Benutzer freigeschaltete Kategorie-Slugs.
+  const allowedSlugs = (auth.admin || auth.cats === '*')
+    ? CATEGORY_ORDER
+    : CATEGORY_ORDER.filter(s => Array.isArray(auth.cats) && auth.cats.includes(s))
+  const showCategoryColumn = allowedSlugs.length > 1
+
+  // Startet die Neuanlage: bei mehreren erlaubten Kategorien erst Auswahl,
+  // sonst direkt das Formular der einzigen Kategorie.
+  function startCreate() {
+    setErr('')
+    if (allowedSlugs.length <= 1) {
+      const slug = allowedSlugs[0] || DEFAULT_CATEGORY
+      setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {} })
+      setView('create')
+    } else {
+      setView('create-category')
+    }
+  }
+
+  function chooseCategory(slug) {
+    setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {} })
+    setView('create')
   }
 
   async function handleCreate() {
     setErr(''); setBusy(true)
     try {
-      const { code } = await createMemorial({
+      const cat = getCategory(createForm.productCategory)
+      const { code } = await createMemorial(token, {
         name: createForm.name.trim(),
         organizer: createForm.organizer.trim(),
-        gender: createForm.gender || null,
+        gender: cat.intake.useGender ? (createForm.gender || null) : null,
         bookVariant: createForm.bookVariant,
-        funeralDate: createForm.funeralDate || null,
+        funeralDate: cat.intake.useDate ? (createForm.funeralDate || null) : null,
         cutoffDays: createForm.cutoffDays,
         showIntroVideo: createForm.showIntroVideo,
+        productCategory: createForm.productCategory,
+        intake: createForm.intake || {},
       })
       setCreatedCode(code)
       setView('created')
     } catch (e) { setErr(e.message) }
     finally { setBusy(false) }
+  }
+
+  // ── Benutzer- & Gruppenverwaltung (nur Admin) ──
+  async function loadUsers() {
+    setErr('')
+    try {
+      const d = await adminListUsers(token)
+      setUsersData(d)
+    } catch (e) { setErr(e.message) }
+  }
+  function toggleGroupFormCat(slug) {
+    setGroupForm(f => ({
+      ...f,
+      cats: f.cats.includes(slug) ? f.cats.filter(s => s !== slug) : [...f.cats, slug],
+    }))
+  }
+  async function submitGroup() {
+    if (!groupForm.name.trim()) return
+    setErr(''); setBusy(true)
+    try {
+      await adminCreateGroup(token, { name: groupForm.name.trim(), allowed_categories: groupForm.cats })
+      setGroupForm({ name: '', cats: [] })
+      await loadUsers()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function saveGroupCats(group, slug) {
+    const next = (group.allowed_categories || []).includes(slug)
+      ? group.allowed_categories.filter(s => s !== slug)
+      : [...(group.allowed_categories || []), slug]
+    setErr('')
+    try {
+      await adminUpdateGroup(token, group.id, { allowed_categories: next })
+      await loadUsers()
+    } catch (e) { setErr(e.message) }
+  }
+  async function removeGroup(group) {
+    if (!window.confirm(`Gruppe „${group.name}" löschen?`)) return
+    setErr('')
+    try { await adminDeleteGroup(token, group.id); await loadUsers() }
+    catch (e) { setErr(e.message) }
+  }
+  async function submitUser() {
+    if (!userForm.username.trim() || userForm.password.length < 6) {
+      setErr('Benutzername und Passwort (min. 6 Zeichen) erforderlich.'); return
+    }
+    setErr(''); setBusy(true)
+    try {
+      await adminCreateUser(token, {
+        username: userForm.username.trim(),
+        password: userForm.password,
+        group_id: userForm.group_id || null,
+      })
+      setUserForm({ username: '', password: '', group_id: '' })
+      await loadUsers()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function resetUserPassword(user) {
+    const pw = window.prompt(`Neues Passwort für „${user.username}" (min. 6 Zeichen):`)
+    if (!pw) return
+    setErr('')
+    try { await adminUpdateUser(token, user.id, { password: pw }); window.alert('Passwort geändert.') }
+    catch (e) { setErr(e.message) }
+  }
+  async function changeUserGroup(user, group_id) {
+    setErr('')
+    try { await adminUpdateUser(token, user.id, { group_id: group_id || null }); await loadUsers() }
+    catch (e) { setErr(e.message) }
+  }
+  async function removeUser(user) {
+    if (!window.confirm(`Benutzer „${user.username}" löschen?`)) return
+    setErr('')
+    try { await adminDeleteUser(token, user.id); await loadUsers() }
+    catch (e) { setErr(e.message) }
+  }
+  function groupName(id) {
+    const g = usersData.groups.find(x => x.id === id)
+    return g ? g.name : '—'
   }
 
   async function handleDelete(m) {
@@ -1414,32 +1323,32 @@ function Dashboard() {
     downloadFile(`${safeName(selected.name)}_alle-Beitraege.txt`, text)
   }
 
+  // Generatoren werden aus der Kategorie-Konfiguration des aktuell gewählten
+  // Buches abgeleitet (Fallback: memorial, solange keins gewählt ist).
+  const activeCat = getCategory(selected?.product_category)
   const GENERATORS = {
     book_v1: {
-      kind: 'book',
-      field: 'book_v1',
-      view: 'book-v1',
-      label: 'Version 1 – Einzelne Beiträge',
-      filename: 'Gedenkbuch_V1',
-      outlineSystem: bookV1OutlineSystem,
-      chapterSystem: bookV1ChapterSystem,
+      kind: 'book', field: 'book_v1', view: 'book-v1',
+      label: activeCat.generators.book_v1.label,
+      filename: activeCat.generators.book_v1.filename,
+      outlineSystem: activeCat.generators.book_v1.outlineSystem,
+      chapterSystem: activeCat.generators.book_v1.chapterSystem,
     },
     book_v2: {
-      kind: 'book',
-      field: 'book_v2',
-      view: 'book-v2',
-      label: 'Version 2 – Lebensstationen',
-      filename: 'Gedenkbuch_V2',
-      outlineSystem: bookV2OutlineSystem,
-      chapterSystem: bookV2ChapterSystem,
+      kind: 'book', field: 'book_v2', view: 'book-v2',
+      label: activeCat.generators.book_v2.label,
+      filename: activeCat.generators.book_v2.filename,
+      outlineSystem: activeCat.generators.book_v2.outlineSystem,
+      chapterSystem: activeCat.generators.book_v2.chapterSystem,
     },
     eulogy: {
-      kind: 'eulogy',
-      field: 'eulogy_text',
-      view: 'eulogy',
-      label: 'Trauerrede',
-      filename: 'Trauerrede',
-      sectionSystem: eulogySectionSystem,
+      kind: 'eulogy', field: 'eulogy_text', view: 'eulogy',
+      label: activeCat.finalText.label,
+      filename: activeCat.finalText.filename,
+      noun: activeCat.finalText.noun,
+      sections: activeCat.finalText.sections,
+      styles: activeCat.finalText.styles,
+      sectionSystem: activeCat.finalText.sectionSystem,
     },
   }
 
@@ -1577,17 +1486,18 @@ function Dashboard() {
 
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       } else if (gen.kind === 'eulogy') {
-        // Trauerrede in 4 Sections — jede ein eigener Claude-Call, damit
-        // niemand am 60s-Limit von api/ask.js stirbt.
+        // Endtext (z. B. Rede) in mehrere Abschnitte aufgeteilt — jeder ein
+        // eigener Claude-Call, damit niemand am 60s-Limit von api/ask.js stirbt.
+        const sections = gen.sections || []
         const parts = []
         const sectionErrors = []
-        for (let i = 0; i < EULOGY_SECTIONS.length; i++) {
-          const section = EULOGY_SECTIONS[i]
-          setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${EULOGY_SECTIONS.length}: ${section.label} …` }))
+        for (let i = 0; i < sections.length; i++) {
+          const section = sections[i]
+          setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
           try {
             const raw = await askClaude(
               gen.sectionSystem(selected, contributions, section, extraArg),
-              [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der Trauerrede.` }],
+              [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.` }],
               { memorialCode: selected.id, kind: key }
             )
             const text = String(raw || '').trim()
@@ -1597,9 +1507,9 @@ function Dashboard() {
             sectionErrors.push(`${section.label}: ${e.message}`)
           }
         }
-        if (parts.length === 0) throw new Error('Kein Abschnitt der Trauerrede konnte generiert werden.')
+        if (parts.length === 0) throw new Error(`Kein Abschnitt der ${gen.noun} konnte generiert werden.`)
         value = parts.join('\n\n')
-        if (sectionErrors.length > 0) setErr(`${sectionErrors.length}/${EULOGY_SECTIONS.length} Abschnitt-Fehler. Erster: ${sectionErrors[0]}`)
+        if (sectionErrors.length > 0) setErr(`${sectionErrors.length}/${sections.length} Abschnitt-Fehler. Erster: ${sectionErrors[0]}`)
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       } else {
         // Sonstige Plain-Text-Generatoren (derzeit keiner)
@@ -1666,10 +1576,10 @@ function Dashboard() {
   const eulogyStyleOverlay = eulogyStyleModal ? (
     <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
       <div style={{ ...S.card, maxWidth: 520, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
-        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Stil der Trauerrede wählen</h2>
-        <p style={{ ...S.muted, marginBottom:16 }}>In welchem Ton soll die Rede verfasst werden?</p>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Stil der {GENERATORS.eulogy.label} wählen</h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>In welchem Ton soll der Text verfasst werden?</p>
         <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:14 }}>
-          {EULOGY_STYLES.map(s => (
+          {GENERATORS.eulogy.styles.map(s => (
             <div
               key={s.key}
               onClick={() => pickEulogyStyle(s)}
@@ -1720,16 +1630,21 @@ function Dashboard() {
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
-          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>{memorials.length} Gedenkbücher</span>
+          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>{memorials.length} {memorials.length === 1 ? 'Buch' : 'Bücher'}</span>
         </div>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', gap:8 }}>
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer & Gruppen</button>
+          )}
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Gedenkbücher</h2>
-          <button onClick={() => { setCreateForm({ name:'', organizer:'', gender:'', bookVariant: 1, funeralDate: '', cutoffDays: 7, showIntroVideo: true }); setErr(''); setView('create') }} style={{ fontSize:14, padding:'9px 16px' }}>
-            + Neues Gedenkbuch
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Bücher</h2>
+          <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
+            + Neues Buch
           </button>
         </div>
         <Err msg={err} />
@@ -1737,14 +1652,14 @@ function Dashboard() {
           <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
         ) : memorials.length === 0 ? (
           <div style={{ ...S.card, textAlign:'center', padding:'2rem' }}>
-            <p style={S.muted}>Noch keine Gedenkbücher angelegt. Beginnen Sie mit „+ Neues Gedenkbuch".</p>
+            <p style={S.muted}>Noch keine Bücher angelegt. Beginnen Sie mit „+ Neues Buch".</p>
           </div>
         ) : (
           <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', 'Organisator', 'Variante', 'Erfassung bis', 'Antworten', 'Kosten', ''].map(h => (
+                  {['Name', ...(showCategoryColumn ? ['Kategorie'] : []), 'Organisator', 'Variante', 'Erfassung bis', 'Antworten', 'Kosten', ''].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -1770,6 +1685,9 @@ function Dashboard() {
                   return (
                     <tr key={m.id}>
                       <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name}</td>
+                      {showCategoryColumn && (
+                        <td style={{ ...mainCell, color:'#78716c' }}                     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{getCategory(m.product_category).label}</td>
+                      )}
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
@@ -1826,8 +1744,8 @@ function Dashboard() {
     </div>
   )
 
-  // ── NEUES GEDENKBUCH ──
-  if (view === 'create') return (
+  // ── PRODUKTKATEGORIE WÄHLEN (vor der Anlage) ──
+  if (view === 'create-category') return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
@@ -1835,63 +1753,105 @@ function Dashboard() {
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
         <Back onClick={() => setView('list')} />
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Neues Gedenkbuch anlegen</h2>
-        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Erstellen Sie ein Gedenkbuch und teilen Sie anschließend den Einladungslink.</p>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Produktkategorie wählen</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Für welchen Anlass soll das Buch entstehen?</p>
+        <Err msg={err} />
+        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10 }}>
+          {allowedSlugs.map(slug => (
+            <div
+              key={slug}
+              onClick={() => chooseCategory(slug)}
+              style={{ ...S.card, cursor:'pointer', padding:'16px 16px', transition:'border-color .15s, background .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.background = '#fafaf9' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.background = '#fff' }}
+            >
+              <div style={{ fontWeight:600, fontSize:15 }}>{CATEGORIES[slug].label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── NEUES BUCH (kategorie-spezifisches Formular) ──
+  if (view === 'create') {
+    const cat = getCategory(createForm.productCategory)
+    const ci  = cat.intake
+    const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && !busy
+    return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView(allowedSlugs.length > 1 ? 'create-category' : 'list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{ci.createHeading}</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>{ci.createIntro}</p>
         <Err msg={err} />
         <div style={{ marginBottom: 14 }}>
-          <Lbl>Name der verstorbenen Person *</Lbl>
-          <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Vollständiger Name" />
+          <Lbl>{ci.subjectLabel}</Lbl>
+          <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder={ci.subjectPlaceholder} />
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <Lbl>Geschlecht der verstorbenen Person *</Lbl>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-            {GENDERS.map(g => (
-              <div
-                key={g.value}
-                onClick={() => setCreateForm({ ...createForm, gender: g.value })}
-                style={{
-                  ...S.card,
-                  cursor:'pointer',
-                  textAlign:'center',
-                  padding:'12px 8px',
-                  borderColor: createForm.gender === g.value ? '#1c1917' : '#e7e5e4',
-                  borderWidth: createForm.gender === g.value ? 2 : 1,
-                  fontSize: 14,
-                  fontWeight: createForm.gender === g.value ? 600 : 400,
-                }}
-              >
-                {g.label}
-              </div>
-            ))}
+        {ci.useGender && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>{ci.genderLabel}</Lbl>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+              {GENDERS.map(g => (
+                <div
+                  key={g.value}
+                  onClick={() => setCreateForm({ ...createForm, gender: g.value })}
+                  style={{
+                    ...S.card, cursor:'pointer', textAlign:'center', padding:'12px 8px',
+                    borderColor: createForm.gender === g.value ? '#1c1917' : '#e7e5e4',
+                    borderWidth: createForm.gender === g.value ? 2 : 1,
+                    fontSize: 14, fontWeight: createForm.gender === g.value ? 600 : 400,
+                  }}
+                >
+                  {g.label}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+        {(ci.extra || []).map(f => (
+          <div key={f.key} style={{ marginBottom: 14 }}>
+            <Lbl>{f.label}</Lbl>
+            <input
+              value={createForm.intake?.[f.key] || ''}
+              onChange={e => setCreateForm({ ...createForm, intake: { ...createForm.intake, [f.key]: e.target.value } })}
+              placeholder={f.placeholder || ''}
+            />
+          </div>
+        ))}
         <div style={{ marginBottom: 14 }}>
           <Lbl>Ihr Name (Organisator) *</Lbl>
           <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <Lbl>Geplantes Datum der Bestattung</Lbl>
-          <input type="date" value={createForm.funeralDate} onChange={e => setCreateForm({ ...createForm, funeralDate: e.target.value })} />
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <Lbl>Tage vor der Bestattung, bis zu denen Beiträge erfasst werden</Lbl>
-          <input
-            type="number"
-            min={0}
-            max={90}
-            step={1}
-            value={createForm.cutoffDays}
-            onChange={e => {
-              const v = e.target.value
-              setCreateForm({ ...createForm, cutoffDays: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) })
-            }}
-          />
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
-            {createForm.funeralDate && Number.isFinite(parseInt(createForm.cutoffDays, 10))
-              ? <>Beiträge fließen bis zum <strong>{cutoffString(createForm.funeralDate, parseInt(createForm.cutoffDays, 10))}</strong> ein.</>
-              : <>Standard sind 7 Tage. Bei 0 endet die Erfassung am Bestattungstag selbst.</>}
-          </p>
-        </div>
+        {ci.useDate && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>{ci.dateLabel}</Lbl>
+            <input type="date" value={createForm.funeralDate} onChange={e => setCreateForm({ ...createForm, funeralDate: e.target.value })} />
+          </div>
+        )}
+        {ci.useCutoff && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>{ci.cutoffLabel}</Lbl>
+            <input
+              type="number" min={0} max={90} step={1}
+              value={createForm.cutoffDays}
+              onChange={e => {
+                const v = e.target.value
+                setCreateForm({ ...createForm, cutoffDays: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) })
+              }}
+            />
+            <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+              {createForm.funeralDate && Number.isFinite(parseInt(createForm.cutoffDays, 10))
+                ? <>Beiträge fließen bis zum <strong>{cutoffString(createForm.funeralDate, parseInt(createForm.cutoffDays, 10))}</strong> ein.</>
+                : <>Standard sind 7 Tage.</>}
+            </p>
+          </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Buch-Variante *</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
@@ -1900,9 +1860,7 @@ function Dashboard() {
                 key={v.value}
                 onClick={() => setCreateForm({ ...createForm, bookVariant: v.value })}
                 style={{
-                  ...S.card,
-                  cursor:'pointer',
-                  padding:'14px 14px',
+                  ...S.card, cursor:'pointer', padding:'14px 14px',
                   borderColor: createForm.bookVariant === v.value ? '#1c1917' : '#e7e5e4',
                   borderWidth: createForm.bookVariant === v.value ? 2 : 1,
                 }}
@@ -1929,12 +1887,106 @@ function Dashboard() {
           </p>
         </div>
         <button
-          disabled={!createForm.name || !createForm.organizer || !createForm.gender || busy}
+          disabled={!canSubmit}
           onClick={handleCreate}
           style={{ width: '100%', padding: 13, fontSize: 15 }}
         >
-          {busy ? 'Wird erstellt …' : 'Gedenkbuch anlegen →'}
+          {busy ? 'Wird erstellt …' : ci.createButton}
         </button>
+      </div>
+    </div>
+    )
+  }
+
+  // ── BENUTZER & GRUPPEN (nur Admin) ──
+  if (view === 'users') return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView('list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Benutzer & Gruppen</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Kundengruppen legen fest, welche Produktkategorien ihre Benutzer anlegen dürfen.</p>
+        <Err msg={err} />
+
+        {/* Gruppen */}
+        <h3 style={{ fontSize:16, fontWeight:700, margin:'1rem 0 .75rem' }}>Kundengruppen</h3>
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
+          {usersData.groups.map(g => (
+            <div key={g.id} style={{ ...S.card }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <strong style={{ fontSize:15 }}>{g.name}</strong>
+                <button className="secondary" onClick={() => removeGroup(g)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                {CATEGORY_ORDER.map(slug => {
+                  const on = (g.allowed_categories || []).includes(slug)
+                  return (
+                    <span key={slug} onClick={() => saveGroupCats(g, slug)}
+                      style={{ cursor:'pointer', fontSize:12, padding:'5px 10px', borderRadius:999, border:'1px solid',
+                        borderColor: on ? '#1c1917' : '#e7e5e4', background: on ? '#1c1917' : '#fff', color: on ? '#fafaf9' : '#78716c' }}>
+                      {CATEGORIES[slug].label}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          {usersData.groups.length === 0 && <p style={S.muted}>Noch keine Gruppen.</p>}
+        </div>
+        <div style={{ ...S.card, marginBottom:24 }}>
+          <Lbl>Neue Gruppe</Lbl>
+          <input value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} placeholder="Name der Kundengruppe" style={{ marginBottom:10 }} />
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:12 }}>
+            {CATEGORY_ORDER.map(slug => {
+              const on = groupForm.cats.includes(slug)
+              return (
+                <span key={slug} onClick={() => toggleGroupFormCat(slug)}
+                  style={{ cursor:'pointer', fontSize:12, padding:'5px 10px', borderRadius:999, border:'1px solid',
+                    borderColor: on ? '#1c1917' : '#e7e5e4', background: on ? '#1c1917' : '#fff', color: on ? '#fafaf9' : '#78716c' }}>
+                  {CATEGORIES[slug].label}
+                </span>
+              )
+            })}
+          </div>
+          <button onClick={submitGroup} disabled={busy || !groupForm.name.trim()} style={{ fontSize:14, padding:'9px 16px' }}>Gruppe anlegen</button>
+        </div>
+
+        {/* Benutzer */}
+        <h3 style={{ fontSize:16, fontWeight:700, margin:'1rem 0 .75rem' }}>Benutzer</h3>
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
+          {usersData.users.map(u => (
+            <div key={u.id} style={{ ...S.card, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+              <div>
+                <strong style={{ fontSize:15 }}>{u.username}</strong>{u.is_admin && <span style={{ fontSize:11, marginLeft:8, color:'#1d4ed8' }}>Admin</span>}
+                <div style={{ fontSize:12, color:'#78716c', marginTop:2 }}>Gruppe: {groupName(u.group_id)}</div>
+              </div>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                {!u.is_admin && (
+                  <select value={u.group_id || ''} onChange={e => changeUserGroup(u, e.target.value)} style={{ fontSize:13, padding:'6px 8px' }}>
+                    <option value="">(keine Gruppe)</option>
+                    {usersData.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                )}
+                <button className="secondary" onClick={() => resetUserPassword(u)} style={{ fontSize:12, padding:'5px 10px' }}>Passwort</button>
+                <button className="secondary" onClick={() => removeUser(u)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+              </div>
+            </div>
+          ))}
+          {usersData.users.length === 0 && <p style={S.muted}>Noch keine Benutzer.</p>}
+        </div>
+        <div style={{ ...S.card }}>
+          <Lbl>Neuer Benutzer</Lbl>
+          <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:10 }} />
+          <input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="Passwort (min. 6 Zeichen)" style={{ marginBottom:10 }} />
+          <select value={userForm.group_id} onChange={e => setUserForm({ ...userForm, group_id: e.target.value })} style={{ fontSize:14, padding:'9px 8px', marginBottom:12, width:'100%' }}>
+            <option value="">Gruppe wählen …</option>
+            {usersData.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          <button onClick={submitUser} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
+        </div>
       </div>
     </div>
   )
@@ -1950,7 +2002,7 @@ function Dashboard() {
         </div>
         <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem', textAlign:'center' }}>
           <div style={{ fontSize: 40, marginBottom: '1rem' }}>✅</div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Gedenkbuch erstellt</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Buch erstellt</h2>
           <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Teilen Sie diesen Link oder den QR-Code mit Familie und Freunden:</p>
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
             <Lbl>Einladungslink</Lbl>
@@ -2051,7 +2103,7 @@ function Dashboard() {
             <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
           ) : contributions.length === 0 ? (
             <div style={{ ...S.card, textAlign:'center', padding:'1.5rem' }}>
-              <p style={S.muted}>Noch keine Beiträge für dieses Gedenkbuch.</p>
+              <p style={S.muted}>Noch keine Beiträge für dieses Buch.</p>
             </div>
           ) : (<>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom:'1.5rem' }}>
@@ -2098,12 +2150,12 @@ function Dashboard() {
               })}
             </div>
 
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & Trauerrede</h3>
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & {GENERATORS.eulogy.label}</h3>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
-                { key:'book_v1', icon:'📄', title:'Version 1 – Einzelne Beiträge', sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
-                { key:'book_v2', icon:'✨', title:'Version 2 – Buch in einem Guss', sub:'KI webt alle Erinnerungen zu einem literarischen Text.' },
-                { key:'eulogy',  icon:'🕯', title:'Trauerrede',                    sub:'KI verfasst eine persönliche Rede zum Vorlesen auf der Trauerfeier.' },
+                { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
+                { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub:'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
+                { key:'eulogy',  icon:'🕯', title:GENERATORS.eulogy.label,  sub:`KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.` },
               ].map(({ key, icon, title, sub }) => {
                 const gen   = GENERATORS[key]
                 const has   = !!selected[gen.field]
@@ -2141,7 +2193,7 @@ function Dashboard() {
             className="secondary"
             style={{ fontSize:13, padding:'10px 18px', color:'#dc2626', borderColor:'#fecaca' }}
           >
-            {deletingId === selected.id ? 'Wird gelöscht …' : '🗑 Dieses Gedenkbuch löschen'}
+            {deletingId === selected.id ? 'Wird gelöscht …' : '🗑 Dieses Buch löschen'}
           </button>
         </div>
         {eulogyStyleOverlay}
@@ -2171,7 +2223,7 @@ function Dashboard() {
           {!costsLoading && costData && (
             <>
               <div style={{ ...S.card, marginBottom:'1.5rem', textAlign:'center' }}>
-                <Lbl>Gesamtkosten dieses Gedenkbuchs</Lbl>
+                <Lbl>Gesamtkosten dieses Buchs</Lbl>
                 <div style={{ fontSize:32, fontWeight:700, fontFamily:'Georgia,serif', marginTop:6 }}>{formatEur(costData.total_eur)}</div>
                 <div style={{ fontSize:13, color:'#78716c', marginTop:4 }}>≈ {Number(costData.total_usd || 0).toFixed(4)} USD</div>
               </div>
@@ -2342,9 +2394,9 @@ function Dashboard() {
     const gen  = GENERATORS[key]
     const data = selected[gen.field]
     const busy = !!generating[key]
-    const subtitle = view === 'book-v1' ? 'Gedenkbuch · Version 1'
-                   : view === 'book-v2' ? 'Gedenkbuch · Version 2'
-                   : 'Trauerrede'
+    const subtitle = view === 'book-v1' ? `${getCategory(selected?.product_category).nounBook} · Version 1`
+                   : view === 'book-v2' ? `${getCategory(selected?.product_category).nounBook} · Version 2`
+                   : GENERATORS.eulogy.label
     return (
       <div style={{ maxWidth:720, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
         <Back onClick={() => setView('detail')} />

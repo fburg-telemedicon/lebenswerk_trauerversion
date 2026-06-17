@@ -20,14 +20,67 @@ async function parseResponse(res) {
   return data
 }
 
-// ── Gedenkbuch ────────────────────────────────────────────────────
-export async function createMemorial({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo }) {
-  const res = await fetch('/api/memorial', {
+// ── Gedenkbuch / Buch ─────────────────────────────────────────────
+// Anlage läuft jetzt authentifiziert über den Admin-Endpoint, damit
+// Produktkategorie + Eigentümer-Gruppe serverseitig vertrauenswürdig
+// gesetzt werden können.
+export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake }) {
+  const res = await fetch('/api/admin/memorials', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo }),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake }),
   })
   return parseResponse(res) // { code }
+}
+
+// ── Benutzer & Kundengruppen (Admin) ──────────────────────────────
+export async function adminListUsers(token) {
+  const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { groups, users }
+}
+export async function adminCreateGroup(token, { name, allowed_categories }) {
+  const res = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ type: 'group', name, allowed_categories }),
+  })
+  return parseResponse(res)
+}
+export async function adminUpdateGroup(token, id, patch) {
+  const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ type: 'group', ...patch }),
+  })
+  return parseResponse(res)
+}
+export async function adminDeleteGroup(token, id) {
+  const res = await fetch(`/api/admin/users?type=group&id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res)
+}
+export async function adminCreateUser(token, { username, password, group_id, is_admin }) {
+  const res = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ type: 'user', username, password, group_id, is_admin }),
+  })
+  return parseResponse(res)
+}
+export async function adminUpdateUser(token, id, patch) {
+  const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ type: 'user', ...patch }),
+  })
+  return parseResponse(res)
+}
+export async function adminDeleteUser(token, id) {
+  const res = await fetch(`/api/admin/users?type=user&id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res)
 }
 
 export async function adminDeleteMemorial(token, code) {

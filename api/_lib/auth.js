@@ -58,45 +58,91 @@ function verifyCredentials(username, password) {
   return userOk && passOk
 }
 
-// Erzeugt einen signierten Token mit Ablaufdatum.
-function issueToken() {
+// Erzeugt einen signierten Token mit Ablaufdatum und Berechtigungs-Claims.
+//   claims = { uid, admin, cats, group }
+//     uid   : app_users.id (null beim Env-Admin)
+//     admin : true => Superuser (sieht alle Kategorien)
+//     cats  : '*' (alle) ODER string[] der erlaubten Kategorie-Slugs
+//     group : customer_groups.id des Benutzers (null beim Admin)
+function issueToken(claims = {}) {
   const c = getConfig()
-  const payload = base64url(JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS }))
+  const payload = base64url(JSON.stringify({
+    exp:   Date.now() + TOKEN_TTL_MS,
+    uid:   claims.uid ?? null,
+    admin: Boolean(claims.admin),
+    cats:  claims.admin ? '*' : (Array.isArray(claims.cats) ? claims.cats : []),
+    group: claims.group ?? null,
+  }))
   const sig = sign(payload, c.secret)
   return `${payload}.${sig}`
 }
 
-// Prüft einen Token (Signatur + Ablauf). Gibt true/false zurück.
+// Prüft einen Token (Signatur + Ablauf). Gibt bei Erfolg die Claims zurück,
+// sonst null.
 function verifyToken(token) {
-  if (!isConfigured() || !token) return false
+  if (!isConfigured() || !token) return null
   const parts = token.split('.')
-  if (parts.length !== 2) return false
+  if (parts.length !== 2) return null
   const [payload, sig] = parts
   const expected = sign(payload, getConfig().secret)
   // Längen sind bei korrektem Format identisch; timingSafeEqual braucht das.
-  if (sig.length !== expected.length) return false
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false
+  if (sig.length !== expected.length) return null
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null
   try {
-    const { exp } = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString())
-    return typeof exp === 'number' && Date.now() < exp
+    const data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString())
+    if (typeof data.exp !== 'number' || Date.now() >= data.exp) return null
+    return {
+      uid:   data.uid ?? null,
+      admin: Boolean(data.admin),
+      cats:  data.cats === '*' ? '*' : (Array.isArray(data.cats) ? data.cats : []),
+      group: data.group ?? null,
+    }
   } catch {
-    return false
+    return null
   }
 }
 
 // Bequemer Wächter für Handler: prüft den Bearer-Token, antwortet bei Fehler
-// selbst mit 401/503 und gibt false zurück.
+// selbst mit 401/503 und gibt false zurück. Bei Erfolg hängt er die Claims
+// als req.auth an und gibt true zurück.
 function checkAuth(req, res) {
   if (!isConfigured()) {
     res.status(503).json({ error: 'Server nicht konfiguriert (Admin-Zugangsdaten fehlen).' })
     return false
   }
   const token = (req.headers.authorization || '').replace('Bearer ', '').trim()
-  if (!verifyToken(token)) {
+  const claims = verifyToken(token)
+  if (!claims) {
     res.status(401).json({ error: 'Nicht autorisiert.' })
     return false
   }
+  req.auth = claims
   return true
 }
 
-module.exports = { checkAuth, verifyCredentials, issueToken, verifyToken, isConfigured }
+// Darf der eingeloggte Benutzer (Claims aus checkAuth) auf diese Kategorie?
+function canAccessCategory(auth, category) {
+  if (!auth) return false
+  if (auth.admin || auth.cats === '*') return true
+  return Array.isArray(auth.cats) && auth.cats.includes(category)
+}
+
+// ── Passwort-Hashing (scrypt, ohne externe Abhängigkeit) ──────────
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex')
+  return { hash, salt }
+}
+
+function verifyPassword(password, hash, salt) {
+  if (!hash || !salt) return false
+  const candidate = crypto.scryptSync(String(password), salt, 64)
+  const expected = Buffer.from(hash, 'hex')
+  if (candidate.length !== expected.length) return false
+  return crypto.timingSafeEqual(candidate, expected)
+}
+
+module.exports = {
+  checkAuth, verifyCredentials, issueToken, verifyToken, isConfigured,
+  canAccessCategory, hashPassword, verifyPassword,
+}
