@@ -10,6 +10,7 @@ import {
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
+import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -290,6 +291,7 @@ const EMPTY_CREATE = {
   name: '', organizer: '', gender: '', bookVariant: 1,
   funeralDate: '', cutoffDays: 7, showIntroVideo: true,
   productCategory: DEFAULT_CATEGORY, intake: {},
+  languages: [DEFAULT_LANGUAGE],
 }
 
 function qrCodeUrl(text, size = 240) {
@@ -383,7 +385,8 @@ function unlockAudio() {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initialMessages = [] }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [] }) {
+  const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
   const [aiLoading,  setAiLoading]  = useState(false)
@@ -433,7 +436,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
   async function loadFirst() {
     setAiLoading(true)
     try {
-      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      const sys = langDirective(lang) + getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
       const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
@@ -483,7 +486,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
           if (text.trim()) sendAnswer(text)
           return
         } catch (e) {
-          setErr(`Transkription: ${e.message}`)
+          setErr(`${t.errTranscribe}: ${e.message}`)
         } finally {
           setMicState('idle')
         }
@@ -495,7 +498,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
       setTranscript('')
       setErr('')
     } catch (e) {
-      setErr(`Mikrofon: ${e.message}`)
+      setErr(`${t.errMic}: ${e.message}`)
     }
   }
 
@@ -507,7 +510,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
     try {
-      const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      const sys   = langDirective(lang) + getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
@@ -528,9 +531,9 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
   const micAnim   = micState === 'recording' ? 'lw-mic 1.5s ease-in-out infinite' : 'none'
   const micIcon   = micState === 'processing' ? '⏳' : '🎙'
-  const micLabel  = micState === 'recording'  ? 'Aufnahme läuft – erneut klicken zum Beenden'
-                  : micState === 'processing' ? 'Wird transkribiert …'
-                  : 'Mikrofon klicken, um zu antworten'
+  const micLabel  = micState === 'recording'  ? t.micRecording
+                  : micState === 'processing' ? t.micProcessing
+                  : t.micIdle
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -538,18 +541,18 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
       <div style={{ borderBottom: '1px solid #e7e5e4', padding: '12px 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
-          <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship} · 🎙 Sprach-Modus</div>
+          <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship} · {t.modeVoice}</div>
         </div>
-        <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>Später fortsetzen oder beenden</button>
+        <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
       </div>
       <div style={{ padding: '1.25rem 1.5rem' }}>
         <Err msg={err} />
-        {saveErr && <div style={{ ...S.err }}>⚠ Speichern: {saveErr}</div>}
+        {saveErr && <div style={{ ...S.err }}>⚠ {t.saveLabel}: {saveErr}</div>}
         {memorial.funeral_date && (() => {
           const d = cutoffDate(memorial.funeral_date, cutoffDays(memorial))
           return d ? (
             <div style={{ background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#78350f', marginBottom:14, lineHeight:1.55 }}>
-              ℹ Eingaben bis zum <strong>{d.toLocaleDateString('de-DE')}</strong> werden berücksichtigt.
+              ℹ {t.cutoffNote(d.toLocaleDateString(t.locale))}
             </div>
           ) : null
         })()}
@@ -561,12 +564,12 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
         {aiLoading && messages.length === 0 && <div style={{ margin: '1.5rem 0' }}><Dots /></div>}
         {latestQ && (
           <div style={{ ...S.card, marginBottom: '1rem', background: '#fafaf9', borderColor: '#d6d3d1' }}>
-            <Lbl>Frage</Lbl>
+            <Lbl>{t.questionLabel}</Lbl>
             <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 1rem', color: '#292524' }}>{latestQ}</p>
             <button onClick={handleSpeak} disabled={ttsLoading || aiLoading} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               {ttsLoading
-                ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> Lädt …</>
-                : isPlaying ? '⏹ Stoppen' : hasPlayed ? '🔊 Nochmal vorlesen' : '🔊 Anhören'}
+                ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
+                : isPlaying ? t.stop : hasPlayed ? t.readAgain : t.listen}
             </button>
           </div>
         )}
@@ -591,7 +594,7 @@ function VoiceInterview({ memorial, contribForm, onSave, onPause, saveErr, initi
             )}
           </div>
         )}
-        {round >= 1 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>Ihre Antworten werden automatisch gespeichert. Sie können beliebig lange erzählen oder oben „Später fortsetzen oder beenden" klicken.</p>}
+        {round >= 1 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>{t.autosaveNote}</p>}
         <div ref={endRef} /><div style={{ height:'2rem' }} />
       </div>
     </div>
@@ -683,6 +686,7 @@ function ContributorFlow({ code }) {
   const [paused, setPaused]                   = useState(false)
   const [copied, setCopied]                   = useState('')
   const [saveErr, setSaveErr]                 = useState('')
+  const [lang, setLang]                       = useState(null) // vom Beitragenden gewählte Sprache
   const saveQueueRef                          = useRef(Promise.resolve())
 
   useEffect(() => {
@@ -797,7 +801,12 @@ function ContributorFlow({ code }) {
     setPaused(false); setView('done')
   }
 
-  const cat = getCategory(memorial?.product_category)
+  // Angebotene Sprachen + aktuell wirksame Sprache des Beitragenden.
+  const langs   = (memorial?.languages && memorial.languages.length) ? memorial.languages : [DEFAULT_LANGUAGE]
+  const L       = lang || (langs.length === 1 ? langs[0] : DEFAULT_LANGUAGE)
+  const needLang = !!memorial && langs.length > 1 && !lang
+  const t  = uiText(L)
+  const ct = contributorL10n(memorial?.product_category, L)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
 
   function copyResumeUrl() {
@@ -805,13 +814,8 @@ function ContributorFlow({ code }) {
     setCopied('link'); setTimeout(() => setCopied(''), 2000)
   }
   function mailResumeUrl() {
-    const subject = encodeURIComponent(`Mein Beitrag zum ${cat.nounBook}${memorial ? ' für ' + memorial.name : ''}`)
-    const body = encodeURIComponent(
-`Mit diesem persönlichen Link kann ich meinen Beitrag zum ${cat.nounBook}${memorial ? ' für ' + memorial.name : ''} später fortsetzen:
-
-${resumeUrl}
-
-(Bitte nicht weitergeben — der Link führt direkt zu meinem persönlichen Beitrag.)`)
+    const subject = encodeURIComponent(t.mailSubject(ct.nounBook, memorial ? memorial.name : ''))
+    const body = encodeURIComponent(t.mailBody(ct.nounBook, memorial ? memorial.name : '', resumeUrl))
     window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
 
@@ -823,22 +827,44 @@ ${resumeUrl}
 
       {view === 'error' && (
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>{cat.nounBook} nicht gefunden</h2>
+          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>{t.notFound(ct.nounBook)}</h2>
           <p style={S.muted}>{err}</p>
         </div>
       )}
 
-      {view === 'info' && (
+      {/* Sprachauswahl — bei mehreren angebotenen Sprachen ganz am Anfang */}
+      {needLang && view !== 'error' && (
+        <>
+          <PartnerBanner />
+          <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
+            <div style={{ marginBottom:20 }}>
+              {langs.map(code => (
+                <p key={code} style={{ ...S.muted, margin:'2px 0', fontSize:15 }}>{uiText(code).langPickTitle}</p>
+              ))}
+            </div>
+            <div style={{ display:'grid', gap:10, maxWidth:320, margin:'0 auto' }}>
+              {langs.map(code => {
+                const meta = LANGUAGES.find(x => x.code === code) || { code, label: code }
+                return (
+                  <button key={code} onClick={() => setLang(code)} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!needLang && view === 'info' && (
         <>
           <PartnerBanner />
           <div style={{ ...S.page, paddingTop:'2rem' }}>
-            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{cat.contributor.heading}</h2>
+            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{ct.heading}</h2>
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
-            {cat.contributor.introNoun} <strong>{memorial?.name}</strong>
+            {ct.introNoun} <strong>{memorial?.name}</strong>
           </p>
-          <div style={{ marginBottom:14 }}><Lbl>Ihr Name *</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder="Vollständiger Name" /></div>
+          <div style={{ marginBottom:14 }}><Lbl>{t.yourName}</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder={t.fullName} /></div>
           <div style={{ marginBottom:14 }}>
-            <Lbl>Ihr Geschlecht *</Lbl>
+            <Lbl>{t.yourGender}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
               {GENDERS.map(g => (
                 <div
@@ -855,18 +881,18 @@ ${resumeUrl}
                     fontWeight: contribForm.gender === g.value ? 600 : 400,
                   }}
                 >
-                  {g.label}
+                  {t.genders[g.value] || g.label}
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ marginBottom:14 }}><Lbl>{cat.contributor.relationshipLabel.replace('{name}', memorial?.name || '')}</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder={cat.contributor.relationshipPlaceholder} /></div>
+          <div style={{ marginBottom:14 }}><Lbl>{ct.relationshipLabel.replace('{name}', memorial?.name || '')}</Lbl><input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder={ct.relationshipPlaceholder} /></div>
           <div style={{ marginBottom:24 }}>
-            <Lbl>Wie möchten Sie angesprochen werden? *</Lbl>
+            <Lbl>{t.addressQ}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
-                { v:'Du',  title:'Du',  sub:'Informell, vertraut' },
-                { v:'Sie', title:'Sie', sub:'Förmlich, respektvoll' },
+                { v:'Du',  title:t.addrInformalTitle, sub:t.addrInformalSub },
+                { v:'Sie', title:t.addrFormalTitle,   sub:t.addrFormalSub },
               ].map(o => (
                 <div
                   key={o.v}
@@ -895,26 +921,22 @@ ${resumeUrl}
                 style={{ marginTop:3, width:18, height:18, flexShrink:0, cursor:'pointer' }}
               />
               <span>
-                Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich
-                möglicher Angaben zu {memorial?.product_category === 'memorial' ? 'Gesundheit, Todesumständen oder Religion' : 'Gesundheit oder Religion'} (besondere Kategorien
-                personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des {cat.contributor.consentNoun} verarbeitet
-                werden. Dabei kommen KI-Dienste der Anbieter <strong>Anthropic</strong> und{' '}
-                <strong>OpenAI</strong> in den <strong>USA</strong> zum Einsatz; ich willige in die damit
-                verbundene Übermittlung in die USA ein (Art. 49 Abs. 1 lit. a DSGVO), wo kein mit der EU
-                vergleichbares Datenschutzniveau besteht. Die Einwilligung ist freiwillig und jederzeit
-                mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der{' '}
-                <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8' }}>Datenschutzerklärung</a>.
+                {t.consentText(
+                  ct.consentNoun,
+                  memorial?.product_category === 'memorial' ? t.consentSpecialMemorial : t.consentSpecialOther
+                )}
+                <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8' }}>{t.consentLink}</a>.
               </span>
             </label>
           </div>
           <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
-            {cat.contributor.interviewButton}
+            {ct.interviewButton}
           </button>
           </div>
         </>
       )}
 
-      {view === 'intro-video' && (
+      {!needLang && view === 'intro-video' && (
         <div style={{ position:'fixed', inset:0, background:'#000', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
           <video
             src="https://bniwrvfjqewjlzruslnd.supabase.co/storage/v1/object/public/memorial-videos/Intro_LD.mp4"
@@ -933,15 +955,16 @@ ${resumeUrl}
               backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)',
             }}
           >
-            Überspringen →
+            {t.introSkip}
           </button>
         </div>
       )}
 
-      {view === 'interview' && memorial && (
+      {!needLang && view === 'interview' && memorial && (
         <VoiceInterview
           memorial={memorial}
           contribForm={contribForm}
+          lang={L}
           onSave={saveProgress}
           onPause={handlePause}
           saveErr={saveErr}
@@ -949,11 +972,11 @@ ${resumeUrl}
         />
       )}
 
-      {view === 'done' && (
+      {!needLang && view === 'done' && (
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
           <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Herzlichen Dank</h2>
-          <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>Ihr Beitrag ist jetzt Teil des gemeinsamen {cat.nounBook}s und wird bewahrt.</p>
+          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>{t.doneTitle}</h2>
+          <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>{t.doneBody(ct.nounBook)}</p>
         </div>
       )}
 
@@ -961,14 +984,14 @@ ${resumeUrl}
       {resumePrompt && (
         <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem' }}>
           <div style={{ ...S.card, maxWidth: 460, width:'100%' }}>
-            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>Sie haben einen begonnenen Beitrag</h2>
+            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>{t.resumeTitle}</h2>
             <p style={{ ...S.muted, marginBottom:18 }}>
-              Letzte Aktivität: {new Date(resumePrompt.savedAt).toLocaleString('de-DE')}.<br />
-              Möchten Sie dort fortfahren, wo Sie aufgehört haben, oder neu beginnen?
+              {t.resumeLast(new Date(resumePrompt.savedAt).toLocaleString(t.locale))}<br />
+              {t.resumeQ}
             </p>
             <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-              <button onClick={resumeLocal} style={{ fontSize:14, padding:'10px 16px' }}>↻ Fortsetzen</button>
-              <button className="secondary" onClick={startFresh} style={{ fontSize:14, padding:'10px 16px' }}>Neu beginnen</button>
+              <button onClick={resumeLocal} style={{ fontSize:14, padding:'10px 16px' }}>{t.resumeContinue}</button>
+              <button className="secondary" onClick={startFresh} style={{ fontSize:14, padding:'10px 16px' }}>{t.resumeFresh}</button>
             </div>
           </div>
         </div>
@@ -978,25 +1001,25 @@ ${resumeUrl}
       {paused && (
         <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
           <div style={{ ...S.card, maxWidth: 520, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
-            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>Später fortsetzen oder jetzt beenden?</h2>
+            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>{t.pauseTitle}</h2>
             <p style={{ ...S.muted, marginBottom:14 }}>
-              Ihre bisherigen Antworten sind bereits gespeichert. Sie können später jederzeit zurückkommen — auf zwei Wegen:
+              {t.pauseIntro}
             </p>
             <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:10, padding:'12px 14px', marginBottom:12, fontSize:13, lineHeight:1.6 }}>
-              <strong>1. Einfach denselben Einladungslink wieder öffnen.</strong><br />
-              Ihr Browser merkt sich Ihre Session automatisch und bietet beim nächsten Aufruf an, dort weiterzumachen.
+              <strong>{t.pauseWay1Strong}</strong><br />
+              {t.pauseWay1Body}
             </div>
             <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:10, padding:'12px 14px', marginBottom:14, fontSize:13, lineHeight:1.6 }}>
-              <strong>2. Optional:</strong> Sichern Sie sich zusätzlich diesen persönlichen Wiederaufnahme-Link — falls Sie das Gerät wechseln oder Browser-Daten gelöscht werden:
+              <strong>{t.pauseWay2Strong}</strong> {t.pauseWay2Body}
               <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:8, padding:'8px 10px', marginTop:10, fontFamily:'monospace', fontSize:12, wordBreak:'break-all', color:'#44403c' }}>{resumeUrl}</div>
               <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
-                <button className="secondary" onClick={copyResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>{copied === 'link' ? '✓ Kopiert' : '📋 Link kopieren'}</button>
-                <button className="secondary" onClick={mailResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>✉ Per Mail schicken</button>
+                <button className="secondary" onClick={copyResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>{copied === 'link' ? t.copied : t.copyLink}</button>
+                <button className="secondary" onClick={mailResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>{t.mailBtn}</button>
               </div>
             </div>
             <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:14, display:'flex', gap:10, flexWrap:'wrap', justifyContent:'space-between' }}>
-              <button className="ghost" onClick={handleResume} style={{ fontSize:14 }}>← Weiter sprechen</button>
-              <button onClick={handleDone} style={{ fontSize:14, padding:'10px 18px' }}>✓ Beitrag jetzt beenden</button>
+              <button className="ghost" onClick={handleResume} style={{ fontSize:14 }}>{t.continueTalk}</button>
+              <button onClick={handleDone} style={{ fontSize:14, padding:'10px 18px' }}>{t.finishNow}</button>
             </div>
           </div>
         </div>
@@ -1026,6 +1049,7 @@ function Dashboard() {
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
+  const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
   const [loading, setLoading]         = useState(false)
@@ -1140,6 +1164,7 @@ function Dashboard() {
         showIntroVideo: createForm.showIntroVideo,
         productCategory: createForm.productCategory,
         intake: createForm.intake || {},
+        languages: createForm.languages?.length ? createForm.languages : [DEFAULT_LANGUAGE],
       })
       setCreatedCode(code)
       setView('created')
@@ -1371,6 +1396,10 @@ function Dashboard() {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
     if (selected[gen.field] && !opts.skipConfirm && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
+    // Sprache des Endprodukts: vom Admin gewählt (opts.lang) oder die einzige
+    // angebotene Sprache, sonst Deutsch. Wird den Prompts vorangestellt.
+    const genLang = opts.lang || ((selected.languages && selected.languages.length === 1) ? selected.languages[0] : DEFAULT_LANGUAGE)
+    const dir = langDirective(genLang)
     setErr('')
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
@@ -1382,7 +1411,7 @@ function Dashboard() {
         // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
         setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
         const outlineRaw = await askClaude(
-          gen.outlineSystem(selected, contributions),
+          dir + gen.outlineSystem(selected, contributions),
           [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
           { memorialCode: selected.id, kind: `${key}_outline` }
         )
@@ -1402,9 +1431,9 @@ function Dashboard() {
           const plan = chapterPlans[i]
           setGenProgress(p => ({ ...p, [key]: `Kapitel ${i + 1}/${chapterPlans.length} wird geschrieben …` }))
           try {
-            const sys = key === 'book_v1'
+            const sys = dir + (key === 'book_v1'
               ? gen.chapterSystem(selected, plan.contribution, plan.number)
-              : gen.chapterSystem(selected, contributions, plan)
+              : gen.chapterSystem(selected, contributions, plan))
             const ch = await generateChapterWithRetry(sys, selected.id, `${key}_chapter`)
             chapters.push({
               number: ch.number || plan.number,
@@ -1468,7 +1497,7 @@ function Dashboard() {
           setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
           try {
             const raw = await askClaude(
-              gen.sectionSystem(selected, contributions, section, extraArg),
+              dir + gen.sectionSystem(selected, contributions, section, extraArg),
               [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.` }],
               { memorialCode: selected.id, kind: key }
             )
@@ -1532,7 +1561,20 @@ function Dashboard() {
 
   function pickEulogyStyle(style) {
     setEulogyStyleModal(false)
-    generate('eulogy', style.instruction, { skipConfirm: true })
+    requestGenerate('eulogy', style.instruction)
+  }
+
+  // Startet die Generierung; bei mehreren angebotenen Sprachen wird zuvor die
+  // Zielsprache abgefragt.
+  function requestGenerate(key, extraArg) {
+    const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
+    if (langs.length > 1) { setGenLangModal({ key, extraArg }); return }
+    generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined })
+  }
+  function pickGenLang(code) {
+    const m = genLangModal
+    setGenLangModal(null)
+    if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined })
   }
 
   async function openCosts(memorial) {
@@ -1566,6 +1608,24 @@ function Dashboard() {
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
           <button className="ghost" onClick={() => setEulogyStyleModal(false)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  const genLangOverlay = genLangModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 420, width:'100%' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>In welcher Sprache soll das Buch erstellt werden?</h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>Für dieses Buch sind mehrere Sprachen freigeschaltet.</p>
+        <div style={{ display:'grid', gap:10, marginBottom:14 }}>
+          {((selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]).map(code => {
+            const meta = LANGUAGES.find(x => x.code === code) || { code, label: code }
+            return <button key={code} onClick={() => pickGenLang(code)} style={{ fontSize:15, padding:'12px 16px' }}>{meta.label}</button>
+          })}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+          <button className="ghost" onClick={() => setGenLangModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
         </div>
       </div>
     </div>
@@ -1737,7 +1797,8 @@ function Dashboard() {
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.background = '#fafaf9' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.background = '#fff' }}
             >
-              <div style={{ fontWeight:600, fontSize:15 }}>{CATEGORIES[slug].label}</div>
+              <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{CATEGORIES[slug].label}</div>
+              <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{CATEGORIES[slug].description}</div>
             </div>
           ))}
         </div>
@@ -1824,6 +1885,35 @@ function Dashboard() {
             </p>
           </div>
         )}
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Sprachen *</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
+            In welchen Sprachen sollen Beitragende den Prozess durchführen können? Bei mehreren Sprachen wählt der Beitragende zu Beginn seine Sprache.
+          </p>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {LANGUAGES.map(l => {
+              const on = createForm.languages.includes(l.code)
+              return (
+                <label key={l.code} style={{
+                  display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                  ...S.card, padding:'10px 14px',
+                  borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => setCreateForm(f => {
+                      const next = on ? f.languages.filter(c => c !== l.code) : [...f.languages, l.code]
+                      return { ...f, languages: next.length ? next : f.languages }
+                    })}
+                    style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
+                  />
+                  <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Buch-Variante *</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
@@ -2120,7 +2210,7 @@ function Dashboard() {
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Generiert</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : generate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                      <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
                         {busy ? 'Wird generiert …' : has ? '↻ Neu generieren' : '✨ Generieren'}
                       </button>
                       <button onClick={() => setView(gen.view)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
@@ -2147,6 +2237,7 @@ function Dashboard() {
           </button>
         </div>
         {eulogyStyleOverlay}
+        {genLangOverlay}
       </div>
     )
   }
@@ -2420,10 +2511,11 @@ function Dashboard() {
         {!busy && data && (
           <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
             <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
-            <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : generate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
+            <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
         {eulogyStyleOverlay}
+        {genLangOverlay}
       </div>
     )
   }

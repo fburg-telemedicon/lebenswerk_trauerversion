@@ -10,6 +10,7 @@ const CATEGORY_LABELS = {
   birthday:      'Geburtstagsbuch',
   anniversary:   'Hochzeitsjubiläum',
   farewell:      'Abschied & Ruhestand',
+  service:       'Dienstjubiläum',
   company:       'Betriebsjubiläum',
   newborn:       'Willkommensbuch',
   encouragement: 'Mutmachbuch',

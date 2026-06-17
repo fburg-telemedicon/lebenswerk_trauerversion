@@ -486,6 +486,31 @@ const PROFILES = {
       'Geschichte und Anekdoten', 'Webe konkrete Meilensteine, Erinnerungen und Anekdoten aus den Beiträgen ein, ohne Quellen einzeln zu nennen. Ca. 150–260 Wörter.',
       'Dank und Ausblick', 'Dank an die Menschen der Organisation und ein hoffnungsvoller Ausblick. Ca. 80–140 Wörter.'),
   },
+  service: {
+    interviewRole: 'wertschätzender Gesprächspartner',
+    relationClause: (m, g) => ` für ein Buch zum Dienstjubiläum von ${m.name}${g}`,
+    interviewGoal: 'Erinnerungen, Anekdoten und Glückwünsche zum Dienstjubiläum der Person sammeln.',
+    empathyRule: 'Sei wertschätzend und würdige die langjährige Treue und Arbeit.',
+    themeFields: 'erste Zeit im Unternehmen, prägende Projekte, Erfolge, gemeinsame Erlebnisse mit Kolleginnen und Kollegen, Charakterzüge, Humor, was die Person für das Team bedeutet, schöne Anekdoten, Wünsche für das weitere Miteinander',
+    knowVerb: 'kennen und schätzen', bookNounIndef: 'ein Buch zum Dienstjubiläum', bookNounGen: 'eines Buchs zum Dienstjubiläum',
+    titleTone: 'wertschätzend und festlich', chapterVoice: 'fließender Text in Ich-Form aus Sicht der beitragenden Person',
+    v2Role: 'erfahrener Autor', v2NounIndef: 'eine Festschrift zum Dienstjubiläum', v2NounGen: 'einer Festschrift',
+    v2Concept: 'Aufbau nach Stationen der gemeinsamen Zeit', v2Arrange: 'nach Stationen',
+    v2StationExamples: 'Anfänge im Unternehmen, Werdegang, prägende Projekte, Charakter, gemeinsame Höhepunkte, Ausblick', v2Chronological: true,
+    v2Voice: 'warme, wertschätzende Sprache',
+    finalRole: 'erfahrener Festredner', finalNounGen: 'einer Festrede zum Dienstjubiläum', finalAbout: 'über', finalContext: 'Die Rede wird laut auf der Jubiläumsfeier vorgetragen.', finalToneRule: 'Wertschätzend, festlich und persönlich — würdige Treue, Leistung und Verbundenheit', finalGreeting: 'Liebe Festgesellschaft, …',
+    finalLabel: 'Festrede', finalFilename: 'Festrede', finalNoun: 'Festrede',
+    finalStyles: [
+      { key: 'wuerdevoll', title: 'Würdevoll-wertschätzend', sub: 'Respektvoll, gehoben', instruction: 'Würdevoll-wertschätzend: respektvolle Festrede in gehobener Sprache, würdigt Treue und Leistung klar und ernst.' },
+      { key: 'humorvoll', title: 'Humorvoll-herzlich', sub: 'Mit Augenzwinkern', instruction: 'Humorvoll-herzlich: heitere Festrede mit liebevollem Augenzwinkern und Anekdoten aus dem gemeinsamen Arbeitsalltag; nie verletzend.' },
+      { key: 'persoenlich', title: 'Persönlich-bewegend', sub: 'Nahbar, emotional', instruction: 'Persönlich-bewegend: warme, emotionale Rede, die zeigt, was die Person den Kolleginnen und Kollegen bedeutet.' },
+    ],
+    finalSections: FOUR_GREETS(
+      { key: 'begruessung', label: 'Begrüßung', brief: 'Warme, festliche Eröffnung zum Dienstjubiläum. Ca. 80–130 Wörter.', greets: true },
+      'Wer gefeiert wird', 'Würdige die Person und was sie über die Jahre geleistet und bewirkt hat. Ca. 100–180 Wörter.',
+      'Anekdoten und Wegmarken', 'Webe konkrete gemeinsame Erinnerungen, Erfolge und Anekdoten aus den Beiträgen ein, ohne Quellen einzeln zu nennen. Ca. 150–260 Wörter.',
+      'Glückwünsche und Ausblick', 'Herzliche Glückwünsche und ein guter Ausblick auf das weitere Miteinander. Ca. 80–140 Wörter.'),
+  },
   newborn: {
     interviewRole: 'warmherziger Gesprächspartner',
     relationClause: (m, g) => ` für ein Willkommensbuch für das neugeborene Kind ${m.name}`,
@@ -543,6 +568,7 @@ function buildGenericCategory(slug, cfg) {
   return {
     slug,
     label: cfg.label,
+    description: cfg.description,
     nounBook: cfg.nounBook,
     intake: cfg.intake,
     contributor: cfg.contributor,
@@ -565,6 +591,7 @@ export const CATEGORIES = {
   memorial: {
     slug: 'memorial',
     label: 'Gedenkbuch',
+    description: 'Zum Gedenken an eine verstorbene Person – die Trauergemeinschaft trägt Erinnerungen zusammen.',
     nounBook: 'Gedenkbuch',
     intake: {
       subjectLabel: 'Name der verstorbenen Person *',
@@ -597,7 +624,7 @@ export const CATEGORIES = {
   },
 
   birthday: buildGenericCategory('birthday', {
-    label: 'Geburtstagsbuch', nounBook: 'Geburtstagsbuch',
+    label: 'Geburtstagsbuch', description: 'Zu einem besonderen Geburtstag – Freunde und Familie sammeln Geschichten und Glückwünsche.', nounBook: 'Geburtstagsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Geburtstagsbuch_V1',
     v2Label: 'Version 2 – Lebensstationen', v2Filename: 'Geburtstagsbuch_V2',
     intake: {
@@ -618,7 +645,7 @@ export const CATEGORIES = {
   }),
 
   anniversary: buildGenericCategory('anniversary', {
-    label: 'Hochzeitsjubiläum', nounBook: 'Jubiläumsbuch',
+    label: 'Hochzeitsjubiläum', description: 'Zur silbernen oder goldenen Hochzeit – Erinnerungen und Anekdoten über das Paar.', nounBook: 'Jubiläumsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Jubilaeumsbuch_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Jubilaeumsbuch_V2',
     intake: {
@@ -639,7 +666,7 @@ export const CATEGORIES = {
   }),
 
   farewell: buildGenericCategory('farewell', {
-    label: 'Abschied & Ruhestand', nounBook: 'Abschiedsbuch',
+    label: 'Abschied & Ruhestand', description: 'Abschied einer Person aus Unternehmen, Institution oder Verein – oder in den Ruhestand.', nounBook: 'Abschiedsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Abschiedsbuch_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Abschiedsbuch_V2',
     intake: {
@@ -660,7 +687,7 @@ export const CATEGORIES = {
   }),
 
   company: buildGenericCategory('company', {
-    label: 'Betriebsjubiläum', nounBook: 'Jubiläumsbuch',
+    label: 'Betriebsjubiläum', description: 'Jubiläum der Organisation selbst (Unternehmen, Institution, Verein) – Geschichten über das Haus.', nounBook: 'Jubiläumsbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Jubilaeumsbuch_V1',
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Jubilaeumsbuch_V2',
     intake: {
@@ -680,8 +707,32 @@ export const CATEGORIES = {
     },
   }),
 
+  service: buildGenericCategory('service', {
+    label: 'Dienstjubiläum', description: 'Dienstjubiläum einer Person – z. B. 25 Jahre im selben Unternehmen.', nounBook: 'Jubiläumsbuch',
+    v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Dienstjubilaeum_V1',
+    v2Label: 'Version 2 – Festschrift', v2Filename: 'Dienstjubilaeum_V2',
+    intake: {
+      subjectLabel: 'Name der Jubilarin / des Jubilars *', subjectPlaceholder: 'Vollständiger Name',
+      useGender: true, genderLabel: 'Geschlecht *',
+      useDate: true, dateLabel: 'Tag der Feier',
+      useCutoff: true, cutoffLabel: 'Tage vor der Feier, bis zu denen Beiträge erfasst werden',
+      extra: [
+        { key: 'organization', label: 'Firma / Institution / Verein', placeholder: 'Name der Organisation' },
+        { key: 'years', label: 'Anzahl Dienstjahre', placeholder: 'z. B. 25 Jahre' },
+      ],
+      createHeading: 'Neues Buch zum Dienstjubiläum anlegen',
+      createIntro: 'Erstellen Sie ein Buch zum Dienstjubiläum und teilen Sie anschließend den Einladungslink.',
+      createButton: 'Buch anlegen →',
+    },
+    contributor: {
+      heading: 'Ihr Beitrag', introNoun: 'Buch zum Dienstjubiläum für',
+      relationshipLabel: 'Ihre Beziehung zu {name} *', relationshipPlaceholder: 'z.B. Kollege, Vorgesetzte, Teammitglied …',
+      consentNoun: 'Buchs zum Dienstjubiläum', interviewButton: '🎙 Sprach-Interview beginnen →',
+    },
+  }),
+
   newborn: buildGenericCategory('newborn', {
-    label: 'Willkommensbuch', nounBook: 'Willkommensbuch',
+    label: 'Willkommensbuch', description: 'Zur Geburt eines Kindes – Hoffnungen, Wünsche und Botschaften für das Kind.', nounBook: 'Willkommensbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Willkommensbuch_V1',
     v2Label: 'Version 2 – Nach Themen', v2Filename: 'Willkommensbuch_V2',
     intake: {
@@ -702,7 +753,7 @@ export const CATEGORIES = {
   }),
 
   encouragement: buildGenericCategory('encouragement', {
-    label: 'Mutmachbuch', nounBook: 'Mutmachbuch',
+    label: 'Mutmachbuch', description: 'Für einen Menschen in schwerer Krankheit – Ermutigung, Motivation und gemeinsame Erinnerungen.', nounBook: 'Mutmachbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Mutmachbuch_V1',
     v2Label: 'Version 2 – Nach Themen', v2Filename: 'Mutmachbuch_V2',
     intake: {
@@ -723,7 +774,7 @@ export const CATEGORIES = {
   }),
 }
 
-export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'company', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
 export function getCategory(slug) {
   return CATEGORIES[slug] || CATEGORIES[DEFAULT_CATEGORY]

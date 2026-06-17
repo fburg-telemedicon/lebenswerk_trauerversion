@@ -42,6 +42,7 @@ alter table app_users drop   column if exists group_id;
 alter table memorials add  column if not exists product_category text not null default 'memorial';
 alter table memorials add  column if not exists owner_user uuid references app_users(id) on delete set null;
 alter table memorials add  column if not exists intake jsonb;
+alter table memorials add  column if not exists languages text[] not null default '{de}';  -- angebotene Sprachen (de/pl/en)
 alter table memorials drop column if exists owner_group;
 
 create index if not exists memorials_owner_user_idx on memorials(owner_user);

@@ -71,7 +71,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, created_at')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -117,13 +117,17 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       if (!canAccessCategory(req.auth, category)) {
         return res.status(403).json({ error: 'Keine Berechtigung für diese Produktkategorie.' })
       }
+
+      const ALLOWED_LANGS = ['de', 'pl', 'en']
+      let langs = Array.isArray(languages) ? [...new Set(languages.filter(l => ALLOWED_LANGS.includes(l)))] : []
+      if (langs.length === 0) langs = ['de']
 
       const code = genCode()
       const variant = (bookVariant === 2 || bookVariant === '2') ? 2 : 1
@@ -137,6 +141,7 @@ module.exports = async function handler(req, res) {
         product_category: category,
         owner_user: req.auth.admin ? null : (req.auth.uid || null),
         intake: intake && typeof intake === 'object' ? intake : null,
+        languages: langs,
       })
       if (error) throw error
       return res.json({ code })

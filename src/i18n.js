@@ -1,0 +1,225 @@
+// src/i18n.js
+// Mehrsprachigkeit für den Beitragenden-Flow (Deutsch, Polnisch, Englisch).
+//
+// - LANGUAGES        : auswählbare Sprachen (Code + native Bezeichnung)
+// - langDirective()  : Sprach-Override, das dem KI-Interview-Prompt vorangestellt
+//                      wird, damit das Gespräch in der gewählten Sprache läuft.
+// - uiText(lang)     : feste UI-Texte des Beitragenden-Flows
+// - contributorL10n(slug, lang) : kategorie-spezifische, beitragendenseitige
+//                      Texte (Überschrift, Beziehungs-Label, Buch-Substantiv …);
+//                      Deutsch kommt aus src/categories.js, pl/en als Overlay.
+
+import { CATEGORIES } from './categories.js'
+
+export const LANGUAGES = [
+  { code: 'de', label: 'Deutsch' },
+  { code: 'pl', label: 'Polski' },
+  { code: 'en', label: 'English' },
+]
+export const LANGUAGE_CODES = LANGUAGES.map(l => l.code)
+export const DEFAULT_LANGUAGE = 'de'
+
+// Dem Interview-Systemprompt vorangestellt; für Deutsch leer (keine Änderung).
+export function langDirective(lang) {
+  if (lang === 'pl') {
+    return 'WAŻNE — JĘZYK: Prowadź całą rozmowę wyłącznie po polsku. To polecenie dotyczące języka ma pierwszeństwo przed innymi wskazówkami poniżej (np. „auf Deutsch").\n\n'
+  }
+  if (lang === 'en') {
+    return 'IMPORTANT — LANGUAGE: Conduct the entire conversation exclusively in English. This language instruction takes precedence over any other notes below (e.g. "auf Deutsch" / "Schreibe auf Deutsch").\n\n'
+  }
+  return ''
+}
+
+// ── Feste UI-Texte ────────────────────────────────────────────────
+const DE = {
+  locale: 'de-DE',
+  genders: { 'männlich': 'Männlich', 'weiblich': 'Weiblich', 'divers': 'Divers' },
+  notFound: (noun) => `${noun} nicht gefunden`,
+  yourName: 'Ihr Name *',
+  fullName: 'Vollständiger Name',
+  yourGender: 'Ihr Geschlecht *',
+  relationshipFallback: 'Ihre Beziehung *',
+  addressQ: 'Wie möchten Sie angesprochen werden? *',
+  addrInformalTitle: 'Du', addrInformalSub: 'Informell, vertraut',
+  addrFormalTitle: 'Sie', addrFormalSub: 'Förmlich, respektvoll',
+  consentSpecialMemorial: 'Gesundheit, Todesumständen oder Religion',
+  consentSpecialOther: 'Gesundheit oder Religion',
+  consentText: (noun, special) =>
+    `Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich möglicher Angaben zu ${special} (besondere Kategorien personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des ${noun} verarbeitet werden. Dabei kommen KI-Dienste der Anbieter Anthropic und OpenAI in den USA zum Einsatz; ich willige in die damit verbundene Übermittlung in die USA ein (Art. 49 Abs. 1 lit. a DSGVO), wo kein mit der EU vergleichbares Datenschutzniveau besteht. Die Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der `,
+  consentLink: 'Datenschutzerklärung',
+  introSkip: 'Überspringen →',
+  doneTitle: 'Herzlichen Dank',
+  doneBody: (noun) => `Ihr Beitrag ist jetzt Teil des gemeinsamen ${noun}s und wird bewahrt.`,
+  resumeTitle: 'Sie haben einen begonnenen Beitrag',
+  resumeLast: (d) => `Letzte Aktivität: ${d}.`,
+  resumeQ: 'Möchten Sie dort fortfahren, wo Sie aufgehört haben, oder neu beginnen?',
+  resumeContinue: '↻ Fortsetzen', resumeFresh: 'Neu beginnen',
+  pauseTitle: 'Später fortsetzen oder jetzt beenden?',
+  pauseIntro: 'Ihre bisherigen Antworten sind bereits gespeichert. Sie können später jederzeit zurückkommen — auf zwei Wegen:',
+  pauseWay1Strong: '1. Einfach denselben Einladungslink wieder öffnen.',
+  pauseWay1Body: 'Ihr Browser merkt sich Ihre Session automatisch und bietet beim nächsten Aufruf an, dort weiterzumachen.',
+  pauseWay2Strong: '2. Optional:',
+  pauseWay2Body: 'Sichern Sie sich zusätzlich diesen persönlichen Wiederaufnahme-Link — falls Sie das Gerät wechseln oder Browser-Daten gelöscht werden:',
+  copyLink: '📋 Link kopieren', copied: '✓ Kopiert', mailBtn: '✉ Per Mail schicken',
+  continueTalk: '← Weiter sprechen', finishNow: '✓ Beitrag jetzt beenden',
+  mailSubject: (noun, name) => `Mein Beitrag zum ${noun}${name ? ' für ' + name : ''}`,
+  mailBody: (noun, name, url) =>
+`Mit diesem persönlichen Link kann ich meinen Beitrag zum ${noun}${name ? ' für ' + name : ''} später fortsetzen:
+
+${url}
+
+(Bitte nicht weitergeben — der Link führt direkt zu meinem persönlichen Beitrag.)`,
+  // VoiceInterview
+  modeVoice: '🎙 Sprach-Modus',
+  pauseEnd: 'Später fortsetzen oder beenden',
+  saveLabel: 'Speichern',
+  cutoffNote: (d) => `Eingaben bis zum ${d} werden berücksichtigt.`,
+  questionLabel: 'Frage',
+  loadingShort: 'Lädt …', stop: '⏹ Stoppen', readAgain: '🔊 Nochmal vorlesen', listen: '🔊 Anhören',
+  micRecording: 'Aufnahme läuft – erneut klicken zum Beenden',
+  micProcessing: 'Wird transkribiert …',
+  micIdle: 'Mikrofon klicken, um zu antworten',
+  autosaveNote: 'Ihre Antworten werden automatisch gespeichert. Sie können beliebig lange erzählen oder oben „Später fortsetzen oder beenden" klicken.',
+  errTranscribe: 'Transkription', errMic: 'Mikrofon',
+  // Sprachauswahl
+  langPickTitle: 'In welcher Sprache möchten Sie fortfahren?',
+}
+
+const PL = {
+  locale: 'pl-PL',
+  genders: { 'männlich': 'Mężczyzna', 'weiblich': 'Kobieta', 'divers': 'Inne' },
+  notFound: (noun) => `Nie znaleziono: ${noun}`,
+  yourName: 'Twoje imię i nazwisko *',
+  fullName: 'Imię i nazwisko',
+  yourGender: 'Twoja płeć *',
+  relationshipFallback: 'Twoja relacja *',
+  addressQ: 'Jak mamy się do Ciebie zwracać? *',
+  addrInformalTitle: 'Ty', addrInformalSub: 'Nieformalnie, na „ty"',
+  addrFormalTitle: 'Pan/Pani', addrFormalSub: 'Formalnie, z szacunkiem',
+  consentSpecialMemorial: 'zdrowia, okoliczności śmierci lub religii',
+  consentSpecialOther: 'zdrowia lub religii',
+  consentText: (noun, special) =>
+    `Wyrażam wyraźną zgodę na to, by moje dane i mój wywiad – w tym możliwe informacje dotyczące ${special} (szczególne kategorie danych osobowych zgodnie z art. 9 RODO) – były przetwarzane w celu stworzenia: ${noun}. Wykorzystywane są przy tym usługi AI dostawców Anthropic i OpenAI w USA; wyrażam zgodę na związane z tym przekazanie danych do USA (art. 49 ust. 1 lit. a RODO), gdzie nie obowiązuje poziom ochrony danych porównywalny z UE. Zgoda jest dobrowolna i można ją w każdej chwili odwołać ze skutkiem na przyszłość. Szczegóły w `,
+  consentLink: 'polityce prywatności',
+  introSkip: 'Pomiń →',
+  doneTitle: 'Serdecznie dziękujemy',
+  doneBody: (noun) => `Twój wkład jest teraz częścią wspólnej księgi (${noun}) i zostanie zachowany.`,
+  resumeTitle: 'Masz rozpoczęty wkład',
+  resumeLast: (d) => `Ostatnia aktywność: ${d}.`,
+  resumeQ: 'Czy chcesz kontynuować od miejsca, w którym przerwałeś/aś, czy zacząć od nowa?',
+  resumeContinue: '↻ Kontynuuj', resumeFresh: 'Zacznij od nowa',
+  pauseTitle: 'Kontynuować później czy zakończyć teraz?',
+  pauseIntro: 'Twoje dotychczasowe odpowiedzi zostały już zapisane. Możesz wrócić w każdej chwili — na dwa sposoby:',
+  pauseWay1Strong: '1. Po prostu otwórz ponownie ten sam link z zaproszeniem.',
+  pauseWay1Body: 'Twoja przeglądarka automatycznie zapamiętuje sesję i przy kolejnym otwarciu zaproponuje kontynuację.',
+  pauseWay2Strong: '2. Opcjonalnie:',
+  pauseWay2Body: 'Zapisz dodatkowo ten osobisty link do wznowienia — na wypadek zmiany urządzenia lub usunięcia danych przeglądarki:',
+  copyLink: '📋 Kopiuj link', copied: '✓ Skopiowano', mailBtn: '✉ Wyślij e-mailem',
+  continueTalk: '← Mów dalej', finishNow: '✓ Zakończ wkład teraz',
+  mailSubject: (noun, name) => `Mój wkład do: ${noun}${name ? ' dla ' + name : ''}`,
+  mailBody: (noun, name, url) =>
+`Za pomocą tego osobistego linku mogę później kontynuować mój wkład do: ${noun}${name ? ' dla ' + name : ''}:
+
+${url}
+
+(Proszę nie udostępniać — link prowadzi bezpośrednio do mojego osobistego wkładu.)`,
+  modeVoice: '🎙 Tryb głosowy',
+  pauseEnd: 'Kontynuuj później lub zakończ',
+  saveLabel: 'Zapis',
+  cutoffNote: (d) => `Wpisy do dnia ${d} zostaną uwzględnione.`,
+  questionLabel: 'Pytanie',
+  loadingShort: 'Ładowanie …', stop: '⏹ Zatrzymaj', readAgain: '🔊 Przeczytaj ponownie', listen: '🔊 Posłuchaj',
+  micRecording: 'Trwa nagrywanie – kliknij ponownie, aby zakończyć',
+  micProcessing: 'Transkrypcja …',
+  micIdle: 'Kliknij mikrofon, aby odpowiedzieć',
+  autosaveNote: 'Twoje odpowiedzi są zapisywane automatycznie. Możesz mówić dowolnie długo lub kliknąć u góry „Kontynuuj później lub zakończ".',
+  errTranscribe: 'Transkrypcja', errMic: 'Mikrofon',
+  langPickTitle: 'W jakim języku chcesz kontynuować?',
+}
+
+const EN = {
+  locale: 'en-GB',
+  genders: { 'männlich': 'Male', 'weiblich': 'Female', 'divers': 'Diverse' },
+  notFound: (noun) => `${noun} not found`,
+  yourName: 'Your name *',
+  fullName: 'Full name',
+  yourGender: 'Your gender *',
+  relationshipFallback: 'Your relationship *',
+  addressQ: 'How would you like to be addressed? *',
+  addrInformalTitle: 'Casual', addrInformalSub: 'Informal, on first-name terms',
+  addrFormalTitle: 'Formal', addrFormalSub: 'Polite, respectful',
+  consentSpecialMemorial: 'health, circumstances of death or religion',
+  consentSpecialOther: 'health or religion',
+  consentText: (noun, special) =>
+    `I expressly consent to my information and my interview – including possible details about ${special} (special categories of personal data under Art. 9 GDPR) – being processed to create the ${noun}. AI services from the providers Anthropic and OpenAI in the USA are used for this; I consent to the associated transfer to the USA (Art. 49(1)(a) GDPR), where there is no level of data protection comparable to the EU. Consent is voluntary and can be withdrawn at any time with future effect. Details in the `,
+  consentLink: 'privacy policy',
+  introSkip: 'Skip →',
+  doneTitle: 'Thank you very much',
+  doneBody: (noun) => `Your contribution is now part of the shared ${noun} and will be preserved.`,
+  resumeTitle: 'You have a contribution in progress',
+  resumeLast: (d) => `Last activity: ${d}.`,
+  resumeQ: 'Would you like to continue where you left off, or start over?',
+  resumeContinue: '↻ Continue', resumeFresh: 'Start over',
+  pauseTitle: 'Continue later or finish now?',
+  pauseIntro: 'Your answers so far have already been saved. You can come back at any time — in two ways:',
+  pauseWay1Strong: '1. Simply open the same invitation link again.',
+  pauseWay1Body: 'Your browser remembers your session automatically and will offer to continue next time.',
+  pauseWay2Strong: '2. Optional:',
+  pauseWay2Body: 'Additionally save this personal resume link — in case you switch devices or your browser data is cleared:',
+  copyLink: '📋 Copy link', copied: '✓ Copied', mailBtn: '✉ Send by email',
+  continueTalk: '← Keep talking', finishNow: '✓ Finish contribution now',
+  mailSubject: (noun, name) => `My contribution to the ${noun}${name ? ' for ' + name : ''}`,
+  mailBody: (noun, name, url) =>
+`With this personal link I can continue my contribution to the ${noun}${name ? ' for ' + name : ''} later:
+
+${url}
+
+(Please do not share — the link leads directly to my personal contribution.)`,
+  modeVoice: '🎙 Voice mode',
+  pauseEnd: 'Continue later or finish',
+  saveLabel: 'Save',
+  cutoffNote: (d) => `Entries up to ${d} will be included.`,
+  questionLabel: 'Question',
+  loadingShort: 'Loading …', stop: '⏹ Stop', readAgain: '🔊 Read again', listen: '🔊 Listen',
+  micRecording: 'Recording – click again to stop',
+  micProcessing: 'Transcribing …',
+  micIdle: 'Click the microphone to answer',
+  autosaveNote: 'Your answers are saved automatically. You can talk for as long as you like, or click “Continue later or finish” above.',
+  errTranscribe: 'Transcription', errMic: 'Microphone',
+  langPickTitle: 'Which language would you like to continue in?',
+}
+
+const UI = { de: DE, pl: PL, en: EN }
+export function uiText(lang) { return UI[lang] || UI[DEFAULT_LANGUAGE] }
+
+// ── Kategorie-spezifische, beitragendenseitige Texte ──────────────
+// Deutsch stammt aus src/categories.js; pl/en als Overlay (sonst Fallback DE).
+const CONTRIB = {
+  pl: {
+    memorial:      { nounBook: 'księga pamiątkowa', heading: 'Twoje wspomnienie', introNoun: 'Księga pamiątkowa dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. córka, przyjaciel, kolega, sąsiad …', consentNoun: 'księgi pamiątkowej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    birthday:      { nounBook: 'księga urodzinowa', heading: 'Twój wkład', introNoun: 'Księga urodzinowa dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. córka, przyjaciel, koleżanka …', consentNoun: 'księgi urodzinowej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    anniversary:   { nounBook: 'księga jubileuszowa', heading: 'Twój wkład', introNoun: 'Księga jubileuszowa dla', relationshipLabel: 'Twoja relacja z parą *', relationshipPlaceholder: 'np. dziecko, przyjaciółka, świadek …', consentNoun: 'księgi jubileuszowej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    farewell:      { nounBook: 'księga pożegnalna', heading: 'Twój wkład', introNoun: 'Księga pożegnalna dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. kolega, członek klubu, współpracowniczka …', consentNoun: 'księgi pożegnalnej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    service:       { nounBook: 'księga jubileuszowa', heading: 'Twój wkład', introNoun: 'Księga jubileuszowa dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. kolega, przełożona, członek zespołu …', consentNoun: 'księgi jubileuszowej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    company:       { nounBook: 'księga jubileuszowa', heading: 'Twój wkład', introNoun: 'Księga jubileuszowa dla', relationshipLabel: 'Twój związek z {name} *', relationshipPlaceholder: 'np. pracowniczka, założyciel, członek, klientka …', consentNoun: 'księgi jubileuszowej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    newborn:       { nounBook: 'księga powitalna', heading: 'Twoje życzenia', introNoun: 'Księga powitalna dla', relationshipLabel: 'Twoja relacja z rodziną *', relationshipPlaceholder: 'np. babcia, wujek, przyjaciółka rodziców …', consentNoun: 'księgi powitalnej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    encouragement: { nounBook: 'księga otuchy', heading: 'Twoja wiadomość', introNoun: 'Księga otuchy dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. siostra, przyjaciel, koleżanka …', consentNoun: 'księgi otuchy', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+  },
+  en: {
+    memorial:      { nounBook: 'memorial book', heading: 'Your memory', introNoun: 'Memorial book for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. daughter, friend, colleague, neighbour …', consentNoun: 'memorial book', interviewButton: '🎙 Start voice interview →' },
+    birthday:      { nounBook: 'birthday book', heading: 'Your contribution', introNoun: 'Birthday book for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. daughter, friend, colleague …', consentNoun: 'birthday book', interviewButton: '🎙 Start voice interview →' },
+    anniversary:   { nounBook: 'anniversary book', heading: 'Your contribution', introNoun: 'Anniversary book for', relationshipLabel: 'Your relationship to the couple *', relationshipPlaceholder: 'e.g. child, friend, witness …', consentNoun: 'anniversary book', interviewButton: '🎙 Start voice interview →' },
+    farewell:      { nounBook: 'farewell book', heading: 'Your contribution', introNoun: 'Farewell book for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. colleague, club member, companion …', consentNoun: 'farewell book', interviewButton: '🎙 Start voice interview →' },
+    service:       { nounBook: 'anniversary book', heading: 'Your contribution', introNoun: 'Work anniversary book for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. colleague, manager, team member …', consentNoun: 'work anniversary book', interviewButton: '🎙 Start voice interview →' },
+    company:       { nounBook: 'anniversary book', heading: 'Your contribution', introNoun: 'Anniversary book for', relationshipLabel: 'Your connection to {name} *', relationshipPlaceholder: 'e.g. employee, founder, member, customer …', consentNoun: 'anniversary book', interviewButton: '🎙 Start voice interview →' },
+    newborn:       { nounBook: 'welcome book', heading: 'Your wishes', introNoun: 'Welcome book for', relationshipLabel: 'Your relationship to the family *', relationshipPlaceholder: 'e.g. grandma, uncle, friend of the parents …', consentNoun: 'welcome book', interviewButton: '🎙 Start voice interview →' },
+    encouragement: { nounBook: 'book of encouragement', heading: 'Your message', introNoun: 'Book of encouragement for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. sister, friend, colleague …', consentNoun: 'book of encouragement', interviewButton: '🎙 Start voice interview →' },
+  },
+}
+
+export function contributorL10n(slug, lang) {
+  const cat = CATEGORIES[slug] || CATEGORIES.memorial
+  const base = { nounBook: cat.nounBook, ...cat.contributor }
+  const overlay = (CONTRIB[lang] || {})[slug]
+  return overlay ? { ...base, ...overlay } : base
+}
