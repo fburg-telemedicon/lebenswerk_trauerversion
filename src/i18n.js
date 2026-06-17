@@ -19,13 +19,15 @@ export const LANGUAGES = [
 export const LANGUAGE_CODES = LANGUAGES.map(l => l.code)
 export const DEFAULT_LANGUAGE = 'de'
 
-// Dem Interview-Systemprompt vorangestellt; für Deutsch leer (keine Änderung).
+// Wird ans ENDE des Systemprompts gehängt (letzte Instruktion gewinnt), damit
+// die Zielsprache die im Prompt enthaltene Regel „Schreibe auf Deutsch"
+// zuverlässig überschreibt. Für Deutsch leer (keine Änderung).
 export function langDirective(lang) {
   if (lang === 'pl') {
-    return 'WAŻNE — JĘZYK: Prowadź całą rozmowę wyłącznie po polsku. To polecenie dotyczące języka ma pierwszeństwo przed innymi wskazówkami poniżej (np. „auf Deutsch").\n\n'
+    return '\n\n────────────────\nNADRZĘDNA ZASADA JĘZYKA (ma pierwszeństwo przed KAŻDĄ wcześniejszą instrukcją, w tym „Schreibe auf Deutsch" / „auf Deutsch"): Cały tekst, wszystkie pytania i odpowiedzi pisz WYŁĄCZNIE po polsku. Nie używaj języka niemieckiego ani angielskiego (z wyjątkiem pola „image_prompt", które pozostaje po angielsku).'
   }
   if (lang === 'en') {
-    return 'IMPORTANT — LANGUAGE: Conduct the entire conversation exclusively in English. This language instruction takes precedence over any other notes below (e.g. "auf Deutsch" / "Schreibe auf Deutsch").\n\n'
+    return '\n\n────────────────\nOVERRIDING LANGUAGE RULE (takes precedence over EVERY earlier instruction, including "Schreibe auf Deutsch" / "auf Deutsch"): Write all text, every question and reply EXCLUSIVELY in English. Do not use German (except the "image_prompt" field, which stays in English).'
   }
   return ''
 }

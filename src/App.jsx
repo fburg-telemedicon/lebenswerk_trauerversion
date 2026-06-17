@@ -436,7 +436,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   async function loadFirst() {
     setAiLoading(true)
     try {
-      const sys = langDirective(lang) + getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
@@ -510,7 +510,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
     try {
-      const sys   = langDirective(lang) + getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
@@ -1411,7 +1411,7 @@ function Dashboard() {
         // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
         setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
         const outlineRaw = await askClaude(
-          dir + gen.outlineSystem(selected, contributions),
+          gen.outlineSystem(selected, contributions) + dir,
           [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
           { memorialCode: selected.id, kind: `${key}_outline` }
         )
@@ -1431,9 +1431,9 @@ function Dashboard() {
           const plan = chapterPlans[i]
           setGenProgress(p => ({ ...p, [key]: `Kapitel ${i + 1}/${chapterPlans.length} wird geschrieben …` }))
           try {
-            const sys = dir + (key === 'book_v1'
+            const sys = (key === 'book_v1'
               ? gen.chapterSystem(selected, plan.contribution, plan.number)
-              : gen.chapterSystem(selected, contributions, plan))
+              : gen.chapterSystem(selected, contributions, plan)) + dir
             const ch = await generateChapterWithRetry(sys, selected.id, `${key}_chapter`)
             chapters.push({
               number: ch.number || plan.number,
@@ -1497,7 +1497,7 @@ function Dashboard() {
           setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
           try {
             const raw = await askClaude(
-              dir + gen.sectionSystem(selected, contributions, section, extraArg),
+              gen.sectionSystem(selected, contributions, section, extraArg) + dir,
               [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.` }],
               { memorialCode: selected.id, kind: key }
             )
