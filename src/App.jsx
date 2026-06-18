@@ -24,6 +24,17 @@ const sessionFromURL = (urlParams.get('session') || '').trim()
 // Fassung zugestimmt wurde.
 const CONSENT_VERSION = '1.1 (2026-06-17)'
 
+// ── Passwortrichtlinie (identisch zu api/_lib/auth.js) ────────────
+// Moderat: mind. 8 Zeichen, mind. 1 Ziffer, mind. 1 Sonderzeichen.
+const PASSWORD_RULES_TEXT = 'Mindestens 8 Zeichen, davon mindestens eine Ziffer und ein Sonderzeichen.'
+function passwordError(p) {
+  const s = String(p ?? '')
+  if (s.length < 8) return 'Passwort muss mindestens 8 Zeichen haben.'
+  if (!/[0-9]/.test(s)) return 'Passwort muss mindestens eine Ziffer enthalten.'
+  if (!/[^A-Za-z0-9]/.test(s)) return 'Passwort muss mindestens ein Sonderzeichen enthalten.'
+  return null
+}
+
 // ── Lokale Session-Persistenz (Option 1: localStorage) ────────────
 const SESSION_TTL_DAYS = 60
 function sessionKey(code) { return `lw_session_${code}` }
@@ -1301,9 +1312,9 @@ function Dashboard() {
     }))
   }
   async function submitUser() {
-    if (!userForm.username.trim() || userForm.password.length < 6) {
-      setErr('Benutzername und Passwort (min. 6 Zeichen) erforderlich.'); return
-    }
+    if (!userForm.username.trim()) { setErr('Benutzername erforderlich.'); return }
+    const pwErr = passwordError(userForm.password)
+    if (pwErr) { setErr(pwErr); return }
     setErr(''); setBusy(true)
     try {
       await adminCreateUser(token, {
@@ -1324,8 +1335,10 @@ function Dashboard() {
     catch (e) { setErr(e.message) }
   }
   async function resetUserPassword(user) {
-    const pw = window.prompt(`Neues Passwort für „${user.username}" (min. 6 Zeichen):`)
+    const pw = window.prompt(`Neues Passwort für „${user.username}".\n${PASSWORD_RULES_TEXT}`)
     if (!pw) return
+    const pwErr = passwordError(pw)
+    if (pwErr) { window.alert(pwErr); return }
     setErr('')
     try { await adminUpdateUser(token, user.id, { password: pw }); window.alert('Passwort geändert.') }
     catch (e) { setErr(e.message) }
@@ -2216,7 +2229,17 @@ function Dashboard() {
         <div style={{ ...S.card }}>
           <Lbl>Neuer Benutzer</Lbl>
           <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:10 }} />
-          <input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="Passwort (min. 6 Zeichen)" style={{ marginBottom:12 }} />
+          <input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="Passwort" style={{ marginBottom:6 }} />
+          {(() => {
+            const ok = !passwordError(userForm.password)
+            const empty = !userForm.password
+            return (
+              <p style={{ fontSize:12, lineHeight:1.4, marginBottom:12,
+                color: empty ? '#78716c' : (ok ? '#15803d' : '#b91c1c') }}>
+                {empty ? '' : (ok ? '✓ ' : '• ')}{PASSWORD_RULES_TEXT}
+              </p>
+            )
+          })()}
           <Lbl>Erlaubte Produktkategorien</Lbl>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'6px 0 14px' }}>
             {CATEGORY_ORDER.map(slug => {
@@ -2230,7 +2253,7 @@ function Dashboard() {
               )
             })}
           </div>
-          <button onClick={submitUser} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
+          <button onClick={submitUser} disabled={busy || !userForm.username.trim() || !!passwordError(userForm.password)} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
         </div>
       </div>
     </div>

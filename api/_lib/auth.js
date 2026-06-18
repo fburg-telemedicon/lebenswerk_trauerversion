@@ -124,6 +124,21 @@ function canAccessCategory(auth, category) {
   return Array.isArray(auth.cats) && auth.cats.includes(category)
 }
 
+// ── Passwortrichtlinie ────────────────────────────────────────────
+// Bewusst moderat: mind. 8 Zeichen, mind. 1 Ziffer, mind. 1 Sonderzeichen
+// (alles, was weder Buchstabe noch Ziffer ist). Gibt { ok } oder
+// { ok:false, error } zurück. Wird im Backend (users.js) UND im Frontend
+// (App.jsx) verwendet, damit Anzeige und Prüfung identisch sind.
+const PASSWORD_RULES_TEXT = 'Mindestens 8 Zeichen, davon mindestens eine Ziffer und ein Sonderzeichen.'
+
+function validatePasswordPolicy(password) {
+  const p = String(password ?? '')
+  if (p.length < 8) return { ok: false, error: 'Passwort muss mindestens 8 Zeichen haben.' }
+  if (!/[0-9]/.test(p)) return { ok: false, error: 'Passwort muss mindestens eine Ziffer enthalten.' }
+  if (!/[^A-Za-z0-9]/.test(p)) return { ok: false, error: 'Passwort muss mindestens ein Sonderzeichen enthalten.' }
+  return { ok: true }
+}
+
 // ── Passwort-Hashing (scrypt, ohne externe Abhängigkeit) ──────────
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -142,4 +157,5 @@ function verifyPassword(password, hash, salt) {
 module.exports = {
   checkAuth, verifyCredentials, issueToken, verifyToken, isConfigured,
   canAccessCategory, hashPassword, verifyPassword,
+  validatePasswordPolicy, PASSWORD_RULES_TEXT,
 }

@@ -13,7 +13,7 @@
 //   DELETE /api/admin/users?id=…
 
 const { createClient } = require('@supabase/supabase-js')
-const { checkAuth, hashPassword } = require('../_lib/auth')
+const { checkAuth, hashPassword, validatePasswordPolicy } = require('../_lib/auth')
 const { isValidCategory } = require('../_lib/categories')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -83,7 +83,8 @@ module.exports = async function handler(req, res) {
     if (req.method === 'POST') {
       const { username, password, allowed_categories, is_admin } = req.body || {}
       if (!username || !String(username).trim()) return res.status(400).json({ error: 'Benutzername fehlt.' })
-      if (!password || String(password).length < 6) return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben.' })
+      const pol = validatePasswordPolicy(password)
+      if (!pol.ok) return res.status(400).json({ error: pol.error })
       const { hash, salt } = hashPassword(password)
       const { data, error } = await supabase.from('app_users')
         .insert({
@@ -108,7 +109,8 @@ module.exports = async function handler(req, res) {
       if (req.body.allowed_categories !== undefined) patch.allowed_categories = sanitizeCategories(req.body.allowed_categories)
       if (req.body.is_admin !== undefined) patch.is_admin = Boolean(req.body.is_admin)
       if (req.body.password) {
-        if (String(req.body.password).length < 6) return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben.' })
+        const pol = validatePasswordPolicy(req.body.password)
+        if (!pol.ok) return res.status(400).json({ error: pol.error })
         const { hash, salt } = hashPassword(req.body.password)
         patch.pw_hash = hash; patch.pw_salt = salt
       }
