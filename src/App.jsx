@@ -1652,13 +1652,25 @@ function Dashboard() {
         if (!String(value).includes(quote)) throw new Error('Textstelle nicht gefunden (evtl. bereits geändert).')
         target = String(value)
       }
-      const action = mode === 'delete'
-        ? 'Entferne die unten genannte problematische Stelle vollständig aus dem Text.'
-        : 'Formuliere die unten genannte problematische Stelle so um, dass der beanstandete Inhalt nicht mehr vorkommt, der Text aber sinnvoll bleibt.'
-      const sys = `Du bist ein sorgfältiger Lektor. ${action} Lass den übrigen Text inhaltlich unverändert und achte auf flüssige, korrekte Sprache (keine abgebrochenen Sätze, keine Lücken). Gib AUSSCHLIESSLICH den vollständigen, korrigierten Text zurück – ohne Anführungszeichen, ohne Kommentar, ohne Markdown.`
-      const user = `TEXT:\n${target}\n\nPROBLEMATISCHE STELLE:\n${quote}\n\nHINWEIS DER PRÜFUNG:\n${finding.note || ''}`
-      const corrected = String(await askClaude(sys, [{ role: 'user', content: user }], { memorialCode: selected.id, kind: 'review_fix', token })).trim()
-      if (!corrected) throw new Error('Leere Antwort der KI.')
+      let corrected, newText
+      if (mode === 'delete') {
+        // Stelle entfernen und Tippfehler-Artefakte (doppelte Leerzeichen,
+        // Leerzeichen vor Satzzeichen, leere Absätze) glätten.
+        corrected = target.replace(quote, '')
+          .replace(/[ \t]{2,}/g, ' ')
+          .replace(/\s+([.,;:!?])/g, '$1')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim()
+        newText = ''
+      } else {
+        // Gezielt nur die Stelle umformulieren -> KI liefert den Ersatztext.
+        const ctxPara = String(target).split('\n\n').find(p => p.includes(quote)) || quote
+        const sys = 'Du bist ein sorgfältiger Lektor. Formuliere NUR die markierte Stelle neutral um, sodass der beanstandete Inhalt entfällt, der Ton aber erhalten bleibt und sie sich nahtlos in den umgebenden Text einfügt. Gib AUSSCHLIESSLICH den Ersatztext zurück – ohne Anführungszeichen, ohne Erklärung, ohne Markdown.'
+        const user = `UMGEBENDER ABSATZ:\n${ctxPara}\n\nZU ERSETZENDE STELLE:\n${quote}\n\nHINWEIS DER PRÜFUNG:\n${finding.note || ''}`
+        newText = String(await askClaude(sys, [{ role: 'user', content: user }], { memorialCode: selected.id, kind: 'review_fix', token })).trim().replace(/^[„"»«\s]+|[„"»«\s]+$/g, '')
+        if (!newText) throw new Error('Leere Antwort der KI.')
+        corrected = target.replace(quote, newText)
+      }
 
       const newValue = isBook
         ? { ...value, chapters: value.chapters.map((ch, i) => i === chapterIdx ? { ...ch, body: corrected } : ch) }
@@ -1666,7 +1678,7 @@ function Dashboard() {
       await adminSaveMemorialText(token, selected.id, field, newValue)
 
       const newFindings = report.findings.map((f, i) => i === index
-        ? { ...f, status: 'resolved', resolution: mode, resolved_at: new Date().toISOString() }
+        ? { ...f, status: 'resolved', resolution: mode, resolved_at: new Date().toISOString(), new_text: newText }
         : f)
       const newReport = { ...report, findings: newFindings }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
@@ -2011,7 +2023,10 @@ function Dashboard() {
                     <span style={{ ...sevStyle(f.severity), fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6, textTransform:'uppercase' }}>{f.severity || '—'}</span>
                   </div>
                   {f.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {f.location}</p>}
-                  {f.quote && <p style={{ fontSize:13, fontStyle:'italic', color:'#44403c', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p>}
+                  {f.quote && <p style={{ fontSize:13, fontStyle:'italic', color: resolved ? '#a8a29e' : '#44403c', textDecoration: resolved ? 'line-through' : 'none', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p>}
+                  {resolved && f.resolution === 'rephrase' && f.new_text && (
+                    <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:'0 0 6px', borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{f.new_text}"</p>
+                  )}
                   {f.note && <p style={{ fontSize:13, color:'#57534e', margin:0 }}>{f.note}</p>}
                   {resolved ? (
                     <p style={{ fontSize:12, color:'#15803d', margin:'8px 0 0', fontWeight:600 }}>
