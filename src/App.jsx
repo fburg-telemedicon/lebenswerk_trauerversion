@@ -1162,6 +1162,7 @@ function Dashboard() {
   const [genPct, setGenPct]           = useState({}) // { book_v1: 42 } – Fortschritt in %
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
+  const [reviewPct, setReviewPct]       = useState(0)     // simulierter %-Fortschritt der Prüfung
   const [applyingFinding, setApplyingFinding] = useState(null) // "field:index" während Maßnahme läuft
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
@@ -1609,7 +1610,12 @@ function Dashboard() {
     const gen = GENERATORS[key]
     const value = selected?.[gen.field]
     if (!value) return
-    setReviewingKey(key); setErr('')
+    setReviewingKey(key); setErr(''); setReviewPct(0)
+    // Simulierter Fortschritt: ein einzelner KI-Call liefert keinen echten
+    // Zwischenstand; wir lassen die Anzeige gleichmäßig bis 90 % hochlaufen.
+    const iv = setInterval(() => {
+      setReviewPct(p => (p >= 90 ? 90 : p + Math.max(2, Math.round((90 - p) * 0.12))))
+    }, 400)
     try {
       await runContentReview(gen.field, value)
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
@@ -1619,8 +1625,9 @@ function Dashboard() {
         const u = fresh.find(m => m.id === selected.id)
         if (u) setSelected(u)
       }
+      setReviewPct(100)
     } catch (e) { setErr(`Prüfung fehlgeschlagen: ${e.message}`) }
-    finally { setReviewingKey(null) }
+    finally { clearInterval(iv); setReviewingKey(null) }
   }
 
   // Wendet die vorgeschlagene Maßnahme eines Befunds direkt im Text an
@@ -2841,6 +2848,14 @@ function Dashboard() {
                         <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
                           ✕ Abbrechen
                         </button>
+                      </div>
+                    )}
+                    {reviewingKey === key && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                          <div style={{ width:`${reviewPct}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+                        </div>
+                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>🛡 Inhaltsprüfung läuft … {reviewPct} %</p>
                       </div>
                     )}
                     {gen.kind === 'book' && (
