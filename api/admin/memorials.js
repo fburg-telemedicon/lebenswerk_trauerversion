@@ -84,7 +84,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, created_at')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -185,7 +185,7 @@ module.exports = async function handler(req, res) {
       if (access.error) return res.status(access.status).json({ error: access.error })
 
       const { field, text } = req.body || {}
-      const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text'])
+      const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text', 'content_reports'])
       if (!allowedFields.has(field)) {
         return res.status(400).json({ error: 'Ungültiges Feld.' })
       }

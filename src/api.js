@@ -157,9 +157,13 @@ export async function addContribution({ contributionId, memorialCode, contributo
 
 // ── Claude ────────────────────────────────────────────────────────
 export async function askClaude(system, messages, opts = {}) {
+  // Bei Admin-Generierung wird der Bearer-Token mitgeschickt: serverseitig
+  // umgeht ein gültiger Token die IP-Drossel (viele Calls in Folge sind legitim).
+  const headers = { 'Content-Type': 'application/json' }
+  if (opts.token) headers.Authorization = `Bearer ${opts.token}`
   const res = await fetch('/api/ask', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       system,
       messages,

@@ -5,6 +5,7 @@ const { createClient } = require('@supabase/supabase-js')
 const { costClaude, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
+const { verifyToken } = require('./_lib/auth')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -12,8 +13,13 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    // Rate-Limit pro IP (vor allem Übrigen, schützt auch die Existenzprüfung).
-    if (!(await enforce(req, res, { name: 'ask', limit: 20, windowSeconds: 60 }))) return
+    // Eingeloggte BENUTZER (gültiger Bearer-Token – Superadmin ODER app_user,
+    // nicht nur Admins) sind von der IP-Drossel ausgenommen: die Buch-
+    // generierung macht legitim viele Calls in Folge. Maßgeblich ist allein
+    // ein gültiger Token, nicht das Admin-Flag. Anonyme Beitragende bleiben
+    // auf 20/min begrenzt.
+    const isLoggedIn = !!verifyToken((req.headers.authorization || '').replace('Bearer ', '').trim())
+    if (!isLoggedIn && !(await enforce(req, res, { name: 'ask', limit: 20, windowSeconds: 60 }))) return
 
     const { system, messages, memorialCode, kind, contributionId } = req.body
     if (!messages) return res.status(400).json({ error: 'messages fehlt.' })

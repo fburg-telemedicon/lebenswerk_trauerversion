@@ -13,6 +13,7 @@ import {
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
+import { reviewSystemPrompt, extractReviewText } from './review.js'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -1121,6 +1122,7 @@ function Dashboard() {
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
+  const [reportModal, setReportModal] = useState(null)   // { title, report } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
   const [loading, setLoading]         = useState(false)
@@ -1517,7 +1519,7 @@ function Dashboard() {
         const chRaw = await askClaude(
           sys,
           [{ role: 'user', content: 'Erzeuge jetzt dieses eine Kapitel als JSON.' }],
-          { memorialCode, kind }
+          { memorialCode, kind, token }
         )
         const ch = tryParseJSON(chRaw)
         if (!ch || !ch.body) throw new Error('Kapitel-JSON ungültig oder leer.')
@@ -1552,7 +1554,7 @@ function Dashboard() {
         const outlineRaw = await askClaude(
           gen.outlineSystem(selected, contributions) + dir,
           [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
-          { memorialCode: selected.id, kind: `${key}_outline` }
+          { memorialCode: selected.id, kind: `${key}_outline`, token }
         )
         const outline = tryParseJSON(outlineRaw)
         if (!outline || !outline.title) throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden.')
@@ -1639,7 +1641,7 @@ function Dashboard() {
             const raw = await askClaude(
               gen.sectionSystem(selected, contributions, section, extraArg) + dir,
               [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.` }],
-              { memorialCode: selected.id, kind: key }
+              { memorialCode: selected.id, kind: key, token }
             )
             const text = String(raw || '').trim()
             if (!text) throw new Error('leere Antwort')
@@ -1663,6 +1665,34 @@ function Dashboard() {
       }
 
       await adminSaveMemorialText(token, selected.id, gen.field, value)
+
+      // Inhalts-/Datenschutzprüfung des generierten Textes (separater Claude-
+      // Call). Fehler hier dürfen die Generierung NICHT scheitern lassen –
+      // der Text ist bereits gespeichert.
+      setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
+      try {
+        const reviewText = extractReviewText(value)
+        const reportRaw = await askClaude(
+          reviewSystemPrompt(selected),
+          [{ role: 'user', content: reviewText }],
+          { memorialCode: selected.id, kind: 'review', token }
+        )
+        const parsed = tryParseJSON(reportRaw) || {}
+        const report = {
+          checked_at: new Date().toISOString(),
+          model: 'claude-sonnet-4-5',
+          summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+          findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+        }
+        const merged = { ...(selected.content_reports || {}), [gen.field]: report }
+        await adminSaveMemorialText(token, selected.id, 'content_reports', merged)
+      } catch (e) {
+        console.warn('Inhaltsprüfung fehlgeschlagen:', e.message)
+        try {
+          const merged = { ...(selected.content_reports || {}), [gen.field]: { checked_at: new Date().toISOString(), error: e.message || String(e) } }
+          await adminSaveMemorialText(token, selected.id, 'content_reports', merged)
+        } catch {}
+      }
 
       // Neu laden, damit die signierten Bild-URLs ins selected/memorials kommen
       setGenProgress(p => ({ ...p, [key]: 'Bilder werden geladen …' }))
@@ -1766,6 +1796,52 @@ function Dashboard() {
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
           <button className="ghost" onClick={() => setGenLangModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  const sevStyle = sev => sev === 'hoch' ? { color:'#b91c1c', background:'#fee2e2' }
+    : sev === 'mittel' ? { color:'#b45309', background:'#fef3c7' }
+    : { color:'#78716c', background:'#f5f5f4' }
+  const reportOverlay = reportModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 640, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
+          <h2 style={{ fontSize:18, fontWeight:700, margin:0 }}>🛡 Prüfbericht – {reportModal.title}</h2>
+          <button className="ghost" onClick={() => setReportModal(null)} style={{ fontSize:20, lineHeight:1, padding:'0 6px' }}>×</button>
+        </div>
+        {reportModal.report?.checked_at && (
+          <p style={{ ...S.muted, fontSize:12, marginTop:0, marginBottom:12 }}>
+            Automatische Inhalts-/Datenschutzprüfung vom {new Date(reportModal.report.checked_at).toLocaleString('de-DE')}.
+            Hinweis: KI-gestützt, ersetzt keine juristische Prüfung.
+          </p>
+        )}
+        {reportModal.report?.error ? (
+          <p style={{ fontSize:14, color:'#b91c1c' }}>Die Prüfung ist fehlgeschlagen: {reportModal.report.error}</p>
+        ) : (reportModal.report?.findings?.length ? (
+          <>
+            {reportModal.report.summary && (
+              <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', marginTop:0, marginBottom:14 }}>{reportModal.report.summary}</p>
+            )}
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {reportModal.report.findings.map((f, i) => (
+                <div key={i} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 12px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
+                    <span style={{ fontWeight:600, fontSize:13 }}>{f.category || 'Befund'}</span>
+                    <span style={{ ...sevStyle(f.severity), fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6, textTransform:'uppercase' }}>{f.severity || '—'}</span>
+                  </div>
+                  {f.quote && <p style={{ fontSize:13, fontStyle:'italic', color:'#44403c', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p>}
+                  {f.note && <p style={{ fontSize:13, color:'#57534e', margin:0 }}>{f.note}</p>}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p style={{ fontSize:14, color:'#15803d' }}>✓ Keine kritischen Aussagen gefunden.</p>
+        ))}
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:16 }}>
+          <button className="ghost" onClick={() => setReportModal(null)} style={{ fontSize:14 }}>Schließen</button>
         </div>
       </div>
     </div>
@@ -2538,6 +2614,8 @@ function Dashboard() {
                 const gen   = GENERATORS[key]
                 const has   = !!selected[gen.field]
                 const busy  = !!generating[key]
+                const report = selected.content_reports?.[gen.field]
+                const findingCount = report?.findings?.length || 0
                 return (
                   <div key={key} style={{ ...S.card }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
@@ -2558,6 +2636,21 @@ function Dashboard() {
                         ⬇ Download .docx
                       </button>
                     </div>
+                    {has && !busy && report && (
+                      <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f5f5f4' }}>
+                        {report.error ? (
+                          <span style={{ fontSize:12, color:'#b45309' }}>⚠ Inhaltsprüfung fehlgeschlagen.{' '}
+                            <button className="ghost" onClick={() => setReportModal({ title, report })} style={{ fontSize:12, padding:0, textDecoration:'underline' }}>Details</button>
+                          </span>
+                        ) : findingCount > 0 ? (
+                          <button onClick={() => setReportModal({ title, report })} style={{ fontSize:13, padding:'7px 12px', background:'#b91c1c' }}>
+                            🛡 Prüfbericht ansehen ({findingCount} {findingCount === 1 ? 'Befund' : 'Befunde'})
+                          </button>
+                        ) : (
+                          <span style={{ fontSize:12, color:'#15803d' }}>🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -2576,6 +2669,7 @@ function Dashboard() {
         </div>
         {eulogyStyleOverlay}
         {genLangOverlay}
+        {reportOverlay}
       </div>
     )
   }
@@ -2865,6 +2959,7 @@ function Dashboard() {
         )}
         {eulogyStyleOverlay}
         {genLangOverlay}
+        {reportOverlay}
       </div>
     )
   }
