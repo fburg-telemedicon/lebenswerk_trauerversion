@@ -1162,6 +1162,7 @@ function Dashboard() {
   const [genPct, setGenPct]           = useState({}) // { book_v1: 42 } – Fortschritt in %
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
+  const [applyingFinding, setApplyingFinding] = useState(null) // "field:index" während Maßnahme läuft
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [reportModal, setReportModal] = useState(null)   // { title, report } | null
@@ -1622,6 +1623,61 @@ function Dashboard() {
     finally { setReviewingKey(null) }
   }
 
+  // Wendet die vorgeschlagene Maßnahme eines Befunds direkt im Text an
+  // (mode = 'delete' | 'rephrase'), speichert und markiert den Befund als
+  // erledigt. field = 'book_v1' | 'book_v2' | 'eulogy_text'.
+  async function applyFinding(field, index, mode) {
+    const report = selected?.content_reports?.[field]
+    const value = selected?.[field]
+    const finding = report?.findings?.[index]
+    if (!finding || value == null) return
+    const quote = String(finding.quote || '')
+    if (!quote) { setErr('Dieser Befund hat kein Zitat, das automatisch geändert werden kann.'); return }
+    setApplyingFinding(`${field}:${index}`); setErr('')
+    try {
+      const isBook = value && typeof value === 'object' && Array.isArray(value.chapters)
+      let chapterIdx = -1, target
+      if (isBook) {
+        chapterIdx = value.chapters.findIndex(ch => String(ch.body || '').includes(quote))
+        if (chapterIdx === -1) throw new Error('Textstelle im Buch nicht gefunden (evtl. bereits geändert).')
+        target = value.chapters[chapterIdx].body
+      } else {
+        if (!String(value).includes(quote)) throw new Error('Textstelle nicht gefunden (evtl. bereits geändert).')
+        target = String(value)
+      }
+      const action = mode === 'delete'
+        ? 'Entferne die unten genannte problematische Stelle vollständig aus dem Text.'
+        : 'Formuliere die unten genannte problematische Stelle so um, dass der beanstandete Inhalt nicht mehr vorkommt, der Text aber sinnvoll bleibt.'
+      const sys = `Du bist ein sorgfältiger Lektor. ${action} Lass den übrigen Text inhaltlich unverändert und achte auf flüssige, korrekte Sprache (keine abgebrochenen Sätze, keine Lücken). Gib AUSSCHLIESSLICH den vollständigen, korrigierten Text zurück – ohne Anführungszeichen, ohne Kommentar, ohne Markdown.`
+      const user = `TEXT:\n${target}\n\nPROBLEMATISCHE STELLE:\n${quote}\n\nHINWEIS DER PRÜFUNG:\n${finding.note || ''}`
+      const corrected = String(await askClaude(sys, [{ role: 'user', content: user }], { memorialCode: selected.id, kind: 'review_fix', token })).trim()
+      if (!corrected) throw new Error('Leere Antwort der KI.')
+
+      const newValue = isBook
+        ? { ...value, chapters: value.chapters.map((ch, i) => i === chapterIdx ? { ...ch, body: corrected } : ch) }
+        : corrected
+      await adminSaveMemorialText(token, selected.id, field, newValue)
+
+      const newFindings = report.findings.map((f, i) => i === index
+        ? { ...f, status: 'resolved', resolution: mode, resolved_at: new Date().toISOString() }
+        : f)
+      const newReport = { ...report, findings: newFindings }
+      await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
+
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json()
+        setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) { setSelected(u); setReportModal(mm => mm ? { ...mm, report: u.content_reports?.[field] } : mm) }
+      } else {
+        setSelected(s => ({ ...s, [field]: newValue, content_reports: { ...(s.content_reports || {}), [field]: newReport } }))
+        setReportModal(mm => mm ? { ...mm, report: newReport } : mm)
+      }
+    } catch (e) { setErr(`Maßnahme fehlgeschlagen: ${e.message}`) }
+    finally { setApplyingFinding(null) }
+  }
+
   async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
@@ -1634,7 +1690,8 @@ function Dashboard() {
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setGenPct(p => ({ ...p, [key]: 0 }))
-    setView(gen.view)
+    // Bewusst KEIN View-Wechsel: der Fortschritt ist in der Buch-Übersicht
+    // (Detail) direkt an der Karte sichtbar; der Nutzer bleibt im Kontext.
     // Fortschritt in % – Schritte: Gerüst + je Kapitel + je Bild + Prüfung.
     let stepsDone = 0
     let stepsTotal = 1
@@ -1918,8 +1975,11 @@ function Dashboard() {
               <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', marginTop:0, marginBottom:14 }}>{reportModal.report.summary}</p>
             )}
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {reportModal.report.findings.map((f, i) => (
-                <div key={i} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 12px' }}>
+              {reportModal.report.findings.map((f, i) => {
+                const resolved = f.status === 'resolved'
+                const applying = applyingFinding === `${reportModal.field}:${i}`
+                return (
+                <div key={i} style={{ border:'1px solid', borderColor: resolved ? '#bbf7d0' : '#e7e5e4', background: resolved ? '#f0fdf4' : '#fff', borderRadius:8, padding:'10px 12px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
                     <span style={{ fontWeight:600, fontSize:13 }}>{f.category || 'Befund'}</span>
                     <span style={{ ...sevStyle(f.severity), fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6, textTransform:'uppercase' }}>{f.severity || '—'}</span>
@@ -1927,8 +1987,23 @@ function Dashboard() {
                   {f.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {f.location}</p>}
                   {f.quote && <p style={{ fontSize:13, fontStyle:'italic', color:'#44403c', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p>}
                   {f.note && <p style={{ fontSize:13, color:'#57534e', margin:0 }}>{f.note}</p>}
+                  {resolved ? (
+                    <p style={{ fontSize:12, color:'#15803d', margin:'8px 0 0', fontWeight:600 }}>
+                      ✓ {f.resolution === 'delete' ? 'Im Text gelöscht' : 'Im Text umformuliert'}{f.resolved_at ? ` · ${new Date(f.resolved_at).toLocaleString('de-DE')}` : ''}
+                    </p>
+                  ) : reportModal.field ? (
+                    <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                      <button onClick={() => applyFinding(reportModal.field, i, 'rephrase')} disabled={!!applyingFinding} style={{ fontSize:12, padding:'6px 10px' }}>
+                        {applying ? 'Wird angewendet …' : '✏ Umformulieren'}
+                      </button>
+                      <button onClick={() => applyFinding(reportModal.field, i, 'delete')} disabled={!!applyingFinding} className="secondary" style={{ fontSize:12, padding:'6px 10px', color:'#b91c1c', borderColor:'#fecaca' }}>
+                        🗑 Löschen
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </>
         ) : (
@@ -2709,7 +2784,8 @@ function Dashboard() {
                 const has   = !!selected[gen.field]
                 const busy  = !!generating[key]
                 const report = selected.content_reports?.[gen.field]
-                const findingCount = report?.findings?.length || 0
+                const totalFindings = report?.findings?.length || 0
+                const openFindings = report?.findings?.filter(f => f.status !== 'resolved').length || 0
                 return (
                   <div key={key} style={{ ...S.card }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
@@ -2755,11 +2831,15 @@ function Dashboard() {
                       <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f5f5f4' }}>
                         {report.error ? (
                           <span style={{ fontSize:12, color:'#b45309' }}>⚠ Inhaltsprüfung fehlgeschlagen.{' '}
-                            <button className="ghost" onClick={() => setReportModal({ title, report })} style={{ fontSize:12, padding:0, textDecoration:'underline' }}>Details</button>
+                            <button className="ghost" onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:12, padding:0, textDecoration:'underline' }}>Details</button>
                           </span>
-                        ) : findingCount > 0 ? (
-                          <button onClick={() => setReportModal({ title, report })} style={{ fontSize:13, padding:'7px 12px', background:'#b91c1c' }}>
-                            🛡 Prüfbericht ansehen ({findingCount} {findingCount === 1 ? 'Befund' : 'Befunde'})
+                        ) : openFindings > 0 ? (
+                          <button onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:13, padding:'7px 12px', background:'#b91c1c' }}>
+                            🛡 Prüfbericht ansehen ({openFindings} offen{totalFindings > openFindings ? `, ${totalFindings - openFindings} erledigt` : ''})
+                          </button>
+                        ) : totalFindings > 0 ? (
+                          <button onClick={() => setReportModal({ title, field: gen.field, report })} className="secondary" style={{ fontSize:13, padding:'7px 12px', color:'#15803d', borderColor:'#bbf7d0' }}>
+                            ✓ Alle {totalFindings} Befunde bearbeitet – Bericht ansehen
                           </button>
                         ) : (
                           <span style={{ fontSize:12, color:'#15803d' }}>🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.</span>
@@ -2984,7 +3064,7 @@ function Dashboard() {
     const busy = !!generating[key]
     const bt = uiText(data?.language)
     const reviewReport = selected.content_reports?.[gen.field]
-    const reviewMarks = (reviewReport?.findings || []).filter(f => f.quote).map(f => ({ quote: String(f.quote), severity: f.severity }))
+    const reviewMarks = (reviewReport?.findings || []).filter(f => f.quote && f.status !== 'resolved').map(f => ({ quote: String(f.quote), severity: f.severity }))
     const subtitle = view === 'book-v1' ? `${getCategory(selected?.product_category).nounBook} · Version 1`
                    : view === 'book-v2' ? `${getCategory(selected?.product_category).nounBook} · Version 2`
                    : GENERATORS.eulogy.label
@@ -3022,7 +3102,7 @@ function Dashboard() {
             {reviewMarks.length > 0 && (
               <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:'2rem', fontSize:13, color:'#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
                 <span>🛡 {reviewMarks.length} {reviewMarks.length === 1 ? 'Stelle' : 'Stellen'} aus der Inhaltsprüfung sind im Text farbig markiert.</span>
-                <button className="secondary" onClick={() => setReportModal({ title: gen.label, report: reviewReport })} style={{ fontSize:12, padding:'5px 10px' }}>Prüfbericht</button>
+                <button className="secondary" onClick={() => setReportModal({ title: gen.label, field: gen.field, report: reviewReport })} style={{ fontSize:12, padding:'5px 10px' }}>Prüfbericht</button>
               </div>
             )}
             {(data.chapters || []).map((ch, i) => (
