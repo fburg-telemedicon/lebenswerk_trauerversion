@@ -1159,6 +1159,7 @@ function Dashboard() {
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
+  const [genPct, setGenPct]           = useState({}) // { book_v1: 42 } – Fortschritt in %
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
@@ -1632,7 +1633,15 @@ function Dashboard() {
     setErr('')
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
+    setGenPct(p => ({ ...p, [key]: 0 }))
     setView(gen.view)
+    // Fortschritt in % – Schritte: Gerüst + je Kapitel + je Bild + Prüfung.
+    let stepsDone = 0
+    let stepsTotal = 1
+    const bumpPct = (inc = 1) => {
+      stepsDone += inc
+      setGenPct(p => ({ ...p, [key]: Math.min(99, Math.round((stepsDone / stepsTotal) * 100)) }))
+    }
     try {
       let value
 
@@ -1652,6 +1661,10 @@ function Dashboard() {
           ? contributions.map((c, i) => ({ number: i + 1, contribution: c }))
           : (Array.isArray(outline.chapters) ? outline.chapters : [])
         if (chapterPlans.length === 0) throw new Error('Keine Kapitel im Buch-Gerüst gefunden.')
+
+        // Gesamtschritte jetzt bekannt: Gerüst(1) + Kapitel + Bilder + Prüfung(1)
+        stepsTotal = 1 + chapterPlans.length + (skipImages ? 0 : chapterPlans.length) + 1
+        bumpPct() // Gerüst fertig
 
         // Phase 2: jedes Kapitel einzeln schreiben ──────────────────────
         const chapters = []
@@ -1680,6 +1693,7 @@ function Dashboard() {
               generate_error: e.message || String(e),
             })
           }
+          bumpPct() // Kapitel fertig
         }
 
         value = {
@@ -1702,6 +1716,7 @@ function Dashboard() {
             if (!ch.image_prompt) {
               value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
               imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
+              bumpPct() // Bild-Schritt erledigt
               continue
             }
             try {
@@ -1712,6 +1727,7 @@ function Dashboard() {
               value.chapters[i] = { ...ch, image_error: e.message || String(e) }
               imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
             }
+            bumpPct() // Bild fertig
           }
         }
 
@@ -1727,6 +1743,7 @@ function Dashboard() {
         const sections = gen.sections || []
         const parts = []
         const sectionErrors = []
+        stepsTotal = sections.length + 1 // Abschnitte + Prüfung
         for (let i = 0; i < sections.length; i++) {
           const section = sections[i]
           setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
@@ -1742,6 +1759,7 @@ function Dashboard() {
           } catch (e) {
             sectionErrors.push(`${section.label}: ${e.message}`)
           }
+          bumpPct() // Abschnitt fertig
         }
         if (parts.length === 0) throw new Error(`Kein Abschnitt der ${gen.noun} konnte generiert werden.`)
         value = parts.join('\n\n')
@@ -1765,6 +1783,7 @@ function Dashboard() {
       setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
       try { await runContentReview(gen.field, value) }
       catch (e) { console.warn('Inhaltsprüfung fehlgeschlagen:', e.message) }
+      bumpPct() // Prüfung fertig
 
       // Neu laden, damit die signierten Bild-URLs ins selected/memorials kommen
       setGenProgress(p => ({ ...p, [key]: 'Bilder werden geladen …' }))
@@ -1783,10 +1802,12 @@ function Dashboard() {
         setSelected(s => ({ ...s, [gen.field]: value }))
         setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: value } : m))
       }
+      setGenPct(p => ({ ...p, [key]: 100 }))
     } catch (e) { setErr(`Generieren fehlgeschlagen: ${e.message}`) }
     finally {
       setGenerating(g => ({ ...g, [key]: false }))
       setGenProgress(p => ({ ...p, [key]: '' }))
+      setGenPct(p => ({ ...p, [key]: undefined }))
     }
   }
 
@@ -2712,6 +2733,18 @@ function Dashboard() {
                         {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
                       </button>
                     </div>
+                    {busy && (
+                      <div style={{ marginTop:10 }}>
+                        {genPct[key] != null && (
+                          <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                            <div style={{ width:`${genPct[key]}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+                          </div>
+                        )}
+                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+                          {genPct[key] != null ? `${genPct[key]} % · ` : ''}{genProgress[key] || 'Wird generiert …'}
+                        </p>
+                      </div>
+                    )}
                     {gen.kind === 'book' && (
                       <label style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:10, fontSize:12, color:'#78716c', cursor:'pointer' }}>
                         <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} style={{ width:16, height:16, flexShrink:0, margin:0, cursor:'pointer' }} />
@@ -2968,6 +3001,14 @@ function Dashboard() {
         {busy ? (
           <div style={{ textAlign:'center', padding:'3rem 0' }}>
             <Dots />
+            {genPct[key] != null && (
+              <>
+                <div style={{ fontSize:32, fontWeight:700, color:'#1c1917', marginTop:16 }}>{genPct[key]} %</div>
+                <div style={{ maxWidth:320, height:8, background:'#e7e5e4', borderRadius:999, margin:'12px auto 0', overflow:'hidden' }}>
+                  <div style={{ width:`${genPct[key]}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+                </div>
+              </>
+            )}
             <p style={{ ...S.muted, marginTop:16 }}>{genProgress[key] || 'Die KI arbeitet …'}</p>
           </div>
         ) : !data ? (
