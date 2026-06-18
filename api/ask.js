@@ -4,6 +4,7 @@
 const { createClient } = require('@supabase/supabase-js')
 const { costClaude, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
+const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -11,6 +12,9 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
+    // Rate-Limit pro IP (vor allem Übrigen, schützt auch die Existenzprüfung).
+    if (!(await enforce(req, res, { name: 'ask', limit: 20, windowSeconds: 60 }))) return
+
     const { system, messages, memorialCode, kind, contributionId } = req.body
     if (!messages) return res.status(400).json({ error: 'messages fehlt.' })
 

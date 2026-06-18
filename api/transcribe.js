@@ -4,12 +4,15 @@
 const { createClient } = require('@supabase/supabase-js')
 const { costSTT, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
+const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   try {
+    if (!(await enforce(req, res, { name: 'transcribe', limit: 30, windowSeconds: 60 }))) return
+
     const { audio, mimeType, audioSeconds, memorialCode, contributionId, language } = req.body
     if (!audio) return res.status(400).json({ error: 'audio fehlt.' })
 

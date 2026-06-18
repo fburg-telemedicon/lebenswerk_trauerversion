@@ -9,6 +9,7 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const { verifyCredentials, issueToken, isConfigured, verifyPassword } = require('../_lib/auth')
+const { enforce } = require('../_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -17,7 +18,15 @@ module.exports = async function handler(req, res) {
   if (!isConfigured()) {
     return res.status(503).json({ error: 'Server nicht konfiguriert (Admin-Zugangsdaten fehlen).' })
   }
+
+  // Brute-Force-Bremse: max. 10 Login-Versuche pro 5 Minuten – einmal pro IP
+  // und einmal pro Benutzername (fängt verteilte Angriffe auf EIN Konto ab).
   const { username, password } = req.body || {}
+  if (!(await enforce(req, res, { name: 'login-ip', limit: 10, windowSeconds: 300 }))) return
+  if (username && !(await enforce(req, res, {
+    name: 'login-user', limit: 10, windowSeconds: 300,
+    key: String(username).toLowerCase().trim(),
+  }))) return
 
   // 1. Env-Admin (Superuser)
   if (verifyCredentials(username, password)) {

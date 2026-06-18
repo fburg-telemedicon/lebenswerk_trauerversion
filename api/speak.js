@@ -4,12 +4,15 @@
 const { createClient } = require('@supabase/supabase-js')
 const { costTTS, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
+const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   try {
+    if (!(await enforce(req, res, { name: 'speak', limit: 30, windowSeconds: 60 }))) return
+
     const { text, memorialCode, contributionId } = req.body
     if (!text) return res.status(400).json({ error: 'text fehlt.' })
 
