@@ -2512,6 +2512,20 @@ function Dashboard() {
                       <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{selected.note}</p>
                     </div>
                   )}
+                  {selected.pickup_address && (
+                    <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #e7e5e4' }}>
+                      <Lbl>Sammelbestellungs-Adresse</Lbl>
+                      <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', margin:'4px 0 0' }}>
+                        {[
+                          selected.pickup_address.name,
+                          selected.pickup_address.addon,
+                          selected.pickup_address.street,
+                          [selected.pickup_address.zip, selected.pickup_address.city].filter(Boolean).join(' '),
+                          selected.pickup_address.country,
+                        ].filter(Boolean).map((line, i) => <span key={i}>{line}<br /></span>)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )
             })()}
