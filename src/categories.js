@@ -611,6 +611,7 @@ export const CATEGORIES = {
       introNoun: 'Gedenkbuch für',
       relationshipLabel: 'Ihre Beziehung zu {name} *',
       relationshipPlaceholder: 'z.B. Tochter, Freund, Kollege, Nachbar …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Tochter" oder „Sohn" (im Sinne von „Ich bin die Tochter / der Sohn von {name}").',
       consentNoun: 'Gedenkbuchs',
       interviewButton: '🎙 Sprach-Interview beginnen →',
     },
@@ -642,6 +643,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihr Beitrag', introNoun: 'Geburtstagsbuch für',
       relationshipLabel: 'Ihre Beziehung zu {name} *', relationshipPlaceholder: 'z.B. Tochter, Freund, Kollegin …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Tochter", „Freund" oder „Kollegin".',
       consentNoun: 'Geburtstagsbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
@@ -663,6 +665,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihr Beitrag', introNoun: 'Jubiläumsbuch für',
       relationshipLabel: 'Ihre Beziehung zum Paar *', relationshipPlaceholder: 'z.B. Kind, Freundin, Trauzeuge …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für das Paar? Tragen Sie Ihre eigene Rolle ein – z. B. „Kind", „Trauzeuge" oder „langjährige Freundin".',
       consentNoun: 'Jubiläumsbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
@@ -684,6 +687,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihr Beitrag', introNoun: 'Abschiedsbuch für',
       relationshipLabel: 'Ihre Beziehung zu {name} *', relationshipPlaceholder: 'z.B. Kollege, Vereinskamerad, Wegbegleiterin …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Kollege", „Vereinskamerad" oder „Wegbegleiterin".',
       consentNoun: 'Abschiedsbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
@@ -705,6 +709,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihr Beitrag', introNoun: 'Jubiläumsbuch für',
       relationshipLabel: 'Ihre Verbindung zu {name} *', relationshipPlaceholder: 'z.B. Mitarbeiterin, Gründer, Mitglied, Kundin …',
+      relationshipHint: 'Aus Ihrer Sicht: Wie sind Sie mit {name} verbunden? Tragen Sie Ihre Rolle ein – z. B. „Mitarbeiterin", „Gründer", „Mitglied" oder „Kundin".',
       consentNoun: 'Jubiläumsbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
@@ -729,6 +734,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihr Beitrag', introNoun: 'Buch zum Dienstjubiläum für',
       relationshipLabel: 'Ihre Beziehung zu {name} *', relationshipPlaceholder: 'z.B. Kollege, Vorgesetzte, Teammitglied …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Kollege", „Vorgesetzte" oder „Teammitglied".',
       consentNoun: 'Buchs zum Dienstjubiläum', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
@@ -750,6 +756,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihre Wünsche', introNoun: 'Willkommensbuch für',
       relationshipLabel: 'Ihre Beziehung zur Familie *', relationshipPlaceholder: 'z.B. Oma, Onkel, Freundin der Eltern …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für das Kind und seine Familie? Tragen Sie Ihre Rolle ein – z. B. „Oma", „Onkel" oder „Freundin der Eltern".',
       consentNoun: 'Willkommensbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
@@ -771,6 +778,7 @@ export const CATEGORIES = {
     contributor: {
       heading: 'Ihre Botschaft', introNoun: 'Mutmachbuch für',
       relationshipLabel: 'Ihre Beziehung zu {name} *', relationshipPlaceholder: 'z.B. Schwester, Freund, Kollegin …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Schwester", „Freund" oder „Kollegin".',
       consentNoun: 'Mutmachbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
