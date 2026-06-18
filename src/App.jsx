@@ -2678,12 +2678,7 @@ function Dashboard() {
                 </div>
               )
             })()}
-            <div style={{ border:'1px solid #e7e5e4', borderRadius:10, padding:14, marginBottom:'1.5rem', background:'#fff' }}>
-              <label style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, fontSize:13, color:'#78716c', cursor:'pointer' }}>
-                <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} />
-                🐞 Bilder überspringen (schneller – für Tests)
-              </label>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
                 { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
                 { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub:'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
@@ -2717,6 +2712,12 @@ function Dashboard() {
                         {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
                       </button>
                     </div>
+                    {gen.kind === 'book' && (
+                      <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12, color:'#78716c', cursor:'pointer' }}>
+                        <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} />
+                        🐞 Bilder überspringen (schneller – für Tests)
+                      </label>
+                    )}
                     {has && !busy && report && (
                       <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f5f5f4' }}>
                         {report.error ? (
@@ -2735,7 +2736,6 @@ function Dashboard() {
                   </div>
                 )
               })}
-              </div>
             </div>
           </>)}
 
