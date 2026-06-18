@@ -1678,6 +1678,15 @@ function Dashboard() {
     finally { setApplyingFinding(null) }
   }
 
+  // Abbruch-Wunsch je Generierung (Ref, damit der laufende async-Lauf den
+  // aktuellen Wert sieht). Greift zwischen den Schritten: der gerade laufende
+  // Einzel-Call (z. B. ein Kapitel) wird noch zu Ende geführt, danach Stopp.
+  const cancelGenRef = useRef({})
+  function cancelGenerate(key) {
+    cancelGenRef.current[key] = true
+    setGenProgress(p => ({ ...p, [key]: 'Wird abgebrochen …' }))
+  }
+
   async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
@@ -1690,6 +1699,7 @@ function Dashboard() {
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setGenPct(p => ({ ...p, [key]: 0 }))
+    cancelGenRef.current[key] = false
     // Bewusst KEIN View-Wechsel: der Fortschritt ist in der Buch-Übersicht
     // (Detail) direkt an der Karte sichtbar; der Nutzer bleibt im Kontext.
     // Fortschritt in % – Schritte: Gerüst + je Kapitel + je Bild + Prüfung.
@@ -1699,6 +1709,7 @@ function Dashboard() {
       stepsDone += inc
       setGenPct(p => ({ ...p, [key]: Math.min(99, Math.round((stepsDone / stepsTotal) * 100)) }))
     }
+    const checkCancel = () => { if (cancelGenRef.current[key]) throw new Error('__CANCELLED__') }
     try {
       let value
 
@@ -1722,6 +1733,7 @@ function Dashboard() {
         // Gesamtschritte jetzt bekannt: Gerüst(1) + Kapitel + Bilder + Prüfung(1)
         stepsTotal = 1 + chapterPlans.length + (skipImages ? 0 : chapterPlans.length) + 1
         bumpPct() // Gerüst fertig
+        checkCancel()
 
         // Phase 2: jedes Kapitel einzeln schreiben ──────────────────────
         const chapters = []
@@ -1729,6 +1741,7 @@ function Dashboard() {
         for (let i = 0; i < chapterPlans.length; i++) {
           const plan = chapterPlans[i]
           setGenProgress(p => ({ ...p, [key]: `Kapitel ${i + 1}/${chapterPlans.length} wird geschrieben …` }))
+          checkCancel()
           try {
             const sys = (key === 'book_v1'
               ? gen.chapterSystem(selected, plan.contribution, plan.number)
@@ -1770,6 +1783,7 @@ function Dashboard() {
           for (let i = 0; i < total; i++) {
             const ch = value.chapters[i]
             setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
+            checkCancel()
             if (!ch.image_prompt) {
               value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
               imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
@@ -1804,6 +1818,7 @@ function Dashboard() {
         for (let i = 0; i < sections.length; i++) {
           const section = sections[i]
           setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
+          checkCancel()
           try {
             const raw = await askClaude(
               gen.sectionSystem(selected, contributions, section, extraArg) + dir,
@@ -1860,11 +1875,15 @@ function Dashboard() {
         setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, [gen.field]: value } : m))
       }
       setGenPct(p => ({ ...p, [key]: 100 }))
-    } catch (e) { setErr(`Generieren fehlgeschlagen: ${e.message}`) }
+    } catch (e) {
+      if (e.message === '__CANCELLED__') setErr('Generierung abgebrochen. Bereits erzeugte Inhalte wurden nicht gespeichert.')
+      else setErr(`Generieren fehlgeschlagen: ${e.message}`)
+    }
     finally {
       setGenerating(g => ({ ...g, [key]: false }))
       setGenProgress(p => ({ ...p, [key]: '' }))
       setGenPct(p => ({ ...p, [key]: undefined }))
+      cancelGenRef.current[key] = false
     }
   }
 
@@ -2819,6 +2838,9 @@ function Dashboard() {
                         <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
                           {genPct[key] != null ? `${genPct[key]} % · ` : ''}{genProgress[key] || 'Wird generiert …'}
                         </p>
+                        <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+                          ✕ Abbrechen
+                        </button>
                       </div>
                     )}
                     {gen.kind === 'book' && (
@@ -3090,6 +3112,9 @@ function Dashboard() {
               </>
             )}
             <p style={{ ...S.muted, marginTop:16 }}>{genProgress[key] || 'Die KI arbeitet …'}</p>
+            <div style={{ marginTop:16 }}>
+              <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:13, padding:'7px 14px', color:'#b91c1c', borderColor:'#fecaca' }}>✕ Abbrechen</button>
+            </div>
           </div>
         ) : !data ? (
           <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
