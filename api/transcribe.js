@@ -1,13 +1,25 @@
 // api/transcribe.js
 // POST /api/transcribe  { audio: base64, mimeType, audioSeconds?, memorialCode?, contributionId? }  →  { text }
 
+const { createClient } = require('@supabase/supabase-js')
 const { costSTT, recordCost } = require('./_lib/cost')
+const { memorialExists } = require('./_lib/access')
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   try {
     const { audio, mimeType, audioSeconds, memorialCode, contributionId, language } = req.body
     if (!audio) return res.status(400).json({ error: 'audio fehlt.' })
+
+    // An einen echten Gedenkbuch-Code gebunden (offener Endpunkt, aber kein
+    // anonymer Whisper-Proxy auf fremde Rechnung). Prüfung VOR dem OpenAI-Aufruf.
+    const code = String(memorialCode || '').toUpperCase().trim()
+    if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
+    if (!(await memorialExists(supabase, code))) {
+      return res.status(403).json({ error: 'Ungültiger Code.' })
+    }
 
     const buffer = Buffer.from(audio, 'base64')
     const ext    = mimeType?.includes('ogg') ? 'ogg'
@@ -36,10 +48,10 @@ module.exports = async function handler(req, res) {
     const data = await response.json()
     if (!response.ok) throw new Error(data.error?.message || 'Transkription fehlgeschlagen')
 
-    if (memorialCode) {
+    {
       const secs = Number.isFinite(parseFloat(audioSeconds)) ? parseFloat(audioSeconds) : 0
       await recordCost({
-        memorial_id: String(memorialCode).toUpperCase().trim(),
+        memorial_id: code,
         contribution_id: contributionId || null,
         kind: 'stt',
         provider: 'openai',

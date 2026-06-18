@@ -53,4 +53,19 @@ async function loadAccessibleContribution(supabase, auth, id) {
   return { contribution: contrib, memorial: access.memorial }
 }
 
-module.exports = { loadAccessibleMemorial, loadAccessibleContribution }
+// Existenzprüfung für die öffentlichen (unauthentifizierten) KI-Proxies.
+// Diese Endpunkte müssen offen bleiben (Beitragenden-Flow ohne Login), sollen
+// aber nicht als anonymer, beliebiger Claude/OpenAI-Proxy auf fremde Rechnung
+// missbraucht werden können. Indem ein gültiger, existierender memorialCode
+// verlangt wird, sinkt die Hürde von "Zero-Knowledge" auf "braucht einen
+// echten Code". Wirft bei DB-Fehler (→ 500 im Handler, wie bisher).
+async function memorialExists(supabase, code) {
+  const c = (code || '').toUpperCase().trim()
+  if (!c) return false
+  const { data, error } = await supabase
+    .from('memorials').select('id').eq('id', c).maybeSingle()
+  if (error) throw error
+  return Boolean(data)
+}
+
+module.exports = { loadAccessibleMemorial, loadAccessibleContribution, memorialExists }
