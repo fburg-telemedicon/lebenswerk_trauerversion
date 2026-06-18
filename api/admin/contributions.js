@@ -5,6 +5,7 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth } = require('../_lib/auth')
+const { loadAccessibleMemorial, loadAccessibleContribution } = require('../_lib/access')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -14,6 +15,9 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'code fehlt.' })
+      // Nur Beiträge eigener Gedenkbücher (bzw. Admin) lesen.
+      const access = await loadAccessibleMemorial(supabase, req.auth, code)
+      if (access.error) return res.status(access.status).json({ error: access.error })
       const { data, error } = await supabase
         .from('contributions')
         .select('*')
@@ -28,6 +32,9 @@ module.exports = async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'id fehlt.' })
       const { messages } = req.body || {}
       if (!Array.isArray(messages)) return res.status(400).json({ error: 'messages muss ein Array sein.' })
+      // Nur Beiträge eigener Gedenkbücher (bzw. Admin) ändern.
+      const access = await loadAccessibleContribution(supabase, req.auth, id)
+      if (access.error) return res.status(access.status).json({ error: access.error })
       const { data, error } = await supabase
         .from('contributions')
         .update({ messages })
@@ -41,6 +48,9 @@ module.exports = async function handler(req, res) {
     if (req.method === 'DELETE') {
       const id = (req.query.id || '').trim()
       if (!id) return res.status(400).json({ error: 'id fehlt.' })
+      // Nur Beiträge eigener Gedenkbücher (bzw. Admin) löschen.
+      const access = await loadAccessibleContribution(supabase, req.auth, id)
+      if (access.error) return res.status(access.status).json({ error: access.error })
       const { error } = await supabase.from('contributions').delete().eq('id', id)
       if (error) throw error
       return res.json({ ok: true })

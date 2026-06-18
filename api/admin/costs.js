@@ -3,6 +3,7 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth } = require('../_lib/auth')
+const { loadAccessibleMemorial } = require('../_lib/access')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -12,6 +13,10 @@ module.exports = async function handler(req, res) {
   try {
     const code = (req.query.code || '').toUpperCase().trim()
     if (!code) return res.status(400).json({ error: 'code fehlt.' })
+
+    // Nur Kosten eigener Gedenkbücher (bzw. Admin) lesen.
+    const access = await loadAccessibleMemorial(supabase, req.auth, code)
+    if (access.error) return res.status(access.status).json({ error: access.error })
 
     const { data, error } = await supabase
       .from('cost_events')

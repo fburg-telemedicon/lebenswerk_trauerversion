@@ -4,6 +4,7 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
+const { loadAccessibleMemorial } = require('../_lib/access')
 const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
@@ -147,6 +148,10 @@ module.exports = async function handler(req, res) {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'code fehlt.' })
 
+      // Nur Eigentümer (bzw. Admin) dürfen löschen.
+      const access = await loadAccessibleMemorial(supabase, req.auth, code)
+      if (access.error) return res.status(access.status).json({ error: access.error })
+
       const storageWarnings = await deleteMemorialCompletely(supabase, code)
       return res.json({ ok: true, ...(storageWarnings.length ? { storageWarnings } : {}) })
     }
@@ -154,6 +159,11 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'code fehlt.' })
+
+      // Nur Eigentümer (bzw. Admin) dürfen Buch/Trauerrede überschreiben.
+      const access = await loadAccessibleMemorial(supabase, req.auth, code)
+      if (access.error) return res.status(access.status).json({ error: access.error })
+
       const { field, text } = req.body || {}
       const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text'])
       if (!allowedFields.has(field)) {

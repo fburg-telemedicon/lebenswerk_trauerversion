@@ -7,6 +7,7 @@ const { createClient } = require('@supabase/supabase-js')
 const crypto = require('crypto')
 const { costImage, recordCost } = require('../_lib/cost')
 const { checkAuth } = require('../_lib/auth')
+const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
 const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -22,6 +23,11 @@ module.exports = async function handler(req, res) {
     if (!OPENAI_KEY) return res.status(500).json({ error: 'OPENAI_API_KEY fehlt im Backend.' })
     const { prompt, memorialCode } = req.body || {}
     if (!prompt || !memorialCode) return res.status(400).json({ error: 'prompt und memorialCode erforderlich.' })
+
+    // Nur für eigene Gedenkbücher (bzw. Admin) Bilder generieren – sonst könnte
+    // ein Benutzer auf fremde Rechnung/in fremde Ordner generieren.
+    const access = await loadAccessibleMemorial(supabase, req.auth, memorialCode)
+    if (access.error) return res.status(access.status).json({ error: access.error })
 
     const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',

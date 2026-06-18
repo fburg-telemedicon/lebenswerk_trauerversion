@@ -21,8 +21,16 @@ module.exports = async function handler(req, res) {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'Code fehlt.' })
 
+      // BEWUSST nur die für den Beitragenden-Flow nötigen Felder ausliefern –
+      // NICHT die ganze Zeile. Insbesondere die generierten Inhalte
+      // (book_v1/book_v2/eulogy_text) enthalten die aggregierten Erinnerungen
+      // ALLER Beitragenden und dürfen nicht über den öffentlichen, nur per
+      // 6-stelligem Code geschützten Endpunkt nach außen gelangen. Auch
+      // intake (kategorie-spezifische Notizen) und owner_user bleiben intern.
+      const PUBLIC_FIELDS =
+        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, owner_user, created_at'
       const { data, error } = await supabase
-        .from('memorials').select('*').eq('id', code).single()
+        .from('memorials').select(PUBLIC_FIELDS).eq('id', code).single()
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
 
       // Firmenlogo des Eigentümers anhängen (für die Anzeige beim Beitragenden).
@@ -34,7 +42,9 @@ module.exports = async function handler(req, res) {
           .from('app_users').select('logo').eq('id', data.owner_user).single()
         owner_logo = owner?.logo || null
       }
-      return res.json({ ...data, owner_logo })
+      // owner_user war nur für die Logo-Abfrage nötig – nicht nach außen geben.
+      const { owner_user, ...publicData } = data
+      return res.json({ ...publicData, owner_logo })
     }
 
     res.status(405).json({ error: 'Method not allowed' })
