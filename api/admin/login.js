@@ -21,7 +21,7 @@ module.exports = async function handler(req, res) {
 
   // 1. Env-Admin (Superuser)
   if (verifyCredentials(username, password)) {
-    return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*' })
+    return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*', uid: null })
   }
 
   // 2. Benutzer aus app_users
@@ -35,7 +35,7 @@ module.exports = async function handler(req, res) {
     if (user && verifyPassword(password, user.pw_hash, user.pw_salt)) {
       const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
       const token = issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats })
-      return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats })
+      return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats, uid: user.id })
     }
   } catch (e) {
     console.error('/api/admin/login lookup error:', e)

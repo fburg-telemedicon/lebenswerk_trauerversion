@@ -61,6 +61,20 @@ export async function adminDeleteUser(token, id) {
   return parseResponse(res)
 }
 
+// ── Eigene Einstellungen (Firmenlogo) ─────────────────────────────
+export async function getSettings(token) {
+  const res = await fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { logo }
+}
+export async function saveSettings(token, { logo }) {
+  const res = await fetch('/api/admin/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ logo }),
+  })
+  return parseResponse(res) // { ok }
+}
+
 export async function adminDeleteMemorial(token, code) {
   const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
     method: 'DELETE',

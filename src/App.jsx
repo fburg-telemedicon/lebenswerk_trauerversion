@@ -8,6 +8,7 @@ import {
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser,
+  getSettings, saveSettings,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -390,21 +391,33 @@ function Dots() {
 // Beitragenden-Seiten eingeblendet. Name + Monogramm zentral änderbar.
 const PARTNER_NAME      = 'Bestattungshaus Linde'
 const PARTNER_MONOGRAM  = 'L'
-function PartnerBanner() {
+function PartnerBanner({ logoUrl }) {
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'10px 1.25rem', display:'flex', alignItems:'center', gap:12 }}>
-        <div style={{
-          width:32, height:32, borderRadius:'50%',
-          background:'#1c1917', color:'#fafaf9',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          fontFamily:'Georgia, serif', fontWeight:700, fontSize:15,
-          flexShrink:0,
-        }}>{PARTNER_MONOGRAM}</div>
-        <div style={{ minWidth:0, lineHeight:1.3 }}>
-          <div style={{ fontWeight:600, fontSize:14, color:'#1c1917', fontFamily:'Georgia, serif' }}>{PARTNER_NAME}</div>
-          <div style={{ fontSize:10.5, color:'#78716c', textTransform:'uppercase', letterSpacing:'.09em', marginTop:2 }}>präsentiert Lebensgeschichten.AI</div>
-        </div>
+        {logoUrl ? (
+          // Vom Benutzer hinterlegtes Firmenlogo.
+          <img
+            src={logoUrl}
+            alt="Logo"
+            style={{ maxHeight:40, maxWidth:200, width:'auto', objectFit:'contain', flexShrink:0 }}
+          />
+        ) : (
+          // Standard-/Demo-Logo (z. B. für Bücher des Administrators).
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{
+              width:32, height:32, borderRadius:'50%',
+              background:'#1c1917', color:'#fafaf9',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'Georgia, serif', fontWeight:700, fontSize:15,
+              flexShrink:0,
+            }}>{PARTNER_MONOGRAM}</div>
+            <div style={{ minWidth:0, lineHeight:1.3 }}>
+              <div style={{ fontWeight:600, fontSize:14, color:'#1c1917', fontFamily:'Georgia, serif' }}>{PARTNER_NAME}</div>
+              <div style={{ fontSize:10.5, color:'#78716c', textTransform:'uppercase', letterSpacing:'.09em', marginTop:2 }}>präsentiert Lebensgeschichten.AI</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -573,7 +586,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <PartnerBanner />
+      <PartnerBanner logoUrl={memorial?.owner_logo} />
       <div style={{ borderBottom: '1px solid #e7e5e4', padding: '12px 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
@@ -871,7 +884,7 @@ function ContributorFlow({ code }) {
       {/* Sprachauswahl — bei mehreren angebotenen Sprachen ganz am Anfang */}
       {needLang && view !== 'error' && (
         <>
-          <PartnerBanner />
+          <PartnerBanner logoUrl={memorial?.owner_logo} />
           <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
             <div style={{ marginBottom:20 }}>
               {langs.map(code => (
@@ -892,7 +905,7 @@ function ContributorFlow({ code }) {
 
       {!needLang && view === 'info' && (
         <>
-          <PartnerBanner />
+          <PartnerBanner logoUrl={memorial?.owner_logo} />
           <div style={{ ...S.page, paddingTop:'2rem' }}>
             <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{ct.heading}</h2>
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
@@ -1073,8 +1086,8 @@ function Dashboard() {
   const [view, setView]               = useState('login') // login|list|create-category|create|created|detail|book-v1|book-v2|users
   const [token, setToken]             = useState(() => sessionStorage.getItem('lw_admin_token') || '')
   const [auth, setAuth]               = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem('lw_admin_auth') || '') || { admin: false, cats: [] } }
-    catch { return { admin: false, cats: [] } }
+    try { return JSON.parse(sessionStorage.getItem('lw_admin_auth') || '') || { admin: false, cats: [], uid: null } }
+    catch { return { admin: false, cats: [], uid: null } }
   })
   const [username, setUsername]       = useState('')
   const [password, setPassword]       = useState('')
@@ -1085,6 +1098,9 @@ function Dashboard() {
   const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
   const [usersData, setUsersData]     = useState({ users: [] })
   const [userForm, setUserForm]       = useState({ username: '', password: '', cats: [] })
+  const [logo, setLogo]               = useState(null)   // eigenes Firmenlogo (Data-URL)
+  const [logoLoading, setLogoLoading] = useState(false)
+  const [logoSaved, setLogoSaved]     = useState(false)
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1113,7 +1129,7 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       sessionStorage.setItem('lw_admin_token', d.token)
-      const authInfo = { admin: Boolean(d.admin), cats: d.cats ?? [] }
+      const authInfo = { admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null }
       sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
       setToken(d.token); setAuth(authInfo)
       await loadMemorials(d.token)
@@ -1162,7 +1178,7 @@ function Dashboard() {
   function logout() {
     sessionStorage.removeItem('lw_admin_token')
     sessionStorage.removeItem('lw_admin_auth')
-    setToken(''); setAuth({ admin: false, cats: [] }); setView('login'); setUsername(''); setPassword('')
+    setToken(''); setAuth({ admin: false, cats: [], uid: null }); setView('login'); setUsername(''); setPassword('')
     setMemorials([]); setContribs([]); setSelected(null)
   }
 
@@ -1209,6 +1225,39 @@ function Dashboard() {
       })
       setCreatedCode(code)
       setView('created')
+    } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+
+  // ── Einstellungen (eigenes Firmenlogo) ──
+  async function openSettings() {
+    setErr(''); setLogoSaved(false); setLogoLoading(true); setView('settings')
+    try {
+      const d = await getSettings(token)
+      setLogo(d.logo || null)
+    } catch (e) { setErr(e.message) }
+    finally { setLogoLoading(false) }
+  }
+
+  function onLogoFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // erlaubt erneutes Wählen derselben Datei
+    if (!file) return
+    setErr(''); setLogoSaved(false)
+    if (!/^image\//.test(file.type)) { setErr('Bitte eine Bilddatei auswählen.'); return }
+    if (file.size > 1_000_000) { setErr('Das Logo ist zu groß (max. 1 MB).'); return }
+    const reader = new FileReader()
+    reader.onload = () => setLogo(reader.result)
+    reader.onerror = () => setErr('Datei konnte nicht gelesen werden.')
+    reader.readAsDataURL(file)
+  }
+
+  async function saveLogo(value) {
+    setErr(''); setLogoSaved(false); setBusy(true)
+    try {
+      await saveSettings(token, { logo: value })
+      setLogo(value)
+      setLogoSaved(true)
     } catch (e) { setErr(e.message) }
     finally { setBusy(false) }
   }
@@ -1710,6 +1759,9 @@ function Dashboard() {
           {auth.admin && (
             <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer</button>
           )}
+          {auth.uid && (
+            <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
+          )}
           <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
         </div>
       </div>
@@ -2024,6 +2076,67 @@ function Dashboard() {
     </div>
     )
   }
+
+  // ── EINSTELLUNGEN (eigenes Firmenlogo) ──
+  if (view === 'settings') return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView('list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Einstellungen</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
+          Hinterlegen Sie Ihr Firmenlogo. Es wird den Beitragenden Ihrer Bücher oben angezeigt –
+          anstelle des Standard-Logos.
+        </p>
+        <Err msg={err} />
+
+        <div style={{ ...S.card }}>
+          <Lbl>Firmenlogo</Lbl>
+          {logoLoading ? (
+            <p style={S.muted}>Wird geladen …</p>
+          ) : (
+            <>
+              <div style={{
+                marginTop:8, marginBottom:14, padding:'18px',
+                border:'1px dashed #d6d3d1', borderRadius:10, background:'#fff',
+                display:'flex', alignItems:'center', justifyContent:'center', minHeight:90,
+              }}>
+                {logo
+                  ? <img src={logo} alt="Logo-Vorschau" style={{ maxHeight:80, maxWidth:'100%', objectFit:'contain' }} />
+                  : <span style={{ fontSize:13, color:'#a8a29e' }}>Noch kein Logo hinterlegt</span>}
+              </div>
+
+              <div style={{ background:'#f5f5f4', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginBottom:14 }}>
+                <div style={{ fontSize:12, color:'#78716c', marginBottom:6 }}>So sehen es die Beitragenden:</div>
+                <PartnerBanner logoUrl={logo} />
+              </div>
+
+              <p style={{ fontSize:12, color:'#78716c', margin:'0 0 12px' }}>
+                PNG, JPG, SVG, WebP oder GIF · max. 1 MB. Querformat mit transparentem Hintergrund wirkt am besten.
+              </p>
+
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <label className="secondary" style={{ fontSize:13, padding:'9px 16px', cursor:'pointer', display:'inline-block', borderRadius:8, border:'1px solid #d6d3d1' }}>
+                  📁 Logo auswählen
+                  <input type="file" accept="image/*" onChange={onLogoFile} style={{ display:'none' }} />
+                </label>
+                <button onClick={() => saveLogo(logo)} disabled={busy || !logo} style={{ fontSize:13, padding:'9px 16px' }}>
+                  {busy ? 'Wird gespeichert …' : 'Speichern'}
+                </button>
+                <button onClick={() => saveLogo(null)} disabled={busy || !logo} className="secondary" style={{ fontSize:13, padding:'9px 16px', color:'#dc2626', borderColor:'#fecaca' }}>
+                  Logo entfernen
+                </button>
+              </div>
+              {logoSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>✓ Gespeichert.</p>}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 
   // ── BENUTZER (nur Admin) ──
   if (view === 'users') return (

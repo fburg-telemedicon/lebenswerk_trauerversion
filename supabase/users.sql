@@ -34,6 +34,7 @@ create table if not exists app_users (
 
 -- Migration bestehender Installationen (vom Gruppen- aufs Benutzer-Modell)
 alter table app_users add    column if not exists allowed_categories text[] not null default '{}';
+alter table app_users add    column if not exists logo text;  -- Firmenlogo als Data-URL (data:image/...;base64,...); wird Beitragenden statt Demo-Logo gezeigt
 alter table app_users drop   column if exists group_id;
 
 -- ----------------------------------------------------------------
