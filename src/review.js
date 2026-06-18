@@ -42,6 +42,10 @@ Bewerte jede Fundstelle mit einem Schweregrad: "hoch" (sollte vor Veröffentlich
 
 Sei sorgfältig, aber melde keine Fehlalarme: Ein liebevoll-würdigender, festlicher oder anerkennender Text ist unproblematisch. Positive Erinnerungen, übliche Glück- und Trauerformeln und neutrale Lebensdaten sind KEINE Befunde. Religion/Glaube nur melden, wenn konkret eine Überzeugung zugeschrieben wird, nicht bei bloßer Erwähnung einer Feier oder eines Anlasses.
 
+Der Text ist mit Abschnitts-Markern in eckigen Klammern gegliedert, z. B. "[Titel]", "[Untertitel]" und "[Kapitel 3: <Überschrift>]". Nenne für jeden Befund im Feld "location" den zugehörigen Marker (z. B. "Kapitel 3: Die letzten Jahre" oder "Titel"), damit die Stelle auffindbar ist.
+
+WICHTIG: Das Feld "quote" muss die betroffene Stelle WÖRTLICH und unverändert aus dem Text übernehmen (exakt gleiche Schreibweise, ohne die eckigen Marker), damit sie im Buch automatisch markiert werden kann.
+
 Antworte AUSSCHLIESSLICH mit rohem JSON (kein Markdown, keine Code-Fences) in genau dieser Struktur:
 {
   "summary": "ein bis zwei Sätze Gesamteinschätzung auf Deutsch",
@@ -49,7 +53,8 @@ Antworte AUSSCHLIESSLICH mit rohem JSON (kein Markdown, keine Code-Fences) in ge
     {
       "category": "<exakt eine der obigen Bezeichnungen>",
       "severity": "hoch | mittel | niedrig",
-      "quote": "die betroffene Textstelle wörtlich (max. ~200 Zeichen)",
+      "location": "<Abschnitts-Marker, z. B. 'Kapitel 3: Die letzten Jahre'>",
+      "quote": "die betroffene Textstelle WÖRTLICH aus dem Buch (max. ~200 Zeichen, ohne eckige Marker)",
       "note": "kurze Begründung und Empfehlung auf Deutsch"
     }
   ]
@@ -58,16 +63,19 @@ Wenn nichts zu beanstanden ist, gib "findings": [] zurück.`
 }
 
 // Baut aus einem generierten Wert (Buch-Objekt oder String) den zu prüfenden
-// Fließtext.
+// Fließtext. Bücher werden mit klaren Abschnitts-Markern versehen, damit die
+// Prüfung die genaue Fundstelle (Kapitel) benennen kann.
 export function extractReviewText(value) {
   if (!value) return ''
   if (typeof value === 'string') return value
   const parts = []
-  if (value.title) parts.push(value.title)
-  if (value.subtitle) parts.push(value.subtitle)
-  for (const ch of (value.chapters || [])) {
-    if (ch?.heading) parts.push(ch.heading)
+  if (value.title) parts.push(`[Titel] ${value.title}`)
+  if (value.subtitle) parts.push(`[Untertitel] ${value.subtitle}`)
+  ;(value.chapters || []).forEach((ch, i) => {
+    const num = ch?.number || i + 1
+    const head = ch?.heading ? `: ${ch.heading}` : ''
+    parts.push(`[Kapitel ${num}${head}]`)
     if (ch?.body) parts.push(ch.body)
-  }
+  })
   return parts.join('\n\n')
 }

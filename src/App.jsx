@@ -337,6 +337,43 @@ function qrCodeUrl(text, size = 240) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
 }
 
+// Farbe einer im Prüfbericht markierten Stelle nach Schweregrad.
+function reviewMarkStyle(severity) {
+  const base = { padding:'0 2px', borderRadius:3 }
+  if (severity === 'hoch')   return { ...base, background:'#fecaca' }
+  if (severity === 'mittel') return { ...base, background:'#fde68a' }
+  return { ...base, background:'#fef08a' }
+}
+
+// Hebt im Prüfbericht gemeldete Zitate (marks = [{quote, severity}]) in einem
+// Textabschnitt farbig hervor. Best effort: nur exakte Treffer werden markiert,
+// der Bericht listet ohnehin alle Befunde.
+function highlightParagraph(text, marks) {
+  if (!marks || marks.length === 0) return text
+  const ranges = []
+  for (const m of marks) {
+    const q = m.quote
+    if (!q) continue
+    let idx = text.indexOf(q)
+    while (idx !== -1) {
+      ranges.push({ start: idx, end: idx + q.length, severity: m.severity })
+      idx = text.indexOf(q, idx + q.length)
+    }
+  }
+  if (ranges.length === 0) return text
+  ranges.sort((a, b) => a.start - b.start)
+  const nodes = []
+  let pos = 0, k = 0
+  for (const r of ranges) {
+    if (r.start < pos) continue // Überlappung -> überspringen
+    if (r.start > pos) nodes.push(text.slice(pos, r.start))
+    nodes.push(<mark key={k++} style={reviewMarkStyle(r.severity)}>{text.slice(r.start, r.end)}</mark>)
+    pos = r.end
+  }
+  if (pos < text.length) nodes.push(text.slice(pos))
+  return nodes
+}
+
 function cutoffDays(memorial) {
   const n = parseInt(memorial?.cutoff_days, 10)
   return Number.isFinite(n) && n >= 0 ? n : 7
@@ -1121,6 +1158,7 @@ function Dashboard() {
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
+  const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [reportModal, setReportModal] = useState(null)   // { title, report } | null
@@ -1534,6 +1572,53 @@ function Dashboard() {
     throw lastErr
   }
 
+  // Inhalts-/Datenschutzprüfung des fertigen Textes (separater Claude-Call),
+  // gespeichert in content_reports[field]. Genutzt von generate() und vom
+  // Button „Prüfung wiederholen".
+  async function runContentReview(field, value) {
+    try {
+      const reportRaw = await askClaude(
+        reviewSystemPrompt(selected),
+        [{ role: 'user', content: extractReviewText(value) }],
+        { memorialCode: selected.id, kind: 'review', token }
+      )
+      const parsed = tryParseJSON(reportRaw) || {}
+      const report = {
+        checked_at: new Date().toISOString(),
+        model: 'claude-sonnet-4-5',
+        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+        findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+      }
+      await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: report })
+      return report
+    } catch (e) {
+      try {
+        await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: { checked_at: new Date().toISOString(), error: e.message || String(e) } })
+      } catch {}
+      throw e
+    }
+  }
+
+  // Prüfung erneut auf den bereits gespeicherten Text anwenden (ohne neu zu
+  // generieren) – praktisch zum Testen.
+  async function recheck(key) {
+    const gen = GENERATORS[key]
+    const value = selected?.[gen.field]
+    if (!value) return
+    setReviewingKey(key); setErr('')
+    try {
+      await runContentReview(gen.field, value)
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json()
+        setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      }
+    } catch (e) { setErr(`Prüfung fehlgeschlagen: ${e.message}`) }
+    finally { setReviewingKey(null) }
+  }
+
   async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
@@ -1676,29 +1761,8 @@ function Dashboard() {
       // Call). Fehler hier dürfen die Generierung NICHT scheitern lassen –
       // der Text ist bereits gespeichert.
       setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
-      try {
-        const reviewText = extractReviewText(value)
-        const reportRaw = await askClaude(
-          reviewSystemPrompt(selected),
-          [{ role: 'user', content: reviewText }],
-          { memorialCode: selected.id, kind: 'review', token }
-        )
-        const parsed = tryParseJSON(reportRaw) || {}
-        const report = {
-          checked_at: new Date().toISOString(),
-          model: 'claude-sonnet-4-5',
-          summary: typeof parsed.summary === 'string' ? parsed.summary : '',
-          findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-        }
-        const merged = { ...(selected.content_reports || {}), [gen.field]: report }
-        await adminSaveMemorialText(token, selected.id, 'content_reports', merged)
-      } catch (e) {
-        console.warn('Inhaltsprüfung fehlgeschlagen:', e.message)
-        try {
-          const merged = { ...(selected.content_reports || {}), [gen.field]: { checked_at: new Date().toISOString(), error: e.message || String(e) } }
-          await adminSaveMemorialText(token, selected.id, 'content_reports', merged)
-        } catch {}
-      }
+      try { await runContentReview(gen.field, value) }
+      catch (e) { console.warn('Inhaltsprüfung fehlgeschlagen:', e.message) }
 
       // Neu laden, damit die signierten Bild-URLs ins selected/memorials kommen
       setGenProgress(p => ({ ...p, [key]: 'Bilder werden geladen …' }))
@@ -1837,6 +1901,7 @@ function Dashboard() {
                     <span style={{ fontWeight:600, fontSize:13 }}>{f.category || 'Befund'}</span>
                     <span style={{ ...sevStyle(f.severity), fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6, textTransform:'uppercase' }}>{f.severity || '—'}</span>
                   </div>
+                  {f.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {f.location}</p>}
                   {f.quote && <p style={{ fontSize:13, fontStyle:'italic', color:'#44403c', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p>}
                   {f.note && <p style={{ fontSize:13, color:'#57534e', margin:0 }}>{f.note}</p>}
                 </div>
@@ -2611,11 +2676,12 @@ function Dashboard() {
                 </div>
               )
             })()}
-            <label style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, fontSize:13, color:'#78716c', cursor:'pointer' }}>
-              <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} />
-              🐞 Bilder überspringen (schneller – für Tests)
-            </label>
-            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
+            <div style={{ border:'1px solid #e7e5e4', borderRadius:10, padding:14, marginBottom:'1.5rem', background:'#fff' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, fontSize:13, color:'#78716c', cursor:'pointer' }}>
+                <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} />
+                🐞 Bilder überspringen (schneller – für Tests)
+              </label>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               {[
                 { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
                 { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub:'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
@@ -2645,6 +2711,9 @@ function Dashboard() {
                       <button onClick={() => downloadGenerated(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         ⬇ Download .docx
                       </button>
+                      <button onClick={() => recheck(key)} disabled={!has || busy || reviewingKey === key} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
+                      </button>
                     </div>
                     {has && !busy && report && (
                       <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f5f5f4' }}>
@@ -2664,6 +2733,7 @@ function Dashboard() {
                   </div>
                 )
               })}
+              </div>
             </div>
           </>)}
 
@@ -2878,6 +2948,8 @@ function Dashboard() {
     const data = selected[gen.field]
     const busy = !!generating[key]
     const bt = uiText(data?.language)
+    const reviewReport = selected.content_reports?.[gen.field]
+    const reviewMarks = (reviewReport?.findings || []).filter(f => f.quote).map(f => ({ quote: String(f.quote), severity: f.severity }))
     const subtitle = view === 'book-v1' ? `${getCategory(selected?.product_category).nounBook} · Version 1`
                    : view === 'book-v2' ? `${getCategory(selected?.product_category).nounBook} · Version 2`
                    : GENERATORS.eulogy.label
@@ -2904,6 +2976,12 @@ function Dashboard() {
               <h2 style={{ fontSize:36, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:12, color:'#1c1917' }}>{data.title || '—'}</h2>
               {data.subtitle && <p style={{ fontSize:18, fontStyle:'italic', color:'#78716c', fontFamily:'Georgia,serif' }}>{data.subtitle}</p>}
             </div>
+            {reviewMarks.length > 0 && (
+              <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:'2rem', fontSize:13, color:'#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+                <span>🛡 {reviewMarks.length} {reviewMarks.length === 1 ? 'Stelle' : 'Stellen'} aus der Inhaltsprüfung sind im Text farbig markiert.</span>
+                <button className="secondary" onClick={() => setReportModal({ title: gen.label, report: reviewReport })} style={{ fontSize:12, padding:'5px 10px' }}>Prüfbericht</button>
+              </div>
+            )}
             {(data.chapters || []).map((ch, i) => (
               <div key={i} style={{ marginBottom:'3rem' }}>
                 <div style={{ textAlign:'center', marginBottom:'1.25rem' }}>
@@ -2940,7 +3018,7 @@ function Dashboard() {
                   </div>
                 )}
                 <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
-                  {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{p}</p>)}
+                  {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{highlightParagraph(p, reviewMarks)}</p>)}
                 </div>
               </div>
             ))}
