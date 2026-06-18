@@ -1120,6 +1120,7 @@ function Dashboard() {
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
+  const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [reportModal, setReportModal] = useState(null)   // { title, report } | null
@@ -1602,23 +1603,28 @@ function Dashboard() {
         }
 
         // Phase 3: Bilder pro Kapitel (sequenziell, mit Auto-Retry) ─────
+        // Per Checkbox überspringbar (Debug: spart die langsame Bildphase).
         const total = value.chapters.length
         const imageErrors = []
-        for (let i = 0; i < total; i++) {
-          const ch = value.chapters[i]
-          setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
-          if (!ch.image_prompt) {
-            value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
-            imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
-            continue
-          }
-          try {
-            const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt)
-            value.chapters[i] = { ...ch, image_path: storagePath, image_error: null }
-          } catch (e) {
-            console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
-            value.chapters[i] = { ...ch, image_error: e.message || String(e) }
-            imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
+        if (skipImages) {
+          setGenProgress(p => ({ ...p, [key]: 'Bilder werden übersprungen …' }))
+        } else {
+          for (let i = 0; i < total; i++) {
+            const ch = value.chapters[i]
+            setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
+            if (!ch.image_prompt) {
+              value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
+              imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
+              continue
+            }
+            try {
+              const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt)
+              value.chapters[i] = { ...ch, image_path: storagePath, image_error: null }
+            } catch (e) {
+              console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
+              value.chapters[i] = { ...ch, image_error: e.message || String(e) }
+              imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
+            }
           }
         }
 
@@ -2605,6 +2611,10 @@ function Dashboard() {
                 </div>
               )
             })()}
+            <label style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, fontSize:13, color:'#78716c', cursor:'pointer' }}>
+              <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} />
+              🐞 Bilder überspringen (schneller – für Tests)
+            </label>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
                 { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
