@@ -1164,6 +1164,8 @@ function Dashboard() {
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
   const [reviewPct, setReviewPct]       = useState(0)     // simulierter %-Fortschritt der Prüfung
   const [applyingFinding, setApplyingFinding] = useState(null) // "field:index" während Maßnahme läuft
+  const [editingFinding, setEditingFinding]   = useState(null) // "field:index" beim manuellen Editieren
+  const [editText, setEditText]               = useState('')
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
@@ -1748,6 +1750,50 @@ function Dashboard() {
     setGenProgress(p => ({ ...p, [key]: 'Wird abgebrochen …' }))
   }
 
+  // Manuelles Bearbeiten des Korrekturtexts einer bereits umformulierten Stelle.
+  // Ersetzt die aktuelle Formulierung im Buch durch die vom Nutzer editierte und
+  // dokumentiert das als eigenen Historien-Eintrag ('edit').
+  async function editFindingText(field, index, newText) {
+    const report = selected?.content_reports?.[field]
+    const value = selected?.[field]
+    const finding = report?.findings?.[index]
+    if (!finding || value == null) return
+    const current = String(finding.new_text || '')
+    const edited = String(newText || '').trim()
+    if (!edited) { setErr('Der Korrekturtext darf nicht leer sein.'); return }
+    if (edited === current) { setEditingFinding(null); return }
+    setApplyingFinding(`${field}:${index}`); setErr('')
+    try {
+      const isBook = value && typeof value === 'object' && Array.isArray(value.chapters)
+      let newValue
+      if (isBook) {
+        const ci = value.chapters.findIndex(ch => String(ch.body || '').includes(current))
+        if (ci === -1) throw new Error('Aktuelle Formulierung im Buch nicht gefunden (evtl. zwischenzeitlich geändert).')
+        newValue = { ...value, chapters: value.chapters.map((ch, i) => i === ci ? { ...ch, body: ch.body.replace(current, edited) } : ch) }
+      } else {
+        if (!String(value).includes(current)) throw new Error('Aktuelle Formulierung nicht gefunden.')
+        newValue = String(value).replace(current, edited)
+      }
+      await adminSaveMemorialText(token, selected.id, field, newValue)
+      const at = new Date().toISOString()
+      const newFindings = report.findings.map((f, i) => i === index ? { ...f, new_text: edited, resolved_at: at } : f)
+      const entry = { at, action: 'edit', category: finding.category || '', location: finding.location || '', old_text: current, new_text: edited }
+      const newReport = { ...report, findings: newFindings, revisions: [ ...(report.revisions || []), entry ] }
+      await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) { setSelected(u); setReportModal(mm => mm ? { ...mm, report: u.content_reports?.[field] } : mm) }
+      } else {
+        setSelected(s => ({ ...s, [field]: newValue, content_reports: { ...(s.content_reports || {}), [field]: newReport } }))
+        setReportModal(mm => mm ? { ...mm, report: newReport } : mm)
+      }
+      setEditingFinding(null)
+    } catch (e) { setErr(`Bearbeiten fehlgeschlagen: ${e.message}`) }
+    finally { setApplyingFinding(null) }
+  }
+
   async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
@@ -2066,9 +2112,24 @@ function Dashboard() {
                   </div>
                   {f.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {f.location}</p>}
                   {(() => { const struck = resolved && f.resolution !== 'accept'; return f.quote && <p style={{ fontSize:13, fontStyle:'italic', color: struck ? '#a8a29e' : '#44403c', textDecoration: struck ? 'line-through' : 'none', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p> })()}
-                  {resolved && f.resolution === 'rephrase' && f.new_text && (
-                    <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:'0 0 6px', borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{f.new_text}"</p>
-                  )}
+                  {resolved && f.resolution === 'rephrase' && (() => {
+                    const editKey = `${reportModal.field}:${i}`
+                    if (editingFinding === editKey) return (
+                      <div style={{ margin:'4px 0 6px', paddingLeft:10, borderLeft:'3px solid #bbf7d0' }}>
+                        <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={3} style={{ width:'100%', fontFamily:'inherit', fontSize:13, resize:'vertical' }} />
+                        <div style={{ display:'flex', gap:8, marginTop:6 }}>
+                          <button onClick={() => editFindingText(reportModal.field, i, editText)} disabled={!!applyingFinding} style={{ fontSize:12, padding:'5px 10px' }}>{applyingFinding === editKey ? 'Speichert …' : 'Speichern'}</button>
+                          <button onClick={() => setEditingFinding(null)} className="ghost" style={{ fontSize:12 }}>Abbrechen</button>
+                        </div>
+                      </div>
+                    )
+                    return f.new_text ? (
+                      <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:'0 0 6px', borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>
+                        → „{f.new_text}"{' '}
+                        <button className="ghost" onClick={() => { setEditingFinding(editKey); setEditText(f.new_text) }} style={{ fontSize:12, padding:'0 4px', textDecoration:'underline', fontStyle:'normal' }}>✏ bearbeiten</button>
+                      </p>
+                    ) : null
+                  })()}
                   {f.note && <p style={{ fontSize:13, color:'#57534e', margin:0 }}>{f.note}</p>}
                   {f.source_contributor && (
                     <p style={{ fontSize:12, color:'#78716c', margin:'6px 0 0' }}>
@@ -2126,15 +2187,15 @@ function Dashboard() {
               <div key={i} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 12px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
                   <span style={{ fontWeight:600, fontSize:13, color: e.action === 'delete' ? '#b91c1c' : '#1d4ed8' }}>
-                    {e.action === 'delete' ? '🗑 Gelöscht' : '✏ Umformuliert'}{e.category ? ` · ${e.category}` : ''}
+                    {e.action === 'delete' ? '🗑 Gelöscht' : e.action === 'edit' ? '✏ Korrektur bearbeitet' : '✏ Umformuliert'}{e.category ? ` · ${e.category}` : ''}
                   </span>
                   <span style={{ fontSize:11, color:'#a8a29e' }}>{e.at ? new Date(e.at).toLocaleString('de-DE') : ''}</span>
                 </div>
                 {e.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {e.location}</p>}
                 {e.old_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#a8a29e', textDecoration:'line-through', margin:'0 0 4px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{e.old_text}"</p>}
-                {e.action === 'rephrase'
-                  ? (e.new_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:0, borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{e.new_text}"</p>)
-                  : <p style={{ fontSize:12, color:'#78716c', margin:0 }}>(aus dem Text entfernt)</p>}
+                {e.action === 'delete'
+                  ? <p style={{ fontSize:12, color:'#78716c', margin:0 }}>(aus dem Text entfernt)</p>
+                  : (e.new_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:0, borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{e.new_text}"</p>)}
               </div>
             ))}
           </div>
