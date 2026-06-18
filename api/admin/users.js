@@ -46,9 +46,9 @@ async function handleSelf(req, res) {
   }
   if (req.method === 'GET') {
     const { data, error } = await supabase
-      .from('app_users').select('logo').eq('id', req.auth.uid).single()
+      .from('app_users').select('username, logo').eq('id', req.auth.uid).single()
     if (error) throw error
-    return res.json({ logo: data?.logo ?? null })
+    return res.json({ username: data?.username ?? null, logo: data?.logo ?? null })
   }
   if (req.method === 'PATCH' || req.method === 'PUT') {
     const v = validateLogo((req.body || {}).logo)

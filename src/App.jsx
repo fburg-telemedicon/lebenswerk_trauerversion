@@ -1130,6 +1130,24 @@ function Dashboard() {
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
 
+  // Fehlt der Anzeigename (z. B. Session von vor dem Deploy), serverseitig
+  // nachladen – damit oben der echte Benutzername statt eines Platzhalters steht.
+  useEffect(() => {
+    if (!token || auth.username) return
+    const uid = auth.uid ?? decodeToken(token)?.uid
+    if (!uid) return
+    getSettings(token)
+      .then(d => {
+        if (!d?.username) return
+        setAuth(a => {
+          const next = { ...a, username: d.username, uid: a.uid ?? uid }
+          sessionStorage.setItem('lw_admin_auth', JSON.stringify(next))
+          return next
+        })
+      })
+      .catch(() => {})
+  }, [token])
+
   async function login(e) {
     e.preventDefault()
     setLoading(true); setErr('')
