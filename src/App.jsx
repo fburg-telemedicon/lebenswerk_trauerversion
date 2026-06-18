@@ -1166,7 +1166,8 @@ function Dashboard() {
   const [applyingFinding, setApplyingFinding] = useState(null) // "field:index" während Maßnahme läuft
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
-  const [reportModal, setReportModal] = useState(null)   // { title, report } | null
+  const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
+  const [historyModal, setHistoryModal] = useState(null) // { title, entries } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
   const [loading, setLoading]         = useState(false)
@@ -1580,7 +1581,7 @@ function Dashboard() {
   // Inhalts-/Datenschutzprüfung des fertigen Textes (separater Claude-Call),
   // gespeichert in content_reports[field]. Genutzt von generate() und vom
   // Button „Prüfung wiederholen".
-  async function runContentReview(field, value) {
+  async function runContentReview(field, value, { keepRevisions = false } = {}) {
     try {
       const reportRaw = await askClaude(
         reviewSystemPrompt(selected),
@@ -1593,6 +1594,8 @@ function Dashboard() {
         model: 'claude-sonnet-4-5',
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
         findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+        // Bei „Prüfung wiederholen" Historie behalten; bei Neugenerierung leeren.
+        revisions: keepRevisions ? (selected.content_reports?.[field]?.revisions || []) : [],
       }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: report })
       return report
@@ -1617,7 +1620,7 @@ function Dashboard() {
       setReviewPct(p => (p >= 90 ? 90 : p + Math.max(2, Math.round((90 - p) * 0.12))))
     }, 400)
     try {
-      await runContentReview(gen.field, value)
+      await runContentReview(gen.field, value, { keepRevisions: true })
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) {
         const fresh = await r.json()
@@ -1677,10 +1680,14 @@ function Dashboard() {
         : corrected
       await adminSaveMemorialText(token, selected.id, field, newValue)
 
+      const at = new Date().toISOString()
       const newFindings = report.findings.map((f, i) => i === index
-        ? { ...f, status: 'resolved', resolution: mode, resolved_at: new Date().toISOString(), new_text: newText }
+        ? { ...f, status: 'resolved', resolution: mode, resolved_at: at, new_text: newText }
         : f)
-      const newReport = { ...report, findings: newFindings }
+      // Überarbeitungshistorie (in content_reports[field].revisions abgelegt –
+      // wird bei jeder Neugenerierung automatisch mit dem Bericht zurückgesetzt).
+      const entry = { at, action: mode, category: finding.category || '', location: finding.location || '', old_text: quote, new_text: newText }
+      const newReport = { ...report, findings: newFindings, revisions: [ ...(report.revisions || []), entry ] }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
 
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
@@ -2052,6 +2059,44 @@ function Dashboard() {
         ))}
         <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:16 }}>
           <button className="ghost" onClick={() => setReportModal(null)} style={{ fontSize:14 }}>Schließen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  const historyOverlay = historyModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 640, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
+          <h2 style={{ fontSize:18, fontWeight:700, margin:0 }}>🕓 Überarbeitungshistorie – {historyModal.title}</h2>
+          <button className="ghost" onClick={() => setHistoryModal(null)} style={{ fontSize:20, lineHeight:1, padding:'0 6px' }}>×</button>
+        </div>
+        <p style={{ ...S.muted, fontSize:12, marginTop:0, marginBottom:14 }}>
+          Protokoll der über den Prüfbericht ausgeführten Änderungen. Wird bei einer Neugenerierung des Buchs zurückgesetzt.
+        </p>
+        {(!historyModal.entries || historyModal.entries.length === 0) ? (
+          <p style={{ fontSize:14, color:'#78716c' }}>Noch keine Überarbeitungen.</p>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {historyModal.entries.map((e, i) => (
+              <div key={i} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 12px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
+                  <span style={{ fontWeight:600, fontSize:13, color: e.action === 'delete' ? '#b91c1c' : '#1d4ed8' }}>
+                    {e.action === 'delete' ? '🗑 Gelöscht' : '✏ Umformuliert'}{e.category ? ` · ${e.category}` : ''}
+                  </span>
+                  <span style={{ fontSize:11, color:'#a8a29e' }}>{e.at ? new Date(e.at).toLocaleString('de-DE') : ''}</span>
+                </div>
+                {e.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {e.location}</p>}
+                {e.old_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#a8a29e', textDecoration:'line-through', margin:'0 0 4px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{e.old_text}"</p>}
+                {e.action === 'rephrase'
+                  ? (e.new_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:0, borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{e.new_text}"</p>)
+                  : <p style={{ fontSize:12, color:'#78716c', margin:0 }}>(aus dem Text entfernt)</p>}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:16 }}>
+          <button className="ghost" onClick={() => setHistoryModal(null)} style={{ fontSize:14 }}>Schließen</button>
         </div>
       </div>
     </div>
@@ -2896,6 +2941,11 @@ function Dashboard() {
                         ) : (
                           <span style={{ fontSize:12, color:'#15803d' }}>🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.</span>
                         )}
+                        {report.revisions?.length > 0 && (
+                          <button onClick={() => setHistoryModal({ title, entries: report.revisions })} className="secondary" style={{ fontSize:12, padding:'6px 10px', marginLeft:8 }}>
+                            🕓 Überarbeitungshistorie ({report.revisions.length})
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2917,6 +2967,7 @@ function Dashboard() {
         {eulogyStyleOverlay}
         {genLangOverlay}
         {reportOverlay}
+        {historyOverlay}
       </div>
     )
   }
@@ -3226,6 +3277,7 @@ function Dashboard() {
         {eulogyStyleOverlay}
         {genLangOverlay}
         {reportOverlay}
+        {historyOverlay}
       </div>
     )
   }
