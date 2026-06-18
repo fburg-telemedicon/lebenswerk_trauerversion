@@ -327,7 +327,7 @@ const EMPTY_CREATE = {
   name: '', organizer: '', gender: '', bookVariant: 1,
   funeralDate: '', cutoffDays: 7, showIntroVideo: true,
   productCategory: DEFAULT_CATEGORY, intake: {},
-  languages: [DEFAULT_LANGUAGE],
+  languages: [DEFAULT_LANGUAGE], note: '',
 }
 
 function qrCodeUrl(text, size = 240) {
@@ -1205,6 +1205,7 @@ function Dashboard() {
         productCategory: createForm.productCategory,
         intake: createForm.intake || {},
         languages: createForm.languages?.length ? createForm.languages : [DEFAULT_LANGUAGE],
+        note: createForm.note?.trim() || null,
       })
       setCreatedCode(code)
       setView('created')
@@ -1999,6 +2000,19 @@ function Dashboard() {
             Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
           </p>
         </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Bemerkung</Lbl>
+          <textarea
+            value={createForm.note}
+            onChange={e => setCreateForm({ ...createForm, note: e.target.value })}
+            placeholder="Interne Notiz zu diesem Buch (optional) – wird bei der Bucherstellung angezeigt."
+            rows={3}
+            style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14 }}
+          />
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+            Nur intern sichtbar. Wird bei der Bucherstellung angezeigt – z. B. Hinweise zur Gestaltung oder zum Inhalt.
+          </p>
+        </div>
         <button
           disabled={!canSubmit}
           onClick={handleCreate}
@@ -2242,6 +2256,22 @@ function Dashboard() {
             </div>
 
             <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & {GENERATORS.eulogy.label}</h3>
+            {(() => {
+              const variant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+              return (
+                <div style={{ ...S.card, marginBottom:'1rem', background:'#f5f5f4', borderColor:'#e7e5e4' }}>
+                  <Lbl>Gewählte Buch-Variante</Lbl>
+                  <div style={{ fontWeight:600, fontSize:15, margin:'4px 0 2px' }}>{variant.title}</div>
+                  <p style={{ ...S.muted, fontSize:13, margin:0 }}>{variant.sub}</p>
+                  {selected.note && (
+                    <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #e7e5e4' }}>
+                      <Lbl>Bemerkung</Lbl>
+                      <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{selected.note}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
                 { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },

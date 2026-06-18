@@ -24,11 +24,11 @@ async function parseResponse(res) {
 // Anlage läuft jetzt authentifiziert über den Admin-Endpoint, damit
 // Produktkategorie + Eigentümer-Gruppe serverseitig vertrauenswürdig
 // gesetzt werden können.
-export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages }) {
+export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note }) {
   const res = await fetch('/api/admin/memorials', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note }),
   })
   return parseResponse(res) // { code }
 }

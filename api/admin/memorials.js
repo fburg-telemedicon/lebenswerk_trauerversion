@@ -71,7 +71,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, created_at')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -117,7 +117,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -142,6 +142,7 @@ module.exports = async function handler(req, res) {
         owner_user: req.auth.admin ? null : (req.auth.uid || null),
         intake: intake && typeof intake === 'object' ? intake : null,
         languages: langs,
+        note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
       })
       if (error) throw error
       return res.json({ code })
