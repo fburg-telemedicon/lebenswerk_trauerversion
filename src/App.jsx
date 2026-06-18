@@ -2713,8 +2713,8 @@ function Dashboard() {
                       </button>
                     </div>
                     {gen.kind === 'book' && (
-                      <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12, color:'#78716c', cursor:'pointer' }}>
-                        <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} />
+                      <label style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:10, fontSize:12, color:'#78716c', cursor:'pointer' }}>
+                        <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} style={{ width:16, height:16, flexShrink:0, margin:0, cursor:'pointer' }} />
                         🐞 Bilder überspringen (schneller – für Tests)
                       </label>
                     )}
