@@ -46,6 +46,10 @@ Der Text ist mit Abschnitts-Markern in eckigen Klammern gegliedert, z. B. "[Tite
 
 WICHTIG: Das Feld "quote" muss die betroffene Stelle WÖRTLICH und unverändert aus dem Text übernehmen (exakt gleiche Schreibweise, ohne die eckigen Marker), damit sie im Buch automatisch markiert werden kann.
 
+PRÜFE NUR DEN BUCHTEXT: Melde ausschließlich Befunde, deren beanstandeter Inhalt TATSÄCHLICH im BUCHTEXT (oben) steht. Inhalte, die zwar in den Beiträgen, aber NICHT (mehr) im Buchtext vorkommen, sind KEIN Befund – sie wurden ggf. bereits entfernt oder umformuliert.
+
+QUELLENZUORDNUNG: Nach dem Buchtext folgen unter "BEITRÄGE (Quellen)" die Original-Antworten der Beitragenden. Sie dienen NUR der Zuordnung, nicht der Befundung. Ordne jeden Befund der Quelle zu, aus der die kritische Information stammt: Feld "source_contributor" = Name des Beitragenden, "source_quote" = die wörtliche Antwort (oder ein kurzer wörtlicher Auszug daraus), in der diese Information vorkommt. Lässt sich die Quelle nicht eindeutig zuordnen (z. B. aus mehreren Beiträgen verwoben), gib beide Felder als leeren String "" zurück. Erfinde keine Quelle.
+
 Antworte AUSSCHLIESSLICH mit rohem JSON (kein Markdown, keine Code-Fences) in genau dieser Struktur:
 {
   "summary": "ein bis zwei Sätze Gesamteinschätzung auf Deutsch",
@@ -55,6 +59,8 @@ Antworte AUSSCHLIESSLICH mit rohem JSON (kein Markdown, keine Code-Fences) in ge
       "severity": "hoch | mittel | niedrig",
       "location": "<Abschnitts-Marker, z. B. 'Kapitel 3: Die letzten Jahre'>",
       "quote": "die betroffene Textstelle WÖRTLICH aus dem Buch (max. ~200 Zeichen, ohne eckige Marker)",
+      "source_contributor": "<Name des Beitragenden oder \\"\\">",
+      "source_quote": "<wörtlicher Auszug aus dessen Antwort oder \\"\\">",
       "note": "kurze Begründung und Empfehlung auf Deutsch"
     }
   ]
@@ -78,4 +84,19 @@ export function extractReviewText(value) {
     if (ch?.body) parts.push(ch.body)
   })
   return parts.join('\n\n')
+}
+
+// Formatiert die Beiträge als Quellenkontext für die Prüfung, damit die KI
+// jeden Befund einem Beitragenden + dessen Antwort zuordnen kann.
+export function contributionsContext(contributions = []) {
+  if (!contributions.length) return ''
+  const blocks = contributions.map((c, i) => {
+    const lines = [`[Beitrag ${i + 1}] ${c.contributor_name || 'Unbekannt'}${c.relationship ? ` (${c.relationship})` : ''}`]
+    for (const m of (Array.isArray(c.messages) ? c.messages : [])) {
+      if (m?.role === 'assistant') lines.push(`F: ${m.content}`)
+      else if (m?.role === 'user') lines.push(`A: ${m.content}`)
+    }
+    return lines.join('\n')
+  })
+  return `BEITRÄGE (Quellen):\n\n${blocks.join('\n\n')}`
 }

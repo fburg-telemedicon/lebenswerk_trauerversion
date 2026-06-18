@@ -13,7 +13,7 @@ import {
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
-import { reviewSystemPrompt, extractReviewText } from './review.js'
+import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -1585,17 +1585,25 @@ function Dashboard() {
     try {
       const reportRaw = await askClaude(
         reviewSystemPrompt(selected),
-        [{ role: 'user', content: extractReviewText(value) }],
+        [{ role: 'user', content: `BUCHTEXT:\n${extractReviewText(value)}\n\n${contributionsContext(contributions)}` }],
         { memorialCode: selected.id, kind: 'review', token }
       )
       const parsed = tryParseJSON(reportRaw) || {}
+      // Bei „Prüfung wiederholen" bereits erledigte Befunde (umformuliert/
+      // gelöscht/als ok markiert) beibehalten und neue Befunde gegen sie
+      // entdoppeln – so taucht eine schon bearbeitete Stelle nicht wieder auf.
+      const prev = selected.content_reports?.[field]
+      const resolvedPrev = keepRevisions ? (prev?.findings || []).filter(f => f.status === 'resolved') : []
+      const resolvedQuotes = new Set(resolvedPrev.map(f => String(f.quote || '').trim()).filter(Boolean))
+      const freshFindings = (Array.isArray(parsed.findings) ? parsed.findings : [])
+        .filter(f => !resolvedQuotes.has(String(f.quote || '').trim()))
       const report = {
         checked_at: new Date().toISOString(),
         model: 'claude-sonnet-4-5',
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
-        findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+        findings: [...resolvedPrev, ...freshFindings],
         // Bei „Prüfung wiederholen" Historie behalten; bei Neugenerierung leeren.
-        revisions: keepRevisions ? (selected.content_reports?.[field]?.revisions || []) : [],
+        revisions: keepRevisions ? (prev?.revisions || []) : [],
       }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: report })
       return report
@@ -1616,9 +1624,11 @@ function Dashboard() {
     setReviewingKey(key); setErr(''); setReviewPct(0)
     // Simulierter Fortschritt: ein einzelner KI-Call liefert keinen echten
     // Zwischenstand; wir lassen die Anzeige gleichmäßig bis 90 % hochlaufen.
+    // Gleichmäßig und bewusst langsam bis 92 % (ein einzelner KI-Call hat
+    // keinen echten Zwischenstand); springt bei Abschluss auf 100 %.
     const iv = setInterval(() => {
-      setReviewPct(p => (p >= 90 ? 90 : p + Math.max(2, Math.round((90 - p) * 0.12))))
-    }, 400)
+      setReviewPct(p => Math.min(92, p + 2))
+    }, 800)
     try {
       await runContentReview(gen.field, value, { keepRevisions: true })
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
@@ -1641,6 +1651,31 @@ function Dashboard() {
     const value = selected?.[field]
     const finding = report?.findings?.[index]
     if (!finding || value == null) return
+
+    // Als unkritisch markieren: keine Textänderung, kein KI-Call, kein
+    // Historien-Eintrag (es wurde ja nichts überarbeitet).
+    if (mode === 'accept') {
+      setApplyingFinding(`${field}:${index}`); setErr('')
+      try {
+        const newFindings = report.findings.map((f, i) => i === index
+          ? { ...f, status: 'resolved', resolution: 'accept', resolved_at: new Date().toISOString() }
+          : f)
+        const newReport = { ...report, findings: newFindings }
+        await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
+        const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+        if (r.ok) {
+          const fresh = await r.json(); setMemorials(fresh)
+          const u = fresh.find(m => m.id === selected.id)
+          if (u) { setSelected(u); setReportModal(mm => mm ? { ...mm, report: u.content_reports?.[field] } : mm) }
+        } else {
+          setSelected(s => ({ ...s, content_reports: { ...(s.content_reports || {}), [field]: newReport } }))
+          setReportModal(mm => mm ? { ...mm, report: newReport } : mm)
+        }
+      } catch (e) { setErr(`Aktion fehlgeschlagen: ${e.message}`) }
+      finally { setApplyingFinding(null) }
+      return
+    }
+
     const quote = String(finding.quote || '')
     if (!quote) { setErr('Dieser Befund hat kein Zitat, das automatisch geändert werden kann.'); return }
     setApplyingFinding(`${field}:${index}`); setErr('')
@@ -2030,22 +2065,31 @@ function Dashboard() {
                     <span style={{ ...sevStyle(f.severity), fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6, textTransform:'uppercase' }}>{f.severity || '—'}</span>
                   </div>
                   {f.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {f.location}</p>}
-                  {f.quote && <p style={{ fontSize:13, fontStyle:'italic', color: resolved ? '#a8a29e' : '#44403c', textDecoration: resolved ? 'line-through' : 'none', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p>}
+                  {(() => { const struck = resolved && f.resolution !== 'accept'; return f.quote && <p style={{ fontSize:13, fontStyle:'italic', color: struck ? '#a8a29e' : '#44403c', textDecoration: struck ? 'line-through' : 'none', margin:'0 0 6px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{f.quote}"</p> })()}
                   {resolved && f.resolution === 'rephrase' && f.new_text && (
                     <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:'0 0 6px', borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{f.new_text}"</p>
                   )}
                   {f.note && <p style={{ fontSize:13, color:'#57534e', margin:0 }}>{f.note}</p>}
+                  {f.source_contributor && (
+                    <p style={{ fontSize:12, color:'#78716c', margin:'6px 0 0' }}>
+                      👤 Quelle: <strong style={{ color:'#57534e' }}>{f.source_contributor}</strong>
+                      {f.source_quote ? <> – „{f.source_quote}"</> : null}
+                    </p>
+                  )}
                   {resolved ? (
                     <p style={{ fontSize:12, color:'#15803d', margin:'8px 0 0', fontWeight:600 }}>
-                      ✓ {f.resolution === 'delete' ? 'Im Text gelöscht' : 'Im Text umformuliert'}{f.resolved_at ? ` · ${new Date(f.resolved_at).toLocaleString('de-DE')}` : ''}
+                      ✓ {f.resolution === 'delete' ? 'Im Text gelöscht' : f.resolution === 'accept' ? 'Als in Ordnung markiert' : 'Im Text umformuliert'}{f.resolved_at ? ` · ${new Date(f.resolved_at).toLocaleString('de-DE')}` : ''}
                     </p>
                   ) : reportModal.field ? (
-                    <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                    <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap', alignItems:'center' }}>
                       <button onClick={() => applyFinding(reportModal.field, i, 'rephrase')} disabled={!!applyingFinding} style={{ fontSize:12, padding:'6px 10px' }}>
                         {applying ? 'Wird angewendet …' : '✏ Umformulieren'}
                       </button>
                       <button onClick={() => applyFinding(reportModal.field, i, 'delete')} disabled={!!applyingFinding} className="secondary" style={{ fontSize:12, padding:'6px 10px', color:'#b91c1c', borderColor:'#fecaca' }}>
                         🗑 Löschen
+                      </button>
+                      <button onClick={() => applyFinding(reportModal.field, i, 'accept')} disabled={!!applyingFinding} className="secondary" style={{ fontSize:12, padding:'6px 10px', color:'#15803d', borderColor:'#bbf7d0' }}>
+                        ✓ In Ordnung
                       </button>
                     </div>
                   ) : null}
