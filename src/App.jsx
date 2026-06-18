@@ -25,6 +25,12 @@ const sessionFromURL = (urlParams.get('session') || '').trim()
 // Fassung zugestimmt wurde.
 const CONSENT_VERSION = '1.2 (2026-06-18)'
 
+// Disclaimer zur Entstehung & Haftung – wird ans Ende jedes Buchs/jeder Rede
+// gesetzt (HTML-Ansicht + DOCX) und im Impressum/Datenschutz referenziert.
+const BOOK_DISCLAIMER_TITLE = 'Hinweis zur Entstehung dieses Buches'
+const BOOK_DISCLAIMER =
+  'Dieses Buch wurde auf Grundlage von Interviews mit nahestehenden Personen mithilfe von künstlicher Intelligenz erstellt. Es gibt persönliche Erinnerungen und Schilderungen der Beitragenden wieder. Ihre inhaltliche Richtigkeit, Vollständigkeit und Aktualität können wir nicht überprüfen; eine Haftung hierfür ist – soweit gesetzlich zulässig – ausgeschlossen.'
+
 // ── Passwortrichtlinie (identisch zu api/_lib/auth.js) ────────────
 // Moderat: mind. 8 Zeichen, mind. 1 Ziffer, mind. 1 Sonderzeichen.
 const PASSWORD_RULES_TEXT = 'Mindestens 8 Zeichen, davon mindestens eine Ziffer und ein Sonderzeichen.'
@@ -280,6 +286,16 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
       }))
     }
   }
+  // Disclaimer am Ende (Entstehung & Haftung).
+  children.push(new Paragraph({
+    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, size: 20, bold: true, color: '78716c' })],
+    pageBreakBefore: true,
+    spacing: { after: 120 },
+  }))
+  children.push(new Paragraph({
+    children: [new TextRun({ text: BOOK_DISCLAIMER, size: 18, italics: true, color: '78716c' })],
+    spacing: { after: 200 },
+  }))
   const doc = new Document({ creator: 'Lebenswerk', title: book.title || '', sections: [{ children }] })
   downloadBlob(filename, await Packer.toBlob(doc))
 }
@@ -304,6 +320,14 @@ async function downloadAsDocx(filename, title, text) {
       children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
     }
   }
+  children.push(new Paragraph({
+    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, size: 20, bold: true, color: '78716c' })],
+    spacing: { before: 500, after: 120 },
+  }))
+  children.push(new Paragraph({
+    children: [new TextRun({ text: BOOK_DISCLAIMER, size: 18, italics: true, color: '78716c' })],
+    spacing: { after: 200 },
+  }))
   const doc = new Document({ creator: 'Lebenswerk', title, sections: [{ children }] })
   downloadBlob(filename, await Packer.toBlob(doc))
 }
@@ -3392,7 +3416,14 @@ function Dashboard() {
         )}
 
         {!busy && data && (
-          <div style={{ marginTop:'2rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
+          <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4' }}>
+            <p style={{ fontSize:12, fontWeight:700, color:'#78716c', margin:'0 0 6px' }}>{BOOK_DISCLAIMER_TITLE}</p>
+            <p style={{ fontSize:12, color:'#a8a29e', fontStyle:'italic', lineHeight:1.6, margin:0 }}>{BOOK_DISCLAIMER}</p>
+          </div>
+        )}
+
+        {!busy && data && (
+          <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
             <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
             <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
@@ -3444,6 +3475,14 @@ function Impressum() {
       <p>USt-IdNr. gemäß § 27a UStG: DE291805257</p>
       <h2 style={LH}>Verantwortlich für den Inhalt</h2>
       <p>gemäß § 18 Abs. 2 MStV: Dr. Tobias D. Gantner, Anschrift wie oben.</p>
+      <h2 style={LH}>Haftung für die erstellten Bücher und Inhalte</h2>
+      <p>{BOOK_DISCLAIMER}</p>
+      <p>
+        Die mit dieser Anwendung erstellten Bücher und Reden beruhen ausschließlich auf den Angaben
+        der Beitragenden. Für Aktualität, Vollständigkeit und Richtigkeit dieser Inhalte übernehmen
+        wir keine Gewähr. Eine Haftung für Schäden, die aus der Nutzung oder Weitergabe der erstellten
+        Inhalte entstehen, ist – soweit gesetzlich zulässig – ausgeschlossen.
+      </p>
     </LegalLayout>
   )
 }
@@ -3466,7 +3505,9 @@ function Datenschutz() {
         Mit dieser Anwendung erstellen wir ein persönliches Buch oder eine Rede zu einem besonderen
         Anlass – etwa zum Gedenken an eine verstorbene Person, zu einem Geburtstag, Jubiläum,
         Abschied oder zur Geburt eines Kindes. Dazu führen nahestehende Personen ein sprach- oder
-        textbasiertes Interview, aus dessen Inhalten ein persönlicher Text entsteht.
+        textbasiertes Interview, aus dessen Inhalten ein persönlicher Text entsteht. Die erstellten
+        Bücher und Reden geben die persönlichen Schilderungen der Beitragenden wieder; ihre
+        inhaltliche Richtigkeit können wir nicht überprüfen (siehe Haftungsausschluss im Impressum).
       </p>
 
       <h2 style={LH}>3. Welche Daten wir verarbeiten</h2>
