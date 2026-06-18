@@ -15,6 +15,7 @@
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth, hashPassword, validatePasswordPolicy } = require('../_lib/auth')
 const { isValidCategory } = require('../_lib/categories')
+const { audit } = require('../_lib/audit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -98,6 +99,7 @@ module.exports = async function handler(req, res) {
         if (error.code === '23505') return res.status(409).json({ error: 'Benutzername bereits vergeben.' })
         throw error
       }
+      await audit(req, { actor: req.auth, action: 'user.create', target: data.id, detail: { username: data.username, is_admin: data.is_admin } })
       return res.json(data)
     }
 
@@ -119,6 +121,10 @@ module.exports = async function handler(req, res) {
         if (error.code === '23505') return res.status(409).json({ error: 'Benutzername bereits vergeben.' })
         throw error
       }
+      // Geänderte Felder protokollieren – aber NIE Passwort-Material.
+      const changed = Object.keys(patch).filter(k => k !== 'pw_hash' && k !== 'pw_salt')
+      if (patch.pw_hash) changed.push('password')
+      await audit(req, { actor: req.auth, action: 'user.update', target: id, detail: { changed } })
       return res.json({ ok: true })
     }
 
@@ -127,6 +133,7 @@ module.exports = async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'id fehlt.' })
       const { error } = await supabase.from('app_users').delete().eq('id', id)
       if (error) throw error
+      await audit(req, { actor: req.auth, action: 'user.delete', target: id })
       return res.json({ ok: true })
     }
 

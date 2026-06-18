@@ -10,6 +10,7 @@
 const { createClient } = require('@supabase/supabase-js')
 const { verifyCredentials, issueToken, isConfigured, verifyPassword } = require('../_lib/auth')
 const { enforce } = require('../_lib/ratelimit')
+const { audit } = require('../_lib/audit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -30,6 +31,7 @@ module.exports = async function handler(req, res) {
 
   // 1. Env-Admin (Superuser)
   if (verifyCredentials(username, password)) {
+    await audit(req, { actor: { uid: null, name: String(username), admin: true }, action: 'login.success', detail: { kind: 'env-admin' } })
     return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*', uid: null, username: String(username) })
   }
 
@@ -44,11 +46,14 @@ module.exports = async function handler(req, res) {
     if (user && verifyPassword(password, user.pw_hash, user.pw_salt)) {
       const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
       const token = issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats })
+      await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'login.success' })
       return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats, uid: user.id, username: user.username })
     }
   } catch (e) {
     console.error('/api/admin/login lookup error:', e)
   }
 
+  // Fehlversuch protokollieren (versuchter Benutzername, kein Passwort).
+  await audit(req, { actor: { name: username ? String(username) : null }, action: 'login.failure' })
   return res.status(401).json({ error: 'Ungültige Zugangsdaten.' })
 }

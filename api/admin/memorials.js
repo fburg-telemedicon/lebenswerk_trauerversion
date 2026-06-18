@@ -5,6 +5,7 @@
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
+const { audit } = require('../_lib/audit')
 const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
@@ -141,6 +142,7 @@ module.exports = async function handler(req, res) {
         note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
       })
       if (error) throw error
+      await audit(req, { actor: req.auth, action: 'memorial.create', target: code, detail: { category } })
       return res.json({ code })
     }
 
@@ -153,6 +155,7 @@ module.exports = async function handler(req, res) {
       if (access.error) return res.status(access.status).json({ error: access.error })
 
       const storageWarnings = await deleteMemorialCompletely(supabase, code)
+      await audit(req, { actor: req.auth, action: 'memorial.delete', target: code })
       return res.json({ ok: true, ...(storageWarnings.length ? { storageWarnings } : {}) })
     }
 
@@ -171,6 +174,7 @@ module.exports = async function handler(req, res) {
       }
       const { error } = await supabase.from('memorials').update({ [field]: text ?? null }).eq('id', code)
       if (error) throw error
+      await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { field } })
       return res.json({ ok: true })
     }
 

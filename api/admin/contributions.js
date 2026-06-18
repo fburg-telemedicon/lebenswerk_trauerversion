@@ -6,6 +6,7 @@
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial, loadAccessibleContribution } = require('../_lib/access')
+const { audit } = require('../_lib/audit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -53,6 +54,7 @@ module.exports = async function handler(req, res) {
       if (access.error) return res.status(access.status).json({ error: access.error })
       const { error } = await supabase.from('contributions').delete().eq('id', id)
       if (error) throw error
+      await audit(req, { actor: req.auth, action: 'contribution.delete', target: id, detail: { memorial: access.memorial?.id } })
       return res.json({ ok: true })
     }
 

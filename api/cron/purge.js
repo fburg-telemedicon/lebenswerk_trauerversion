@@ -59,7 +59,26 @@ module.exports = async function handler(req, res) {
       }
     }
     console.log(`[purge] geprüft ${rows?.length || 0}, fällig ${due.length}, gelöscht ${results.filter(r => r.ok).length}`)
-    return res.json({ retention_days: RETENTION_DAYS, checked: rows?.length || 0, deleted: results.length, results })
+
+    // Best-effort Haushaltspflege (darf den Purge nie scheitern lassen):
+    // abgelaufene Rate-Limit-Eimer und alte Audit-Logs (> 365 Tage) entfernen.
+    const housekeeping = {}
+    if (!dryRun) {
+      try {
+        const rlCutoff = new Date(now - DAY_MS).toISOString()
+        const { count: rl } = await supabase.from('rate_limits')
+          .delete({ count: 'exact' }).lt('reset_at', rlCutoff)
+        housekeeping.rate_limits_removed = rl ?? null
+      } catch (e) { housekeeping.rate_limits_error = e.message }
+      try {
+        const auditCutoff = new Date(now - 365 * DAY_MS).toISOString()
+        const { count: al } = await supabase.from('audit_log')
+          .delete({ count: 'exact' }).lt('created_at', auditCutoff)
+        housekeeping.audit_log_removed = al ?? null
+      } catch (e) { housekeeping.audit_log_error = e.message }
+    }
+
+    return res.json({ retention_days: RETENTION_DAYS, checked: rows?.length || 0, deleted: results.length, results, housekeeping })
   } catch (e) {
     console.error('/api/cron/purge:', e)
     res.status(500).json({ error: e.message })
