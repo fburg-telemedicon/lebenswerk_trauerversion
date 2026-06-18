@@ -3288,6 +3288,12 @@ function Dashboard() {
           <h1 style={{ fontSize:24, fontWeight:600, fontFamily:'Georgia,serif', color:'#78716c' }}>{selected.name}</h1>
         </div>
 
+        {!busy && data && !editMode && (
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'1.25rem' }}>
+            <button onClick={() => { setEditDraft(structuredClone(data)); setEditMode(true) }} style={{ fontSize:13, padding:'8px 16px' }}>✏ Bearbeiten</button>
+          </div>
+        )}
+
         <Err msg={err} />
 
         {busy ? (
@@ -3417,8 +3423,7 @@ function Dashboard() {
 
         {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
-            <button onClick={() => { setEditDraft(structuredClone(data)); setEditMode(true) }} style={{ fontSize:13, padding:'8px 16px' }}>✏ Bearbeiten</button>
-            <button className="secondary" onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
+            <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
             <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
