@@ -1190,10 +1190,12 @@ function Dashboard() {
   const [applyingFinding, setApplyingFinding] = useState(null) // "field:index" während Maßnahme läuft
   const [editingFinding, setEditingFinding]   = useState(null) // "field:index" beim manuellen Editieren
   const [editText, setEditText]               = useState('')
+  const [editMode, setEditMode]               = useState(false) // Buch/Rede direkt bearbeiten
+  const [editDraft, setEditDraft]             = useState(null)  // Arbeitskopie im Edit-Modus
+  const [savingEdit, setSavingEdit]           = useState(false)
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
-  const [historyModal, setHistoryModal] = useState(null) // { title, entries } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
   const [loading, setLoading]         = useState(false)
@@ -1606,8 +1608,10 @@ function Dashboard() {
 
   // Inhalts-/Datenschutzprüfung des fertigen Textes (separater Claude-Call),
   // gespeichert in content_reports[field]. Genutzt von generate() und vom
-  // Button „Prüfung wiederholen".
-  async function runContentReview(field, value, { keepRevisions = false } = {}) {
+  // Button „Prüfung wiederholen". Immer eine FRISCHE Prüfung: alle Befunde
+  // sind offen. Da Korrekturen fest im Buchtext gespeichert sind, findet die
+  // Prüfung bereits behobene Stellen schlicht nicht mehr.
+  async function runContentReview(field, value) {
     try {
       const reportRaw = await askClaude(
         reviewSystemPrompt(selected),
@@ -1615,21 +1619,11 @@ function Dashboard() {
         { memorialCode: selected.id, kind: 'review', token }
       )
       const parsed = tryParseJSON(reportRaw) || {}
-      // Bei „Prüfung wiederholen" bereits erledigte Befunde (umformuliert/
-      // gelöscht/als ok markiert) beibehalten und neue Befunde gegen sie
-      // entdoppeln – so taucht eine schon bearbeitete Stelle nicht wieder auf.
-      const prev = selected.content_reports?.[field]
-      const resolvedPrev = keepRevisions ? (prev?.findings || []).filter(f => f.status === 'resolved') : []
-      const resolvedQuotes = new Set(resolvedPrev.map(f => String(f.quote || '').trim()).filter(Boolean))
-      const freshFindings = (Array.isArray(parsed.findings) ? parsed.findings : [])
-        .filter(f => !resolvedQuotes.has(String(f.quote || '').trim()))
       const report = {
         checked_at: new Date().toISOString(),
         model: 'claude-sonnet-4-5',
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
-        findings: [...resolvedPrev, ...freshFindings],
-        // Bei „Prüfung wiederholen" Historie behalten; bei Neugenerierung leeren.
-        revisions: keepRevisions ? (prev?.revisions || []) : [],
+        findings: Array.isArray(parsed.findings) ? parsed.findings : [],
       }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: report })
       return report
@@ -1656,7 +1650,7 @@ function Dashboard() {
       setReviewPct(p => Math.min(92, p + 2))
     }, 800)
     try {
-      await runContentReview(gen.field, value, { keepRevisions: true })
+      await runContentReview(gen.field, value)
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) {
         const fresh = await r.json()
@@ -1741,14 +1735,10 @@ function Dashboard() {
         : corrected
       await adminSaveMemorialText(token, selected.id, field, newValue)
 
-      const at = new Date().toISOString()
       const newFindings = report.findings.map((f, i) => i === index
-        ? { ...f, status: 'resolved', resolution: mode, resolved_at: at, new_text: newText }
+        ? { ...f, status: 'resolved', resolution: mode, resolved_at: new Date().toISOString(), new_text: newText }
         : f)
-      // Überarbeitungshistorie (in content_reports[field].revisions abgelegt –
-      // wird bei jeder Neugenerierung automatisch mit dem Bericht zurückgesetzt).
-      const entry = { at, action: mode, category: finding.category || '', location: finding.location || '', old_text: quote, new_text: newText }
-      const newReport = { ...report, findings: newFindings, revisions: [ ...(report.revisions || []), entry ] }
+      const newReport = { ...report, findings: newFindings }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
 
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
@@ -1799,10 +1789,8 @@ function Dashboard() {
         newValue = String(value).replace(current, edited)
       }
       await adminSaveMemorialText(token, selected.id, field, newValue)
-      const at = new Date().toISOString()
-      const newFindings = report.findings.map((f, i) => i === index ? { ...f, new_text: edited, resolved_at: at } : f)
-      const entry = { at, action: 'edit', category: finding.category || '', location: finding.location || '', old_text: current, new_text: edited }
-      const newReport = { ...report, findings: newFindings, revisions: [ ...(report.revisions || []), entry ] }
+      const newFindings = report.findings.map((f, i) => i === index ? { ...f, new_text: edited, resolved_at: new Date().toISOString() } : f)
+      const newReport = { ...report, findings: newFindings }
       await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) {
@@ -1816,6 +1804,24 @@ function Dashboard() {
       setEditingFinding(null)
     } catch (e) { setErr(`Bearbeiten fehlgeschlagen: ${e.message}`) }
     finally { setApplyingFinding(null) }
+  }
+
+  // Direkt im „Ansehen/Bearbeiten"-Modus geänderten Buch-/Redetext speichern.
+  async function saveEdit(field, draft) {
+    setSavingEdit(true); setErr('')
+    try {
+      await adminSaveMemorialText(token, selected.id, field, draft)
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      } else {
+        setSelected(s => ({ ...s, [field]: draft }))
+      }
+      setEditMode(false); setEditDraft(null)
+    } catch (e) { setErr(`Speichern fehlgeschlagen: ${e.message}`) }
+    finally { setSavingEdit(false) }
   }
 
   async function generate(key, extraArg, opts = {}) {
@@ -2188,44 +2194,6 @@ function Dashboard() {
         ))}
         <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:16 }}>
           <button className="ghost" onClick={() => setReportModal(null)} style={{ fontSize:14 }}>Schließen</button>
-        </div>
-      </div>
-    </div>
-  ) : null
-
-  const historyOverlay = historyModal ? (
-    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
-      <div style={{ ...S.card, maxWidth: 640, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
-          <h2 style={{ fontSize:18, fontWeight:700, margin:0 }}>🕓 Überarbeitungshistorie – {historyModal.title}</h2>
-          <button className="ghost" onClick={() => setHistoryModal(null)} style={{ fontSize:20, lineHeight:1, padding:'0 6px' }}>×</button>
-        </div>
-        <p style={{ ...S.muted, fontSize:12, marginTop:0, marginBottom:14 }}>
-          Protokoll der über den Prüfbericht ausgeführten Änderungen. Wird bei einer Neugenerierung des Buchs zurückgesetzt.
-        </p>
-        {(!historyModal.entries || historyModal.entries.length === 0) ? (
-          <p style={{ fontSize:14, color:'#78716c' }}>Noch keine Überarbeitungen.</p>
-        ) : (
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {historyModal.entries.map((e, i) => (
-              <div key={i} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 12px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
-                  <span style={{ fontWeight:600, fontSize:13, color: e.action === 'delete' ? '#b91c1c' : '#1d4ed8' }}>
-                    {e.action === 'delete' ? '🗑 Gelöscht' : e.action === 'edit' ? '✏ Korrektur bearbeitet' : '✏ Umformuliert'}{e.category ? ` · ${e.category}` : ''}
-                  </span>
-                  <span style={{ fontSize:11, color:'#a8a29e' }}>{e.at ? new Date(e.at).toLocaleString('de-DE') : ''}</span>
-                </div>
-                {e.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {e.location}</p>}
-                {e.old_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#a8a29e', textDecoration:'line-through', margin:'0 0 4px', borderLeft:'3px solid #e7e5e4', paddingLeft:10 }}>„{e.old_text}"</p>}
-                {e.action === 'delete'
-                  ? <p style={{ fontSize:12, color:'#78716c', margin:0 }}>(aus dem Text entfernt)</p>
-                  : (e.new_text && <p style={{ fontSize:13, fontStyle:'italic', color:'#15803d', margin:0, borderLeft:'3px solid #bbf7d0', paddingLeft:10 }}>→ „{e.new_text}"</p>)}
-              </div>
-            ))}
-          </div>
-        )}
-        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:16 }}>
-          <button className="ghost" onClick={() => setHistoryModal(null)} style={{ fontSize:14 }}>Schließen</button>
         </div>
       </div>
     </div>
@@ -3032,8 +3000,8 @@ function Dashboard() {
                       <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
                         {busy ? 'Wird generiert …' : has ? '↻ Neu generieren' : '✨ Generieren'}
                       </button>
-                      <button onClick={() => setView(gen.view)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                        👁 Ansehen
+                      <button onClick={() => { setEditMode(false); setEditDraft(null); setView(gen.view) }} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        👁 Ansehen/Bearbeiten
                       </button>
                       <button onClick={() => downloadGenerated(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         ⬇ Download .docx
@@ -3088,11 +3056,6 @@ function Dashboard() {
                         ) : (
                           <span style={{ fontSize:12, color:'#15803d' }}>🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.</span>
                         )}
-                        {report.revisions?.length > 0 && (
-                          <button onClick={() => setHistoryModal({ title, entries: report.revisions })} className="secondary" style={{ fontSize:12, padding:'6px 10px', marginLeft:8 }}>
-                            🕓 Überarbeitungshistorie ({report.revisions.length})
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -3114,7 +3077,6 @@ function Dashboard() {
         {eulogyStyleOverlay}
         {genLangOverlay}
         {reportOverlay}
-        {historyOverlay}
       </div>
     )
   }
@@ -3320,9 +3282,9 @@ function Dashboard() {
                    : GENERATORS.eulogy.label
     return (
       <div style={{ maxWidth:720, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-        <Back onClick={() => setView('detail')} />
+        <Back onClick={() => { setEditMode(false); setEditDraft(null); setView('detail') }} />
         <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-          <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}</p>
+          <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}{editMode ? ' · Bearbeiten' : ''}</p>
           <h1 style={{ fontSize:24, fontWeight:600, fontFamily:'Georgia,serif', color:'#78716c' }}>{selected.name}</h1>
         </div>
 
@@ -3346,6 +3308,37 @@ function Dashboard() {
           </div>
         ) : !data ? (
           <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
+        ) : editMode ? (
+          <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'1.5rem' }}>
+            <p style={{ ...S.muted, fontSize:13, marginBottom:16 }}>
+              Direkt im Text korrigieren (z. B. falsch verstandene Eigennamen). Änderungen werden beim Speichern übernommen. Bilder bleiben unverändert.
+            </p>
+            {gen.kind === 'book' && editDraft && typeof editDraft === 'object' ? (
+              <>
+                <Lbl>Titel</Lbl>
+                <input value={editDraft.title || ''} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} style={{ marginBottom:12 }} />
+                <Lbl>Untertitel</Lbl>
+                <input value={editDraft.subtitle || ''} onChange={e => setEditDraft(d => ({ ...d, subtitle: e.target.value }))} style={{ marginBottom:20 }} />
+                {(editDraft.chapters || []).map((ch, i) => (
+                  <div key={i} style={{ marginBottom:20, paddingTop:16, borderTop:'1px solid #f5f5f4' }}>
+                    <Lbl>{bt.chapterLabel} {ch.number ?? i + 1} – Überschrift</Lbl>
+                    <input value={ch.heading || ''} onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, heading: e.target.value } : c) }))} style={{ marginBottom:8 }} />
+                    <Lbl>Text</Lbl>
+                    <textarea value={ch.body || ''} onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, body: e.target.value } : c) }))} rows={Math.max(6, String(ch.body || '').split('\n').length + 2)} style={{ width:'100%', fontFamily:'inherit', fontSize:14, lineHeight:1.6, resize:'vertical' }} />
+                  </div>
+                ))}
+              </>
+            ) : (
+              <>
+                <Lbl>Text</Lbl>
+                <textarea value={typeof editDraft === 'string' ? editDraft : ''} onChange={e => setEditDraft(e.target.value)} rows={24} style={{ width:'100%', fontFamily:'inherit', fontSize:15, lineHeight:1.7, resize:'vertical' }} />
+              </>
+            )}
+            <div style={{ display:'flex', gap:10, marginTop:16 }}>
+              <button onClick={() => saveEdit(gen.field, editDraft)} disabled={savingEdit} style={{ fontSize:14, padding:'9px 18px' }}>{savingEdit ? 'Speichert …' : '✓ Speichern'}</button>
+              <button onClick={() => { setEditMode(false); setEditDraft(null) }} disabled={savingEdit} className="ghost" style={{ fontSize:14 }}>Abbrechen</button>
+            </div>
+          </div>
         ) : gen.kind === 'book' ? (
           <>
             <div style={{ textAlign:'center', padding:'2rem 0 3rem', borderTop:'1px solid #e7e5e4' }}>
@@ -3415,23 +3408,23 @@ function Dashboard() {
           </div>
         )}
 
-        {!busy && data && (
+        {!busy && data && !editMode && (
           <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4' }}>
             <p style={{ fontSize:12, fontWeight:700, color:'#78716c', margin:'0 0 6px' }}>{BOOK_DISCLAIMER_TITLE}</p>
             <p style={{ fontSize:12, color:'#a8a29e', fontStyle:'italic', lineHeight:1.6, margin:0 }}>{BOOK_DISCLAIMER}</p>
           </div>
         )}
 
-        {!busy && data && (
+        {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
-            <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
+            <button onClick={() => { setEditDraft(structuredClone(data)); setEditMode(true) }} style={{ fontSize:13, padding:'8px 16px' }}>✏ Bearbeiten</button>
+            <button className="secondary" onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
             <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
         {eulogyStyleOverlay}
         {genLangOverlay}
         {reportOverlay}
-        {historyOverlay}
       </div>
     )
   }
