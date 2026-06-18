@@ -72,6 +72,21 @@ module.exports = async function handler(req, res) {
 
     if (!req.auth.admin) return res.status(403).json({ error: 'Nur Administratoren.' })
 
+    // Audit-Log lesen (?audit=1). Bewusst hier eingebettet statt als eigene
+    // Function – das Vercel-Hobby-Limit von 12 Functions ist bereits erreicht.
+    if (req.query.audit) {
+      if (req.method !== 'GET') return res.status(405).end()
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500)
+      let q = supabase.from('audit_log')
+        .select('id, created_at, actor_uid, actor_name, is_admin, action, target, ip, detail')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (req.query.action) q = q.eq('action', String(req.query.action))
+      const { data, error } = await q
+      if (error) throw error
+      return res.json({ entries: data || [] })
+    }
+
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('app_users')

@@ -60,6 +60,16 @@ export async function adminDeleteUser(token, id) {
   })
   return parseResponse(res)
 }
+// Audit-Log lesen (admin-only). In users.js eingebettet (?audit=1) wegen
+// des Vercel-12-Funktionen-Limits.
+export async function adminListAudit(token, { limit = 100, action } = {}) {
+  const qs = new URLSearchParams({ audit: '1', limit: String(limit) })
+  if (action) qs.set('action', action)
+  const res = await fetch(`/api/admin/users?${qs.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { entries }
+}
 
 // ── Eigene Einstellungen (Firmenlogo) ─────────────────────────────
 // Liegt aus Funktions-Limit-Gründen mit der Benutzerverwaltung im selben
