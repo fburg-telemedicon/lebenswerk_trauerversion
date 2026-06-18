@@ -126,9 +126,14 @@ export async function getMemorial(code) {
 }
 
 // ── Beiträge ──────────────────────────────────────────────────────
-export async function getContributions(code) {
-  const res = await fetch(`/api/contributions?code=${encodeURIComponent(code)}`)
-  return parseResponse(res) // array of contributions
+// Holt GENAU EINEN Beitrag über seine geheime ID (Capability aus der
+// Session-URL). Bewusst nicht die ganze Liste – die gibt es nur
+// authentifiziert über /api/admin/contributions.
+export async function getContribution(id, code) {
+  const qs = new URLSearchParams({ id })
+  if (code) qs.set('code', code)
+  const res = await fetch(`/api/contributions?${qs.toString()}`)
+  return parseResponse(res) // single contribution row or null
 }
 
 export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress, consentAt, consentVersion }) {

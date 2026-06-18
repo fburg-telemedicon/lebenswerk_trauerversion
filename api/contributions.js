@@ -1,6 +1,13 @@
 // api/contributions.js
-// GET  /api/contributions?code=ABC123  → array of contributions
-// POST /api/contributions              → add contribution
+// GET  /api/contributions?id=YYY[&code=ABC123]  → EIN Beitrag (zum Fortsetzen)
+// POST /api/contributions                        → add contribution
+//
+// Der GET liefert bewusst NUR den per (geheimer) Beitrags-ID adressierten
+// Eintrag, nicht die ganze Liste eines Gedenkbuchs. Die ID ist ein langes
+// Zufallstoken aus der Session-URL des Beitragenden und wirkt damit als
+// Capability. So kann niemand über den (allen Beitragenden bekannten)
+// 6-stelligen Gedenkbuch-Code fremde Beiträge auslesen. Die vollständige
+// Liste gibt es nur authentifiziert über /api/admin/contributions.
 
 const { createClient } = require('@supabase/supabase-js')
 const { genCode } = require('./_lib/codes')
@@ -15,16 +22,17 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
+      const id = (req.query.id || '').trim()
       const code = (req.query.code || '').toUpperCase().trim()
-      if (!code) return res.status(400).json({ error: 'Code fehlt.' })
+      if (!id) return res.status(400).json({ error: 'Beitrags-ID fehlt.' })
 
-      const { data, error } = await supabase
-        .from('contributions')
-        .select('*')
-        .eq('memorial_id', code)
-        .order('created_at', { ascending: true })
+      let q = supabase.from('contributions').select('*').eq('id', id)
+      // Wenn ein Code mitgegeben wird, muss er zum Beitrag passen – sonst
+      // wird nichts geliefert (defense in depth; die ID allein genügt schon).
+      if (code) q = q.eq('memorial_id', code)
+      const { data, error } = await q.maybeSingle()
       if (error) throw error
-      return res.json(data || [])
+      return res.json(data || null)
     }
 
     if (req.method === 'POST') {

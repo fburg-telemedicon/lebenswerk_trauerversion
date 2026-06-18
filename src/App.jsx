@@ -3,7 +3,7 @@ import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Tex
 import jsPDF from 'jspdf'
 import JSZip from 'jszip'
 import {
-  createMemorial, getMemorial, getContributions, addContribution,
+  createMemorial, getMemorial, getContribution, addContribution,
   askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
@@ -748,8 +748,7 @@ function ContributorFlow({ code }) {
 
   async function fetchContribution(memCode, id) {
     try {
-      const all = await getContributions(memCode)
-      return all.find(c => c.id === id) || null
+      return await getContribution(id, memCode)
     } catch { return null }
   }
 
