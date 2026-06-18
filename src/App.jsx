@@ -69,22 +69,18 @@ function formatContribution(memorial, c) {
   return lines.join('\n')
 }
 
-function downloadFile(filename, content) {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
-}
-
-function safeName(s) { return s.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').trim().replace(/\s+/g, '_') }
-
 function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url; a.download = filename; a.click()
   URL.revokeObjectURL(url)
 }
+
+function downloadFile(filename, content) {
+  downloadBlob(filename, new Blob([content], { type: 'text/plain;charset=utf-8' }))
+}
+
+function safeName(s) { return s.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').trim().replace(/\s+/g, '_') }
 
 // Wandelt den messages-Array eines Beitrags in Frage/Antwort-Paare um.
 function contributionQAPairs(messages = []) {
@@ -272,11 +268,7 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
     }
   }
   const doc = new Document({ creator: 'Lebenswerk', title: book.title || '', sections: [{ children }] })
-  const blob = await Packer.toBlob(doc)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(filename, await Packer.toBlob(doc))
 }
 
 async function downloadAsDocx(filename, title, text) {
@@ -300,11 +292,7 @@ async function downloadAsDocx(filename, title, text) {
     }
   }
   const doc = new Document({ creator: 'Lebenswerk', title, sections: [{ children }] })
-  const blob = await Packer.toBlob(doc)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(filename, await Packer.toBlob(doc))
 }
 
 function genContribId() {

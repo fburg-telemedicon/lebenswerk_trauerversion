@@ -6,16 +6,11 @@ const { createClient } = require('@supabase/supabase-js')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
+const { genCode } = require('../_lib/codes')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const SIGNED_URL_TTL = 3600 // 1 h
-
-function genCode() {
-  return Array.from({ length: 6 }, () =>
-    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
-  ).join('')
-}
 
 function collectImagePaths(book) {
   if (!book?.chapters) return []

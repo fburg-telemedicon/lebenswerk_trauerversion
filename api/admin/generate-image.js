@@ -7,11 +7,12 @@ const { createClient } = require('@supabase/supabase-js')
 const crypto = require('crypto')
 const { costImage, recordCost } = require('../_lib/cost')
 const { checkAuth } = require('../_lib/auth')
+const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
 const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const OPENAI_KEY  = process.env.OPENAI_API_KEY
 
-const BUCKET = 'memorial-images'
+const BUCKET = IMAGE_BUCKET
 const IMAGE_MODEL = 'gpt-image-1-high-1536x1024'
 
 module.exports = async function handler(req, res) {

@@ -3,17 +3,12 @@
 // POST /api/contributions              → add contribution
 
 const { createClient } = require('@supabase/supabase-js')
+const { genCode } = require('./_lib/codes')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 )
-
-function genCode() {
-  return Array.from({ length: 6 }, () =>
-    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
-  ).join('')
-}
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
