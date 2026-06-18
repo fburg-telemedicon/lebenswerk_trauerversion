@@ -62,12 +62,14 @@ export async function adminDeleteUser(token, id) {
 }
 
 // ── Eigene Einstellungen (Firmenlogo) ─────────────────────────────
+// Liegt aus Funktions-Limit-Gründen mit der Benutzerverwaltung im selben
+// Endpoint (?self=1 umgeht dort die Admin-Schranke).
 export async function getSettings(token) {
-  const res = await fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch('/api/admin/users?self=1', { headers: { Authorization: `Bearer ${token}` } })
   return parseResponse(res) // { logo }
 }
 export async function saveSettings(token, { logo }) {
-  const res = await fetch('/api/admin/settings', {
+  const res = await fetch('/api/admin/users?self=1', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ logo }),

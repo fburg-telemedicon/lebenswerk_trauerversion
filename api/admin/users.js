@@ -1,10 +1,16 @@
 // api/admin/users.js
-// Verwaltung von Login-Benutzern. NUR für Admins.
+// Verwaltung von Login-Benutzern (NUR für Admins) UND die eigenen
+// Konto-Einstellungen (?self=1, für jeden eingeloggten Benutzer).
 //
-// GET    /api/admin/users                       → { users: [...] }
-// POST   /api/admin/users   { username, password, allowed_categories, is_admin? }
-// PATCH  /api/admin/users?id=…  { username?, allowed_categories?, is_admin?, password? }
-// DELETE /api/admin/users?id=…
+// Eigene Einstellungen (Firmenlogo), kein Admin-Recht nötig:
+//   GET   /api/admin/users?self=1           → { logo }
+//   PATCH /api/admin/users?self=1  { logo }  → { ok }   (logo = Data-URL oder null)
+//
+// Benutzerverwaltung (nur Admin):
+//   GET    /api/admin/users                       → { users: [...] }
+//   POST   /api/admin/users   { username, password, allowed_categories, is_admin? }
+//   PATCH  /api/admin/users?id=…  { username?, allowed_categories?, is_admin?, password? }
+//   DELETE /api/admin/users?id=…
 
 const { createClient } = require('@supabase/supabase-js')
 const { checkAuth, hashPassword } = require('../_lib/auth')
@@ -17,12 +23,54 @@ function sanitizeCategories(input) {
   return [...new Set(input.filter(isValidCategory))]
 }
 
+// Erlaubte Bildtypen + Größenobergrenze für das als Data-URL gespeicherte Logo.
+const ALLOWED_LOGO_MIME = ['png', 'jpeg', 'jpg', 'gif', 'webp', 'svg+xml']
+const MAX_LOGO_CHARS = 2_000_000 // ~1,4 MB Bild als Base64
+
+function validateLogo(logo) {
+  if (logo === null || logo === '') return { value: null }
+  if (typeof logo !== 'string') return { error: 'Ungültiges Logo-Format.' }
+  const m = /^data:image\/([a-z0-9.+-]+);base64,/i.exec(logo)
+  if (!m) return { error: 'Logo muss ein Bild (Data-URL) sein.' }
+  if (!ALLOWED_LOGO_MIME.includes(m[1].toLowerCase())) return { error: 'Nicht unterstütztes Bildformat.' }
+  if (logo.length > MAX_LOGO_CHARS) return { error: 'Logo ist zu groß (max. ca. 1,4 MB).' }
+  return { value: logo }
+}
+
+// Eigene Konto-Einstellungen (Firmenlogo) des eingeloggten Benutzers.
+// Nur echte app_users-Konten haben eine uid; der Env-Superadmin (uid null)
+// behält bewusst das Demo-Logo.
+async function handleSelf(req, res) {
+  if (!req.auth.uid) {
+    return res.status(400).json({ error: 'Einstellungen sind nur für Benutzerkonten verfügbar (der Administrator nutzt das Standard-Logo).' })
+  }
+  if (req.method === 'GET') {
+    const { data, error } = await supabase
+      .from('app_users').select('logo').eq('id', req.auth.uid).single()
+    if (error) throw error
+    return res.json({ logo: data?.logo ?? null })
+  }
+  if (req.method === 'PATCH' || req.method === 'PUT') {
+    const v = validateLogo((req.body || {}).logo)
+    if (v.error) return res.status(400).json({ error: v.error })
+    const { error } = await supabase
+      .from('app_users').update({ logo: v.value }).eq('id', req.auth.uid)
+    if (error) throw error
+    return res.json({ ok: true })
+  }
+  return res.status(405).end()
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (!checkAuth(req, res)) return
-  if (!req.auth.admin) return res.status(403).json({ error: 'Nur Administratoren.' })
 
   try {
+    // Eigene Einstellungen – vor der Admin-Schranke, für jeden eingeloggten Benutzer.
+    if (req.query.self) return await handleSelf(req, res)
+
+    if (!req.auth.admin) return res.status(403).json({ error: 'Nur Administratoren.' })
+
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('app_users')
