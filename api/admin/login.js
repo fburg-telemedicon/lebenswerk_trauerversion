@@ -21,21 +21,21 @@ module.exports = async function handler(req, res) {
 
   // 1. Env-Admin (Superuser)
   if (verifyCredentials(username, password)) {
-    return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*', uid: null })
+    return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*', uid: null, username: String(username) })
   }
 
   // 2. Benutzer aus app_users
   try {
     const { data: user } = await supabase
       .from('app_users')
-      .select('id, pw_hash, pw_salt, allowed_categories, is_admin')
+      .select('id, username, pw_hash, pw_salt, allowed_categories, is_admin')
       .eq('username', username || '')
       .single()
 
     if (user && verifyPassword(password, user.pw_hash, user.pw_salt)) {
       const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
       const token = issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats })
-      return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats, uid: user.id })
+      return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats, uid: user.id, username: user.username })
     }
   } catch (e) {
     console.error('/api/admin/login lookup error:', e)

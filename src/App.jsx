@@ -1081,6 +1081,19 @@ function ContributorFlow({ code }) {
   )
 }
 
+// Liest die Claims (uid/admin/cats) direkt aus dem Session-Token. So ist die
+// uid auch dann verfügbar, wenn die gespeicherte Session noch von vor einem
+// Deploy stammt (in der sie nicht enthalten war).
+function decodeToken(token) {
+  try {
+    const payload = String(token || '').split('.')[0]
+    if (!payload) return null
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64.length % 4 ? '='.repeat(4 - (b64.length % 4)) : ''
+    return JSON.parse(atob(b64 + pad))
+  } catch { return null }
+}
+
 // ── Admin-Dashboard (Standard-Eingang der Seite) ──────────────────
 function Dashboard() {
   const [view, setView]               = useState('login') // login|list|create-category|create|created|detail|book-v1|book-v2|users
@@ -1129,7 +1142,7 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       sessionStorage.setItem('lw_admin_token', d.token)
-      const authInfo = { admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null }
+      const authInfo = { admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username }
       sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
       setToken(d.token); setAuth(authInfo)
       await loadMemorials(d.token)
@@ -1187,6 +1200,12 @@ function Dashboard() {
     ? CATEGORY_ORDER
     : CATEGORY_ORDER.filter(s => Array.isArray(auth.cats) && auth.cats.includes(s))
   const showCategoryColumn = allowedSlugs.length > 1
+
+  // Eigene Benutzer-ID: bevorzugt aus der Session, sonst aus dem Token
+  // (robust gegen alte Sessions ohne uid). null = Env-Superadmin.
+  const myUid  = auth.uid ?? decodeToken(token)?.uid ?? null
+  // Anzeigename des eingeloggten Benutzers.
+  const myName = auth.username || (myUid ? 'Benutzer' : 'Administrator')
 
   // Startet die Neuanlage: bei mehreren erlaubten Kategorien erst Auswahl,
   // sonst direkt das Formular der einzigen Kategorie.
@@ -1755,11 +1774,14 @@ function Dashboard() {
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
           <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>{memorials.length} {memorials.length === 1 ? 'Buch' : 'Bücher'}</span>
         </div>
-        <div style={{ display:'flex', gap:8 }}>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize: 13, color: '#78716c', marginRight: 4 }}>
+            Angemeldet als <strong style={{ color:'#1c1917', fontWeight:600 }}>{myName}</strong>
+          </span>
           {auth.admin && (
             <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer</button>
           )}
-          {auth.uid && (
+          {myUid && (
             <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
           )}
           <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
