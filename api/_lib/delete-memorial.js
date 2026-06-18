@@ -40,4 +40,34 @@ async function deleteMemorialCompletely(supabase, code) {
   return warnings
 }
 
-module.exports = { IMAGE_BUCKET, deleteMemorialImages, deleteMemorialCompletely }
+// Aufbewahrungs-Löschung (90-Tage-Regel): löscht NUR die einzelnen Beiträge
+// (personenbezogene Interview-Daten) und das Änderungs-/Prüfprotokoll. Das
+// Gedenkbuch bleibt vollständig erhalten (Buch, Rede, Bilder, Dashboard-
+// Eintrag, Ansehen/DOCX). Pro gelöschtem Beitrag wird in purge_info ein
+// Eintrag (wann + warum) abgelegt. cost_events bleiben (keine PII, Buchhaltung).
+async function purgeMemorialContributions(supabase, code, reason) {
+  const now = new Date().toISOString()
+  // Beitrags-IDs holen (id = Zufallstoken, keine PII) – für die Protokoll-Einträge.
+  const { data: rows, error: selErr } = await supabase
+    .from('contributions').select('id').eq('memorial_id', code)
+  if (selErr) throw selErr
+  const ids = (rows || []).map(r => r.id)
+
+  // Beiträge löschen.
+  const { error: delErr } = await supabase.from('contributions').delete().eq('memorial_id', code)
+  if (delErr) throw delErr
+
+  // Protokoll je Beitrag + Gesamtmarker; Änderungs-/Prüfprotokoll mitlöschen.
+  const purge_info = {
+    purged_at: now,
+    reason,
+    contributions: ids.map(id => ({ ref: id, deleted_at: now, reason })),
+  }
+  const { error: updErr } = await supabase
+    .from('memorials').update({ purge_info, content_reports: null }).eq('id', code)
+  if (updErr) throw updErr
+
+  return { count: ids.length, purge_info }
+}
+
+module.exports = { IMAGE_BUCKET, deleteMemorialImages, deleteMemorialCompletely, purgeMemorialContributions }

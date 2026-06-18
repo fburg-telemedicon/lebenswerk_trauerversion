@@ -2885,12 +2885,29 @@ function Dashboard() {
           <Err msg={err} />
           {loading ? (
             <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
-          ) : contributions.length === 0 ? (
-            <div style={{ ...S.card, textAlign:'center', padding:'1.5rem' }}>
-              <p style={S.muted}>Noch keine Beiträge für dieses Buch.</p>
-            </div>
           ) : (<>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom:'1.5rem' }}>
+            {selected.purge_info ? (
+              <div style={{ ...S.card, marginBottom:'1.5rem', background:'#fffbeb', borderColor:'#fde68a' }}>
+                <div style={{ fontWeight:600, marginBottom:6 }}>🗄 Beiträge gelöscht (Aufbewahrungsfrist)</div>
+                <p style={{ ...S.muted, fontSize:13, margin:'0 0 10px' }}>
+                  Am {new Date(selected.purge_info.purged_at).toLocaleString('de-DE')} wurden die einzelnen Beiträge gemäß Aufbewahrungsfrist gelöscht. Das Buch bleibt vollständig erhalten (Ansehen &amp; Download weiterhin möglich).
+                </p>
+                {(selected.purge_info.contributions || []).length > 0 && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {selected.purge_info.contributions.map((t, ti) => (
+                      <div key={ti} style={{ fontSize:13, color:'#57534e', borderTop:'1px solid #fde68a', paddingTop:6 }}>
+                        Beitrag #{ti + 1} — gelöscht am {new Date(t.deleted_at).toLocaleString('de-DE')} · {t.reason}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : contributions.length === 0 ? (
+              <div style={{ ...S.card, textAlign:'center', padding:'1.5rem', marginBottom:'1.5rem' }}>
+                <p style={S.muted}>Noch keine Beiträge für dieses Buch.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom:'1.5rem' }}>
               {contributions.map((c, i) => {
                 const answerCount = c.messages.filter(m => m.role === 'user').length
                 return (
@@ -2932,7 +2949,8 @@ function Dashboard() {
                   </div>
                 )
               })}
-            </div>
+              </div>
+            )}
 
             <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & {GENERATORS.eulogy.label}</h3>
             {(() => {

@@ -13,7 +13,7 @@
 // Test ohne zu löschen:  GET /api/cron/purge?dry=1  (mit Bearer-Secret)
 
 const { createClient } = require('@supabase/supabase-js')
-const { deleteMemorialCompletely } = require('../_lib/delete-memorial')
+const { purgeMemorialContributions } = require('../_lib/delete-memorial')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
@@ -31,11 +31,13 @@ module.exports = async function handler(req, res) {
   try {
     const { data: rows, error } = await supabase
       .from('memorials')
-      .select('id, name, funeral_date, created_at')
+      .select('id, name, funeral_date, created_at, purge_info')
     if (error) throw error
 
     const now = Date.now()
+    // Fällig = Frist abgelaufen UND noch nicht bereinigt (purge_info.purged_at).
     const due = (rows || []).filter(m => {
+      if (m.purge_info?.purged_at) return false
       const anchor = m.funeral_date ? new Date(m.funeral_date) : new Date(m.created_at)
       return anchor.getTime() + RETENTION_DAYS * DAY_MS < now
     })
@@ -49,16 +51,18 @@ module.exports = async function handler(req, res) {
       })
     }
 
+    const reason = `Automatische Löschung nach Aufbewahrungsfrist (${RETENTION_DAYS} Tage)`
     const results = []
     for (const m of due) {
       try {
-        const warnings = await deleteMemorialCompletely(supabase, m.id)
-        results.push({ code: m.id, ok: true, ...(warnings.length ? { warnings } : {}) })
+        // Nur Beiträge + Protokoll löschen; Buch/Rede/Eintrag bleiben erhalten.
+        const { count } = await purgeMemorialContributions(supabase, m.id, reason)
+        results.push({ code: m.id, ok: true, contributions_deleted: count })
       } catch (e) {
         results.push({ code: m.id, ok: false, error: e.message })
       }
     }
-    console.log(`[purge] geprüft ${rows?.length || 0}, fällig ${due.length}, gelöscht ${results.filter(r => r.ok).length}`)
+    console.log(`[purge] geprüft ${rows?.length || 0}, fällig ${due.length}, bereinigt ${results.filter(r => r.ok).length}`)
 
     // Best-effort Haushaltspflege (darf den Purge nie scheitern lassen):
     // abgelaufene Rate-Limit-Eimer und alte Audit-Logs (> 365 Tage) entfernen.
@@ -78,7 +82,7 @@ module.exports = async function handler(req, res) {
       } catch (e) { housekeeping.audit_log_error = e.message }
     }
 
-    return res.json({ retention_days: RETENTION_DAYS, checked: rows?.length || 0, deleted: results.length, results, housekeeping })
+    return res.json({ retention_days: RETENTION_DAYS, checked: rows?.length || 0, purged: results.length, results, housekeeping })
   } catch (e) {
     console.error('/api/cron/purge:', e)
     res.status(500).json({ error: e.message })
