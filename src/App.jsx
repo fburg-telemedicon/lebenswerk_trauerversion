@@ -323,11 +323,13 @@ const BOOK_VARIANTS = [
 ]
 
 // Leeres Anlage-Formular (inkl. Produktkategorie + kategorieabhängige Felder).
+const EMPTY_PICKUP = { name: '', addon: '', street: '', zip: '', city: '', country: 'Deutschland' }
 const EMPTY_CREATE = {
   name: '', organizer: '', gender: '', bookVariant: 1,
   funeralDate: '', cutoffDays: 7, showIntroVideo: true,
   productCategory: DEFAULT_CATEGORY, intake: {},
   languages: [DEFAULT_LANGUAGE], note: '',
+  pickupAddress: { ...EMPTY_PICKUP },
 }
 
 function qrCodeUrl(text, size = 240) {
@@ -1231,7 +1233,7 @@ function Dashboard() {
     setErr('')
     if (allowedSlugs.length <= 1) {
       const slug = allowedSlugs[0] || DEFAULT_CATEGORY
-      setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {} })
+      setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {}, pickupAddress: { ...EMPTY_PICKUP } })
       setView('create')
     } else {
       setView('create-category')
@@ -1239,7 +1241,7 @@ function Dashboard() {
   }
 
   function chooseCategory(slug) {
-    setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {} })
+    setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {}, pickupAddress: { ...EMPTY_PICKUP } })
     setView('create')
   }
 
@@ -1259,6 +1261,7 @@ function Dashboard() {
         intake: createForm.intake || {},
         languages: createForm.languages?.length ? createForm.languages : [DEFAULT_LANGUAGE],
         note: createForm.note?.trim() || null,
+        pickupAddress: createForm.pickupAddress,
       })
       setCreatedCode(code)
       setView('created')
@@ -1967,6 +1970,8 @@ function Dashboard() {
     const cat = getCategory(createForm.productCategory)
     const ci  = cat.intake
     const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && !busy
+    const pa = createForm.pickupAddress || EMPTY_PICKUP
+    const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -2116,6 +2121,20 @@ function Dashboard() {
           <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
             Nur intern sichtbar. Wird bei der Bucherstellung angezeigt – z. B. Hinweise zur Gestaltung oder zum Inhalt.
           </p>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
+            Adresse, an die die gedruckten Bücher gesammelt geliefert / wo sie abgeholt werden. Kann leer bleiben.
+          </p>
+          <input value={pa.name} onChange={e => setPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
+          <input value={pa.addon} onChange={e => setPa({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
+          <input value={pa.street} onChange={e => setPa({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <input value={pa.zip} onChange={e => setPa({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
+            <input value={pa.city} onChange={e => setPa({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+          </div>
+          <input value={pa.country} onChange={e => setPa({ country: e.target.value })} placeholder="Land" />
         </div>
         <button
           disabled={!canSubmit}

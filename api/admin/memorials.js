@@ -14,6 +14,22 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 const SIGNED_URL_TTL = 3600 // 1 h
 
+// Optionale Sammelbestellungs-/Abholadresse säubern. Nur bekannte Felder,
+// getrimmt, max. Länge je Feld. Sind alle Felder leer -> null (Adresse ist
+// optional). Land standardmäßig "Deutschland", falls leer aber sonst befüllt.
+function sanitizePickupAddress(addr) {
+  if (!addr || typeof addr !== 'object') return null
+  const clean = {}
+  for (const key of ['name', 'addon', 'street', 'zip', 'city', 'country']) {
+    const v = typeof addr[key] === 'string' ? addr[key].trim().slice(0, 200) : ''
+    clean[key] = v
+  }
+  const hasAny = ['name', 'addon', 'street', 'zip', 'city'].some(k => clean[k])
+  if (!hasAny) return null
+  if (!clean.country) clean.country = 'Deutschland'
+  return clean
+}
+
 function collectImagePaths(book) {
   if (!book?.chapters) return []
   return book.chapters.map(c => c?.image_path).filter(Boolean)
@@ -68,7 +84,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, created_at')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -114,7 +130,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -140,6 +156,7 @@ module.exports = async function handler(req, res) {
         intake: intake && typeof intake === 'object' ? intake : null,
         languages: langs,
         note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
+        pickup_address: sanitizePickupAddress(pickupAddress),
       })
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'memorial.create', target: code, detail: { category } })
