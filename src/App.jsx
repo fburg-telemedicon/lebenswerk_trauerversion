@@ -23,7 +23,7 @@ const sessionFromURL = (urlParams.get('session') || '').trim()
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
 // Fassung zugestimmt wurde.
-const CONSENT_VERSION = '1.1 (2026-06-17)'
+const CONSENT_VERSION = '1.2 (2026-06-18)'
 
 // ── Passwortrichtlinie (identisch zu api/_lib/auth.js) ────────────
 // Moderat: mind. 8 Zeichen, mind. 1 Ziffer, mind. 1 Sonderzeichen.
@@ -59,8 +59,9 @@ function clearLocalSession(code) {
 
 // ── Hilfsfunktionen Download ──────────────────────────────────────
 function formatContribution(memorial, c) {
+  const noun = getCategory(memorial?.product_category).nounBook
   const lines = [
-    `GEDENKBUCH: ${memorial.name}`,
+    `${noun.toUpperCase()}: ${memorial.name}`,
     `Organisator: ${memorial.organizer}`,
     '',
     `Beitrag von: ${c.contributor_name}`,
@@ -136,14 +137,14 @@ function buildContributionPdf(c, memorial) {
 
   write('Datenauskunft', { size: 20, style: 'bold', color: [30, 30, 30], gapAfter: 1 })
   write('gemäß DSGVO Art. 15 (Auskunft) und Art. 20 (Datenübertragbarkeit)', { size: 10, color: [120, 120, 120], gapAfter: 3 })
-  write(`Gedenkbuch: ${memorial.name}  (Code ${memorial.id})`, { size: 10, color: [90, 90, 90], gapAfter: 1 })
+  write(`${getCategory(memorial?.product_category).nounBook}: ${memorial.name}  (Code ${memorial.id})`, { size: 10, color: [90, 90, 90], gapAfter: 1 })
   write(`Erstellt am: ${new Date().toLocaleString('de-DE')}`, { size: 10, color: [90, 90, 90], gapAfter: 3 })
   rule()
 
   write('Angaben zur Person', { size: 14, style: 'bold', gapAfter: 2.5 })
   const fields = [
     ['Name', c.contributor_name],
-    ['Beziehung zur verstorbenen Person', c.relationship],
+    ['Beziehung zur Person', c.relationship],
     ['Geschlecht', c.contributor_gender],
     ['Anrede', c.contributor_address],
     ['Beitrag erstellt am', c.created_at ? new Date(c.created_at).toLocaleString('de-DE') : null],
@@ -426,9 +427,10 @@ function Dots() {
   return <div style={{ display: 'flex', gap: 6, padding: '8px 0' }}>{[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: '#a8a29e', animation: 'lw-dot 1.2s ease-in-out infinite', animationDelay: `${i*.2}s` }} />)}</div>
 }
 
-// Partner-Banner (Bestattungsinstitut, fiktiv) — wird oben auf den
-// Beitragenden-Seiten eingeblendet. Name + Monogramm zentral änderbar.
-const PARTNER_NAME      = 'Bestattungshaus Linde'
+// Standard-Banner oben auf den Beitragenden-Seiten. Wird durch das eigene
+// Firmenlogo des Benutzers ersetzt, sobald hinterlegt (logoUrl). Der Fallback
+// ist bewusst produktneutral (keine Trauer-/Branchenbindung).
+const PARTNER_NAME      = 'Lebensgeschichten.AI'
 const PARTNER_MONOGRAM  = 'L'
 function PartnerBanner({ logoUrl }) {
   return (
@@ -453,7 +455,7 @@ function PartnerBanner({ logoUrl }) {
             }}>{PARTNER_MONOGRAM}</div>
             <div style={{ minWidth:0, lineHeight:1.3 }}>
               <div style={{ fontWeight:600, fontSize:14, color:'#1c1917', fontFamily:'Georgia, serif' }}>{PARTNER_NAME}</div>
-              <div style={{ fontSize:10.5, color:'#78716c', textTransform:'uppercase', letterSpacing:'.09em', marginTop:2 }}>präsentiert Lebensgeschichten.AI</div>
+              <div style={{ fontSize:10.5, color:'#78716c', textTransform:'uppercase', letterSpacing:'.09em', marginTop:2 }}>Persönliche Bücher &amp; Reden</div>
             </div>
           </div>
         )}
@@ -1426,7 +1428,7 @@ function Dashboard() {
         export_version: 1,
         generated_at: new Date().toISOString(),
         hinweis: 'Personenbezogene Daten dieses Beitrags gemäß DSGVO Art. 15 (Auskunft) / Art. 20 (Datenübertragbarkeit).',
-        gedenkbuch: { code: selected.id, name: selected.name },
+        buch: { code: selected.id, name: selected.name, kategorie: selected.product_category },
         beitrag: {
           id: c.id,
           contributor_name: c.contributor_name,
@@ -2061,7 +2063,7 @@ function Dashboard() {
                           disabled={deletingId === m.id}
                           className="secondary"
                           style={{ fontSize:12, padding:'6px 12px', color:'#dc2626', borderColor:'#fecaca' }}
-                          title="Gedenkbuch löschen"
+                          title={`${getCategory(m.product_category).nounBook} löschen`}
                         >
                           {deletingId === m.id ? '…' : '🗑 Löschen'}
                         </button>
@@ -2560,7 +2562,7 @@ function Dashboard() {
             Organisator: {selected.organizer}
             {selected.gender ? ` · ${selected.gender}` : ''}
             {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
-            {selected.funeral_date ? ` · Bestattung: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
+            {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
             {selected.funeral_date ? ` · Erfassung bis: ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : ''}
           </p>
 
@@ -2941,7 +2943,7 @@ function Dashboard() {
     )
   }
 
-  // ── ANSEHEN (Bücher + Trauerrede) ──
+  // ── ANSEHEN (Bücher + Endtext/Rede) ──
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') {
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
@@ -3098,7 +3100,7 @@ function Impressum() {
 function Datenschutz() {
   return (
     <LegalLayout title="Datenschutzerklärung">
-      <p style={{ color:'#78716c' }}>Stand: 15. Juni 2026 · Fassung {CONSENT_VERSION}</p>
+      <p style={{ color:'#78716c' }}>Stand: 18. Juni 2026 · Fassung {CONSENT_VERSION}</p>
 
       <h2 style={LH}>1. Verantwortlicher</h2>
       <p>
@@ -3110,26 +3112,28 @@ function Datenschutz() {
 
       <h2 style={LH}>2. Worum es geht</h2>
       <p>
-        Mit dieser Anwendung erstellen wir ein persönliches Gedenkbuch für eine verstorbene
-        Person. Dazu führen Angehörige und Nahestehende ein sprach- oder textbasiertes Interview,
-        aus dessen Inhalten ein Erinnerungstext entsteht.
+        Mit dieser Anwendung erstellen wir ein persönliches Buch oder eine Rede zu einem besonderen
+        Anlass – etwa zum Gedenken an eine verstorbene Person, zu einem Geburtstag, Jubiläum,
+        Abschied oder zur Geburt eines Kindes. Dazu führen nahestehende Personen ein sprach- oder
+        textbasiertes Interview, aus dessen Inhalten ein persönlicher Text entsteht.
       </p>
 
       <h2 style={LH}>3. Welche Daten wir verarbeiten</h2>
       <p>
-        Von Ihnen als beitragender Person: Name, Beziehung zur verstorbenen Person, Geschlecht,
+        Von Ihnen als beitragender Person: Name, Beziehung zu der Person, um die es geht, Geschlecht,
         gewünschte Anrede, Ihre Stimmaufnahmen während des Interviews sowie deren Verschriftlichung
         und sämtliche Interview-Inhalte. Diese Inhalte können <strong>besondere Kategorien
-        personenbezogener Daten</strong> enthalten (Art. 9 DSGVO), insbesondere Angaben zu Gesundheit
-        und Todesumständen sowie ggf. religiöse oder weltanschauliche Angaben. Technisch fallen
-        zudem Zeitstempel und die Protokollierung Ihrer Einwilligung an.
+        personenbezogener Daten</strong> enthalten (Art. 9 DSGVO), insbesondere Angaben zu Gesundheit,
+        ggf. religiöse oder weltanschauliche Angaben und – je nach Anlass – Angaben zu den Umständen
+        (etwa eines Todesfalls). Technisch fallen zudem Zeitstempel und die Protokollierung Ihrer
+        Einwilligung an.
       </p>
 
       <h2 style={LH}>4. Rechtsgrundlage</h2>
       <p>
         Wir verarbeiten diese Daten ausschließlich auf Grundlage Ihrer <strong>ausdrücklichen
         Einwilligung</strong> (Art. 6 Abs. 1 lit. a und Art. 9 Abs. 2 lit. a DSGVO). Die Einwilligung
-        ist freiwillig; ohne sie können wir das Gedenkbuch nicht erstellen. Sie können Ihre
+        ist freiwillig; ohne sie können wir das gewünschte Buch bzw. die Rede nicht erstellen. Sie können Ihre
         Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen, ohne dass die Rechtmäßigkeit
         der bis dahin erfolgten Verarbeitung berührt wird (siehe Abschnitt 8).
       </p>
@@ -3156,9 +3160,10 @@ function Datenschutz() {
 
       <h2 style={LH}>6. Speicherdauer</h2>
       <p>
-        Wir löschen die zu einem Gedenkbuch gehörenden personenbezogenen Daten automatisch
-        <strong> 90 Tage nach dem Bestattungstermin</strong> (ist kein Bestattungstermin hinterlegt,
-        90 Tage nach Anlage des Gedenkbuchs). Auf Ihren Wunsch löschen wir Ihre Daten auch früher.
+        Wir löschen die zu einem Buch gehörenden personenbezogenen Daten automatisch
+        <strong> 90 Tage nach dem hinterlegten Anlass-Termin</strong> (z. B. Bestattung, Feier oder
+        Verabschiedung; ist kein Termin hinterlegt, 90 Tage nach Anlage des Buchs). Auf Ihren Wunsch
+        löschen wir Ihre Daten auch früher.
       </p>
 
       <h2 style={LH}>7. Ihre Rechte</h2>
