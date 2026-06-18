@@ -740,7 +740,7 @@ export const CATEGORIES = {
   }),
 
   newborn: buildGenericCategory('newborn', {
-    label: 'Willkommensbuch', icon: '👶', description: 'Zur Geburt eines Kindes – Hoffnungen, Wünsche und Botschaften für das Kind.', nounBook: 'Willkommensbuch',
+    label: 'Willkommensbuch', icon: '👶', description: 'Zur Geburt eines Kindes – Hoffnungen, Wünsche, Ratschläge und Botschaften für das Kind.', nounBook: 'Willkommensbuch',
     v1Label: 'Version 1 – Einzelne Beiträge', v1Filename: 'Willkommensbuch_V1',
     v2Label: 'Version 2 – Nach Themen', v2Filename: 'Willkommensbuch_V2',
     intake: {
