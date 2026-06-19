@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun } from 'docx'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType } from 'docx'
 import jsPDF from 'jspdf'
 import JSZip from 'jszip'
 import {
@@ -220,84 +220,226 @@ function dedupeContributors(list) {
   return out
 }
 
+// Druckfertiges DOCX: DIN A5 hochkant inkl. 3 mm Beschnitt (Datenformat
+// 15,4 × 21,6 cm), Serifenschrift 12 pt, Seitenzahl unten mittig. Jedes
+// Kapitel ist eine eigene Sektion: zuerst eine Bildseite, dann beginnt der
+// Kapiteltext per „gerade Seite" links (Word fügt ggf. eine Leerseite ein).
+const DOCX_FONT = 'Georgia'
+const tw = cm => Math.round(cm * 567) // cm → twips (1 cm = 567 twips)
+const DOCX_PAGE = {
+  size: { width: tw(15.4), height: tw(21.6) },
+  margin: { top: tw(1.6), bottom: tw(1.6), left: tw(1.6), right: tw(1.6) },
+}
+function docxFooter() {
+  return new Footer({ children: [ new Paragraph({
+    alignment: AlignmentType.CENTER,
+    children: [ new TextRun({ children: [PageNumber.CURRENT], font: DOCX_FONT, size: 20 }) ],
+  }) ] })
+}
+const docxSection = (children, type) => ({
+  properties: { page: DOCX_PAGE, ...(type ? { type } : {}) },
+  footers: { default: docxFooter() },
+  children,
+})
+
 async function downloadStructuredDocx(filename, book, contributors = []) {
   const bt = uiText(book.language)
-  const children = []
-  children.push(new Paragraph({
-    children: [new TextRun({ text: book.title || '', size: 56, bold: true })],
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 200 },
-  }))
-  if (book.subtitle) {
-    children.push(new Paragraph({
-      children: [new TextRun({ text: book.subtitle, size: 28, italics: true, color: '78716c' })],
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 800 },
-    }))
-  }
+  const sections = []
+
+  // Titelseite
+  sections.push(docxSection([
+    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: tw(4), after: 240 },
+      children: [new TextRun({ text: book.title || '', font: DOCX_FONT, size: 48, bold: true })] }),
+    ...(book.subtitle ? [new Paragraph({ alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: book.subtitle, font: DOCX_FONT, size: 28, italics: true, color: '78716c' })] })] : []),
+  ]))
+
   for (const ch of (book.chapters || [])) {
-    children.push(new Paragraph({
-      children: [new TextRun({ text: `${bt.chapterLabel} ${ch.number}`, size: 20, color: 'a8a29e' })],
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 600, after: 100 },
-    }))
-    children.push(new Paragraph({
-      text: ch.heading || '',
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 300 },
-    }))
+    // Bildseite vor dem Kapitel (eigene Seite). Hinweis: ein echtes
+    // Doppelseiten-Motiv (über zwei Seiten) ist im Druck-Layout zu setzen.
+    let imgPara = null
     if (ch.image_url) {
       const buf = await fetchImageBuffer(ch.image_url)
-      if (buf) {
-        children.push(new Paragraph({
-          children: [new ImageRun({
-            data: buf,
-            transformation: { width: 560, height: 373 }, // 3:2 wie gpt-image-1 1536×1024, fits A4 minus Ränder
-          })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 300 },
-        }))
-      }
+      if (buf) imgPara = new Paragraph({
+        alignment: AlignmentType.CENTER, spacing: { before: tw(4) },
+        children: [new ImageRun({ data: buf, transformation: { width: 460, height: 307 } })], // 3:2, volle Satzbreite A5
+      })
     }
-    for (const raw of String(ch.body || '').split('\n\n')) {
-      const chunk = raw.trim()
-      if (chunk) children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
-    }
+    if (imgPara) sections.push(docxSection([imgPara], SectionType.NEXT_PAGE))
+
+    // Kapiteltext beginnt auf der linken (geraden) Seite.
+    const content = [
+      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: tw(2), after: 100 },
+        children: [new TextRun({ text: `${bt.chapterLabel} ${ch.number}`, font: DOCX_FONT, size: 20, color: 'a8a29e' })] }),
+      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
+        children: [new TextRun({ text: ch.heading || '', font: DOCX_FONT, size: 36, bold: true })] }),
+      ...String(ch.body || '').split('\n\n').map(r => r.trim()).filter(Boolean).map(chunk =>
+        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: DOCX_FONT, size: 24 })] })),
+    ]
+    sections.push(docxSection(content, SectionType.EVEN_PAGE))
   }
-  // Mitwirkende-Seite am Ende: Name + Beziehung jeder beitragenden Person.
+
+  // Mitwirkende + Disclaimer (eigene Seite am Ende)
+  const endChildren = []
   if (contributors && contributors.length) {
-    children.push(new Paragraph({
-      text: bt.contributorsHeading,
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      pageBreakBefore: true,
-      spacing: { after: 300 },
-    }))
+    endChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
+      children: [new TextRun({ text: bt.contributorsHeading, font: DOCX_FONT, size: 36, bold: true })] }))
     for (const c of dedupeContributors(contributors)) {
       const rel = c.relationship ? ` — ${c.relationship}` : ''
-      children.push(new Paragraph({
-        children: [
-          new TextRun({ text: c.contributor_name || '', bold: true }),
-          new TextRun({ text: rel, color: '78716c' }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 120 },
-      }))
+      endChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 }, children: [
+        new TextRun({ text: c.contributor_name || '', font: DOCX_FONT, bold: true, size: 24 }),
+        new TextRun({ text: rel, font: DOCX_FONT, color: '78716c', size: 24 }),
+      ] }))
     }
   }
-  // Disclaimer am Ende (Entstehung & Haftung).
-  children.push(new Paragraph({
-    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, size: 20, bold: true, color: '78716c' })],
-    pageBreakBefore: true,
-    spacing: { after: 120 },
-  }))
-  children.push(new Paragraph({
-    children: [new TextRun({ text: BOOK_DISCLAIMER, size: 18, italics: true, color: '78716c' })],
-    spacing: { after: 200 },
-  }))
-  const doc = new Document({ creator: 'Lebenswerk', title: book.title || '', sections: [{ children }] })
+  endChildren.push(new Paragraph({ spacing: { before: tw(2), after: 120 },
+    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, font: DOCX_FONT, size: 20, bold: true, color: '78716c' })] }))
+  endChildren.push(new Paragraph({ spacing: { after: 200 },
+    children: [new TextRun({ text: BOOK_DISCLAIMER, font: DOCX_FONT, size: 18, italics: true, color: '78716c' })] }))
+  sections.push(docxSection(endChildren, SectionType.NEXT_PAGE))
+
+  const doc = new Document({
+    creator: 'Lebenswerk', title: book.title || '',
+    styles: { default: { document: { run: { font: DOCX_FONT, size: 24 } } } },
+    sections,
+  })
   downloadBlob(filename, await Packer.toBlob(doc))
+}
+
+// Lädt ein Bild als Data-URL inkl. natürlicher Pixelmaße (für die randlose
+// „Cover"-Platzierung im Druck-PDF). Gibt null zurück, wenn nicht ladbar.
+async function fetchImageForPdf(url) {
+  try {
+    const r = await fetch(url)
+    if (!r.ok) return null
+    const blob = await r.blob()
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader()
+      fr.onload = () => res(fr.result)
+      fr.onerror = rej
+      fr.readAsDataURL(blob)
+    })
+    const dim = await new Promise((res) => {
+      const im = new Image()
+      im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight })
+      im.onerror = () => res(null)
+      im.src = dataUrl
+    })
+    return { dataUrl, w: dim?.w || 3, h: dim?.h || 2 }
+  } catch { return null }
+}
+
+// Druckfertiges PDF (einseitige Seiten, exakte Platzierung). Endformat je
+// Einzelseite 15,4 × 21,6 cm = DIN A5 (14,8 × 21,0) + 3 mm Beschnitt ringsum.
+// Layout-Regeln:
+//  • Titelseite auf der ersten RECHTEN Seite (recto).
+//  • Pro Kapitel: doppelseitiges Bild (linke Hälfte auf der LINKEN Seite,
+//    rechte Hälfte auf der RECHTEN Seite), danach eine LEERE Seite, danach
+//    beginnt die Kapitelüberschrift auf der nächsten RECHTEN Seite.
+//  • Das Bild wird auf die Doppelseite 30,8 × 21,6 cm „gecovert" (randlos
+//    füllend, mittiger Beschnitt, ohne Verzerrung) und exakt in der Mitte
+//    vertikal geteilt.
+const PDF_PAGE_W = 154   // mm – Einzelseite inkl. Beschnitt
+const PDF_PAGE_H = 216   // mm
+const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
+
+async function downloadPrintPdf(filename, book, contributors = []) {
+  const bt = uiText(book.language)
+  const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H] })
+  let page = 1 // jsPDF hat Seite 1 bereits angelegt; recto = ungerade
+
+  const newPage = () => { doc.addPage([PDF_PAGE_W, PDF_PAGE_H]); page++ }
+  const isRecto = p => p % 2 === 1
+  // Auf die nächste rechte Seite springen (ggf. eine leere linke Seite davor).
+  const startRecto = () => { newPage(); if (!isRecto(page)) newPage() }
+  // Auf die nächste linke Seite springen (für die linke Bildhälfte).
+  const startVerso = () => { newPage(); if (isRecto(page)) newPage() }
+
+  // Eine Hälfte des Cover-skalierten Doppelseiten-Bildes randlos setzen.
+  // side: 'left' zeigt Doppelseiten-Bereich 0…154, 'right' zeigt 154…308.
+  const drawHalf = (img, side) => {
+    const r = img.w / img.h
+    let dw, dh
+    if (r > PDF_SPREAD_W / PDF_PAGE_H) { dh = PDF_PAGE_H; dw = PDF_PAGE_H * r } // breiter → Höhe füllen
+    else                              { dw = PDF_SPREAD_W; dh = PDF_SPREAD_W / r } // höher → Breite füllen
+    const offX = (PDF_SPREAD_W - dw) / 2
+    const offY = (PDF_PAGE_H - dh) / 2
+    const baseX = side === 'left' ? offX : offX - PDF_PAGE_W
+    doc.addImage(img.dataUrl, 'PNG', baseX, offY, dw, dh)
+  }
+
+  // Textsatz mit y-Cursor und automatischem Seitenumbruch (Fortsetzungsseiten
+  // brauchen keine Paritätskorrektur).
+  const ML = 18, MR = 18, MT = 22, MB = 20
+  const maxW = PDF_PAGE_W - ML - MR
+  const lh = pt => pt * 0.3528 * 1.5
+  let y = MT
+  const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0 } = {}) => {
+    doc.setFont('times', style); doc.setFontSize(size); doc.setTextColor(...color)
+    const lineH = lh(size)
+    for (const line of doc.splitTextToSize(String(chunk ?? ''), maxW - indent)) {
+      if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
+      doc.text(line, ML + indent, y); y += lineH
+    }
+    y += gapAfter * lineH
+  }
+
+  // ── Titelseite (recto) ──
+  doc.setFont('times', 'bold'); doc.setFontSize(28); doc.setTextColor(30, 30, 30)
+  let ty = 90
+  for (const line of doc.splitTextToSize(book.title || '', PDF_PAGE_W - 40)) { doc.text(line, PDF_PAGE_W / 2, ty, { align: 'center' }); ty += 12 }
+  if (book.subtitle) {
+    doc.setFont('times', 'italic'); doc.setFontSize(15); doc.setTextColor(120, 113, 108); ty += 4
+    for (const line of doc.splitTextToSize(book.subtitle, PDF_PAGE_W - 50)) { doc.text(line, PDF_PAGE_W / 2, ty, { align: 'center' }); ty += 8 }
+  }
+
+  // ── Kapitel ──
+  for (const ch of (book.chapters || [])) {
+    const img = ch.image_url ? await fetchImageForPdf(ch.image_url) : null
+    if (img) {
+      startVerso(); drawHalf(img, 'left')   // linke Seite: linke Bildhälfte
+      newPage();    drawHalf(img, 'right')  // rechte Seite: rechte Bildhälfte
+      newPage()                             // leere linke Seite
+      newPage()                             // rechte Seite: Kapitelbeginn
+    } else {
+      startRecto()                          // ohne Bild trotzdem rechts beginnen
+    }
+    // Kapitellabel + Überschrift (zentriert), dann Fließtext
+    doc.setFont('times', 'normal'); doc.setFontSize(11); doc.setTextColor(150, 150, 150)
+    doc.text(`${bt.chapterLabel} ${ch.number || ''}`.trim(), PDF_PAGE_W / 2, 34, { align: 'center' })
+    doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
+    let hy = 46
+    for (const line of doc.splitTextToSize(ch.heading || '', maxW)) { doc.text(line, PDF_PAGE_W / 2, hy, { align: 'center' }); hy += 9 }
+    y = hy + 8
+    for (const para of String(ch.body || '').split('\n\n').map(s => s.trim()).filter(Boolean)) {
+      flow(para, { size: 12, gapAfter: 0.6 })
+    }
+  }
+
+  // ── Mitwirkende + Disclaimer (neue Seite) ──
+  newPage(); y = MT
+  if (contributors && contributors.length) {
+    doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
+    doc.text(bt.contributorsHeading, PDF_PAGE_W / 2, y, { align: 'center' }); y += 14
+    doc.setFontSize(12)
+    for (const c of dedupeContributors(contributors)) {
+      if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
+      const rel = c.relationship ? `  —  ${c.relationship}` : ''
+      doc.setFont('times', 'bold'); doc.setTextColor(40, 40, 40)
+      const nameW = doc.getTextWidth(c.contributor_name || '')
+      const relW = doc.getTextWidth(rel)
+      const startX = (PDF_PAGE_W - nameW - relW) / 2
+      doc.text(c.contributor_name || '', startX, y)
+      doc.setFont('times', 'normal'); doc.setTextColor(120, 113, 108)
+      doc.text(rel, startX + nameW, y)
+      y += 7
+    }
+    y += 8
+  }
+  flow(BOOK_DISCLAIMER_TITLE, { size: 11, style: 'bold', color: [120, 113, 108], gapAfter: 0.5 })
+  flow(BOOK_DISCLAIMER, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
+
+  downloadBlob(filename, doc.output('blob'))
 }
 
 async function downloadAsDocx(filename, title, text) {
@@ -328,7 +470,11 @@ async function downloadAsDocx(filename, title, text) {
     children: [new TextRun({ text: BOOK_DISCLAIMER, size: 18, italics: true, color: '78716c' })],
     spacing: { after: 200 },
   }))
-  const doc = new Document({ creator: 'Lebenswerk', title, sections: [{ children }] })
+  const doc = new Document({
+    creator: 'Lebenswerk', title,
+    styles: { default: { document: { run: { font: DOCX_FONT, size: 24 } } } },
+    sections: [docxSection(children)],
+  })
   downloadBlob(filename, await Packer.toBlob(doc))
 }
 
@@ -2035,6 +2181,18 @@ function Dashboard() {
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
 
+  // Druckfertiges PDF (nur Bücher): doppelseitiges Bild, Kapitel beginnen rechts.
+  async function downloadGeneratedPdf(key) {
+    const gen = GENERATORS[key]
+    const data = selected?.[gen.field]
+    if (!data || gen.kind !== 'book') return
+    setErr('')
+    try {
+      const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
+      await downloadPrintPdf(filename, data, contributions)
+    } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
+  }
+
   function pickEulogyStyle(style) {
     setEulogyStyleModal(false)
     requestGenerate('eulogy', style.instruction)
@@ -3006,6 +3164,11 @@ function Dashboard() {
                       <button onClick={() => downloadGenerated(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         ⬇ Download .docx
                       </button>
+                      {gen.kind === 'book' && (
+                        <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          🖨 Druck-PDF
+                        </button>
+                      )}
                       <button onClick={() => recheck(key)} disabled={!has || busy || reviewingKey === key} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
                       </button>
@@ -3424,6 +3587,9 @@ function Dashboard() {
         {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
             <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
+            {gen.kind === 'book' && (
+              <button className="secondary" onClick={() => downloadGeneratedPdf(key)} style={{ fontSize:13, padding:'8px 16px' }}>🖨 Druck-PDF</button>
+            )}
             <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
