@@ -16,6 +16,19 @@ const OPENAI_KEY  = process.env.OPENAI_API_KEY
 const BUCKET = IMAGE_BUCKET
 const IMAGE_MODEL = 'gpt-image-1-high-1536x1024'
 
+// Kompositions-Direktive für das druckfertige Doppelseiten-Layout. Jedes
+// Kapitelbild läuft im Druck über zwei gegenüberliegende Seiten: die exakte
+// vertikale Mitte wird zum Buchfalz (Bundsteg), die vier Außenkanten werden
+// beschnitten (Cover-Platzierung im Druck-PDF). gpt-image-1 kann das Zielformat
+// 30,8 × 21,6 cm (~1,43:1) nicht exakt liefern — wir erzeugen die breiteste
+// verfügbare Größe (1536×1024) und lassen das Motiv bewusst für die Doppelseite
+// komponieren, damit weder Falz noch Beschnitt wichtige Bildteile zerstören.
+const SPREAD_DIRECTIVE =
+  'Composition: design this as a full-bleed double-page book spread in a wide panoramic landscape format (roughly 1.43:1). ' +
+  'The picture will be split down the exact vertical center, which becomes the bound fold of the book, and all four outer edges will be trimmed. ' +
+  'Therefore keep the main focal elements and any important detail away from the central vertical line and away from all four outer edges. ' +
+  'Balanced, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions, no borders or frames.'
+
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   if (req.method !== 'POST') return res.status(405).end()
@@ -34,7 +47,7 @@ module.exports = async function handler(req, res) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
       body: JSON.stringify({
         model: 'gpt-image-1',
-        prompt,
+        prompt: `${prompt}\n\n${SPREAD_DIRECTIVE}`,
         size: '1536x1024',
         quality: 'high',
         n: 1,
