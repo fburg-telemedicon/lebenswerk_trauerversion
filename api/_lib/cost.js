@@ -15,6 +15,14 @@ const PRICING = {
   'claude-opus-4-7':   { inputPerMTokens: 15.0, outputPerMTokens: 75.0 },
   'claude-haiku-4-5':  { inputPerMTokens: 1.0,  outputPerMTokens: 5.0  },
 
+  // Azure OpenAI (USD pro 1.000.000 Tokens). Stand 2026 – gegen die aktuelle
+  // Azure-OpenAI-Preisliste prüfen (Data-Zone-Preise liegen ggf. leicht höher).
+  // Key = Deployment-Name (so wie in Azure benannt) → Deployment "gpt-4.1" nennen.
+  'gpt-4.1':      { inputPerMTokens: 2.0,  outputPerMTokens: 8.0  },
+  'gpt-4.1-mini': { inputPerMTokens: 0.4,  outputPerMTokens: 1.6  },
+  'gpt-4o':       { inputPerMTokens: 2.5,  outputPerMTokens: 10.0 },
+  'gpt-5.5':      { inputPerMTokens: 0,    outputPerMTokens: 0    }, // TODO: Preis eintragen, sobald genutzt
+
   // OpenAI TTS (USD pro 1.000.000 Zeichen)
   'tts-1':    { perMChars: 15.0 },
   'tts-1-hd': { perMChars: 30.0 },
@@ -47,6 +55,10 @@ function costClaude(model, inT, outT) {
   return (inT  || 0) / 1e6 * p.inputPerMTokens
        + (outT || 0) / 1e6 * p.outputPerMTokens
 }
+
+// Anbieter-neutrale Token-Kosten (gleiche Formel, beliebiges Chat-Modell in
+// PRICING – Claude wie Azure-GPT). costClaude bleibt als Alias erhalten.
+const costLLM = costClaude
 
 function costTTS(model, chars) {
   const p = PRICING[model]; if (!p) return 0
@@ -81,6 +93,6 @@ async function recordCost(event) {
 
 module.exports = {
   USD_TO_EUR, PRICING,
-  costClaude, costTTS, costSTT, costImage,
+  costClaude, costLLM, costTTS, costSTT, costImage,
   recordCost,
 }

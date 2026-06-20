@@ -1,13 +1,80 @@
 // api/ask.js
-// POST /api/ask  { system, messages, memorialCode?, kind? }  → { text }
+// POST /api/ask  { system, messages, memorialCode?, kind?, provider? }  → { text }
+//
+// LLM-Anbieter ist umschaltbar (DSGVO/EU-Migration):
+//   LLM_PROVIDER = 'anthropic' (Default) | 'azure'
+// Eingeloggte Admins können pro Request via { provider } übersteuern
+// (für den A/B-Vergleich Claude vs. Azure-GPT auf demselben Memorial).
+// Azure-Konfiguration (nur für den azure-Pfad nötig):
+//   AZURE_OPENAI_ENDPOINT     z. B. https://lebensgeschichten-instanz.openai.azure.com
+//   AZURE_OPENAI_KEY          Schlüssel der Ressource
+//   AZURE_OPENAI_DEPLOYMENT   Deployment-Name (z. B. "gpt-4.1") – zugleich Pricing-Key
+//   AZURE_OPENAI_API_VERSION  optional, Default unten
 
 const { createClient } = require('@supabase/supabase-js')
-const { costClaude, recordCost } = require('./_lib/cost')
+const { costLLM, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { verifyToken } = require('./_lib/auth')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+
+const DEFAULT_PROVIDER = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase()
+const MAX_TOKENS = 8000
+
+// ── Anthropic (Claude) ────────────────────────────────────────────
+async function callAnthropic({ system, messages }) {
+  const model = 'claude-sonnet-4-5'
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({ model, max_tokens: MAX_TOKENS, system: system || '', messages }),
+  })
+  const data = await response.json()
+  if (data.error) throw new Error(data.error.message)
+  return {
+    text: data.content?.[0]?.text || '',
+    provider: 'anthropic',
+    model,
+    inT: data.usage?.input_tokens || 0,
+    outT: data.usage?.output_tokens || 0,
+  }
+}
+
+// ── Azure OpenAI (GPT) ────────────────────────────────────────────
+// Chat-Completions-API. Der Anthropic-Stil { system, messages } wird auf
+// OpenAI gemappt: system wird als erste Nachricht (role 'system') vorangestellt.
+async function callAzure({ system, messages }) {
+  const endpoint   = (process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/+$/, '')
+  const key        = process.env.AZURE_OPENAI_KEY
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'
+  if (!endpoint || !key || !deployment) {
+    throw new Error('Azure OpenAI ist nicht konfiguriert (AZURE_OPENAI_ENDPOINT/KEY/DEPLOYMENT).')
+  }
+  const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`
+  const oaiMessages = (system ? [{ role: 'system', content: system }] : []).concat(messages || [])
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'api-key': key },
+    // temperature bewusst nicht gesetzt (Modell-Default) – manche neueren
+    // Modelle erlauben nur den Default-Wert.
+    body: JSON.stringify({ messages: oaiMessages, max_tokens: MAX_TOKENS }),
+  })
+  const data = await response.json()
+  if (data.error) throw new Error(data.error.message || 'Azure-OpenAI-Fehler')
+  return {
+    text: data.choices?.[0]?.message?.content || '',
+    provider: 'azure-openai',
+    model: deployment, // Deployment-Name = Pricing-Key in cost.js
+    inT: data.usage?.prompt_tokens || 0,
+    outT: data.usage?.completion_tokens || 0,
+  }
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -25,50 +92,39 @@ module.exports = async function handler(req, res) {
     if (!messages) return res.status(400).json({ error: 'messages fehlt.' })
 
     // Offener Endpunkt (kein Login im Beitragenden-Flow), aber an einen echten
-    // Gedenkbuch-Code gebunden – damit kein anonymer Claude-Proxy auf fremde
-    // Rechnung. Prüfung VOR dem (kostenpflichtigen) Claude-Aufruf.
+    // Gedenkbuch-Code gebunden – damit kein anonymer LLM-Proxy auf fremde
+    // Rechnung. Prüfung VOR dem (kostenpflichtigen) Modell-Aufruf.
     const code = String(memorialCode || '').toUpperCase().trim()
     if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
     if (!(await memorialExists(supabase, code))) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
 
-    const model = 'claude-sonnet-4-5'
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 8000,
-        system: system || '',
-        messages,
-      }),
-    })
+    // Anbieter: Default aus Env; eingeloggte Admins dürfen pro Request
+    // übersteuern (A/B-Vergleich). Anonyme Beitragende können das NICHT.
+    const requested = (isLoggedIn && typeof req.body.provider === 'string')
+      ? req.body.provider.toLowerCase()
+      : null
+    const provider = requested || DEFAULT_PROVIDER
 
-    const data = await response.json()
-    if (data.error) return res.status(500).json({ error: data.error.message })
-    const text = data.content?.[0]?.text || ''
+    const result = provider === 'azure'
+      ? await callAzure({ system, messages })
+      : await callAnthropic({ system, messages })
 
-    if (data.usage) {
-      const inT  = data.usage.input_tokens  || 0
-      const outT = data.usage.output_tokens || 0
+    if (result.inT || result.outT) {
       await recordCost({
         memorial_id: code,
         contribution_id: contributionId || null,
         kind: kind || 'reasoning',
-        provider: 'anthropic',
-        model,
-        input_tokens: inT,
-        output_tokens: outT,
-        cost_usd: costClaude(model, inT, outT),
+        provider: result.provider,
+        model: result.model,
+        input_tokens: result.inT,
+        output_tokens: result.outT,
+        cost_usd: costLLM(result.model, result.inT, result.outT),
       })
     }
 
-    return res.json({ text })
+    return res.json({ text: result.text })
   } catch (e) {
     console.error('/api/ask error:', e)
     res.status(500).json({ error: e.message })
