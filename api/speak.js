@@ -22,6 +22,16 @@ function xmlEscape(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
 
+// Emojis/Piktogramme aus dem Vorlese-Text entfernen – Azure-TTS liest sie sonst
+// laut vor („lächelndes Gesicht" o. Ä.). Betrifft nur die Sprachausgabe, nicht
+// den angezeigten Text.
+function stripForSpeech(s) {
+  return String(s)
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{1F1E6}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
 // ── OpenAI TTS ────────────────────────────────────────────────────
 async function speakOpenAI(text) {
   const model = 'tts-1-hd'
@@ -43,9 +53,10 @@ async function speakAzure(text) {
   const key    = process.env.AZURE_SPEECH_KEY
   if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
   const voice = process.env.AZURE_SPEECH_TTS_VOICE || 'de-DE-KatjaNeural'
+  const rate  = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
   const lang  = voice.slice(0, 5) || 'de-DE' // z. B. "de-DE"
   const ssml  = `<speak version='1.0' xml:lang='${lang}'><voice name='${voice}'>`
-              + `<prosody rate='-5%'>${xmlEscape(text)}</prosody></voice></speak>`
+              + `<prosody rate='${rate}'>${xmlEscape(text)}</prosody></voice></speak>`
 
   const response = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
     method: 'POST',
@@ -71,6 +82,9 @@ module.exports = async function handler(req, res) {
 
     const { text, memorialCode, contributionId } = req.body
     if (!text) return res.status(400).json({ error: 'text fehlt.' })
+    // Emojis aus dem Vorlese-Text entfernen (gilt für beide Anbieter).
+    const speechText = stripForSpeech(text)
+    if (!speechText) return res.status(400).json({ error: 'kein vorlesbarer Text.' })
 
     // An einen echten Gedenkbuch-Code gebunden (offener Endpunkt, aber kein
     // anonymer TTS-Proxy auf fremde Rechnung). Prüfung VOR dem Anbieter-Aufruf.
@@ -82,7 +96,7 @@ module.exports = async function handler(req, res) {
 
     let result
     try {
-      result = PROVIDER === 'azure' ? await speakAzure(text) : await speakOpenAI(text)
+      result = PROVIDER === 'azure' ? await speakAzure(speechText) : await speakOpenAI(speechText)
     } catch (e) {
       return res.status(500).json({ error: e.message })
     }
@@ -92,7 +106,7 @@ module.exports = async function handler(req, res) {
     res.send(result.buffer)
 
     {
-      const chars = String(text).length
+      const chars = speechText.length
       await recordCost({
         memorial_id: code,
         contribution_id: contributionId || null,
