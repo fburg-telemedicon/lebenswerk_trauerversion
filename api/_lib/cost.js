@@ -30,6 +30,10 @@ const PRICING = {
   // OpenAI STT (USD pro Minute)
   'whisper-1': { perMinute: 0.006 },
 
+  // Azure AI Speech – Stand 2026, gegen Azure-Speech-Preisliste prüfen.
+  'azure-stt':        { perMinute: 0.0167 }, // ~$1 / Stunde Audio
+  'azure-tts-neural': { perMChars: 15.0 },   // Neural-TTS ~$15 / 1M Zeichen
+
   // OpenAI DALL-E 3 (USD pro Bild). Legacy, falls noch verfügbar.
   'dall-e-3-hd-1792x1024':       { perImage: 0.120 },
   'dall-e-3-hd-1024x1792':       { perImage: 0.120 },
