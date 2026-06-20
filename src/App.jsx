@@ -1345,8 +1345,11 @@ function Dashboard() {
   const [orderDraft, setOrderDraft]           = useState(null)  // Arbeitskopie der Auftragsdaten
   const [orderSaving, setOrderSaving]         = useState(false)
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
-  const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg, reuseImages } | null
-  const [genImgModal, setGenImgModal]   = useState(null) // { key, extraArg } | null – Bilder behalten/neu?
+  const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
+  const [imgEditModal, setImgEditModal] = useState(null) // { key } | null – Bilder überarbeiten
+  const [imgEditSel, setImgEditSel]     = useState(new Set()) // ausgewählte Kapitelindizes
+  const [imgEditBusy, setImgEditBusy]   = useState(false)
+  const [imgEditProgress, setImgEditProgress] = useState('')
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
@@ -2134,8 +2137,9 @@ function Dashboard() {
         // Kapiteln zuordnen (V1 über contribution_id/Überschrift, V2 über
         // Überschrift/Position). Neue/zusätzliche Kapitel ohne Treffer bekommen
         // ein frisches Bild. `selected[gen.field]` ist hier noch die alte Version.
-        const reuseImages = opts.reuseImages === true
-        const oldChapters = (reuseImages && Array.isArray(selected[gen.field]?.chapters)) ? selected[gen.field].chapters : []
+        // Bilder bleiben bei der Neu-Generierung immer erhalten; gezielt einzelne
+        // Bilder neu erzeugen geht über „Bilder überarbeiten".
+        const oldChapters = Array.isArray(selected[gen.field]?.chapters) ? selected[gen.field].chapters : []
         const normH = s => String(s || '').trim().toLowerCase()
         const oldByContrib = new Map()
         const oldByHeading = new Map()
@@ -2153,7 +2157,7 @@ function Dashboard() {
             setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
             checkCancel()
             // Wenn möglich vorhandenes Bild wiederverwenden (kein neuer Call).
-            if (reuseImages) {
+            {
               let reusedPath = null
               if (ch.contribution_id && oldByContrib.has(ch.contribution_id)) reusedPath = oldByContrib.get(ch.contribution_id)
               else if (oldByHeading.has(normH(ch.heading))) reusedPath = oldByHeading.get(normH(ch.heading))
@@ -2304,32 +2308,74 @@ function Dashboard() {
     return Array.isArray(book?.chapters) && book.chapters.some(c => c?.image_path)
   }
 
-  // Startet die Generierung. Reihenfolge der Abfragen:
-  //  1) Bei Büchern mit vorhandenen Bildern: behalten oder neu? (genImgModal)
-  //  2) Bei mehreren angebotenen Sprachen: Zielsprache (genLangModal)
+  // Startet die Generierung; bei mehreren angebotenen Sprachen wird zuvor die
+  // Zielsprache abgefragt. Vorhandene Bilder werden bei der Neu-Generierung
+  // automatisch beibehalten (siehe generate()); gezielt einzelne Bilder neu
+  // erzeugen geht über „Bilder überarbeiten".
   function requestGenerate(key, extraArg) {
-    const gen = GENERATORS[key]
-    if (gen?.kind === 'book' && bookHasImages(selected?.[gen.field])) {
-      setGenImgModal({ key, extraArg }); return
-    }
-    proceedGenerate(key, extraArg, undefined)
-  }
-  // Nach der Bilder-Entscheidung (reuse: true = behalten, false = alle neu).
-  function pickGenImages(reuse) {
-    const m = genImgModal
-    setGenImgModal(null)
-    if (m) proceedGenerate(m.key, m.extraArg, reuse)
-  }
-  // Sprachwahl (falls mehrere) und Start; reuseImages wird durchgereicht.
-  function proceedGenerate(key, extraArg, reuseImages) {
     const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
-    if (langs.length > 1) { setGenLangModal({ key, extraArg, reuseImages }); return }
-    generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined || reuseImages !== undefined, reuseImages })
+    if (langs.length > 1) { setGenLangModal({ key, extraArg }); return }
+    generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined })
   }
   function pickGenLang(code) {
     const m = genLangModal
     setGenLangModal(null)
-    if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined || m.reuseImages !== undefined, reuseImages: m.reuseImages })
+    if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined })
+  }
+
+  // ── Bilder überarbeiten: gezielt einzelne Kapitelbilder neu generieren ──
+  function openImgEdit(key) {
+    setImgEditSel(new Set())
+    setImgEditProgress('')
+    setImgEditModal({ key })
+  }
+  function toggleImgSel(i) {
+    setImgEditSel(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n })
+  }
+  async function regenerateSelectedImages() {
+    const m = imgEditModal
+    if (!m) return
+    const gen = GENERATORS[m.key]
+    const book = selected?.[gen.field]
+    const indices = [...imgEditSel].sort((a, b) => a - b)
+    if (!book?.chapters || indices.length === 0) return
+    setImgEditBusy(true); setErr('')
+    try {
+      const newChapters = book.chapters.map(c => ({ ...c }))
+      const errs = []
+      let done = 0
+      for (const i of indices) {
+        const ch = newChapters[i]
+        setImgEditProgress(`Bild ${done + 1}/${indices.length} wird neu erstellt …`)
+        if (!ch.image_prompt) { errs.push(`Kapitel ${ch.number}: kein Bild-Prompt`); done++; continue }
+        try {
+          const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt)
+          newChapters[i] = { ...ch, image_path: storagePath, image_url: undefined, image_error: null }
+        } catch (e) {
+          errs.push(`Kapitel ${ch.number}: ${e.message}`)
+        }
+        done++
+      }
+      setImgEditProgress('Wird gespeichert …')
+      // Speichern; der Server räumt die nun verwaisten alten Bilddateien auf.
+      await adminSaveMemorialText(token, selected.id, gen.field, { ...book, chapters: newChapters })
+      // Neu laden, damit frische signierte Bild-URLs ankommen.
+      try {
+        const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+        if (r.ok) {
+          const fresh = await r.json()
+          setMemorials(fresh)
+          const updated = fresh.find(x => x.id === selected.id)
+          if (updated) setSelected(updated)
+        }
+      } catch {}
+      if (errs.length) setErr(`${errs.length} Bild(er) fehlgeschlagen. Erster: ${errs[0]}`)
+      setImgEditModal(null)
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setImgEditBusy(false); setImgEditProgress('')
+    }
   }
 
   async function openCosts(memorial) {
@@ -2386,30 +2432,75 @@ function Dashboard() {
     </div>
   ) : null
 
-  const genImgOverlay = genImgModal ? (
-    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
-      <div style={{ ...S.card, maxWidth: 480, width:'100%' }}>
-        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Bilder neu generieren?</h2>
-        <p style={{ ...S.muted, marginBottom:16 }}>
-          Dieses Buch enthält bereits Bilder. Der Text wird in jedem Fall neu geschrieben.
-          Was soll mit den Bildern geschehen?
-        </p>
-        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:14 }}>
-          <button onClick={() => pickGenImages(true)} className="secondary" style={{ fontSize:14, padding:'12px 16px', textAlign:'left' }}>
-            <div style={{ fontWeight:600, marginBottom:2 }}>🖼 Vorhandene Bilder behalten</div>
-            <div style={{ fontSize:12, color:'#78716c', lineHeight:1.5 }}>Schneller &amp; günstiger. Neu hinzugekommene Kapitel bekommen trotzdem frische Bilder.</div>
-          </button>
-          <button onClick={() => pickGenImages(false)} style={{ fontSize:14, padding:'12px 16px', textAlign:'left' }}>
-            <div style={{ fontWeight:600, marginBottom:2 }}>✨ Alle Bilder neu generieren</div>
-            <div style={{ fontSize:12, color:'#e7e5e4', lineHeight:1.5 }}>Für jedes Kapitel ein neues Bild. Dauert länger und verursacht zusätzliche Kosten.</div>
-          </button>
-        </div>
-        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
-          <button className="ghost" onClick={() => setGenImgModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
+  const imgEditOverlay = imgEditModal ? (() => {
+    const gen = GENERATORS[imgEditModal.key]
+    const book = selected?.[gen.field]
+    const chapters = Array.isArray(book?.chapters) ? book.chapters : []
+    const selCount = imgEditSel.size
+    const allSel = chapters.length > 0 && selCount === chapters.length
+    return (
+      <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+        <div style={{ ...S.card, maxWidth: 720, width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
+            <div>
+              <h2 style={{ fontSize:18, fontWeight:700, margin:'0 0 4px' }}>Bilder überarbeiten · {gen.label}</h2>
+              <p style={{ ...S.muted, margin:0 }}>Wähle die Bilder aus, die neu generiert werden sollen. Die übrigen bleiben unverändert.</p>
+            </div>
+            <button
+              className="ghost"
+              disabled={imgEditBusy}
+              onClick={() => setImgEditSel(allSel ? new Set() : new Set(chapters.map((_, i) => i)))}
+              style={{ fontSize:13, whiteSpace:'nowrap' }}
+            >
+              {allSel ? 'Keine' : 'Alle'}
+            </button>
+          </div>
+
+          <div style={{ overflowY:'auto', display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:12, padding:'4px 2px', flex:1 }}>
+            {chapters.map((ch, i) => {
+              const on = imgEditSel.has(i)
+              return (
+                <div
+                  key={i}
+                  onClick={() => !imgEditBusy && toggleImgSel(i)}
+                  style={{
+                    border:`2px solid ${on ? '#1c1917' : '#e7e5e4'}`, borderRadius:10, overflow:'hidden',
+                    cursor: imgEditBusy ? 'default' : 'pointer', background:'#fff', position:'relative',
+                  }}
+                >
+                  <div style={{ position:'relative', aspectRatio:'3 / 2', background:'#f5f5f4' }}>
+                    {ch.image_url
+                      ? <img src={ch.image_url} alt={ch.heading || `Kapitel ${ch.number}`} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                      : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#a8a29e' }}>kein Bild</div>}
+                    <div style={{
+                      position:'absolute', top:6, right:6, width:22, height:22, borderRadius:6,
+                      background: on ? '#1c1917' : 'rgba(255,255,255,.85)', border:`1px solid ${on ? '#1c1917' : '#d6d3d1'}`,
+                      display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:14, fontWeight:700,
+                    }}>{on ? '✓' : ''}</div>
+                  </div>
+                  <div style={{ padding:'7px 9px' }}>
+                    <div style={{ fontSize:11, color:'#a8a29e' }}>Kapitel {ch.number}</div>
+                    <div style={{ fontSize:13, fontWeight:600, lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{ch.heading || '—'}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {imgEditBusy && imgEditProgress && (
+            <p style={{ fontSize:13, color:'#78716c', margin:'12px 0 0' }}>⏳ {imgEditProgress}</p>
+          )}
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:12 }}>
+            <button className="ghost" onClick={() => setImgEditModal(null)} disabled={imgEditBusy} style={{ fontSize:14 }}>Schließen</button>
+            <button onClick={regenerateSelectedImages} disabled={imgEditBusy || selCount === 0} style={{ fontSize:14, padding:'10px 18px' }}>
+              {imgEditBusy ? 'Wird generiert …' : `✨ Auswahl neu generieren${selCount ? ` (${selCount})` : ''}`}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  ) : null
+    )
+  })() : null
 
   const sevStyle = sev => sev === 'hoch' ? { color:'#b91c1c', background:'#fee2e2' }
     : sev === 'mittel' ? { color:'#b45309', background:'#fef3c7' }
@@ -3323,6 +3414,11 @@ function Dashboard() {
                           🖨 Druck-PDF
                         </button>
                       )}
+                      {gen.kind === 'book' && (
+                        <button onClick={() => openImgEdit(key)} disabled={!has || busy || !bookHasImages(selected[gen.field])} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          🖼 Bilder überarbeiten
+                        </button>
+                      )}
                       <button onClick={() => recheck(key)} disabled={!has || busy || reviewingKey === key} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
                       </button>
@@ -3546,7 +3642,7 @@ function Dashboard() {
         </div>
         {eulogyStyleOverlay}
         {genLangOverlay}
-        {genImgOverlay}
+        {imgEditOverlay}
         {reportOverlay}
       </div>
     )
@@ -3903,7 +3999,7 @@ function Dashboard() {
         )}
         {eulogyStyleOverlay}
         {genLangOverlay}
-        {genImgOverlay}
+        {imgEditOverlay}
         {reportOverlay}
       </div>
     )

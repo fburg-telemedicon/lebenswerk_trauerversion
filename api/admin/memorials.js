@@ -226,9 +226,30 @@ module.exports = async function handler(req, res) {
       if (!allowedFields.has(field)) {
         return res.status(400).json({ error: 'Ungültiges Feld.' })
       }
+
+      // Bei Büchern: vor dem Überschreiben die bisher referenzierten Bildpfade
+      // ermitteln, damit anschließend die nun verwaisten Storage-Dateien (alte
+      // Version − neue Version) gelöscht werden können.
+      const isBookField = field === 'book_v1' || field === 'book_v2'
+      let orphanPaths = []
+      if (isBookField) {
+        const { data: existing } = await supabase.from('memorials').select(field).eq('id', code).single()
+        const oldPaths = collectImagePaths(existing?.[field])
+        const newPaths = new Set(collectImagePaths(text))
+        orphanPaths = [...new Set(oldPaths.filter(p => p && !newPaths.has(p)))]
+      }
+
       const { error } = await supabase.from('memorials').update({ [field]: text ?? null }).eq('id', code)
       if (error) throw error
-      await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { field } })
+
+      // Aufräumen: nicht mehr referenzierte Bilddateien aus dem Storage löschen.
+      // Fehler hier dürfen den erfolgreichen Speichervorgang NICHT scheitern lassen.
+      if (orphanPaths.length) {
+        const { error: rmErr } = await supabase.storage.from(IMAGE_BUCKET).remove(orphanPaths)
+        if (rmErr) console.error('Verwaiste Bilder konnten nicht gelöscht werden:', rmErr)
+      }
+
+      await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { field, ...(orphanPaths.length ? { removed_images: orphanPaths.length } : {}) } })
       return res.json({ ok: true })
     }
 
