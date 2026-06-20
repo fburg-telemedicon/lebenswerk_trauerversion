@@ -104,6 +104,18 @@ export async function adminSaveMemorialText(token, code, field, text) {
   return parseResponse(res)
 }
 
+// Auftragsdaten (Stammdaten) eines Buchs bearbeiten. `meta` enthält nur die
+// zu ändernden Felder (name, organizer, gender, bookVariant, funeralDate,
+// cutoffDays, showIntroVideo, intake, languages, note, pickupAddress).
+export async function adminUpdateMemorialMeta(token, code, meta) {
+  const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ meta }),
+  })
+  return parseResponse(res) // { ok }
+}
+
 export async function adminDeleteContribution(token, id) {
   const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',

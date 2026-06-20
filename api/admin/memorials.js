@@ -184,7 +184,44 @@ module.exports = async function handler(req, res) {
       const access = await loadAccessibleMemorial(supabase, req.auth, code)
       if (access.error) return res.status(access.status).json({ error: access.error })
 
-      const { field, text } = req.body || {}
+      const { field, text, meta } = req.body || {}
+
+      // Auftragsdaten (Stammdaten des Buchs) bearbeiten. Nur die mitgesendeten
+      // Felder werden aktualisiert; Validierung/Normalisierung wie bei POST.
+      if (meta && typeof meta === 'object') {
+        if (meta.name != null && !String(meta.name).trim()) return res.status(400).json({ error: 'Name darf nicht leer sein.' })
+        if (meta.organizer != null && !String(meta.organizer).trim()) return res.status(400).json({ error: 'Organisator darf nicht leer sein.' })
+
+        const update = {}
+        if (meta.name != null)       update.name = String(meta.name).trim()
+        if (meta.organizer != null)  update.organizer = String(meta.organizer).trim()
+        if ('gender' in meta)        update.gender = meta.gender ? String(meta.gender) : null
+        if (meta.bookVariant != null) update.book_variant = (meta.bookVariant === 2 || meta.bookVariant === '2') ? 2 : 1
+        if ('funeralDate' in meta)   update.funeral_date = meta.funeralDate || null
+        if (meta.cutoffDays != null) {
+          let days = parseInt(meta.cutoffDays, 10)
+          if (!Number.isFinite(days) || days < 0) days = 7
+          update.cutoff_days = days
+        }
+        if ('showIntroVideo' in meta) update.show_intro_video = meta.showIntroVideo !== false
+        if ('intake' in meta)        update.intake = (meta.intake && typeof meta.intake === 'object') ? meta.intake : null
+        if ('languages' in meta) {
+          const ALLOWED_LANGS = ['de', 'pl', 'en']
+          let langs = Array.isArray(meta.languages) ? [...new Set(meta.languages.filter(l => ALLOWED_LANGS.includes(l)))] : []
+          if (langs.length === 0) langs = ['de']
+          update.languages = langs
+        }
+        if ('note' in meta)          update.note = (typeof meta.note === 'string' && meta.note.trim()) ? meta.note.trim() : null
+        if ('pickupAddress' in meta) update.pickup_address = sanitizePickupAddress(meta.pickupAddress)
+
+        if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
+
+        const { error } = await supabase.from('memorials').update(update).eq('id', code)
+        if (error) throw error
+        await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { meta: Object.keys(update) } })
+        return res.json({ ok: true })
+      }
+
       const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text', 'content_reports'])
       if (!allowedFields.has(field)) {
         return res.status(400).json({ error: 'Ungültiges Feld.' })

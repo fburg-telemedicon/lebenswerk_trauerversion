@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType } from 'docx'
 import jsPDF from 'jspdf'
 import JSZip from 'jszip'
 import {
   createMemorial, getMemorial, getContribution, addContribution,
-  askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminGenerateImage,
+  askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
@@ -1339,6 +1339,9 @@ function Dashboard() {
   const [editMode, setEditMode]               = useState(false) // Buch/Rede direkt bearbeiten
   const [editDraft, setEditDraft]             = useState(null)  // Arbeitskopie im Edit-Modus
   const [savingEdit, setSavingEdit]           = useState(false)
+  const [orderEdit, setOrderEdit]             = useState(false) // Auftragsdaten bearbeiten
+  const [orderDraft, setOrderDraft]           = useState(null)  // Arbeitskopie der Auftragsdaten
+  const [orderSaving, setOrderSaving]         = useState(false)
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
@@ -1405,6 +1408,7 @@ function Dashboard() {
 
   async function openMemorial(memorial) {
     setSelected(memorial); setLoading(true); setErr('')
+    setOrderEdit(false); setOrderDraft(null)
     try {
       const contribsRes = await fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } })
       if (contribsRes.status === 401) { logout(); return }
@@ -1427,6 +1431,66 @@ function Dashboard() {
       setContribs(d)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
+  }
+
+  // ── Auftragsdaten (Stammdaten) bearbeiten ──
+  function startOrderEdit() {
+    const m = selected
+    if (!m) return
+    setErr('')
+    setOrderDraft({
+      name: m.name || '',
+      organizer: m.organizer || '',
+      gender: m.gender || '',
+      bookVariant: m.book_variant === 2 ? 2 : 1,
+      funeralDate: m.funeral_date ? String(m.funeral_date).slice(0, 10) : '',
+      cutoffDays: Number.isFinite(parseInt(m.cutoff_days, 10)) ? parseInt(m.cutoff_days, 10) : 7,
+      showIntroVideo: m.show_intro_video !== false,
+      intake: m.intake ? { ...m.intake } : {},
+      languages: Array.isArray(m.languages) && m.languages.length ? [...m.languages] : ['de'],
+      note: m.note || '',
+      pickupAddress: m.pickup_address ? { ...EMPTY_PICKUP, ...m.pickup_address } : { ...EMPTY_PICKUP },
+    })
+    setOrderEdit(true)
+  }
+
+  function cancelOrderEdit() { setOrderEdit(false); setOrderDraft(null); setErr('') }
+
+  async function saveOrderData() {
+    if (!orderDraft || !selected) return
+    const d = orderDraft
+    if (!d.name.trim() || !d.organizer.trim()) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
+    setOrderSaving(true); setErr('')
+    try {
+      await adminUpdateMemorialMeta(token, selected.id, {
+        name: d.name, organizer: d.organizer, gender: d.gender || null,
+        bookVariant: d.bookVariant, funeralDate: d.funeralDate || null,
+        cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo,
+        intake: d.intake, languages: d.languages, note: d.note,
+        pickupAddress: d.pickupAddress,
+      })
+      // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
+      // Listenansicht ohne Neuladen aktuell sind.
+      const pa = d.pickupAddress || {}
+      const hasAddr = ['name', 'addon', 'street', 'zip', 'city'].some(k => (pa[k] || '').trim())
+      const local = {
+        name: d.name.trim(),
+        organizer: d.organizer.trim(),
+        gender: d.gender || null,
+        book_variant: d.bookVariant === 2 ? 2 : 1,
+        funeral_date: d.funeralDate || null,
+        cutoff_days: Number.isFinite(parseInt(d.cutoffDays, 10)) && parseInt(d.cutoffDays, 10) >= 0 ? parseInt(d.cutoffDays, 10) : 7,
+        show_intro_video: d.showIntroVideo !== false,
+        intake: d.intake && Object.keys(d.intake).length ? d.intake : (d.intake || null),
+        languages: (d.languages && d.languages.length) ? d.languages : ['de'],
+        note: d.note.trim() || null,
+        pickup_address: hasAddr ? { ...pa, country: (pa.country || '').trim() || 'Deutschland' } : null,
+      }
+      setSelected(s => ({ ...s, ...local }))
+      setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
+      setOrderEdit(false); setOrderDraft(null)
+    } catch (e) { setErr(e.message) }
+    finally { setOrderSaving(false) }
   }
 
   function logout() {
@@ -2971,6 +3035,14 @@ function Dashboard() {
   // ── DETAIL ──
   if (view === 'detail') {
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
+    // Auftragsdaten-Bearbeitung: Feldkonfiguration der Kategorie + Draft-Helfer.
+    const oci = getCategory(selected.product_category).intake
+    const od = orderDraft
+    const setOd  = patch => setOrderDraft(o => ({ ...o, ...patch }))
+    const setOdPa = patch => setOrderDraft(o => ({ ...o, pickupAddress: { ...o.pickupAddress, ...patch } }))
+    const dash = '—'
+    const orderVariant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+    const orderLangLabels = (selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
         <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3226,6 +3298,159 @@ function Dashboard() {
               })}
             </div>
           </>)}
+
+          <div style={S.divider} />
+
+          {/* ── Auftragsdaten (Stammdaten) — selten gebraucht, daher unten ── */}
+          <div style={{ ...S.card, marginBottom:'1.5rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom: orderEdit ? 16 : 4 }}>
+              <h3 style={{ fontSize:16, fontWeight:600, margin:0 }}>Auftragsdaten</h3>
+              {!orderEdit && (
+                <button className="secondary" onClick={startOrderEdit} style={{ fontSize:13, padding:'8px 14px' }}>✎ Bearbeiten</button>
+              )}
+            </div>
+
+            {!orderEdit ? (
+              <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', columnGap:18, rowGap:8, fontSize:14 }}>
+                {[
+                  [oci.subjectLabel || 'Name', selected.name || dash],
+                  ['Organisator', selected.organizer || dash],
+                  ...(oci.useGender ? [['Geschlecht', selected.gender || dash]] : []),
+                  ...((oci.extra || []).map(f => [f.label, selected.intake?.[f.key] || dash])),
+                  ...(oci.useDate ? [[oci.dateLabel, selected.funeral_date ? new Date(selected.funeral_date).toLocaleDateString('de-DE') : dash]] : []),
+                  ...(oci.useCutoff ? [['Erfassung bis', selected.funeral_date ? `${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : `${cutoffDays(selected)} Tage vorher`]] : []),
+                  ['Sprachen', orderLangLabels],
+                  ['Buch-Variante', orderVariant.title],
+                  ['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein'],
+                  ['Bemerkung', selected.note || dash],
+                  ['Sammelbestellungs-Adresse', selected.pickup_address
+                    ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
+                       [selected.pickup_address.zip, selected.pickup_address.city].filter(Boolean).join(' '),
+                       selected.pickup_address.country].filter(Boolean).join(', ')
+                    : dash],
+                ].map(([label, val], i) => (
+                  <Fragment key={i}>
+                    <div style={{ color:'#78716c', whiteSpace:'nowrap' }}>{label}</div>
+                    <div style={{ color:'#44403c', whiteSpace:'pre-wrap' }}>{val}</div>
+                  </Fragment>
+                ))}
+              </div>
+            ) : od && (
+              <div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>{oci.subjectLabel || 'Name'} *</Lbl>
+                  <input value={od.name} onChange={e => setOd({ name: e.target.value })} />
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Organisator *</Lbl>
+                  <input value={od.organizer} onChange={e => setOd({ organizer: e.target.value })} />
+                </div>
+                {oci.useGender && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>{oci.genderLabel}</Lbl>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                      {GENDERS.map(g => (
+                        <div key={g.value} onClick={() => setOd({ gender: g.value })}
+                          style={{ ...S.card, cursor:'pointer', textAlign:'center', padding:'12px 8px',
+                            borderColor: od.gender === g.value ? '#1c1917' : '#e7e5e4', borderWidth: od.gender === g.value ? 2 : 1,
+                            fontSize:14, fontWeight: od.gender === g.value ? 600 : 400 }}>
+                          {g.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(oci.extra || []).map(f => (
+                  <div key={f.key} style={{ marginBottom:14 }}>
+                    <Lbl>{f.label}</Lbl>
+                    <input value={od.intake?.[f.key] || ''} onChange={e => setOd({ intake: { ...od.intake, [f.key]: e.target.value } })} placeholder={f.placeholder || ''} />
+                  </div>
+                ))}
+                {oci.useDate && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>{oci.dateLabel}</Lbl>
+                    <input type="date" value={od.funeralDate} onChange={e => setOd({ funeralDate: e.target.value })} />
+                  </div>
+                )}
+                {oci.useCutoff && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>{oci.cutoffLabel}</Lbl>
+                    <input type="number" min={0} max={90} step={1} value={od.cutoffDays}
+                      onChange={e => { const v = e.target.value; setOd({ cutoffDays: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) }) }} />
+                    <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                      {od.funeralDate && Number.isFinite(parseInt(od.cutoffDays, 10))
+                        ? <>Beiträge fließen bis zum <strong>{cutoffString(od.funeralDate, parseInt(od.cutoffDays, 10))}</strong> ein.</>
+                        : <>Standard sind 7 Tage.</>}
+                    </p>
+                  </div>
+                )}
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Sprachen *</Lbl>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {LANGUAGES.map(l => {
+                      const on = od.languages.includes(l.code)
+                      return (
+                        <label key={l.code} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', ...S.card, padding:'10px 14px',
+                          borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}>
+                          <input type="checkbox" checked={on}
+                            onChange={() => setOrderDraft(o => {
+                              const next = on ? o.languages.filter(c => c !== l.code) : [...o.languages, l.code]
+                              return { ...o, languages: next.length ? next : o.languages }
+                            })}
+                            style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }} />
+                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Buch-Variante *</Lbl>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
+                    {BOOK_VARIANTS.map(v => (
+                      <div key={v.value} onClick={() => setOd({ bookVariant: v.value })}
+                        style={{ ...S.card, cursor:'pointer', padding:'14px 14px',
+                          borderColor: od.bookVariant === v.value ? '#1c1917' : '#e7e5e4', borderWidth: od.bookVariant === v.value ? 2 : 1 }}>
+                        <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
+                        <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Einführungsvideo</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.showIntroVideo} onChange={e => setOd({ showIntroVideo: e.target.checked })}
+                      style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
+                  </label>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Bemerkung</Lbl>
+                  <textarea value={od.note} onChange={e => setOd({ note: e.target.value })} rows={3}
+                    placeholder="Interne Notiz zu diesem Buch (optional)."
+                    style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14 }} />
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
+                  <input value={od.pickupAddress.name} onChange={e => setOdPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
+                  <input value={od.pickupAddress.addon} onChange={e => setOdPa({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
+                  <input value={od.pickupAddress.street} onChange={e => setOdPa({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+                  <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                    <input value={od.pickupAddress.zip} onChange={e => setOdPa({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
+                    <input value={od.pickupAddress.city} onChange={e => setOdPa({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+                  </div>
+                  <input value={od.pickupAddress.country} onChange={e => setOdPa({ country: e.target.value })} placeholder="Land" />
+                </div>
+                <div style={{ display:'flex', gap:10 }}>
+                  <button onClick={saveOrderData} disabled={orderSaving} style={{ fontSize:14, padding:'10px 20px' }}>
+                    {orderSaving ? 'Wird gespeichert …' : 'Speichern'}
+                  </button>
+                  <button className="secondary" onClick={cancelOrderEdit} disabled={orderSaving} style={{ fontSize:14, padding:'10px 20px' }}>Abbrechen</button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div style={S.divider} />
           <button
