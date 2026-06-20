@@ -25,6 +25,47 @@ function blocks(contributions) {
   }).join('\n\n')
 }
 
+// ── Buchumfang an die beigetragene Textmenge koppeln ──────────────
+// Ziel: Bei vielen/ausführlichen Beiträgen soll ein "ganzes Buch" entstehen
+// (mehr Kapitel und längere Kapitel), bei wenigen/kurzen Beiträgen bleibt es
+// knapp – OHNE dass die KI Inhalte erfindet. Maßstab ist die Anzahl der von
+// den Beitragenden geschriebenen Wörter (nur deren Antworten, role 'user').
+function countWords(s) {
+  return String(s || '').trim().split(/\s+/).filter(Boolean).length
+}
+function contributionWords(contribution) {
+  return (contribution?.messages || [])
+    .filter(m => m.role === 'user')
+    .reduce((n, m) => n + countWords(m.content), 0)
+}
+function totalContributedWords(contributions) {
+  return (contributions || []).reduce((n, c) => n + contributionWords(c), 0)
+}
+
+// V1 (ein Beitrag = ein Kapitel): Die Kapitellänge richtet sich nach dem Umfang
+// GENAU DIESES Beitrags. Untergrenze ~ Beitragslänge (alles verwenden), Ober-
+// grenze großzügiger (ausformulieren/anreichern), mit sinnvollen Deckeln, damit
+// nichts erfunden werden muss und ein Kapitel nicht ausufert.
+function v1ChapterBand(words) {
+  const min = Math.min(1400, Math.max(180, Math.round(words * 0.9)))
+  const max = Math.min(1900, Math.max(380, Math.round(words * 1.9)))
+  return { min, max: Math.max(max, min + 120) }
+}
+
+// V2 (thematisch verwoben): Kapitelanzahl UND Kapitellänge skalieren mit der
+// Gesamt-Wortzahl. Beides aus derselben Zielmenge abgeleitet, damit Outline und
+// Kapitelschreiber konsistent rechnen (der Kapitelschreiber kennt die Kapitel-
+// zahl nicht direkt, leitet sie aber identisch aus den Beiträgen ab).
+function v2Scale(contributions) {
+  const words = totalContributedWords(contributions)
+  const target = Math.round(words * 1.3)            // angestrebte Gesamt-Textmenge (Body)
+  const chapters = Math.min(16, Math.max(4, Math.round(target / 700)))
+  const per = chapters ? Math.round(target / chapters) : 0
+  const min = Math.min(1500, Math.max(300, Math.round(per * 0.8)))
+  const max = Math.min(2000, Math.max(620, Math.round(per * 1.35)))
+  return { words, chapters, min, max: Math.max(max, min + 150) }
+}
+
 function addressRule(address) {
   return address === 'Du'
     ? 'Sprich die Person konsequent informell mit „du" an.'
@@ -82,6 +123,7 @@ Beiträge:\n\n${blocks(contributions)}`
 
 function memorialV1Chapter(memorial, contribution, number) {
   const g = genderNote(memorial)
+  const band = v1ChapterBand(contributionWords(contribution))
   const lines = contribution.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
   return `Du bist ein einfühlsamer Buchautor. Du schreibst EIN Kapitel eines Gedenkbuchs für ${memorial.name}${g} (Variante 1: jede Person ein Kapitel).
 
@@ -97,7 +139,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - "heading": prägnant, z. B. "Mit den Augen von ${contribution.contributor_name}" oder "[Aspekt] — ${contribution.contributor_name}"
-- "body": 250–450 Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); konkrete Geschichten und Details aus den Antworten beibehalten; Absätze durch \\n\\n trennen
+- "body": ${band.min}–${band.max} Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -109,9 +151,10 @@ ${lines.join('\n')}`
 
 function memorialV2Outline(memorial, contributions) {
   const g = genderNote(memorial)
+  const sc = v2Scale(contributions)
   return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du eine Lebensgeschichte (Variante 2: Aufbau nach Lebensstationen).
 
-Plane jetzt das Gerüst: Titel, Untertitel und 5–9 Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -123,7 +166,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 }
 
 Regeln:
-- 5–9 Kapitel, thematisch chronologisch sortiert (früh → spät)
+- Genau ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät)
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
 - "title" persönlich, würdevoll, bezogen auf ${memorial.name}
@@ -136,6 +179,7 @@ Beiträge:\n\n${blocks(contributions)}`
 
 function memorialV2Chapter(memorial, contributions, plan) {
   const g = genderNote(memorial)
+  const sc = v2Scale(contributions)
   return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel einer Lebensgeschichte von ${memorial.name}${g} (Variante 2: Lebensstationen).
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
@@ -153,7 +197,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "body": 300–500 Wörter, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); keine "X sagte …"-Zitate, keine Quellenangaben
+- "body": ${sc.min}–${sc.max} Wörter, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen ausführlich aus, OHNE etwas zu erfinden; keine "X sagte …"-Zitate, keine Quellenangaben
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum jeweiligen Lebensabschnitt
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -267,6 +311,7 @@ Beiträge:\n\n${blocks(contributions)}`
 function makeV1Chapter(p) {
   return (memorial, contribution, number) => {
     const g = genderNote(memorial)
+    const band = v1ChapterBand(contributionWords(contribution))
     const lines = contribution.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
     return `Du bist ein einfühlsamer Buchautor. Du schreibst EIN Kapitel ${p.bookNounGen} für ${memorial.name}${g} (Variante 1: jede Person ein Kapitel).
 
@@ -282,7 +327,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - "heading": prägnant, z. B. "Mit den Augen von ${contribution.contributor_name}" oder "[Aspekt] — ${contribution.contributor_name}"
-- "body": 250–450 Wörter, ${p.chapterVoice}; konkrete Geschichten und Details aus den Antworten beibehalten; Absätze durch \\n\\n trennen
+- "body": ${band.min}–${band.max} Wörter, ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -296,12 +341,13 @@ ${lines.join('\n')}`
 function makeV2Outline(p) {
   return (memorial, contributions) => {
     const g = genderNote(memorial)
+    const sc = v2Scale(contributions)
     const sortRule = p.v2Chronological
-      ? '5–9 Kapitel, thematisch chronologisch sortiert (früh → spät)'
-      : '5–9 Kapitel, thematisch sinnvoll sortiert'
+      ? `Genau ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät)`
+      : `Genau ${sc.chapters} Kapitel, thematisch sinnvoll sortiert`
     return `Du bist ${p.v2Role}. Aus den folgenden Beiträgen von ${contributions.length} Menschen, die ${memorial.name}${g} ${p.knowVerb}, planst du ${p.v2NounIndef} (Variante 2: ${p.v2Concept}).
 
-Plane jetzt das Gerüst: Titel, Untertitel und 5–9 Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -328,6 +374,7 @@ Beiträge:\n\n${blocks(contributions)}`
 function makeV2Chapter(p) {
   return (memorial, contributions, plan) => {
     const g = genderNote(memorial)
+    const sc = v2Scale(contributions)
     return `Du bist ${p.v2Role}. Du schreibst EIN Kapitel ${p.v2NounGen} für ${memorial.name}${g} (Variante 2).
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
@@ -345,7 +392,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "body": 300–500 Wörter, ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); keine "X sagte …"-Zitate, keine Quellenangaben
+- "body": ${sc.min}–${sc.max} Wörter, ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen ausführlich aus, OHNE etwas zu erfinden; keine "X sagte …"-Zitate, keine Quellenangaben
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare

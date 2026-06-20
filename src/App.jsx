@@ -410,7 +410,9 @@ async function downloadPrintPdf(filename, book, contributors = []) {
     doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
     let hy = 46
     for (const line of doc.splitTextToSize(ch.heading || '', maxW)) { doc.text(line, PDF_PAGE_W / 2, hy, { align: 'center' }); hy += 9 }
-    y = hy + 8
+    // Seitenumbruch nach der Kapitelüberschrift: der Fließtext beginnt auf
+    // einer neuen Seite (Überschriftenseite bleibt für sich).
+    newPage(); y = MT
     for (const para of String(ch.body || '').split('\n\n').map(s => s.trim()).filter(Boolean)) {
       flow(para, { size: 12, gapAfter: 0.6 })
     }

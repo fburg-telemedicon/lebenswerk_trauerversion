@@ -23,11 +23,17 @@ const IMAGE_MODEL = 'gpt-image-1-high-1536x1024'
 // 30,8 × 21,6 cm (~1,43:1) nicht exakt liefern — wir erzeugen die breiteste
 // verfügbare Größe (1536×1024) und lassen das Motiv bewusst für die Doppelseite
 // komponieren, damit weder Falz noch Beschnitt wichtige Bildteile zerstören.
+// WICHTIG: nicht von einem "book spread" sprechen – gpt-image-1 malt sonst ein
+// echtes aufgeschlagenes Buch (auf einem Tisch, mit Bild darin). Wir beschreiben
+// nur Seitenverhältnis und Sicherheitszonen und verbieten jede Rahmung/Requisite
+// explizit. Das Motiv IST das Bild, nicht ein abfotografiertes Objekt.
 const SPREAD_DIRECTIVE =
-  'Composition: design this as a full-bleed double-page book spread in a wide panoramic landscape format (roughly 1.43:1). ' +
-  'The picture will be split down the exact vertical center, which becomes the bound fold of the book, and all four outer edges will be trimmed. ' +
-  'Therefore keep the main focal elements and any important detail away from the central vertical line and away from all four outer edges. ' +
-  'Balanced, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions, no borders or frames.'
+  'Render this as ONE single continuous panoramic landscape illustration in a wide format (roughly 1.43:1). ' +
+  'The artwork itself must fill the entire frame edge to edge (full-bleed). ' +
+  'It is the scene itself — NOT a photo of a printed image. ' +
+  'Do NOT depict a book, an open book, pages, a page spread, a printed photograph, a poster, a postcard, a screen, a frame, a border, a mat, a passe-partout, a tabletop, a desk, a wall, or any object that contains or displays the picture. No mockup, no product shot, no hands. ' +
+  'Keep the main focal elements and any important detail away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
+  'Balanced, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions.'
 
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
