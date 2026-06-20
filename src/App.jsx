@@ -1345,7 +1345,8 @@ function Dashboard() {
   const [orderDraft, setOrderDraft]           = useState(null)  // Arbeitskopie der Auftragsdaten
   const [orderSaving, setOrderSaving]         = useState(false)
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
-  const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
+  const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg, reuseImages } | null
+  const [genImgModal, setGenImgModal]   = useState(null) // { key, extraArg } | null – Bilder behalten/neu?
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
@@ -2101,6 +2102,8 @@ function Dashboard() {
               heading: ch.heading || plan.heading || `Kapitel ${plan.number}`,
               body: ch.body,
               image_prompt: ch.image_prompt || '',
+              // Stabiler Schlüssel für die spätere Bild-Wiederverwendung (V1).
+              ...(key === 'book_v1' && plan.contribution?.id ? { contribution_id: plan.contribution.id } : {}),
             })
           } catch (e) {
             writeErrors.push(`Kapitel ${plan.number}: ${e.message}`)
@@ -2110,6 +2113,7 @@ function Dashboard() {
               body: '',
               image_prompt: '',
               generate_error: e.message || String(e),
+              ...(key === 'book_v1' && plan.contribution?.id ? { contribution_id: plan.contribution.id } : {}),
             })
           }
           bumpPct() // Kapitel fertig
@@ -2126,6 +2130,21 @@ function Dashboard() {
         // Per Checkbox überspringbar (Debug: spart die langsame Bildphase).
         const total = value.chapters.length
         const imageErrors = []
+        // Bild-Wiederverwendung: vorhandene Bilder des alten Buchs den neuen
+        // Kapiteln zuordnen (V1 über contribution_id/Überschrift, V2 über
+        // Überschrift/Position). Neue/zusätzliche Kapitel ohne Treffer bekommen
+        // ein frisches Bild. `selected[gen.field]` ist hier noch die alte Version.
+        const reuseImages = opts.reuseImages === true
+        const oldChapters = (reuseImages && Array.isArray(selected[gen.field]?.chapters)) ? selected[gen.field].chapters : []
+        const normH = s => String(s || '').trim().toLowerCase()
+        const oldByContrib = new Map()
+        const oldByHeading = new Map()
+        for (const oc of oldChapters) {
+          if (!oc?.image_path) continue
+          if (oc.contribution_id) oldByContrib.set(oc.contribution_id, oc.image_path)
+          if (oc.heading) oldByHeading.set(normH(oc.heading), oc.image_path)
+        }
+        let reusedCount = 0
         if (skipImages) {
           setGenProgress(p => ({ ...p, [key]: 'Bilder werden übersprungen …' }))
         } else {
@@ -2133,6 +2152,19 @@ function Dashboard() {
             const ch = value.chapters[i]
             setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
             checkCancel()
+            // Wenn möglich vorhandenes Bild wiederverwenden (kein neuer Call).
+            if (reuseImages) {
+              let reusedPath = null
+              if (ch.contribution_id && oldByContrib.has(ch.contribution_id)) reusedPath = oldByContrib.get(ch.contribution_id)
+              else if (oldByHeading.has(normH(ch.heading))) reusedPath = oldByHeading.get(normH(ch.heading))
+              else if (oldChapters[i]?.image_path) reusedPath = oldChapters[i].image_path
+              if (reusedPath) {
+                value.chapters[i] = { ...ch, image_path: reusedPath, image_error: null }
+                reusedCount++
+                bumpPct() // wiederverwendet – Schritt erledigt
+                continue
+              }
+            }
             if (!ch.image_prompt) {
               value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
               imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
@@ -2156,7 +2188,10 @@ function Dashboard() {
         if (imageErrors.length > 0) errLines.push(`${imageErrors.length}/${total} Bildgenerierungen fehlgeschlagen. Erster Fehler: ${imageErrors[0]}`)
         if (errLines.length > 0) setErr(errLines.join(' · '))
 
-        setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
+        const saveMsg = reusedCount > 0
+          ? `${reusedCount} Bild${reusedCount > 1 ? 'er' : ''} übernommen · wird gespeichert …`
+          : 'Wird gespeichert …'
+        setGenProgress(p => ({ ...p, [key]: saveMsg }))
       } else if (gen.kind === 'eulogy') {
         // Endtext (z. B. Rede) in mehrere Abschnitte aufgeteilt — jeder ein
         // eigener Claude-Call, damit niemand am 60s-Limit von api/ask.js stirbt.
@@ -2264,17 +2299,37 @@ function Dashboard() {
     requestGenerate('eulogy', style.instruction)
   }
 
-  // Startet die Generierung; bei mehreren angebotenen Sprachen wird zuvor die
-  // Zielsprache abgefragt.
+  // Hat ein Buch bereits generierte Bilder?
+  function bookHasImages(book) {
+    return Array.isArray(book?.chapters) && book.chapters.some(c => c?.image_path)
+  }
+
+  // Startet die Generierung. Reihenfolge der Abfragen:
+  //  1) Bei Büchern mit vorhandenen Bildern: behalten oder neu? (genImgModal)
+  //  2) Bei mehreren angebotenen Sprachen: Zielsprache (genLangModal)
   function requestGenerate(key, extraArg) {
+    const gen = GENERATORS[key]
+    if (gen?.kind === 'book' && bookHasImages(selected?.[gen.field])) {
+      setGenImgModal({ key, extraArg }); return
+    }
+    proceedGenerate(key, extraArg, undefined)
+  }
+  // Nach der Bilder-Entscheidung (reuse: true = behalten, false = alle neu).
+  function pickGenImages(reuse) {
+    const m = genImgModal
+    setGenImgModal(null)
+    if (m) proceedGenerate(m.key, m.extraArg, reuse)
+  }
+  // Sprachwahl (falls mehrere) und Start; reuseImages wird durchgereicht.
+  function proceedGenerate(key, extraArg, reuseImages) {
     const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
-    if (langs.length > 1) { setGenLangModal({ key, extraArg }); return }
-    generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined })
+    if (langs.length > 1) { setGenLangModal({ key, extraArg, reuseImages }); return }
+    generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined || reuseImages !== undefined, reuseImages })
   }
   function pickGenLang(code) {
     const m = genLangModal
     setGenLangModal(null)
-    if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined })
+    if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined || m.reuseImages !== undefined, reuseImages: m.reuseImages })
   }
 
   async function openCosts(memorial) {
@@ -2326,6 +2381,31 @@ function Dashboard() {
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
           <button className="ghost" onClick={() => setGenLangModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  const genImgOverlay = genImgModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 480, width:'100%' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Bilder neu generieren?</h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>
+          Dieses Buch enthält bereits Bilder. Der Text wird in jedem Fall neu geschrieben.
+          Was soll mit den Bildern geschehen?
+        </p>
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:14 }}>
+          <button onClick={() => pickGenImages(true)} className="secondary" style={{ fontSize:14, padding:'12px 16px', textAlign:'left' }}>
+            <div style={{ fontWeight:600, marginBottom:2 }}>🖼 Vorhandene Bilder behalten</div>
+            <div style={{ fontSize:12, color:'#78716c', lineHeight:1.5 }}>Schneller &amp; günstiger. Neu hinzugekommene Kapitel bekommen trotzdem frische Bilder.</div>
+          </button>
+          <button onClick={() => pickGenImages(false)} style={{ fontSize:14, padding:'12px 16px', textAlign:'left' }}>
+            <div style={{ fontWeight:600, marginBottom:2 }}>✨ Alle Bilder neu generieren</div>
+            <div style={{ fontSize:12, color:'#e7e5e4', lineHeight:1.5 }}>Für jedes Kapitel ein neues Bild. Dauert länger und verursacht zusätzliche Kosten.</div>
+          </button>
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+          <button className="ghost" onClick={() => setGenImgModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
         </div>
       </div>
     </div>
@@ -3466,6 +3546,7 @@ function Dashboard() {
         </div>
         {eulogyStyleOverlay}
         {genLangOverlay}
+        {genImgOverlay}
         {reportOverlay}
       </div>
     )
@@ -3822,6 +3903,7 @@ function Dashboard() {
         )}
         {eulogyStyleOverlay}
         {genLangOverlay}
+        {genImgOverlay}
         {reportOverlay}
       </div>
     )
