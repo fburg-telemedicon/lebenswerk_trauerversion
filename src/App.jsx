@@ -23,7 +23,7 @@ const sessionFromURL = (urlParams.get('session') || '').trim()
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
 // Fassung zugestimmt wurde.
-const CONSENT_VERSION = '1.2 (2026-06-18)'
+const CONSENT_VERSION = '1.3 (2026-06-21)'
 
 // Disclaimer zur Entstehung & Haftung – wird ans Ende jedes Buchs/jeder Rede
 // gesetzt (HTML-Ansicht + DOCX) und im Impressum/Datenschutz referenziert.
@@ -4059,7 +4059,7 @@ function Impressum() {
 function Datenschutz() {
   return (
     <LegalLayout title="Datenschutzerklärung">
-      <p style={{ color:'#78716c' }}>Stand: 18. Juni 2026 · Fassung {CONSENT_VERSION}</p>
+      <p style={{ color:'#78716c' }}>Stand: 21. Juni 2026 · Fassung {CONSENT_VERSION}</p>
 
       <h2 style={LH}>1. Verantwortlicher</h2>
       <p>
@@ -4105,12 +4105,16 @@ function Datenschutz() {
       </p>
       <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
         <li><strong>Anthropic</strong> (Claude) – KI-gestützte Interviewführung und Texterstellung; USA.</li>
-        <li><strong>OpenAI</strong> – Sprachausgabe (Text-to-Speech), Spracherkennung (Transkription) und Bilderzeugung; USA.</li>
-        <li><strong>Supabase</strong> – Speicherung von Datenbank- und Bildinhalten.</li>
+        <li><strong>Microsoft Azure</strong> (Azure AI Speech) – Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU.</li>
+        <li><strong>Black Forest Labs</strong> (FLUX) über Microsoft Azure – KI-gestützte Bilderzeugung; Verarbeitung in der EU.</li>
+        <li><strong>Supabase</strong> – Speicherung von Datenbank- und Bildinhalten; EU (Frankfurt).</li>
         <li><strong>Vercel</strong> – Betrieb und Auslieferung der Anwendung.</li>
       </ul>
       <p>
-        Dabei werden Ihre Daten an Anbieter in den <strong>USA</strong> übermittelt. Für die USA
+        Dabei werden die für Interviewführung und Texterstellung erforderlichen Inhalte an
+        <strong> Anthropic (Claude) in die USA</strong> übermittelt; die übrigen KI-Dienste
+        (Sprachausgabe, Spracherkennung, Bilderzeugung) sowie die Datenspeicherung erfolgen
+        in der <strong>EU</strong>. Für die USA
         besteht kein generell mit dem EU-Recht vergleichbares Datenschutzniveau; insbesondere können
         US-Behörden unter bestimmten Voraussetzungen auf Daten zugreifen, und Ihre Betroffenenrechte
         sind dort ggf. schwerer durchsetzbar. Die Übermittlung erfolgt auf Grundlage Ihrer

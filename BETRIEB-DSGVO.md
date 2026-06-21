@@ -81,8 +81,9 @@ unvollständig melden als zu spät.
 
 **Jährlich**
 - [ ] DSFA und Verzeichnis der Verarbeitungstätigkeiten (Art. 30) aktualisieren.
-- [ ] AVV mit allen Auftragsverarbeitern (Vercel, Supabase, Anthropic, OpenAI,
-      GitHub) auf Aktualität prüfen.
+- [ ] AVV mit allen Auftragsverarbeitern (Vercel, Supabase, Anthropic, Microsoft
+      Azure [AI Speech + Foundry/FLUX], Black Forest Labs, OpenAI, GitHub) auf
+      Aktualität prüfen.
 - [ ] `SICHERHEIT.md` (TOM) und dieses Runbook überprüfen.
 
 ---

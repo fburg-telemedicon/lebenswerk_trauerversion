@@ -12,7 +12,8 @@ Eine Web-App, mit der Familie, Freunde und Wegbegleiter gemeinsam ein Gedenkbuch
 | Backend    | Vercel Serverless Functions (Node.js)    |
 | Datenbank  | Supabase (PostgreSQL)                    |
 | KI         | Anthropic Claude (Interviews + Synthese) |
-| Stimme     | OpenAI TTS `tts-1-hd`, Stimme `shimmer` |
+| Stimme     | Azure AI Speech (Neural, EU) – Standard; OpenAI Fallback |
+| Bilder     | FLUX.2 [pro] via Microsoft Azure (Foundry, EU) |
 
 ---
 
@@ -104,7 +105,7 @@ DNS beim Anbieter auf Vercels Nameserver zeigen lassen.
 ## DSGVO-Hinweise
 
 - Supabase-Projekt auf **EU West** (Frankfurt) hosten
-- Anthropic und OpenAI verarbeiten Daten auf US-Servern → Auftragsverarbeitungsvertrag (DPA) abschließen
+- Anthropic (Claude/LLM) verarbeitet Daten auf US-Servern; Sprache (Azure AI Speech) und Bild (FLUX via Azure) laufen in der EU → AVV mit allen Anbietern abschließen
 - Datenschutzerklärung und Impressum ergänzen, bevor die App öffentlich zugänglich ist
 - Keine Nutzerkonten / Authentifizierung implementiert – jeder mit dem Code kann beitragen
 
@@ -116,7 +117,7 @@ DNS beim Anbieter auf Vercels Nameserver zeigen lassen.
 lebenswerk/
 ├── api/                    ← Vercel Serverless Functions (Backend)
 │   ├── ask.js              ← Claude-Proxy
-│   ├── speak.js            ← OpenAI TTS-Proxy
+│   ├── speak.js            ← TTS-Proxy (Azure AI Speech | OpenAI)
 │   ├── memorial.js         ← Gedenkbuch anlegen / abrufen
 │   └── contributions.js   ← Beiträge speichern / abrufen
 ├── src/                    ← React Frontend

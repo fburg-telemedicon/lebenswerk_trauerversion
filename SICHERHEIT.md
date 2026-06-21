@@ -1,15 +1,17 @@
 # Sicherheit & technische Maßnahmen (TOM)
 
 Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App
-(DSGVO Art. 32). Stand: 2026-06-18. Produktion: lebensgeschichten.vercel.app.
+(DSGVO Art. 32). Stand: 2026-06-21. Produktion: lebensgeschichten.vercel.app.
 
 ## 1. Verschlüsselung
 
 **In Transit (Übertragung)**
 - Die App wird ausschließlich über HTTPS/TLS ausgeliefert (von Vercel erzwungen).
 - Alle Backend-Aufrufe an Drittanbieter laufen über HTTPS:
-  - Anthropic (Claude): `https://api.anthropic.com`
-  - OpenAI (TTS/STT/Bild): `https://api.openai.com`
+  - Anthropic (Claude, LLM): `https://api.anthropic.com` (USA)
+  - Microsoft Azure AI Speech (TTS/STT, EU): `https://<region>.tts.speech.microsoft.com` bzw. `https://<region>.api.cognitive.microsoft.com`
+  - Microsoft Azure Foundry – FLUX.2 [pro] (Bilderzeugung, EU): `https://<resource>.services.ai.azure.com`
+  - OpenAI (nur falls `SPEECH_PROVIDER=openai`): `https://api.openai.com` (USA)
   - Supabase: TLS-gesicherte Verbindung
 - Keine unverschlüsselten (`http://`) Produktivverbindungen im Code.
 
@@ -26,7 +28,7 @@ Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App
   (Git-History geprüft).
 - **Das Frontend referenziert keine einzige Umgebungsvariable** — alle
   Geheimnisse bleiben serverseitig in den `/api/*`-Functions. Der Browser
-  spricht nur die eigene API an, nie direkt Anthropic/OpenAI/Supabase.
+  spricht nur die eigene API an, nie direkt Anthropic/Azure/Supabase.
 - Service-Role-Key: nur im Backend, umgeht RLS bewusst (siehe RLS unten).
 - Pflicht-Secrets siehe `CLAUDE.md` → „Required environment variables".
 
