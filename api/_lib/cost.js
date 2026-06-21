@@ -34,24 +34,10 @@ const PRICING = {
   'azure-stt':        { perMinute: 0.0167 }, // ~$1 / Stunde Audio
   'azure-tts-neural': { perMChars: 15.0 },   // Neural-TTS ~$15 / 1M Zeichen
 
-  // OpenAI DALL-E 3 (USD pro Bild). Legacy, falls noch verfügbar.
-  'dall-e-3-hd-1792x1024':       { perImage: 0.120 },
-  'dall-e-3-hd-1024x1792':       { perImage: 0.120 },
-  'dall-e-3-hd-1024x1024':       { perImage: 0.080 },
-  'dall-e-3-standard-1792x1024': { perImage: 0.080 },
-  'dall-e-3-standard-1024x1792': { perImage: 0.080 },
-  'dall-e-3-standard-1024x1024': { perImage: 0.040 },
-
-  // OpenAI gpt-image-1 (USD pro Bild). Key = `${model}-${quality}-${size}`
-  'gpt-image-1-high-1536x1024':   { perImage: 0.25 },
-  'gpt-image-1-high-1024x1536':   { perImage: 0.25 },
-  'gpt-image-1-high-1024x1024':   { perImage: 0.167 },
-  'gpt-image-1-medium-1536x1024': { perImage: 0.063 },
-  'gpt-image-1-medium-1024x1536': { perImage: 0.063 },
-  'gpt-image-1-medium-1024x1024': { perImage: 0.042 },
-  'gpt-image-1-low-1536x1024':    { perImage: 0.016 },
-  'gpt-image-1-low-1024x1536':    { perImage: 0.016 },
-  'gpt-image-1-low-1024x1024':    { perImage: 0.011 },
+  // Hinweis: gpt-image-1 / DALL-E (OpenAI) wurden am 2026-06-21 als Bildmodul
+  // entfernt – einziges Bildmodell ist jetzt FLUX.2 [pro]. Bereits verbuchte
+  // cost_events behalten ihre gespeicherten EUR-Werte (Anzeige liest cost_eur,
+  // nicht PRICING), daher ist das Entfernen der alten Keys unkritisch.
 
   // Azure Foundry – FLUX.2 [pro] (Black Forest Labs). Abrechnung pro Megapixel
   // (~$0,03/MP, Stand 2026 – gegen Azure-Foundry-Preisliste prüfen). Key =

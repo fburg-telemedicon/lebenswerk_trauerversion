@@ -1,18 +1,14 @@
 // api/admin/generate-image.js
-// POST /api/admin/generate-image  { memorialCode, prompt, provider? } → { storagePath }
+// POST /api/admin/generate-image  { memorialCode, prompt } → { storagePath }
 // Generiert ein druckfertiges Doppelseiten-Bild und lädt es in den (privaten)
 // Supabase-Storage-Bucket "memorial-images".
 //
-// Bild-Anbieter umschaltbar (DSGVO/EU-Migration):
-//   IMAGE_PROVIDER = 'openai' (Default) | 'azure-flux'
-// Eingeloggte Admins/Benutzer können pro Request via { provider } übersteuern
-// (A/B-Vergleich gpt-image-1 vs. FLUX auf demselben Memorial).
-//
-// 'azure-flux' nutzt FLUX.2 [pro] von Black Forest Labs (deutscher Anbieter)
+// Einziges Bildmodul: FLUX.2 [pro] von Black Forest Labs (deutscher Anbieter)
 // über Microsoft Foundry – Verarbeitung bleibt in Azure (kein Forwarding an
 // BFL, kein Training auf den Daten), gleicher Microsoft-AVV wie Azure OpenAI.
-// Nötige Env (nur für den azure-flux-Pfad):
-//   AZURE_FLUX_ENDPOINT    z. B. https://<resource>.api.cognitive.microsoft.com
+// (Der frühere OpenAI/gpt-image-1-Pfad wurde am 2026-06-21 entfernt.)
+// Nötige Env:
+//   AZURE_FLUX_ENDPOINT    z. B. https://<resource>.services.ai.azure.com
 //   AZURE_FLUX_KEY         Schlüssel der Foundry-Ressource
 //   AZURE_FLUX_MODEL       optional, Body-Feld "model" (Default FLUX.2-pro)
 //   AZURE_FLUX_MODEL_PATH  optional, Endpunkt-Pfad   (Default flux-2-pro)
@@ -25,26 +21,21 @@ const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
-const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-const OPENAI_KEY  = process.env.OPENAI_API_KEY
-
-const DEFAULT_PROVIDER = (process.env.IMAGE_PROVIDER || 'openai').toLowerCase()
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const BUCKET = IMAGE_BUCKET
-// Pricing-Keys (cost.js). gpt-image-1 nach `${model}-${quality}-${size}`,
-// FLUX nach `${model}-${size}`. Beide Anbieter erzeugen dasselbe Zielformat.
+// Pricing-Key (cost.js): FLUX nach `${model}-${size}`. Zielformat 1536×1024.
 const IMAGE_W = 1536, IMAGE_H = 1024
-const OPENAI_MODEL = `gpt-image-1-high-${IMAGE_W}x${IMAGE_H}`
-const FLUX_MODEL   = `flux-2-pro-${IMAGE_W}x${IMAGE_H}`
+const FLUX_MODEL = `flux-2-pro-${IMAGE_W}x${IMAGE_H}`
 
 // Kompositions-Direktive für das druckfertige Doppelseiten-Layout. Jedes
 // Kapitelbild läuft im Druck über zwei gegenüberliegende Seiten: die exakte
 // vertikale Mitte wird zum Buchfalz (Bundsteg), die vier Außenkanten werden
-// beschnitten (Cover-Platzierung im Druck-PDF). gpt-image-1 kann das Zielformat
-// 30,8 × 21,6 cm (~1,43:1) nicht exakt liefern — wir erzeugen die breiteste
+// beschnitten (Cover-Platzierung im Druck-PDF). Das Bildmodell liefert das
+// Zielformat 30,8 × 21,6 cm (~1,43:1) nicht exakt — wir erzeugen die breiteste
 // verfügbare Größe (1536×1024) und lassen das Motiv bewusst für die Doppelseite
 // komponieren, damit weder Falz noch Beschnitt wichtige Bildteile zerstören.
-// WICHTIG: nicht von einem "book spread" sprechen – gpt-image-1 malt sonst ein
+// WICHTIG: nicht von einem "book spread" sprechen – das Modell malt sonst ein
 // echtes aufgeschlagenes Buch (auf einem Tisch, mit Bild darin). Wir beschreiben
 // nur Seitenverhältnis und Sicherheitszonen und verbieten jede Rahmung/Requisite
 // explizit. Das Motiv IST das Bild, nicht ein abfotografiertes Objekt.
@@ -58,8 +49,8 @@ const SPREAD_DIRECTIVE =
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// Bytes aus einer Anbieter-Antwort holen: entweder direkt base64 oder eine URL,
-// die wir nachladen. Deckt OpenAI- (data[0].*) wie FLUX-Formen ab.
+// Bytes aus der FLUX-Antwort holen: entweder direkt base64 oder eine URL,
+// die wir nachladen.
 async function bytesFromResult(out) {
   if (out?.b64) return Buffer.from(out.b64, 'base64')
   if (out?.url) {
@@ -68,32 +59,6 @@ async function bytesFromResult(out) {
     return Buffer.from(await r.arrayBuffer())
   }
   throw new Error('Keine Bilddaten erhalten.')
-}
-
-// ── OpenAI gpt-image-1 ────────────────────────────────────────────
-async function generateOpenAI(fullPrompt) {
-  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY fehlt im Backend.')
-  const resp = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-    body: JSON.stringify({
-      model: 'gpt-image-1',
-      prompt: fullPrompt,
-      size: `${IMAGE_W}x${IMAGE_H}`,
-      quality: 'high',
-      n: 1,
-    }),
-  })
-  if (!resp.ok) {
-    const errBody = await resp.text()
-    console.error('gpt-image-1 error:', resp.status, errBody)
-    let msg = `HTTP ${resp.status}`
-    try { const j = JSON.parse(errBody); msg = j?.error?.message || j?.error?.code || msg } catch {}
-    throw new Error(msg)
-  }
-  const item = (await resp.json())?.data?.[0]
-  const buffer = await bytesFromResult({ b64: item?.b64_json, url: item?.url })
-  return { buffer, model: OPENAI_MODEL, provider: 'openai' }
 }
 
 // ── Azure Foundry: FLUX.2 [pro] (Black Forest Labs) ───────────────
@@ -166,15 +131,9 @@ module.exports = async function handler(req, res) {
 
     const fullPrompt = `${prompt}\n\n${SPREAD_DIRECTIVE}`
 
-    // Anbieter: Default aus Env; eingeloggte Benutzer dürfen pro Request
-    // übersteuern (dieser Endpunkt ist ohnehin auth-pflichtig).
-    const provider = (typeof req.body.provider === 'string' ? req.body.provider : DEFAULT_PROVIDER).toLowerCase()
-
     let result
     try {
-      result = provider === 'azure-flux'
-        ? await generateAzureFlux(fullPrompt)
-        : await generateOpenAI(fullPrompt)
+      result = await generateAzureFlux(fullPrompt)
     } catch (e) {
       return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e.message}` })
     }

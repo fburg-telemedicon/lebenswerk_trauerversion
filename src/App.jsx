@@ -577,7 +577,7 @@ const COST_KIND_LABEL = {
   eulogy:     'Endtext (Rede) – Generierung',
   tts:        'Sprachausgabe (TTS)',
   stt:        'Spracherkennung (STT)',
-  image:      'Bildgenerierung (DALL·E)',
+  image:      'Bildgenerierung (FLUX)',
 }
 function costKindLabel(k) { return COST_KIND_LABEL[k] || k || 'Sonstiges' }
 
