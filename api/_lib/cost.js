@@ -52,6 +52,12 @@ const PRICING = {
   'gpt-image-1-low-1536x1024':    { perImage: 0.016 },
   'gpt-image-1-low-1024x1536':    { perImage: 0.016 },
   'gpt-image-1-low-1024x1024':    { perImage: 0.011 },
+
+  // Azure Foundry – FLUX.2 [pro] (Black Forest Labs). Abrechnung pro Megapixel
+  // (~$0,03/MP, Stand 2026 – gegen Azure-Foundry-Preisliste prüfen). Key =
+  // `flux-2-pro-${size}`. 1536×1024 ≈ 1,57 MP → ~$0,047/Bild (vs. $0,25 bei
+  // gpt-image-1 high). Bei anderer Auflösung neuen Key ergänzen.
+  'flux-2-pro-1536x1024': { perImage: 0.047 },
 }
 
 function costClaude(model, inT, outT) {

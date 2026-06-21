@@ -1,7 +1,22 @@
 // api/admin/generate-image.js
-// POST /api/admin/generate-image  { memorialCode, prompt } → { storagePath }
-// Generiert ein Bild via DALL-E 3 (1792x1024, hd) und lädt es in
-// den (privaten) Supabase-Storage-Bucket "memorial-images".
+// POST /api/admin/generate-image  { memorialCode, prompt, provider? } → { storagePath }
+// Generiert ein druckfertiges Doppelseiten-Bild und lädt es in den (privaten)
+// Supabase-Storage-Bucket "memorial-images".
+//
+// Bild-Anbieter umschaltbar (DSGVO/EU-Migration):
+//   IMAGE_PROVIDER = 'openai' (Default) | 'azure-flux'
+// Eingeloggte Admins/Benutzer können pro Request via { provider } übersteuern
+// (A/B-Vergleich gpt-image-1 vs. FLUX auf demselben Memorial).
+//
+// 'azure-flux' nutzt FLUX.2 [pro] von Black Forest Labs (deutscher Anbieter)
+// über Microsoft Foundry – Verarbeitung bleibt in Azure (kein Forwarding an
+// BFL, kein Training auf den Daten), gleicher Microsoft-AVV wie Azure OpenAI.
+// Nötige Env (nur für den azure-flux-Pfad):
+//   AZURE_FLUX_ENDPOINT    z. B. https://<resource>.api.cognitive.microsoft.com
+//   AZURE_FLUX_KEY         Schlüssel der Foundry-Ressource
+//   AZURE_FLUX_MODEL       optional, Body-Feld "model" (Default FLUX.2-pro)
+//   AZURE_FLUX_MODEL_PATH  optional, Endpunkt-Pfad   (Default flux-2-pro)
+//   AZURE_FLUX_API_VERSION optional (Default 'preview')
 
 const { createClient } = require('@supabase/supabase-js')
 const crypto = require('crypto')
@@ -13,8 +28,14 @@ const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const supabase    = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const OPENAI_KEY  = process.env.OPENAI_API_KEY
 
+const DEFAULT_PROVIDER = (process.env.IMAGE_PROVIDER || 'openai').toLowerCase()
+
 const BUCKET = IMAGE_BUCKET
-const IMAGE_MODEL = 'gpt-image-1-high-1536x1024'
+// Pricing-Keys (cost.js). gpt-image-1 nach `${model}-${quality}-${size}`,
+// FLUX nach `${model}-${size}`. Beide Anbieter erzeugen dasselbe Zielformat.
+const IMAGE_W = 1536, IMAGE_H = 1024
+const OPENAI_MODEL = `gpt-image-1-high-${IMAGE_W}x${IMAGE_H}`
+const FLUX_MODEL   = `flux-2-pro-${IMAGE_W}x${IMAGE_H}`
 
 // Kompositions-Direktive für das druckfertige Doppelseiten-Layout. Jedes
 // Kapitelbild läuft im Druck über zwei gegenüberliegende Seiten: die exakte
@@ -35,11 +56,106 @@ const SPREAD_DIRECTIVE =
   'Keep the main focal elements and any important detail away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
   'Balanced, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions.'
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// Bytes aus einer Anbieter-Antwort holen: entweder direkt base64 oder eine URL,
+// die wir nachladen. Deckt OpenAI- (data[0].*) wie FLUX-Formen ab.
+async function bytesFromResult(out) {
+  if (out?.b64) return Buffer.from(out.b64, 'base64')
+  if (out?.url) {
+    const r = await fetch(out.url)
+    if (!r.ok) throw new Error(`Bild-Download fehlgeschlagen: HTTP ${r.status}`)
+    return Buffer.from(await r.arrayBuffer())
+  }
+  throw new Error('Keine Bilddaten erhalten.')
+}
+
+// ── OpenAI gpt-image-1 ────────────────────────────────────────────
+async function generateOpenAI(fullPrompt) {
+  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY fehlt im Backend.')
+  const resp = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-image-1',
+      prompt: fullPrompt,
+      size: `${IMAGE_W}x${IMAGE_H}`,
+      quality: 'high',
+      n: 1,
+    }),
+  })
+  if (!resp.ok) {
+    const errBody = await resp.text()
+    console.error('gpt-image-1 error:', resp.status, errBody)
+    let msg = `HTTP ${resp.status}`
+    try { const j = JSON.parse(errBody); msg = j?.error?.message || j?.error?.code || msg } catch {}
+    throw new Error(msg)
+  }
+  const item = (await resp.json())?.data?.[0]
+  const buffer = await bytesFromResult({ b64: item?.b64_json, url: item?.url })
+  return { buffer, model: OPENAI_MODEL, provider: 'openai' }
+}
+
+// ── Azure Foundry: FLUX.2 [pro] (Black Forest Labs) ───────────────
+// BFL-Provider-API. Antwort kann synchron (b64/url) oder asynchron mit
+// polling_url kommen – beides wird abgedeckt.
+async function generateAzureFlux(fullPrompt) {
+  const endpoint   = (process.env.AZURE_FLUX_ENDPOINT || '').replace(/\/+$/, '')
+  const key        = process.env.AZURE_FLUX_KEY
+  const model      = process.env.AZURE_FLUX_MODEL || 'FLUX.2-pro'
+  const modelPath  = process.env.AZURE_FLUX_MODEL_PATH || 'flux-2-pro'
+  const apiVersion = process.env.AZURE_FLUX_API_VERSION || 'preview'
+  if (!endpoint || !key) throw new Error('Azure FLUX ist nicht konfiguriert (AZURE_FLUX_ENDPOINT/KEY).')
+
+  const url = `${endpoint}/providers/blackforestlabs/v1/${modelPath}?api-version=${apiVersion}`
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      prompt: fullPrompt,
+      width: IMAGE_W,
+      height: IMAGE_H,
+      output_format: 'png',
+      num_images: 1,
+    }),
+  })
+  if (!resp.ok) {
+    const errBody = await resp.text()
+    console.error('FLUX error:', resp.status, errBody)
+    let msg = `HTTP ${resp.status}`
+    try { const j = JSON.parse(errBody); msg = j?.error?.message || j?.error?.code || j?.detail || msg } catch {}
+    throw new Error(msg)
+  }
+  let data = await resp.json()
+
+  // Async-Variante: solange pollen, bis das Sample bereitsteht.
+  const pollUrl = data?.polling_url || data?.poll_url
+  if (pollUrl && !(data?.b64_json || data?.image || data?.result?.sample)) {
+    for (let i = 0; i < 30; i++) {        // ~30 × 1,5 s ≈ 45 s, innerhalb des 60-s-Budgets
+      await sleep(1500)
+      const pr = await fetch(pollUrl, { headers: { Authorization: `Bearer ${key}` } })
+      data = await pr.json().catch(() => ({}))
+      const st = String(data?.status || data?.state || '')
+      if (/ready|complete|succeed|success/i.test(st) || data?.result) break
+      if (/error|fail|moderat/i.test(st)) throw new Error(`FLUX: ${st || 'Fehler'}`)
+    }
+  }
+
+  const b64 = data?.b64_json || data?.image || data?.data?.[0]?.b64_json
+  const out = b64 ? { b64 } : { url: data?.result?.sample || data?.sample || data?.url || data?.data?.[0]?.url }
+  if (!b64 && !out.url) {
+    console.error('FLUX: unerwartete Antwort:', JSON.stringify(data).slice(0, 500))
+    throw new Error('Keine Bilddaten von FLUX erhalten.')
+  }
+  const buffer = await bytesFromResult(out)
+  return { buffer, model: FLUX_MODEL, provider: 'azure-flux' }
+}
+
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   if (req.method !== 'POST') return res.status(405).end()
   try {
-    if (!OPENAI_KEY) return res.status(500).json({ error: 'OPENAI_API_KEY fehlt im Backend.' })
     const { prompt, memorialCode } = req.body || {}
     if (!prompt || !memorialCode) return res.status(400).json({ error: 'prompt und memorialCode erforderlich.' })
 
@@ -48,48 +164,25 @@ module.exports = async function handler(req, res) {
     const access = await loadAccessibleMemorial(supabase, req.auth, memorialCode)
     if (access.error) return res.status(access.status).json({ error: access.error })
 
-    const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({
-        model: 'gpt-image-1',
-        prompt: `${prompt}\n\n${SPREAD_DIRECTIVE}`,
-        size: '1536x1024',
-        quality: 'high',
-        n: 1,
-      }),
-    })
-    if (!dalleResp.ok) {
-      const errBody = await dalleResp.text()
-      console.error('DALL-E error:', dalleResp.status, errBody)
-      let msg = `HTTP ${dalleResp.status}`
-      try {
-        const j = JSON.parse(errBody)
-        if (j?.error?.message) msg = j.error.message
-        else if (j?.error?.code) msg = j.error.code
-      } catch {}
-      return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${msg}` })
+    const fullPrompt = `${prompt}\n\n${SPREAD_DIRECTIVE}`
+
+    // Anbieter: Default aus Env; eingeloggte Benutzer dürfen pro Request
+    // übersteuern (dieser Endpunkt ist ohnehin auth-pflichtig).
+    const provider = (typeof req.body.provider === 'string' ? req.body.provider : DEFAULT_PROVIDER).toLowerCase()
+
+    let result
+    try {
+      result = provider === 'azure-flux'
+        ? await generateAzureFlux(fullPrompt)
+        : await generateOpenAI(fullPrompt)
+    } catch (e) {
+      return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e.message}` })
     }
-    const dalleData = await dalleResp.json()
-    const item = dalleData?.data?.[0]
-    let buffer = null
-    if (item?.b64_json) {
-      buffer = Buffer.from(item.b64_json, 'base64')
-    } else if (item?.url) {
-      const imgResp = await fetch(item.url)
-      if (!imgResp.ok) {
-        console.error('Bild-Download fehlgeschlagen:', imgResp.status)
-        return res.status(502).json({ error: `Bild-Download fehlgeschlagen: HTTP ${imgResp.status}` })
-      }
-      buffer = Buffer.from(await imgResp.arrayBuffer())
-    } else {
-      console.error('OpenAI lieferte weder b64_json noch url:', JSON.stringify(dalleData).slice(0, 500))
-      return res.status(502).json({ error: 'Keine Bilddaten von OpenAI erhalten.' })
-    }
+
     const code = String(memorialCode).toUpperCase().trim()
     const storagePath = `${code}/${crypto.randomUUID()}.png`
 
-    const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, buffer, {
+    const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, result.buffer, {
       contentType: 'image/png',
       upsert: false,
     })
@@ -101,10 +194,10 @@ module.exports = async function handler(req, res) {
     await recordCost({
       memorial_id: code,
       kind: 'image',
-      provider: 'openai',
-      model: IMAGE_MODEL,
+      provider: result.provider,
+      model: result.model,
       images: 1,
-      cost_usd: costImage(IMAGE_MODEL, 1),
+      cost_usd: costImage(result.model, 1),
       metadata: { storage_path: storagePath },
     })
 

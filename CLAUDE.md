@@ -27,6 +27,8 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`) |
 | `CRON_SECRET` | Secret for the daily retention purge cron (`/api/cron/purge`). Vercel auto-sends it as `Authorization: Bearer <CRON_SECRET>` on cron calls; the endpoint refuses everything if unset. |
 | `RETENTION_DAYS` | Optional. Days after `funeral_date` (else `created_at`) before a memorial is auto-deleted (default `90`). |
+| `IMAGE_PROVIDER` | Optional. `openai` (default, `gpt-image-1`) or `azure-flux` (FLUX.2 [pro] via Microsoft Foundry — German model, EU data residency, no training on inputs). |
+| `AZURE_FLUX_ENDPOINT` / `AZURE_FLUX_KEY` | Foundry resource endpoint (`https://<resource>.api.cognitive.microsoft.com`) + key. Required only for `azure-flux`. Optional: `AZURE_FLUX_MODEL` (body `model`, default `FLUX.2-pro`), `AZURE_FLUX_MODEL_PATH` (endpoint path, default `flux-2-pro`), `AZURE_FLUX_API_VERSION` (default `preview`). |
 
 ## Architecture
 
@@ -101,6 +103,6 @@ Eulogy has three style presets (`EULOGY_STYLES` in App.jsx) — the user picks o
 - Interview & generation: `claude-sonnet-4-5` (hardcoded in `api/ask.js`).
 - TTS: `tts-1-hd`, voice `shimmer`.
 - STT: `whisper-1`.
-- Image: `gpt-image-1` at `quality: 'high'`, `size: '1536x1024'`.
+- Image: `gpt-image-1` at `quality: 'high'`, `size: '1536x1024'` (default). Switchable to FLUX.2 [pro] via `IMAGE_PROVIDER=azure-flux` (`api/admin/generate-image.js`, both providers emit 1536×1024 PNG into the same Supabase bucket). Pricing keyed `flux-2-pro-1536x1024` in `cost.js`.
 
 When swapping models, update both the API call site **and** `PRICING` in `api/_lib/cost.js`.
