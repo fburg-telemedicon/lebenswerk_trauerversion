@@ -840,6 +840,22 @@ export const CATEGORIES = {
 
 export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
+// Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
+export const CATEGORY_COLORS = {
+  memorial:      '#64748b', // warmes Grau-Blau (Trauer/Gedenken)
+  birthday:      '#e11d48', // kräftiges Rosé-Rot (Geburtstag)
+  anniversary:   '#d97706', // Gold/Bernstein (Jubiläum)
+  farewell:      '#0891b2', // Türkis (Abschied)
+  service:       '#2563eb', // Blau (Betriebsjubiläum)
+  company:       '#7c3aed', // Violett (Dienstjubiläum)
+  newborn:       '#16a34a', // Frisches Grün (Geburt)
+  encouragement: '#db2777', // Pink (Mutmachbuch)
+}
+
+export function categoryColor(slug) {
+  return CATEGORY_COLORS[slug] || '#1c1917'
+}
+
 export function getCategory(slug) {
   return CATEGORIES[slug] || CATEGORIES[DEFAULT_CATEGORY]
 }

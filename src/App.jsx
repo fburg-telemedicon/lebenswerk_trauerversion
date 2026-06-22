@@ -10,7 +10,7 @@ import {
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
   getSettings, saveSettings,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
@@ -2769,23 +2769,25 @@ function Dashboard() {
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Für welchen Anlass soll das Buch entstehen?</p>
         <Err msg={err} />
         <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10 }}>
-          {allowedSlugs.map(slug => (
+          {allowedSlugs.map(slug => {
+            const c = categoryColor(slug)
+            return (
             <div
               key={slug}
               onClick={() => chooseCategory(slug)}
-              style={{ ...S.card, cursor:'pointer', padding:'16px 16px', transition:'border-color .15s, background .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.background = '#fafaf9' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.background = '#fff' }}
+              style={{ ...S.card, cursor:'pointer', padding:'16px 16px', borderLeft:`4px solid ${c}`, transition:'border-color .15s, background .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = c; e.currentTarget.style.background = `${c}0d` }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.borderLeftColor = c; e.currentTarget.style.background = '#fff' }}
             >
               <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-                <span style={{ color:'#1c1917', flexShrink:0, lineHeight:0, marginTop:1 }}><CategoryIcon slug={slug} size={28} /></span>
+                <span style={{ color:c, flexShrink:0, lineHeight:0, marginTop:1 }}><CategoryIcon slug={slug} size={28} /></span>
                 <div>
-                  <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{CATEGORIES[slug].label}</div>
+                  <div style={{ fontWeight:600, fontSize:15, marginBottom:4, color:c }}>{CATEGORIES[slug].label}</div>
                   <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{CATEGORIES[slug].description}</div>
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       </div>
     </div>
