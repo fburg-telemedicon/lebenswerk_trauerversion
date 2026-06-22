@@ -144,7 +144,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "heading": prägnant, z. B. "Mit den Augen von ${contribution.contributor_name}" oder "[Aspekt] — ${contribution.contributor_name}"
+- "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - "body": ${band.min}–${band.max} Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
@@ -333,7 +333,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "heading": prägnant, z. B. "Mit den Augen von ${contribution.contributor_name}" oder "[Aspekt] — ${contribution.contributor_name}"
+- "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - "body": ${band.min}–${band.max} Wörter, ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
 - "image_prompt": 15–30 Wörter, ENGLISCH, atmosphärisch/symbolisch, KEINE Personen, KEIN Foto-Stil; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
