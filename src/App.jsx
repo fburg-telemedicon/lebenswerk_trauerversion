@@ -23,7 +23,7 @@ const sessionFromURL = (urlParams.get('session') || '').trim()
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
 // Fassung zugestimmt wurde.
-const CONSENT_VERSION = '1.3 (2026-06-21)'
+const CONSENT_VERSION = '1.4 (2026-06-22)'
 
 // Disclaimer zur Entstehung & Haftung – wird ans Ende jedes Buchs/jeder Rede
 // gesetzt (HTML-Ansicht + DOCX) und im Impressum/Datenschutz referenziert.
@@ -212,7 +212,7 @@ function dedupeContributors(list) {
   const seen = new Set()
   const out = []
   for (const c of (list || [])) {
-    const key = `${(c.contributor_name || '').trim()} ${(c.relationship || '').trim()}`
+    const key = `${(c.contributor_name || '').trim()} ${(c.relationship || '').trim()}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push(c)
@@ -4059,7 +4059,7 @@ function Impressum() {
 function Datenschutz() {
   return (
     <LegalLayout title="Datenschutzerklärung">
-      <p style={{ color:'#78716c' }}>Stand: 21. Juni 2026 · Fassung {CONSENT_VERSION}</p>
+      <p style={{ color:'#78716c' }}>Stand: 22. Juni 2026 · Fassung {CONSENT_VERSION}</p>
 
       <h2 style={LH}>1. Verantwortlicher</h2>
       <p>
@@ -4099,28 +4099,25 @@ function Datenschutz() {
         der bis dahin erfolgten Verarbeitung berührt wird (siehe Abschnitt 8).
       </p>
 
-      <h2 style={LH}>5. KI-Verarbeitung, Empfänger und Übermittlung in die USA</h2>
+      <h2 style={LH}>5. KI-Verarbeitung und Empfänger</h2>
       <p>
         Zur Verarbeitung setzen wir Dienstleister als Auftragsverarbeiter ein:
       </p>
       <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
-        <li><strong>Anthropic</strong> (Claude) – KI-gestützte Interviewführung und Texterstellung; USA.</li>
-        <li><strong>Microsoft Azure</strong> (Azure AI Speech) – Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU.</li>
+        <li><strong>Microsoft Azure</strong> (Azure OpenAI, Azure AI Speech) – KI-gestützte Interviewführung, Texterstellung, Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU.</li>
         <li><strong>Black Forest Labs</strong> (FLUX) über Microsoft Azure – KI-gestützte Bilderzeugung; Verarbeitung in der EU.</li>
         <li><strong>Supabase</strong> – Speicherung von Datenbank- und Bildinhalten; EU (Frankfurt).</li>
-        <li><strong>Vercel</strong> – Betrieb und Auslieferung der Anwendung.</li>
+        <li><strong>Vercel</strong> – Betrieb und Auslieferung der Anwendung; Funktionsregion Frankfurt (EU).</li>
       </ul>
       <p>
-        Dabei werden die für Interviewführung und Texterstellung erforderlichen Inhalte an
-        <strong> Anthropic (Claude) in die USA</strong> übermittelt; die übrigen KI-Dienste
-        (Sprachausgabe, Spracherkennung, Bilderzeugung) sowie die Datenspeicherung erfolgen
-        in der <strong>EU</strong>. Für die USA
-        besteht kein generell mit dem EU-Recht vergleichbares Datenschutzniveau; insbesondere können
-        US-Behörden unter bestimmten Voraussetzungen auf Daten zugreifen, und Ihre Betroffenenrechte
-        sind dort ggf. schwerer durchsetzbar. Die Übermittlung erfolgt auf Grundlage Ihrer
-        ausdrücklichen Einwilligung in die Datenübermittlung in ein Drittland gemäß
-        <strong> Art. 49 Abs. 1 lit. a DSGVO</strong>. Eine automatisierte Entscheidung mit
-        rechtlicher Wirkung Ihnen gegenüber findet nicht statt.
+        Sämtliche KI-Verarbeitung (Interviewführung, Texterstellung, Sprachausgabe,
+        Spracherkennung und Bilderzeugung) sowie die Datenspeicherung erfolgen
+        <strong> ausschließlich in der EU</strong>. Eine Übermittlung in ein Drittland
+        außerhalb der EU bzw. des EWR findet nicht statt. Mit den eingesetzten
+        Auftragsverarbeitern bestehen Verträge zur Auftragsverarbeitung nach
+        <strong> Art. 28 DSGVO</strong>; die übermittelten Inhalte werden nicht zum Training
+        der KI-Modelle verwendet. Eine automatisierte Entscheidung mit rechtlicher Wirkung
+        Ihnen gegenüber findet nicht statt.
       </p>
 
       <h2 style={LH}>6. Speicherdauer</h2>

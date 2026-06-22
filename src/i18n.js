@@ -52,7 +52,7 @@ const DE = {
   consentSpecialMemorial: 'Gesundheit, Todesumständen oder Religion',
   consentSpecialOther: 'Gesundheit oder Religion',
   consentText: (noun, special) =>
-    `Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich möglicher Angaben zu ${special} (besondere Kategorien personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des ${noun} verarbeitet werden. Dabei kommen KI-Dienste der Anbieter Anthropic und OpenAI in den USA zum Einsatz; ich willige in die damit verbundene Übermittlung in die USA ein (Art. 49 Abs. 1 lit. a DSGVO), wo kein mit der EU vergleichbares Datenschutzniveau besteht. Die Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der `,
+    `Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich möglicher Angaben zu ${special} (besondere Kategorien personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des ${noun} verarbeitet werden. Die Verarbeitung erfolgt durch KI-Dienste, die ausschließlich in der EU laufen (Microsoft Azure); eine Übermittlung in ein Drittland findet nicht statt. Die Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der `,
   consentLink: 'Datenschutzerklärung',
   introSkip: 'Überspringen →',
   doneTitle: 'Herzlichen Dank',
@@ -114,7 +114,7 @@ const PL = {
   consentSpecialMemorial: 'zdrowia, okoliczności śmierci lub religii',
   consentSpecialOther: 'zdrowia lub religii',
   consentText: (noun, special) =>
-    `Wyrażam wyraźną zgodę na to, by moje dane i mój wywiad – w tym możliwe informacje dotyczące ${special} (szczególne kategorie danych osobowych zgodnie z art. 9 RODO) – były przetwarzane w celu stworzenia: ${noun}. Wykorzystywane są przy tym usługi AI dostawców Anthropic i OpenAI w USA; wyrażam zgodę na związane z tym przekazanie danych do USA (art. 49 ust. 1 lit. a RODO), gdzie nie obowiązuje poziom ochrony danych porównywalny z UE. Zgoda jest dobrowolna i można ją w każdej chwili odwołać ze skutkiem na przyszłość. Szczegóły w `,
+    `Wyrażam wyraźną zgodę na to, by moje dane i mój wywiad – w tym możliwe informacje dotyczące ${special} (szczególne kategorie danych osobowych zgodnie z art. 9 RODO) – były przetwarzane w celu stworzenia: ${noun}. Przetwarzanie odbywa się za pomocą usług AI działających wyłącznie w UE (Microsoft Azure); nie następuje przekazanie danych do państwa trzeciego. Zgoda jest dobrowolna i można ją w każdej chwili odwołać ze skutkiem na przyszłość. Szczegóły w `,
   consentLink: 'polityce prywatności',
   introSkip: 'Pomiń →',
   doneTitle: 'Serdecznie dziękujemy',
@@ -173,7 +173,7 @@ const EN = {
   consentSpecialMemorial: 'health, circumstances of death or religion',
   consentSpecialOther: 'health or religion',
   consentText: (noun, special) =>
-    `I expressly consent to my information and my interview – including possible details about ${special} (special categories of personal data under Art. 9 GDPR) – being processed to create the ${noun}. AI services from the providers Anthropic and OpenAI in the USA are used for this; I consent to the associated transfer to the USA (Art. 49(1)(a) GDPR), where there is no level of data protection comparable to the EU. Consent is voluntary and can be withdrawn at any time with future effect. Details in the `,
+    `I expressly consent to my information and my interview – including possible details about ${special} (special categories of personal data under Art. 9 GDPR) – being processed to create the ${noun}. Processing is carried out using AI services that run exclusively in the EU (Microsoft Azure); no transfer to a third country takes place. Consent is voluntary and can be withdrawn at any time with future effect. Details in the `,
   consentLink: 'privacy policy',
   introSkip: 'Skip →',
   doneTitle: 'Thank you very much',

@@ -19,8 +19,10 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 
 | Var | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude (interview + book/eulogy generation) |
-| `OPENAI_API_KEY` | TTS (`tts-1-hd`), Whisper STT (only used when `SPEECH_PROVIDER=openai`; no longer used for images) |
+| `LLM_PROVIDER` | `azure` (production) or `anthropic` (default if unset). Selects the interview + book/eulogy LLM. Production runs **`azure`** (EU). |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | **Required when `LLM_PROVIDER=azure`** — Azure OpenAI gpt-4.1 (EU). The deployment lives on a **Microsoft Foundry** resource, so `callAzure` uses the **v1 API**: `POST {endpoint}/openai/v1/chat/completions?api-version=preview` with `model`=deployment in the body. Endpoint = `https://<resource>.services.ai.azure.com` (NOT the classic `…openai.azure.com`). `AZURE_OPENAI_API_VERSION` optional, **must be `preview`** (date versions like `2024-10-21` → "DeploymentNotFound"). Deployment name (e.g. `gpt-4.1`) is also the pricing key in `cost.js`. |
+| `ANTHROPIC_API_KEY` | Claude (interview + book/eulogy generation) — **fallback only**, used when `LLM_PROVIDER` is unset/`anthropic` (USA). |
+| `OPENAI_API_KEY` | TTS (`tts-1-hd`), Whisper STT — **fallback only**, used when `SPEECH_PROVIDER=openai` (USA); no longer used for images |
 | `SUPABASE_URL` | Project URL |
 | `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key. The whole backend uses service_role (which bypasses RLS). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
@@ -99,7 +101,7 @@ Eulogy has three style presets (`EULOGY_STYLES` in App.jsx) — the user picks o
 
 ### Model defaults
 
-- Interview & generation: `claude-sonnet-4-5` (hardcoded in `api/ask.js`).
+- Interview & generation: production runs **Azure OpenAI `gpt-4.1`** (EU) via `LLM_PROVIDER=azure` (`callAzure` in `api/ask.js`, v1 Foundry API). Fallback path is Anthropic `claude-sonnet-4-5` (hardcoded model in `callAnthropic`, used when `LLM_PROVIDER` is unset/`anthropic`).
 - TTS: `tts-1-hd`, voice `shimmer`.
 - STT: `whisper-1`.
 - Image: **FLUX.2 [pro]** via Microsoft Foundry (`api/admin/generate-image.js`), 1536×1024 PNG into the `memorial-images` bucket. **Sole image module** — the OpenAI/gpt-image-1 path was removed 2026-06-21. Pricing keyed `flux-2-pro-1536x1024` in `cost.js`. No fallback: if Azure FLUX is down or unconfigured, image generation returns a 502 error.
