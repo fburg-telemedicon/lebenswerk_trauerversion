@@ -646,6 +646,61 @@ function unlockAudio() {
   primeAudio()
 }
 
+// ── Schallwellen-Animation ────────────────────────────────────────
+// Liest den Live-Pegel des Aufnahme-Streams (Web Audio AnalyserNode) und
+// zeichnet symmetrische, animierte Balken auf ein Canvas. Reagiert in Echtzeit
+// auf die Lautstärke der Stimme; bei Stille bleiben nur kleine Grundbalken.
+function Waveform({ stream, color = '#dc2626' }) {
+  const canvasRef = useRef(null)
+  useEffect(() => {
+    if (!stream) return
+    const AC = window.AudioContext || window.webkitAudioContext
+    if (!AC) return
+    let audioCtx, analyser, src, raf
+    try {
+      audioCtx = new AC()
+      src = audioCtx.createMediaStreamSource(stream)
+      analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 64
+      analyser.smoothingTimeConstant = 0.75
+      src.connect(analyser)
+    } catch { return }
+    const data   = new Uint8Array(analyser.frequencyBinCount)
+    const canvas = canvasRef.current
+    const dpr    = window.devicePixelRatio || 1
+    const resize = () => { if (canvas) { canvas.width = canvas.clientWidth * dpr; canvas.height = canvas.clientHeight * dpr } }
+    resize()
+    window.addEventListener('resize', resize)
+    const draw = () => {
+      raf = requestAnimationFrame(draw)
+      if (!canvas) return
+      analyser.getByteFrequencyData(data)
+      const cx = canvas.getContext('2d')
+      const W = canvas.width, H = canvas.height
+      cx.clearRect(0, 0, W, H)
+      const n = data.length, slot = W / n, barW = Math.max(2 * dpr, slot * 0.55)
+      for (let i = 0; i < n; i++) {
+        const v = data[i] / 255
+        const h = Math.max(barW, v * H * 0.95)
+        const x = i * slot + (slot - barW) / 2
+        const y = (H - h) / 2
+        cx.fillStyle = color
+        cx.beginPath()
+        cx.roundRect(x, y, barW, h, barW / 2)
+        cx.fill()
+      }
+    }
+    draw()
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', resize)
+      try { src.disconnect() } catch {}
+      audioCtx.close().catch(() => {})
+    }
+  }, [stream, color])
+  return <canvas ref={canvasRef} style={{ width:'100%', height:56, display:'block' }} />
+}
+
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [] }) {
   const t = uiText(lang)
@@ -656,6 +711,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   const [isPlaying,  setIsPlaying]  = useState(false)
   // micState: idle | recording | processing
   const [micState,   setMicState]   = useState('idle')
+  const [micStream,  setMicStream]  = useState(null) // aktiver Aufnahme-Stream → Schallwellen-Animation
   const [transcript, setTranscript] = useState('')
   const [err,        setErr]        = useState('')
   const [hasPlayed,  setHasPlayed]  = useState(false)
@@ -724,6 +780,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
+        setMicStream(null)
         const audioSeconds = recStartedAt ? (Date.now() - recStartedAt) / 1000 : 0
         setMicState('processing')
         try {
@@ -756,6 +813,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
       recStartedAt = Date.now()
       rec.start()
+      setMicStream(stream)
       setMicState('recording')
       setTranscript('')
       setErr('')
@@ -846,6 +904,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
                 aria-label={micLabel}
               >{micIcon}</button>
             </div>
+            {micState === 'recording' && micStream && (
+              <div style={{ maxWidth:320, margin:'0 auto 10px' }}>
+                <Waveform stream={micStream} color="#dc2626" />
+              </div>
+            )}
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
