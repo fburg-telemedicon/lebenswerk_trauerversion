@@ -167,8 +167,8 @@ export async function addContribution({ contributionId, memorialCode, contributo
   return parseResponse(res) // { id }
 }
 
-// ── Claude ────────────────────────────────────────────────────────
-export async function askClaude(system, messages, opts = {}) {
+// ── LLM (Provider serverseitig gewählt; siehe api/ask.js) ──────────
+export async function askLLM(system, messages, opts = {}) {
   // Bei Admin-Generierung wird der Bearer-Token mitgeschickt: serverseitig
   // umgeht ein gültiger Token die IP-Drossel (viele Calls in Folge sind legitim).
   const headers = { 'Content-Type': 'application/json' }

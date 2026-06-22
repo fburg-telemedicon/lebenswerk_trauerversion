@@ -55,7 +55,7 @@ async function loadAccessibleContribution(supabase, auth, id) {
 
 // Existenzprüfung für die öffentlichen (unauthentifizierten) KI-Proxies.
 // Diese Endpunkte müssen offen bleiben (Beitragenden-Flow ohne Login), sollen
-// aber nicht als anonymer, beliebiger Claude/OpenAI-Proxy auf fremde Rechnung
+// aber nicht als anonymer, beliebiger KI-Proxy auf fremde Rechnung
 // missbraucht werden können. Indem ein gültiger, existierender memorialCode
 // verlangt wird, sinkt die Hürde von "Zero-Knowledge" auf "braucht einen
 // echten Code". Wirft bei DB-Fehler (→ 500 im Handler, wie bisher).

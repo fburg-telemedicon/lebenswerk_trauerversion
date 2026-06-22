@@ -1,6 +1,6 @@
 // src/review.js
 // Automatische Inhalts-/Datenschutzprüfung generierter Texte (Gedenkbuch,
-// Lebensgeschichte, Trauerrede). Eine zusätzliche Claude-Anfrage prüft den
+// Lebensgeschichte, Trauerrede). Eine zusätzliche KI-Anfrage prüft den
 // fertigen Text und liefert strukturierte Befunde als JSON zurück.
 
 // Geprüfte Kategorien. Die KI MUSS exakt diese Bezeichnungen im Feld

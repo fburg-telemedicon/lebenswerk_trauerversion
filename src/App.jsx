@@ -4,7 +4,7 @@ import jsPDF from 'jspdf'
 import JSZip from 'jszip'
 import {
   createMemorial, getMemorial, getContribution, addContribution,
-  askClaude, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
+  askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
@@ -192,7 +192,7 @@ function tryParseJSON(raw) {
   if (!raw) return null
   let s = String(raw).trim()
   if (s.startsWith('```')) s = s.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
-  // Falls Claude doch noch Text drumherum schreibt: ersten { bis letzten } isolieren
+  // Falls die KI doch noch Text drumherum schreibt: ersten { bis letzten } isolieren
   const first = s.indexOf('{')
   const last  = s.lastIndexOf('}')
   if (first > 0 || (first === 0 && last > 0 && last < s.length - 1)) s = s.slice(first, last + 1)
@@ -570,8 +570,8 @@ function formatEur(n) {
 }
 
 const COST_KIND_LABEL = {
-  interview:  'Interview-Fragen (Claude)',
-  reasoning:  'Sonstiges Claude-Reasoning',
+  interview:  'Interview-Fragen (KI)',
+  reasoning:  'Sonstiges KI-Reasoning',
   book_v1:    'Buch V1 – Generierung',
   book_v2:    'Buch V2 – Generierung',
   eulogy:     'Endtext (Rede) – Generierung',
@@ -636,7 +636,7 @@ function PartnerBanner({ logoUrl }) {
   )
 }
 
-// ── Claude-Prompts ────────────────────────────────────────────────
+// ── KI-Prompts ────────────────────────────────────────────────────
 // Die kategoriespezifischen Prompt-Builder liegen in src/categories.js.
 // Sie werden über GENERATORS (Admin) bzw. getCategory(...).interviewSystem
 // (Contributor-Flow) angesprochen.
@@ -699,7 +699,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     setAiLoading(true)
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
-      const q = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
+      const q = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
       setMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
     finally { setAiLoading(false) }
@@ -773,7 +773,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     onSave?.(newMsgs)
     try {
       const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
-      const reply = await askClaude(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
+      const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
       setMessages(finalMsgs)
       onSave?.(finalMsgs)
@@ -879,7 +879,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
     setLoading(true)
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
-      const q = await askClaude(sys, [{ role:'user', content:'[Interview beginnt]' }])
+      const q = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }])
       setMessages([{ role:'assistant', content:q }])
     } catch(e) { setErr(e.message) }
     finally { setLoading(false) }
@@ -892,7 +892,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
     setMessages(newMsgs); setRound(r=>r+1); setLoading(true)
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
-      const reply = await askClaude(sys, [{ role:'user', content:'[Interview beginnt]' }, ...newMsgs])
+      const reply = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }, ...newMsgs])
       setMessages([...newMsgs, { role:'assistant', content:reply }])
     } catch(e) { setErr(e.message) }
     finally { setLoading(false) }
@@ -1798,14 +1798,14 @@ function Dashboard() {
     throw lastErr
   }
 
-  // Kapitel-Generierung mit Auto-Retry: Claude liefert gelegentlich
+  // Kapitel-Generierung mit Auto-Retry: die KI liefert gelegentlich
   // ungültiges JSON oder läuft ins 60s-Timeout — beides ist transient,
   // ein zweiter/dritter Versuch klappt meistens.
   async function generateChapterWithRetry(sys, memorialCode, kind, { maxAttempts = 3 } = {}) {
     let lastErr
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const chRaw = await askClaude(
+        const chRaw = await askLLM(
           sys,
           [{ role: 'user', content: 'Erzeuge jetzt dieses eine Kapitel als JSON.' }],
           { memorialCode, kind, token }
@@ -1822,14 +1822,14 @@ function Dashboard() {
     throw lastErr
   }
 
-  // Inhalts-/Datenschutzprüfung des fertigen Textes (separater Claude-Call),
+  // Inhalts-/Datenschutzprüfung des fertigen Textes (separater KI-Call),
   // gespeichert in content_reports[field]. Genutzt von generate() und vom
   // Button „Prüfung wiederholen". Immer eine FRISCHE Prüfung: alle Befunde
   // sind offen. Da Korrekturen fest im Buchtext gespeichert sind, findet die
   // Prüfung bereits behobene Stellen schlicht nicht mehr.
   async function runContentReview(field, value) {
     try {
-      const reportRaw = await askClaude(
+      const reportRaw = await askLLM(
         reviewSystemPrompt(selected),
         [{ role: 'user', content: `BUCHTEXT:\n${extractReviewText(value)}\n\n${contributionsContext(contributions)}` }],
         { memorialCode: selected.id, kind: 'review', token }
@@ -1837,7 +1837,7 @@ function Dashboard() {
       const parsed = tryParseJSON(reportRaw) || {}
       const report = {
         checked_at: new Date().toISOString(),
-        model: 'claude-sonnet-4-5',
+        model: 'KI (serverseitig gewählt)',
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
         findings: Array.isArray(parsed.findings) ? parsed.findings : [],
       }
@@ -1941,7 +1941,7 @@ function Dashboard() {
         const ctxPara = String(target).split('\n\n').find(p => p.includes(quote)) || quote
         const sys = 'Du bist ein sorgfältiger Lektor. Formuliere NUR die markierte Stelle neutral um, sodass der beanstandete Inhalt entfällt, der Ton aber erhalten bleibt und sie sich nahtlos in den umgebenden Text einfügt. Gib AUSSCHLIESSLICH den Ersatztext zurück – ohne Anführungszeichen, ohne Erklärung, ohne Markdown.'
         const user = `UMGEBENDER ABSATZ:\n${ctxPara}\n\nZU ERSETZENDE STELLE:\n${quote}\n\nHINWEIS DER PRÜFUNG:\n${finding.note || ''}`
-        newText = String(await askClaude(sys, [{ role: 'user', content: user }], { memorialCode: selected.id, kind: 'review_fix', token })).trim().replace(/^[„"»«\s]+|[„"»«\s]+$/g, '')
+        newText = String(await askLLM(sys, [{ role: 'user', content: user }], { memorialCode: selected.id, kind: 'review_fix', token })).trim().replace(/^[„"»«\s]+|[„"»«\s]+$/g, '')
         if (!newText) throw new Error('Leere Antwort der KI.')
         corrected = target.replace(quote, newText)
       }
@@ -2069,7 +2069,7 @@ function Dashboard() {
       if (gen.kind === 'book') {
         // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
         setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
-        const outlineRaw = await askClaude(
+        const outlineRaw = await askLLM(
           gen.outlineSystem(selected, contributions) + dir,
           [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
           { memorialCode: selected.id, kind: `${key}_outline`, token }
@@ -2198,7 +2198,7 @@ function Dashboard() {
         setGenProgress(p => ({ ...p, [key]: saveMsg }))
       } else if (gen.kind === 'eulogy') {
         // Endtext (z. B. Rede) in mehrere Abschnitte aufgeteilt — jeder ein
-        // eigener Claude-Call, damit niemand am 60s-Limit von api/ask.js stirbt.
+        // eigener KI-Call, damit niemand am 60s-Limit von api/ask.js stirbt.
         const sections = gen.sections || []
         const parts = []
         const sectionErrors = []
@@ -2208,7 +2208,7 @@ function Dashboard() {
           setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
           checkCancel()
           try {
-            const raw = await askClaude(
+            const raw = await askLLM(
               gen.sectionSystem(selected, contributions, section, extraArg) + dir,
               [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.` }],
               { memorialCode: selected.id, kind: key, token }
@@ -2227,7 +2227,7 @@ function Dashboard() {
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       } else {
         // Sonstige Plain-Text-Generatoren (derzeit keiner)
-        const raw = await askClaude(
+        const raw = await askLLM(
           gen.system(selected, contributions, extraArg),
           [{ role: 'user', content: gen.userPrompt }],
           { memorialCode: selected.id, kind: key }
@@ -2237,7 +2237,7 @@ function Dashboard() {
 
       await adminSaveMemorialText(token, selected.id, gen.field, value)
 
-      // Inhalts-/Datenschutzprüfung des generierten Textes (separater Claude-
+      // Inhalts-/Datenschutzprüfung des generierten Textes (separater KI-
       // Call). Fehler hier dürfen die Generierung NICHT scheitern lassen –
       // der Text ist bereits gespeichert.
       setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
