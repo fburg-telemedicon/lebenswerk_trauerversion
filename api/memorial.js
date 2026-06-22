@@ -7,6 +7,7 @@
 // wäre ein ungeschützter Schreibzugriff und existiert deshalb hier nicht.
 
 const { createClient } = require('@supabase/supabase-js')
+const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -20,6 +21,11 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'Code fehlt.' })
+
+      // Schutz vor dem Durchprobieren von Codes (Enumeration): begrenzt die
+      // Code-Abfragen pro IP. Großzügig genug für den normalen Beitragenden-
+      // Flow; fail-open (sperrt bei Limiter-Ausfall niemanden aus).
+      if (!(await enforce(req, res, { name: 'memorial', limit: 60, windowSeconds: 60 }))) return
 
       // BEWUSST nur die für den Beitragenden-Flow nötigen Felder ausliefern –
       // NICHT die ganze Zeile. Insbesondere die generierten Inhalte

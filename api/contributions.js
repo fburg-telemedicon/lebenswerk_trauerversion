@@ -11,6 +11,7 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const { genCode } = require('./_lib/codes')
+const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -19,6 +20,12 @@ const supabase = createClient(
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
+
+  // Schutz vor Massen-Zugriff über durchprobierte Codes (Lesen fremder Beiträge
+  // ist ohnehin nur mit der geheimen Beitrags-ID möglich; das Limit bremst v.a.
+  // das Einschleusen von Beiträgen über erratene Gedenkbuch-Codes). Großzügig
+  // für den normalen Flow; fail-open.
+  if (!(await enforce(req, res, { name: 'contributions', limit: 60, windowSeconds: 60 }))) return
 
   try {
     if (req.method === 'GET') {
