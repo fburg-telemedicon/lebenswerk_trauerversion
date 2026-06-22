@@ -6,10 +6,14 @@
 // Eingeloggte Admins können pro Request via { provider } übersteuern
 // (für den A/B-Vergleich Claude vs. Azure-GPT auf demselben Memorial).
 // Azure-Konfiguration (nur für den azure-Pfad nötig):
-//   AZURE_OPENAI_ENDPOINT     z. B. https://lebensgeschichten-instanz.openai.azure.com
-//   AZURE_OPENAI_KEY          Schlüssel der Ressource
+//   AZURE_OPENAI_ENDPOINT     Ressourcen-Endpoint OHNE Pfad. Microsoft-Foundry-
+//                             Ressourcen: https://<resource>.services.ai.azure.com
+//                             (klassische Azure-OpenAI-Ressourcen: …openai.azure.com)
+//   AZURE_OPENAI_KEY          Schlüssel DERSELBEN Ressource wie der Endpoint
 //   AZURE_OPENAI_DEPLOYMENT   Deployment-Name (z. B. "gpt-4.1") – zugleich Pricing-Key
-//   AZURE_OPENAI_API_VERSION  optional, Default unten
+//                             und der `model`-Wert im v1-Request-Body
+//   AZURE_OPENAI_API_VERSION  optional, Default "preview" (die v1-API kennt nur
+//                             "preview" bzw. keine; KEINE Datums-Version wie 2024-…)
 
 const { createClient } = require('@supabase/supabase-js')
 const { costLLM, recordCost } = require('./_lib/cost')
@@ -46,24 +50,28 @@ async function callAnthropic({ system, messages }) {
 }
 
 // ── Azure OpenAI (GPT) ────────────────────────────────────────────
-// Chat-Completions-API. Der Anthropic-Stil { system, messages } wird auf
-// OpenAI gemappt: system wird als erste Nachricht (role 'system') vorangestellt.
+// Neue OpenAI-v1-API der Microsoft-Foundry-Ressourcen:
+//   POST {endpoint}/openai/v1/chat/completions?api-version=preview
+//   Body enthält `model` = Deployment-Name (NICHT im URL-Pfad).
+// Der Anthropic-Stil { system, messages } wird auf OpenAI gemappt: system wird
+// als erste Nachricht (role 'system') vorangestellt. Antwort- und Usage-Format
+// sind identisch zur klassischen Chat-Completions-API (choices[].message.content).
 async function callAzure({ system, messages }) {
   const endpoint   = (process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/+$/, '')
   const key        = process.env.AZURE_OPENAI_KEY
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || 'preview'
   if (!endpoint || !key || !deployment) {
     throw new Error('Azure OpenAI ist nicht konfiguriert (AZURE_OPENAI_ENDPOINT/KEY/DEPLOYMENT).')
   }
-  const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`
+  const url = `${endpoint}/openai/v1/chat/completions?api-version=${apiVersion}`
   const oaiMessages = (system ? [{ role: 'system', content: system }] : []).concat(messages || [])
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'api-key': key },
     // temperature bewusst nicht gesetzt (Modell-Default) – manche neueren
     // Modelle erlauben nur den Default-Wert.
-    body: JSON.stringify({ messages: oaiMessages, max_tokens: MAX_TOKENS }),
+    body: JSON.stringify({ model: deployment, messages: oaiMessages, max_tokens: MAX_TOKENS }),
   })
   const data = await response.json()
   if (data.error) throw new Error(data.error.message || 'Azure-OpenAI-Fehler')
