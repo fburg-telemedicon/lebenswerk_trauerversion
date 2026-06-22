@@ -1031,7 +1031,10 @@ function ContributorFlow({ code }) {
     const ts = consentAt || new Date().toISOString()
     if (!consentAt) setConsentAt(ts)
     saveLocalSession(code, { contribId, contribForm, consentAt: ts })
-    setView(memorial?.show_intro_video !== false ? 'intro-video' : 'interview')
+    // Einführungsvideo nur fürs Trauerbuch (memorial); andere Kategorien starten
+    // direkt mit dem Interview.
+    const showVideo = memorial?.product_category === 'memorial' && memorial?.show_intro_video !== false
+    setView(showVideo ? 'intro-video' : 'interview')
   }
 
   function saveProgress(messages) {
@@ -2917,6 +2920,7 @@ function Dashboard() {
             ))}
           </div>
         </div>
+        {createForm.productCategory === 'memorial' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Einführungsvideo</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2932,6 +2936,7 @@ function Dashboard() {
             Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
           </p>
         </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Bemerkung</Lbl>
           <textarea
@@ -3499,7 +3504,7 @@ function Dashboard() {
                   ...(oci.useCutoff ? [['Erfassung bis', selected.funeral_date ? `${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : `${cutoffDays(selected)} Tage vorher`]] : []),
                   ['Sprachen', orderLangLabels],
                   ['Buch-Variante', orderVariant.title],
-                  ['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein'],
+                  ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
                   ['Bemerkung', selected.note || dash],
                   ['Sammelbestellungs-Adresse', selected.pickup_address
                     ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
@@ -3595,6 +3600,7 @@ function Dashboard() {
                     ))}
                   </div>
                 </div>
+                {selected.product_category === 'memorial' && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Einführungsvideo</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -3603,6 +3609,7 @@ function Dashboard() {
                     <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
                   </label>
                 </div>
+                )}
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Bemerkung</Lbl>
                   <textarea value={od.note} onChange={e => setOd({ note: e.target.value })} rows={3}
