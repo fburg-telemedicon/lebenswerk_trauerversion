@@ -1398,6 +1398,7 @@ function Dashboard() {
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [genPct, setGenPct]           = useState({}) // { book_v1: 42 } – Fortschritt in %
+  const [genErr, setGenErr]           = useState({}) // { book_v1: 'Fehler …' } – Fehler PRO Variante (nicht global)
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
   const [reviewPct, setReviewPct]       = useState(0)     // simulierter %-Fortschritt der Prüfung
@@ -1845,10 +1846,15 @@ function Dashboard() {
     },
   }
 
-  // Bildgenerierung mit Auto-Retry: kurze Pause zwischen Versuchen,
-  // damit transiente 5xx/Timeouts (gpt-image-1 läuft am 60s-Limit)
-  // nicht sofort als endgültiger Fehler markiert werden.
-  async function generateImageWithRetry(memorialId, prompt, { maxAttempts = 3 } = {}) {
+  // Bildgenerierung mit Auto-Retry. Zwei Klassen transienter Fehler:
+  //  - 5xx/Timeout (FLUX läuft am 60s-Limit) → kurze Pause genügt.
+  //  - Rate-Limit (FLUX „exceeded rate limit", pro-Minute-Kontingent in
+  //    westeurope) → deutlich LÄNGER warten, sonst läuft man sofort wieder
+  //    ins Limit. Jeder Versuch ist ein eigener Serverless-Call, das 60s-
+  //    Budget wird also pro Versuch frisch vergeben – wir dürfen client-
+  //    seitig beliebig lange warten.
+  // `onWait(seconds, rateLimited)` darf optional den Fortschritt anzeigen.
+  async function generateImageWithRetry(memorialId, prompt, { maxAttempts = 4, onWait } = {}) {
     let lastErr
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -1856,9 +1862,13 @@ function Dashboard() {
       } catch (e) {
         lastErr = e
         const msg = String(e?.message || '')
-        const transient = /HTTP 5\d\d|timeout|timed out|FUNCTION_INVOCATION_TIMEOUT|fetch failed/i.test(msg)
+        const rateLimited = /rate.?limit|too many requests|exceeded|\b429\b/i.test(msg)
+        const transient = rateLimited || /HTTP 5\d\d|timeout|timed out|FUNCTION_INVOCATION_TIMEOUT|fetch failed/i.test(msg)
         if (!transient || attempt === maxAttempts) throw e
-        await new Promise(r => setTimeout(r, 3000 * attempt))
+        // Rate-Limit gilt pro Minute → 20s, 40s, 60s; sonst 3s, 6s, 9s.
+        const waitMs = rateLimited ? 20000 * attempt : 3000 * attempt
+        try { onWait?.(Math.round(waitMs / 1000), rateLimited) } catch {}
+        await new Promise(r => setTimeout(r, waitMs))
       }
     }
     throw lastErr
@@ -2115,6 +2125,7 @@ function Dashboard() {
     const genLang = opts.lang || ((selected.languages && selected.languages.length === 1) ? selected.languages[0] : DEFAULT_LANGUAGE)
     const dir = langDirective(genLang)
     setErr('')
+    setGenErr(p => ({ ...p, [key]: '' })) // Fehler DIESER Variante zurücksetzen
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setGenPct(p => ({ ...p, [key]: 0 }))
@@ -2215,6 +2226,7 @@ function Dashboard() {
           if (oc.heading) oldByHeading.set(normH(oc.heading), oc.image_path)
         }
         let reusedCount = 0
+        let freshCount = 0 // Zähler echter FLUX-Calls (für sanftes Pacing)
         if (skipImages) {
           setGenProgress(p => ({ ...p, [key]: 'Bilder werden übersprungen …' }))
         } else {
@@ -2241,8 +2253,16 @@ function Dashboard() {
               bumpPct() // Bild-Schritt erledigt
               continue
             }
+            // Sanftes Pacing: vor jedem weiteren FLUX-Call kurz warten, damit
+            // das pro-Minute-Rate-Limit gar nicht erst gerissen wird.
+            if (freshCount > 0) await new Promise(r => setTimeout(r, 1500))
+            freshCount++
             try {
-              const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt)
+              const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
+                onWait: (s, rl) => setGenProgress(p => ({ ...p, [key]: rl
+                  ? `Bild ${i + 1}/${total}: Rate-Limit erreicht – warte ${s}s und versuche es erneut …`
+                  : `Bild ${i + 1}/${total}: erneuter Versuch in ${s}s …` })),
+              })
               value.chapters[i] = { ...ch, image_path: storagePath, image_error: null }
             } catch (e) {
               console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
@@ -2256,7 +2276,7 @@ function Dashboard() {
         const errLines = []
         if (writeErrors.length > 0) errLines.push(`${writeErrors.length}/${chapterPlans.length} Kapitel-Fehler. Erster: ${writeErrors[0]}`)
         if (imageErrors.length > 0) errLines.push(`${imageErrors.length}/${total} Bildgenerierungen fehlgeschlagen. Erster Fehler: ${imageErrors[0]}`)
-        if (errLines.length > 0) setErr(errLines.join(' · '))
+        if (errLines.length > 0) setGenErr(p => ({ ...p, [key]: errLines.join(' · ') }))
 
         const saveMsg = reusedCount > 0
           ? `${reusedCount} Bild${reusedCount > 1 ? 'er' : ''} übernommen · wird gespeichert …`
@@ -2289,7 +2309,7 @@ function Dashboard() {
         }
         if (parts.length === 0) throw new Error(`Kein Abschnitt der ${gen.noun} konnte generiert werden.`)
         value = parts.join('\n\n')
-        if (sectionErrors.length > 0) setErr(`${sectionErrors.length}/${sections.length} Abschnitt-Fehler. Erster: ${sectionErrors[0]}`)
+        if (sectionErrors.length > 0) setGenErr(p => ({ ...p, [key]: `${sectionErrors.length}/${sections.length} Abschnitt-Fehler. Erster: ${sectionErrors[0]}` }))
         setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
       } else {
         // Sonstige Plain-Text-Generatoren (derzeit keiner)
@@ -2330,8 +2350,10 @@ function Dashboard() {
       }
       setGenPct(p => ({ ...p, [key]: 100 }))
     } catch (e) {
-      if (e.message === '__CANCELLED__') setErr('Generierung abgebrochen. Bereits erzeugte Inhalte wurden nicht gespeichert.')
-      else setErr(`Generieren fehlgeschlagen: ${e.message}`)
+      const m = e.message === '__CANCELLED__'
+        ? 'Generierung abgebrochen. Bereits erzeugte Inhalte wurden nicht gespeichert.'
+        : `Generieren fehlgeschlagen: ${e.message}`
+      setGenErr(p => ({ ...p, [key]: m }))
     }
     finally {
       setGenerating(g => ({ ...g, [key]: false }))
@@ -2414,8 +2436,14 @@ function Dashboard() {
         const ch = newChapters[i]
         setImgEditProgress(`Bild ${done + 1}/${indices.length} wird neu erstellt …`)
         if (!ch.image_prompt) { errs.push(`Kapitel ${ch.number}: kein Bild-Prompt`); done++; continue }
+        // Sanftes Pacing gegen das pro-Minute-Rate-Limit (FLUX).
+        if (done > 0) await new Promise(r => setTimeout(r, 1500))
         try {
-          const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt)
+          const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
+            onWait: (s, rl) => setImgEditProgress(rl
+              ? `Bild ${done + 1}/${indices.length}: Rate-Limit – warte ${s}s und versuche es erneut …`
+              : `Bild ${done + 1}/${indices.length}: erneuter Versuch in ${s}s …`),
+          })
           newChapters[i] = { ...ch, image_path: storagePath, image_url: undefined, image_error: null }
         } catch (e) {
           errs.push(`Kapitel ${ch.number}: ${e.message}`)
@@ -3508,6 +3536,9 @@ function Dashboard() {
                         </button>
                       </div>
                     )}
+                    {!busy && genErr[key] && (
+                      <div style={{ marginTop:10 }}><Err msg={genErr[key]} /></div>
+                    )}
                     {reviewingKey === key && (
                       <div style={{ marginTop:10 }}>
                         <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
@@ -3933,6 +3964,7 @@ function Dashboard() {
           </div>
         )}
 
+        <Err msg={genErr[key]} />
         <Err msg={err} />
 
         {busy ? (
