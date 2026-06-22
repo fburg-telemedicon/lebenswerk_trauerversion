@@ -9,7 +9,7 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 
 > **Begleitende Pflichten (Phase 0 der DSGVO-Roadmap), die NICHT durch dieses
 > Dokument abgedeckt sind:**
-> - **DSFA (Art. 35)** — wegen besonderer Kategorien (Art. 9) sehr wahrscheinlich Pflicht; separates Dokument, noch offen.
+> - **DSFA (Art. 35)** — erstellt als `DSFA.md` (Entwurf, durch DSB/Jurist:in freizugeben).
 > - **AVV/DPA herunterladen & archivieren** — siehe Abschnitt 6 (Checkliste).
 
 ---
@@ -169,7 +169,7 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 
 ## 10. Offene Punkte (Phase 0)
 
-- [ ] **DSFA (Art. 35)** als eigenes Dokument erstellen (wegen Art.-9-Daten voraussichtlich Pflicht).
+- [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (Entwurf 2026-06-22) — finale Freigabe durch DSB/Jurist:in offen.
 - [x] AVVs gemäß Abschnitt 6 herunterladen, prüfen, archivieren — **erledigt 2026-06-22** (Microsoft, Supabase [signiert], Vercel [Pro], GitHub). Alle in `DSGVO_AVV/`.
 - [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
 - [ ] LDI-NRW-Meldewege in `BETRIEB-DSGVO.md` eintragen.

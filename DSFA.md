@@ -1,0 +1,152 @@
+# Datenschutz-Folgenabschätzung (DSFA, Art. 35 DSGVO)
+
+Gedenkbuch-/Lebensgeschichten-App. **Entwurf — durch DSB/Jurist:in zu prüfen und freizugeben.**
+Stand: 2026-06-22. Produktion: lebensgeschichten.vercel.app.
+Verantwortlicher: **HealthCare Futurists GmbH**, Köln (GF Dr. Gantner).
+
+Baut auf den bestehenden Dokumenten auf und wiederholt deren Inhalte nicht:
+- `VERFAHRENSVERZEICHNIS.md` — Verarbeitungstätigkeiten (Art. 30), Datenkategorien, Datenfluss, Empfänger, Löschfristen.
+- `SICHERHEIT.md` — technische und organisatorische Maßnahmen (Art. 32).
+- `BETRIEB-DSGVO.md` — Data-Breach-Prozess (Art. 33/34), laufende Reviews.
+
+---
+
+## 1. Anlass und Pflicht zur DSFA (Art. 35 Abs. 1 und 3)
+
+Eine DSFA ist durchzuführen, wenn die Verarbeitung **voraussichtlich ein hohes Risiko**
+für die Rechte und Freiheiten natürlicher Personen zur Folge hat. Hier sind **mehrere**
+Auslöser erfüllt (es genügt regelmäßig die Erfüllung von zwei Kriterien der DSK-Liste):
+
+| Kriterium | Trifft zu? | Begründung |
+|---|---|---|
+| Besondere Kategorien (Art. 9) in größerem Umfang | **Ja** | Gesundheits-/Todesumstände, religiöse Überzeugungen in Interviews/Stimmaufnahmen |
+| Einsatz neuer/innovativer Technologien | **Ja** | KI-gestütztes Interview, Transkription, Text- und Bildsynthese (LLM/Speech/Diffusion) |
+| Verarbeitung von Daten **schutzbedürftiger Personen** | **Ja** | Trauernde/Hinterbliebene; emotional belastende Ausnahmesituation |
+| Daten **Dritter**, die nicht selbst einwilligen | **Ja** | In Beiträgen genannte lebende Hinterbliebene (Namen, ggf. Anschriften) |
+| Zusammenführung/Anreicherung aus mehreren Quellen | Teilweise | Mehrere Beitragende zu einer Person zu einem Werk verknüpft |
+
+**Ergebnis:** Eine DSFA ist **erforderlich** (mind. drei einschlägige Kriterien).
+
+---
+
+## 2. Systematische Beschreibung der Verarbeitung (Art. 35 Abs. 7 lit. a)
+
+Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
+
+- **Zweck:** Erstellung eines individuellen Erinnerungs-/Gedenkwerks (Buch/Rede) aus
+  Beiträgen mehrerer Personen; acht Produktkategorien.
+- **Ablauf:** Beitragende/r ruft per 6-stelligem Code die App auf → optionales
+  Einführungsvideo (nur memorial) → Sprach- oder Text-Interview → KI-Rückfragen →
+  Speicherung → Admin generiert Buch/Rede (LLM) + Kapitelbilder (FLUX) → KI-gestützte
+  Inhalts-/Datenschutzprüfung → Export (DOCX/PDF).
+- **Datenarten:** siehe VVT Abschnitt 3 (inkl. Art.-9-Daten).
+- **Empfänger/Auftragsverarbeiter:** ausschließlich EU (Microsoft Azure, Supabase
+  Frankfurt, Vercel `fra1`); AVVs nach Art. 28 abgeschlossen (VVT Abschnitt 6).
+- **Speicherdauer:** automatische Löschung der Beiträge nach Frist (Standard 90 Tage),
+  vollständige manuelle Löschung möglich (VVT Abschnitt 8).
+- **Datenfluss:** kein Pfeil verlässt die EU (VVT Abschnitt 7).
+
+---
+
+## 3. Bewertung von Notwendigkeit und Verhältnismäßigkeit (Art. 35 Abs. 7 lit. b)
+
+| Prüfpunkt | Bewertung |
+|---|---|
+| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.4). |
+| **Zweckbindung** | Daten werden ausschließlich zur Erstellung des bestellten Werks und dessen Betrieb verarbeitet; keine Weiterverwendung, **kein KI-Training** durch die Anbieter. |
+| **Datenminimierung** | Nur freiwillig beigetragene Inhalte; keine Pflichtfelder zu sensiblen Daten; Sekundärdaten (IP/Audit/Kosten) PII-arm. |
+| **Speicherbegrenzung** | Automatische Löschung der Interview-Rohdaten nach Frist; Buch/Rede bleibt ohne Rohdaten erhalten (Tombstone in `purge_info`). |
+| **Transparenz** | Datenschutzerklärung + Impressum (Hash-Routen, Footer auf jeder Seite); ausdrücklicher Consent-Schritt vor dem Interview. |
+| **Betroffenenrechte** | Auskunft/Export (Art. 15/20) als ZIP (PDF+JSON) pro Beitrag; vollständige Löschung (Art. 17) inkl. Storage; Widerruf per E-Mail. |
+| **Keine automatisierte Einzelentscheidung** | Art. 22 nicht einschlägig; KI erzeugt Inhalte, finale Freigabe durch Menschen (Admin). |
+
+**Zwischenergebnis:** Verarbeitung ist zur Zweckerreichung erforderlich und durch
+Einwilligung, Minimierung und Löschkonzept verhältnismäßig ausgestaltet.
+
+---
+
+## 4. Risikobewertung (Art. 35 Abs. 7 lit. c)
+
+**Methodik (DSK):** Risiko = Schadenshöhe × Eintrittswahrscheinlichkeit, je
+gering / mittel / hoch — jeweils **vor** und **nach** den Maßnahmen (Restrisiko).
+Schutzziele: Vertraulichkeit, Integrität, Verfügbarkeit, Nichtverkettung,
+Intervenierbarkeit, Transparenz.
+
+| ID | Risiko für die Betroffenen | Schaden | Eintritt (roh) | Risiko (roh) | Wesentliche Maßnahmen | Restrisiko |
+|---|---|---|---|---|---|---|
+| R1 | **Offenlegung von Art.-9-Daten** (Hack/Leak, fremder Zugriff) | hoch | mittel | **hoch** | TLS + AES-256; Supabase-RLS (nur service_role); gehärtete Admin-Auth (HMAC-Token 12 h, keine Defaults); IDOR-/Mehrbenutzer-Isolation; beitragsgenauer Capability-Zugriff (14-stellige ID statt Code); Rate-Limiting/Brute-Force-Schutz; EU-only | **gering–mittel** |
+| R2 | **Verarbeitung ohne wirksame Einwilligung** | hoch | gering | mittel | Pflicht-Consent vor Interview; Protokollierung `consent_at`/`consent_version`; Art. 9 Abs. 2 lit. a | **gering** |
+| R3 | **Fehlerhafte/unangemessene KI-Ausgaben** im Werk (falsche, bloßstellende, sensible Inhalte) | mittel | mittel | mittel | KI-gestützte Inhalts-/Datenschutzprüfung (`runContentReview`); **menschliche Endfreigabe** vor Auslieferung; Korrekturmöglichkeit | **gering–mittel** |
+| R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; US-Fallbacks (Anthropic/OpenAI) am 2026-06-22 aus dem Code entfernt; AVVs mit EU-Verarbeitung | **gering** |
+| R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (Frist, Standard 90 Tage) + Housekeeping; manuelle Voll-Löschung; Tombstones | **gering** |
+| R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | Hinweis/Minimierung; Löschung auf Anfrage; Aufbewahrungsbegrenzung. **Verbleibendes strukturelles Risiko** — siehe Abschnitt 6 | **mittel** |
+| R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups (Supabase/Vercel); regelmäßige Restore-Stichprobe (Runbook) | **gering** |
+| R8 | **Kompromittierung Admin-Konto** | hoch | gering | mittel | scrypt-Hash + Salt; Passwortrichtlinie; HMAC-Token mit Ablauf; Audit-Log; Login-Rate-Limit; pro-Nutzer-Kategorien | **gering** |
+| R9 | **Re-Identifikation über Stimme (Biometrie)** | mittel | gering | gering | Stimme wird **nur transkribiert**, nicht zur Identifizierung genutzt → keine biometrische Verarbeitung i. S. v. Art. 9 | **gering** |
+
+---
+
+## 5. Abhilfemaßnahmen und Garantien (Art. 35 Abs. 7 lit. d)
+
+Die in Spalte „Maßnahmen" genannten Garantien sind **bereits umgesetzt** (Phasen 1–5 der
+DSGVO-Roadmap) und in `SICHERHEIT.md` (Art. 32) sowie `BETRIEB-DSGVO.md` (Art. 33/34)
+dokumentiert. Schwerpunkte:
+
+- **Datenresidenz EU:** alle KI-/Speicher-Bausteine in der EU, keine US-Pfade mehr.
+- **Zugriffsschutz:** RLS, gehärtete Auth, IDOR-Schutz, Rate-Limiting, Audit-Logging.
+- **Verschlüsselung:** TLS in transit, AES-256 at rest.
+- **Löschkonzept:** automatische Fristlöschung + manuelle Voll-Löschung + Betroffenenrechte.
+- **Einwilligung & Transparenz:** ausdrücklicher Consent mit Protokollierung; Datenschutzerklärung/Impressum.
+- **KI-Governance:** kein Training durch Anbieter; Inhalts-/Datenschutzprüfung; menschliche Endfreigabe.
+
+---
+
+## 6. Verbleibende Risiken & offene Punkte
+
+- **R6 (Daten Dritter):** Beitragende können lebende Hinterbliebene namentlich/mit
+  Anschrift erwähnen, ohne dass diese selbst eingewilligt haben. Restrisiko **mittel**.
+  Zu prüfen mit DSB/Jurist:in: Stützung auf berechtigte Interessen/Einwilligung des
+  Beitragenden für fremde Daten, ergänzender Hinweistext, ggf. Minimierungs-Vorgabe im
+  Interview-Prompt. **Maßnahme einplanen.**
+- **R3 (KI-Ausgaben):** menschliche Endfreigabe ist die zentrale Garantie — Prozess
+  organisatorisch absichern (nicht nur technisch).
+- Diese DSFA ist ein **Entwurf**; finale Risikobewertung und Freigabe durch DSB/Jurist:in.
+
+---
+
+## 7. Beteiligte und Konsultation (Art. 35 Abs. 2 und 9, Art. 36)
+
+| Punkt | Status |
+|---|---|
+| Einbindung Datenschutzbeauftragte/r (Art. 35 Abs. 2) | _[DSB benennen/Stellungnahme einholen — siehe VVT Abschnitt 1]_ |
+| Standpunkt der betroffenen Personen (Art. 35 Abs. 9) | _[soweit angemessen einholen/begründet entfallen lassen]_ |
+| **Vorherige Konsultation der Aufsichtsbehörde (Art. 36)** | Erforderlich nur bei **verbleibend hohem** Risiko trotz Maßnahmen. Nach Abschnitt 4 verbleibt **kein hohes Restrisiko** (höchstes Restrisiko „mittel", R6) → Art. 36 voraussichtlich **nicht** ausgelöst. **Von DSB/Jurist:in bestätigen lassen.** Zuständig wäre LDI NRW. |
+
+---
+
+## 8. Ergebnis und Freigabe
+
+**Vorläufiges Gesamtergebnis:** Die Verarbeitung verarbeitet sensible Daten in einer
+schutzbedürftigen Situation, ist aber durch umfangreiche, bereits umgesetzte technische
+und organisatorische Maßnahmen abgesichert. Nach aktueller Einschätzung verbleibt **kein
+hohes Restrisiko**; eine vorherige Konsultation nach Art. 36 ist voraussichtlich nicht
+erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
+
+| Rolle | Name | Datum | Freigabe |
+|---|---|---|---|
+| Verantwortlicher (GF) | Dr. Gantner | | ☐ |
+| Datenschutzbeauftragte/r | _[eintragen]_ | | ☐ |
+| Juristische Prüfung | _[eintragen]_ | | ☐ |
+
+**Überprüfung:** mindestens **jährlich** sowie bei wesentlichen Änderungen
+(neue Modelle/Anbieter, neue Datenarten, neue Produktkategorien) — bereits in
+`BETRIEB-DSGVO.md` (Abschnitt 2, „Jährlich") verankert.
+
+---
+
+## 9. Offene To-dos aus dieser DSFA
+
+- [ ] R6 (Daten Dritter): Rechtsgrundlage + Minimierungsmaßnahme mit DSB/Jurist:in klären.
+- [ ] DSB benennen/Stellungnahme dokumentieren (Abschnitt 7).
+- [ ] Art.-36-Einschätzung („kein hohes Restrisiko") juristisch bestätigen.
+- [ ] DSFA final freigeben (Abschnitt 8) und Erstprüfdatum setzen.
