@@ -109,10 +109,10 @@ URLs ändern sich — vor dem Download verifizieren.
 
 | Anbieter | Was herunterladen | Wo (vor Download verifizieren) | Status |
 |---|---|---|---|
-| Microsoft (Azure) | „Microsoft Products and Services Data Protection Addendum (DPA)" | Microsoft Trust Center / Lizenzportal | [ ] |
-| Supabase | Supabase Data Processing Addendum (DPA) | Supabase-Dashboard bzw. supabase.com/legal/dpa (ggf. anfordern/gegenzeichnen) | [ ] |
-| Vercel | Vercel Data Processing Addendum (DPA) | vercel.com/legal/dpa (im Dashboard akzeptieren/gegenzeichnen) | [ ] |
-| GitHub | GitHub Data Protection Agreement | GitHub/Microsoft Trust Center | [ ] |
+| Microsoft (Azure) | „Microsoft Products and Services Data Protection Addendum (DPA)" | Microsoft Trust Center / Lizenzportal | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/` |
+| Supabase | Supabase Data Processing Addendum (DPA) | Supabase-Dashboard bzw. supabase.com/legal/dpa (ggf. anfordern/gegenzeichnen) | ✅ signiert (Zertifikat), abgelegt 2026-06-22 in `DSGVO_AVV/` |
+| Vercel | Vercel Data Processing Addendum (DPA) | vercel.com/legal/dpa (Pro: automatisch einbezogen) | ✅ Pro-Tarif, DPA-PDF abgelegt 2026-06-22 in `DSGVO_AVV/` |
+| GitHub | GitHub Data Protection Agreement | GitHub/Microsoft Trust Center | ✅ Fassung Okt 2025 abgelegt 2026-06-22 in `DSGVO_AVV/`. **Hinweis:** GitHub ist nur Cron-Auslöser (HTTP-Trigger, keine personenbezogenen Inhalte), AVV daher vorsorglich/belt-and-suspenders archiviert. |
 | Black Forest Labs | **kein eigener AVV nötig**, solange die Verarbeitung in Azure bleibt (durch Microsoft-DPA abgedeckt) | — | n/a |
 
 **Nach dem Download festhalten:** Anbieter, Dokumenttitel, Versions-/Datumsstand,
@@ -170,7 +170,7 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 ## 10. Offene Punkte (Phase 0)
 
 - [ ] **DSFA (Art. 35)** als eigenes Dokument erstellen (wegen Art.-9-Daten voraussichtlich Pflicht).
-- [ ] AVVs gemäß Abschnitt 6 herunterladen, prüfen, archivieren und Status auf „erledigt" setzen.
+- [x] AVVs gemäß Abschnitt 6 herunterladen, prüfen, archivieren — **erledigt 2026-06-22** (Microsoft, Supabase [signiert], Vercel [Pro], GitHub). Alle in `DSGVO_AVV/`.
 - [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
 - [ ] LDI-NRW-Meldewege in `BETRIEB-DSGVO.md` eintragen.
 - [ ] Gesamtes Dokument **juristisch prüfen** lassen.
