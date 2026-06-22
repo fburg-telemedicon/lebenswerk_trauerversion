@@ -79,7 +79,7 @@ Intervenierbarkeit, Transparenz.
 | R3 | **Fehlerhafte/unangemessene KI-Ausgaben** im Werk (falsche, bloßstellende, sensible Inhalte) | mittel | mittel | mittel | KI-gestützte Inhalts-/Datenschutzprüfung (`runContentReview`); **menschliche Endfreigabe** vor Auslieferung; Korrekturmöglichkeit | **gering–mittel** |
 | R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; US-Fallbacks (Anthropic/OpenAI) am 2026-06-22 aus dem Code entfernt; AVVs mit EU-Verarbeitung | **gering** |
 | R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (Frist, Standard 90 Tage) + Housekeeping; manuelle Voll-Löschung; Tombstones | **gering** |
-| R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | Hinweis/Minimierung; Löschung auf Anfrage; Aufbewahrungsbegrenzung. **Verbleibendes strukturelles Risiko** — siehe Abschnitt 6 | **mittel** |
+| R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | **Datenminimierung im Interview-Prompt** (KI fragt Dritt-Daten nicht aktiv ab; `categories.js`, `THIRD_PARTY_RULE`); **KI-Inhaltsprüfung** Kategorie „Personenbezogene Daten Dritter" (`review.js`) + **menschliche Endfreigabe**; Löschung auf Anfrage; Fristlöschung | **gering–mittel** |
 | R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups (Supabase/Vercel); regelmäßige Restore-Stichprobe (Runbook) | **gering** |
 | R8 | **Kompromittierung Admin-Konto** | hoch | gering | mittel | scrypt-Hash + Salt; Passwortrichtlinie; HMAC-Token mit Ablauf; Audit-Log; Login-Rate-Limit; pro-Nutzer-Kategorien | **gering** |
 | R9 | **Re-Identifikation über Stimme (Biometrie)** | mittel | gering | gering | Stimme wird **nur transkribiert**, nicht zur Identifizierung genutzt → keine biometrische Verarbeitung i. S. v. Art. 9 | **gering** |
@@ -104,10 +104,13 @@ dokumentiert. Schwerpunkte:
 ## 6. Verbleibende Risiken & offene Punkte
 
 - **R6 (Daten Dritter):** Beitragende können lebende Hinterbliebene namentlich/mit
-  Anschrift erwähnen, ohne dass diese selbst eingewilligt haben. Restrisiko **mittel**.
-  Zu prüfen mit DSB/Jurist:in: Stützung auf berechtigte Interessen/Einwilligung des
-  Beitragenden für fremde Daten, ergänzender Hinweistext, ggf. Minimierungs-Vorgabe im
-  Interview-Prompt. **Maßnahme einplanen.**
+  Anschrift erwähnen, ohne dass diese selbst eingewilligt haben.
+  **Technische Maßnahmen umgesetzt (2026-06-22):** Datenminimierung im Interview-Prompt
+  (`categories.js`, `THIRD_PARTY_RULE` — KI fragt Dritt-Daten nicht aktiv ab) **und**
+  KI-Inhaltsprüfung mit eigener Kategorie „Personenbezogene Daten Dritter" (`review.js`)
+  mit anschließender **menschlicher Endfreigabe** → Restrisiko auf **gering–mittel** gesenkt.
+  **Noch offen (DSB/Jurist:in):** Rechtsgrundlage für die dennoch genannten Dritt-Daten
+  bestätigen (z. B. berechtigtes Interesse Art. 6 Abs. 1 lit. f).
 - **R3 (KI-Ausgaben):** menschliche Endfreigabe ist die zentrale Garantie — Prozess
   organisatorisch absichern (nicht nur technisch).
 - Diese DSFA ist ein **Entwurf**; finale Risikobewertung und Freigabe durch DSB/Jurist:in.
@@ -146,7 +149,7 @@ erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
 
 ## 9. Offene To-dos aus dieser DSFA
 
-- [ ] R6 (Daten Dritter): Rechtsgrundlage + Minimierungsmaßnahme mit DSB/Jurist:in klären.
+- [x] R6 (Daten Dritter): **Minimierungsmaßnahme umgesetzt** (Interview-Prompt + Inhaltsprüfung, 2026-06-22). — [ ] Rechtsgrundlage für genannte Dritt-Daten noch mit DSB/Jurist:in bestätigen.
 - [ ] DSB benennen/Stellungnahme dokumentieren (Abschnitt 7).
 - [ ] Art.-36-Einschätzung („kein hohes Restrisiko") juristisch bestätigen.
 - [ ] DSFA final freigeben (Abschnitt 8) und Erstprüfdatum setzen.

@@ -81,6 +81,11 @@ function contributorGenderRule(contributorGender) {
 // ════════════════════════════════════════════════════════════════
 // MEMORIAL — wörtlich übernommen aus der bisherigen Trauerversion
 // ════════════════════════════════════════════════════════════════
+// Datenminimierung bei Dritten (Art. 25 DSGVO / DSFA-Risiko R6): die KI soll keine
+// identifizierenden oder sensiblen Details über WEITERE lebende Personen abfragen.
+// Wird in jeden Interview-Prompt eingebunden (memorial + generische Kategorien).
+const THIRD_PARTY_RULE = 'Datenminimierung (Datenschutz): Frage nicht gezielt nach identifizierenden oder sensiblen Angaben zu WEITEREN lebenden Personen – etwa vollständige Namen, Anschriften, Kontaktdaten, Gesundheits- oder Glaubensangaben Dritter. Wenn die befragte Person so etwas von sich aus erzählt, ist das in Ordnung; hake dort aber nicht nach und führe das Gespräch zur eigentlichen Person bzw. zum Anlass zurück.'
+
 function memorialInterview(memorial, name, rel, address, contributorGender) {
   const g = genderNote(memorial)
   const addr = addressRule(address)
@@ -95,6 +100,7 @@ Regeln:
 - Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - Sei einfühlsam, respektiere die Trauer
+- ${THIRD_PARTY_RULE}
 - WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
 - Variiere die Themenfelder bewusst: erste Begegnung, Kindheit, Schule, Familie, Beruf, Hobbies, Reisen, Charakterzüge, kleine Marotten, Lieblingsorte, besondere Momente, Werte, was die Person bedeutete, Abschied — wähle pro neuer Frage ein anderes Feld.
 - Schreibe auf Deutsch`
@@ -279,6 +285,7 @@ Regeln:
 - Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - ${p.empathyRule}
+- ${THIRD_PARTY_RULE}
 - WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
 - Variiere die Themenfelder bewusst: ${p.themeFields} — wähle pro neuer Frage ein anderes Feld.
 - Schreibe auf Deutsch`
