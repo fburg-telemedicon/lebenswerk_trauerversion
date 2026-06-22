@@ -133,11 +133,13 @@ export async function adminUpdateContributionMessages(token, id, messages) {
   return parseResponse(res) // updated contribution row
 }
 
-export async function adminGenerateImage(token, memorialCode, prompt) {
+export async function adminGenerateImage(token, memorialCode, prompt, meta = {}) {
+  // meta (optional): { variant, chapterNumber, chapterHeading } – nur für die
+  // Kosten-Zuordnung (welche Buch-Variante / welches Kapitel).
   const res = await fetch('/api/admin/generate-image', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ memorialCode, prompt }),
+    body: JSON.stringify({ memorialCode, prompt, ...meta }),
   })
   return parseResponse(res) // { storagePath }
 }

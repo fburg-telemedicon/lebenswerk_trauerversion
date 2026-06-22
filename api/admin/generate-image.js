@@ -121,7 +121,7 @@ module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   if (req.method !== 'POST') return res.status(405).end()
   try {
-    const { prompt, memorialCode } = req.body || {}
+    const { prompt, memorialCode, variant, chapterNumber, chapterHeading } = req.body || {}
     if (!prompt || !memorialCode) return res.status(400).json({ error: 'prompt und memorialCode erforderlich.' })
 
     // Nur für eigene Gedenkbücher (bzw. Admin) Bilder generieren – sonst könnte
@@ -157,7 +157,13 @@ module.exports = async function handler(req, res) {
       model: result.model,
       images: 1,
       cost_usd: costImage(result.model, 1),
-      metadata: { storage_path: storagePath },
+      metadata: {
+        storage_path: storagePath,
+        // Zuordnung für die Kostenansicht (welche Variante / welches Kapitel)
+        ...(variant ? { variant: String(variant) } : {}),
+        ...(chapterNumber != null ? { chapter: Number(chapterNumber) } : {}),
+        ...(chapterHeading ? { chapter_heading: String(chapterHeading).slice(0, 200) } : {}),
+      },
     })
 
     return res.json({ storagePath })

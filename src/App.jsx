@@ -1854,11 +1854,11 @@ function Dashboard() {
   //    Budget wird also pro Versuch frisch vergeben – wir dürfen client-
   //    seitig beliebig lange warten.
   // `onWait(seconds, rateLimited)` darf optional den Fortschritt anzeigen.
-  async function generateImageWithRetry(memorialId, prompt, { maxAttempts = 4, onWait } = {}) {
+  async function generateImageWithRetry(memorialId, prompt, { maxAttempts = 4, onWait, meta } = {}) {
     let lastErr
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await adminGenerateImage(token, memorialId, prompt)
+        return await adminGenerateImage(token, memorialId, prompt, meta || {})
       } catch (e) {
         lastErr = e
         const msg = String(e?.message || '')
@@ -2259,6 +2259,7 @@ function Dashboard() {
             freshCount++
             try {
               const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
+                meta: { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading },
                 onWait: (s, rl) => setGenProgress(p => ({ ...p, [key]: rl
                   ? `Bild ${i + 1}/${total}: Rate-Limit erreicht – warte ${s}s und versuche es erneut …`
                   : `Bild ${i + 1}/${total}: erneuter Versuch in ${s}s …` })),
@@ -2440,6 +2441,7 @@ function Dashboard() {
         if (done > 0) await new Promise(r => setTimeout(r, 1500))
         try {
           const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
+            meta: { variant: m.key, chapterNumber: ch.number, chapterHeading: ch.heading },
             onWait: (s, rl) => setImgEditProgress(rl
               ? `Bild ${done + 1}/${indices.length}: Rate-Limit – warte ${s}s und versuche es erneut …`
               : `Bild ${done + 1}/${indices.length}: erneuter Versuch in ${s}s …`),
@@ -3827,7 +3829,16 @@ function Dashboard() {
                         if (e.input_tokens || e.output_tokens) parts.push(`${e.input_tokens || 0} in / ${e.output_tokens || 0} out`)
                         if (e.characters)    parts.push(`${e.characters} Zeichen`)
                         if (e.audio_seconds) parts.push(`${Math.round(e.audio_seconds)} s`)
-                        if (e.images)        parts.push(`${e.images} Bild`)
+                        if (e.images) {
+                          // Variante/Kapitel aus den Metadaten (sofern vorhanden)
+                          const md = e.metadata || {}
+                          const vlabel = md.variant === 'book_v1' ? 'V1' : md.variant === 'book_v2' ? 'V2' : null
+                          const chPart = md.chapter != null
+                            ? `Kapitel ${md.chapter}${md.chapter_heading ? ` – „${md.chapter_heading}"` : ''}`
+                            : null
+                          const seg = [vlabel, chPart].filter(Boolean).join(' · ')
+                          parts.push(`${e.images} Bild${seg ? ` (${seg})` : ''}`)
+                        }
                         return (
                           <tr key={e.id}>
                             <td style={{ ...col, fontSize:12, color:'#78716c', whiteSpace:'nowrap' }}>{new Date(e.created_at).toLocaleString('de-DE')}</td>
