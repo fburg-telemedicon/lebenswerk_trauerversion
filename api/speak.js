@@ -1,9 +1,10 @@
 // api/speak.js
 // POST /api/speak  { text, memorialCode?, contributionId? }  → audio/mpeg
 //
-// TTS-Anbieter umschaltbar (DSGVO/EU-Migration):
-//   SPEECH_PROVIDER = 'openai' (Default) | 'azure'
-// Azure nutzt Azure AI Speech (deutsche Neural-Stimmen, EU-Region). Nötige Env:
+// Einziges TTS ist Azure AI Speech (deutsche Neural-Stimmen, EU-Region) –
+// KEIN Fallback. Der frühere OpenAI-TTS-Fallback (SPEECH_PROVIDER) wurde am
+// 2026-06-22 entfernt (nicht von der Datenschutzerklärung gedeckt: US-Transfer).
+// Nötige Env:
 //   AZURE_SPEECH_KEY, AZURE_SPEECH_REGION (z. B. westeurope)
 //   AZURE_SPEECH_TTS_VOICE  optional (Default de-DE-KatjaNeural)
 
@@ -13,8 +14,6 @@ const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-
-const PROVIDER = (process.env.SPEECH_PROVIDER || 'openai').toLowerCase()
 
 function xmlEscape(s) {
   return String(s)
@@ -30,21 +29,6 @@ function stripForSpeech(s) {
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{1F1E6}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, '')
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
-}
-
-// ── OpenAI TTS ────────────────────────────────────────────────────
-async function speakOpenAI(text) {
-  const model = 'tts-1-hd'
-  const response = await fetch('https://api.openai.com/v1/audio/speech', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: text, voice: 'shimmer', speed: 0.95 }),
-  })
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error?.message || `HTTP ${response.status}`)
-  }
-  return { buffer: Buffer.from(await response.arrayBuffer()), model }
 }
 
 // ── Azure AI Speech (Neural TTS) ──────────────────────────────────
@@ -82,7 +66,7 @@ module.exports = async function handler(req, res) {
 
     const { text, memorialCode, contributionId } = req.body
     if (!text) return res.status(400).json({ error: 'text fehlt.' })
-    // Emojis aus dem Vorlese-Text entfernen (gilt für beide Anbieter).
+    // Emojis aus dem Vorlese-Text entfernen.
     const speechText = stripForSpeech(text)
     if (!speechText) return res.status(400).json({ error: 'kein vorlesbarer Text.' })
 
@@ -96,7 +80,7 @@ module.exports = async function handler(req, res) {
 
     let result
     try {
-      result = PROVIDER === 'azure' ? await speakAzure(speechText) : await speakOpenAI(speechText)
+      result = await speakAzure(speechText)
     } catch (e) {
       return res.status(500).json({ error: e.message })
     }
@@ -111,7 +95,7 @@ module.exports = async function handler(req, res) {
         memorial_id: code,
         contribution_id: contributionId || null,
         kind: 'tts',
-        provider: PROVIDER === 'azure' ? 'azure' : 'openai',
+        provider: 'azure',
         model: result.model,
         characters: chars,
         cost_usd: costTTS(result.model, chars),

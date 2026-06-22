@@ -12,7 +12,7 @@ Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App
   - Microsoft Azure AI Speech (TTS/STT, EU): `https://<region>.tts.speech.microsoft.com` bzw. `https://<region>.api.cognitive.microsoft.com`
   - Microsoft Azure Foundry – FLUX.2 [pro] (Bilderzeugung, EU): `https://<resource>.services.ai.azure.com`
   - Supabase: TLS-gesicherte Verbindung
-  - Inaktive, konfigurierbare Fallbacks (in Produktion NICHT genutzt): Anthropic `https://api.anthropic.com` (USA, nur bei `LLM_PROVIDER=anthropic`), OpenAI `https://api.openai.com` (USA, nur bei `SPEECH_PROVIDER=openai`).
+  - **Keine US-Fallbacks mehr:** der Anthropic-LLM- und der OpenAI-Sprach-Fallback wurden am 2026-06-22 aus dem Code entfernt. Es gibt keinen Pfad zu `api.anthropic.com`/`api.openai.com` mehr; ist Azure nicht erreichbar, antwortet der jeweilige Endpunkt mit Fehler statt auf einen US-Anbieter auszuweichen.
 - Keine unverschlüsselten (`http://`) Produktivverbindungen im Code.
 
 **At Rest (Speicherung)**

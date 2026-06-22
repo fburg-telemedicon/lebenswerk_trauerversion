@@ -11,8 +11,8 @@ Eine Web-App, mit der Familie, Freunde und Wegbegleiter gemeinsam ein Gedenkbuch
 | Frontend   | React + Vite                             |
 | Backend    | Vercel Serverless Functions (Node.js)    |
 | Datenbank  | Supabase (PostgreSQL)                    |
-| KI         | Azure OpenAI gpt-4.1 (Interviews + Synthese, EU) – Standard; Anthropic Claude Fallback |
-| Stimme     | Azure AI Speech (Neural, EU) – Standard; OpenAI Fallback |
+| KI         | Azure OpenAI gpt-4.1 (Interviews + Synthese, EU) – einziges LLM, kein Fallback |
+| Stimme     | Azure AI Speech (Neural, EU) – einziges TTS/STT, kein Fallback |
 | Bilder     | FLUX.2 [pro] via Microsoft Azure (Foundry, EU) |
 
 ---
@@ -35,11 +35,9 @@ Produktion läuft auf Microsoft Azure (EU). Die Keys stammen aus dem Azure-Porta
 
 | Key                  | Wo / Zweck                                            |
 |----------------------|-------------------------------------------------------|
-| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI (LLM, EU). Endpoint = `https://<resource>.services.ai.azure.com`, Deployment z. B. `gpt-4.1`. Dazu `LLM_PROVIDER=azure` und `AZURE_OPENAI_API_VERSION=preview`. |
-| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | Azure AI Speech (TTS/STT, EU). Dazu `SPEECH_PROVIDER=azure`. |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI (LLM, EU). Endpoint = `https://<resource>.services.ai.azure.com`, Deployment z. B. `gpt-4.1`. Dazu `AZURE_OPENAI_API_VERSION=preview`. |
+| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | Azure AI Speech (TTS/STT, EU), Region z. B. `westeurope`. |
 | `AZURE_FLUX_ENDPOINT` / `AZURE_FLUX_KEY` | Azure Foundry FLUX.2 [pro] (Bilder, EU). |
-| `ANTHROPIC_API_KEY` *(optional)* | [console.anthropic.com](https://console.anthropic.com/settings/keys) – nur als USA-Fallback (`LLM_PROVIDER=anthropic`). |
-| `OPENAI_API_KEY` *(optional)* | [platform.openai.com](https://platform.openai.com/api-keys) – nur als USA-Fallback für STT/TTS (`SPEECH_PROVIDER=openai`). |
 
 ---
 
@@ -52,10 +50,16 @@ Produktion läuft auf Microsoft Azure (EU). Die Keys stammen aus dem Azure-Porta
 3. Framework: **Vite** (wird automatisch erkannt)
 4. **Environment Variables** hinzufügen:
    ```
-   ANTHROPIC_API_KEY   = sk-ant-...
-   OPENAI_API_KEY      = sk-...
-   SUPABASE_URL        = https://xxx.supabase.co
-   SUPABASE_SERVICE_KEY = eyJ...
+   AZURE_OPENAI_ENDPOINT   = https://<resource>.services.ai.azure.com
+   AZURE_OPENAI_KEY        = ...
+   AZURE_OPENAI_DEPLOYMENT = gpt-4.1
+   AZURE_SPEECH_KEY        = ...
+   AZURE_SPEECH_REGION     = westeurope
+   AZURE_FLUX_ENDPOINT     = https://<resource>.services.ai.azure.com
+   AZURE_FLUX_KEY          = ...
+   SUPABASE_URL            = https://xxx.supabase.co
+   SUPABASE_SERVICE_KEY    = eyJ...
+   # vollständige Liste (Admin/Cron/Retention) siehe CLAUDE.md
    ```
 5. **Deploy** klicken → fertig ✅
 
@@ -70,8 +74,13 @@ npm install
 vercel
 
 # Umgebungsvariablen setzen
-vercel env add ANTHROPIC_API_KEY
-vercel env add OPENAI_API_KEY
+vercel env add AZURE_OPENAI_ENDPOINT
+vercel env add AZURE_OPENAI_KEY
+vercel env add AZURE_OPENAI_DEPLOYMENT
+vercel env add AZURE_SPEECH_KEY
+vercel env add AZURE_SPEECH_REGION
+vercel env add AZURE_FLUX_ENDPOINT
+vercel env add AZURE_FLUX_KEY
 vercel env add SUPABASE_URL
 vercel env add SUPABASE_SERVICE_KEY
 
@@ -111,7 +120,7 @@ DNS beim Anbieter auf Vercels Nameserver zeigen lassen.
 ## DSGVO-Hinweise
 
 - Supabase-Projekt auf **EU West** (Frankfurt) hosten
-- KI-Verarbeitung läuft in Produktion **vollständig in der EU**: LLM (Azure OpenAI gpt-4.1), Sprache (Azure AI Speech) und Bild (FLUX via Azure) – kein Drittland-Transfer → AVV nach Art. 28 mit allen Anbietern abschließen. (Die Anthropic-/OpenAI-USA-Pfade sind nur inaktive Fallbacks.)
+- KI-Verarbeitung läuft **vollständig in der EU**: LLM (Azure OpenAI gpt-4.1), Sprache (Azure AI Speech) und Bild (FLUX via Azure) – kein Drittland-Transfer → AVV nach Art. 28 mit allen Anbietern abschließen. Es gibt **keine** US-Fallbacks: die Anthropic- (LLM) und OpenAI-Sprach-Pfade wurden am 2026-06-22 entfernt.
 - Datenschutzerklärung und Impressum ergänzen, bevor die App öffentlich zugänglich ist
 - Keine Nutzerkonten / Authentifizierung implementiert – jeder mit dem Code kann beitragen
 
@@ -122,8 +131,8 @@ DNS beim Anbieter auf Vercels Nameserver zeigen lassen.
 ```
 lebenswerk/
 ├── api/                    ← Vercel Serverless Functions (Backend)
-│   ├── ask.js              ← LLM-Proxy (Azure OpenAI | Anthropic)
-│   ├── speak.js            ← TTS-Proxy (Azure AI Speech | OpenAI)
+│   ├── ask.js              ← LLM-Proxy (Azure OpenAI, EU)
+│   ├── speak.js            ← TTS-Proxy (Azure AI Speech, EU)
 │   ├── memorial.js         ← Gedenkbuch anlegen / abrufen
 │   └── contributions.js   ← Beiträge speichern / abrufen
 ├── src/                    ← React Frontend

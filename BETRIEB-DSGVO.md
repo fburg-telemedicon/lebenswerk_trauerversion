@@ -27,7 +27,7 @@ unvollständig melden als zu spät.
 2. **Eindämmen:** betroffene Zugänge sperren. Konkret möglich:
    - `ADMIN_TOKEN_SECRET` in Vercel neu setzen → invalidiert **alle** Admin-Sessions.
    - Verdächtige `app_users` im Admin-Panel löschen/Passwort zurücksetzen.
-   - Bei Key-Verdacht: `AZURE_OPENAI_KEY` / `AZURE_SPEECH_KEY` / `AZURE_FLUX_KEY` / `SUPABASE_SERVICE_KEY` (sowie ggf. die Fallback-Keys `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) beim Anbieter rotieren und in Vercel ersetzen.
+   - Bei Key-Verdacht: `AZURE_OPENAI_KEY` / `AZURE_SPEECH_KEY` / `AZURE_FLUX_KEY` / `SUPABASE_SERVICE_KEY` beim Anbieter rotieren und in Vercel ersetzen.
 3. **Beweise sichern:** Audit-Log (Admin → „Audit-Log") und Vercel-/Supabase-Logs sichten und exportieren, bevor sie rotieren.
 
 ### Bewerten (Stunde 4–24)
@@ -83,7 +83,7 @@ unvollständig melden als zu spät.
 - [ ] DSFA und Verzeichnis der Verarbeitungstätigkeiten (Art. 30) aktualisieren.
 - [ ] AVV mit allen aktiven Auftragsverarbeitern (Vercel, Supabase, Microsoft
       Azure [Azure OpenAI + AI Speech + Foundry/FLUX], Black Forest Labs, GitHub)
-      auf Aktualität prüfen. (Anthropic/OpenAI nur, falls die USA-Fallbacks aktiviert werden.)
+      auf Aktualität prüfen. (Keine US-Anbieter mehr: Anthropic-/OpenAI-Fallbacks am 2026-06-22 entfernt.)
 - [ ] `SICHERHEIT.md` (TOM) und dieses Runbook überprüfen.
 
 ---

@@ -19,10 +19,8 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 
 | Var | Purpose |
 |---|---|
-| `LLM_PROVIDER` | `azure` (production) or `anthropic` (default if unset). Selects the interview + book/eulogy LLM. Production runs **`azure`** (EU). |
-| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | **Required when `LLM_PROVIDER=azure`** — Azure OpenAI gpt-4.1 (EU). The deployment lives on a **Microsoft Foundry** resource, so `callAzure` uses the **v1 API**: `POST {endpoint}/openai/v1/chat/completions?api-version=preview` with `model`=deployment in the body. Endpoint = `https://<resource>.services.ai.azure.com` (NOT the classic `…openai.azure.com`). `AZURE_OPENAI_API_VERSION` optional, **must be `preview`** (date versions like `2024-10-21` → "DeploymentNotFound"). Deployment name (e.g. `gpt-4.1`) is also the pricing key in `cost.js`. |
-| `ANTHROPIC_API_KEY` | Claude (interview + book/eulogy generation) — **fallback only**, used when `LLM_PROVIDER` is unset/`anthropic` (USA). |
-| `OPENAI_API_KEY` | TTS (`tts-1-hd`), Whisper STT — **fallback only**, used when `SPEECH_PROVIDER=openai` (USA); no longer used for images |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | **Required — sole interview + book/eulogy LLM (EU), no fallback.** Azure OpenAI gpt-4.1. The deployment lives on a **Microsoft Foundry** resource, so `callAzure` uses the **v1 API**: `POST {endpoint}/openai/v1/chat/completions?api-version=preview` with `model`=deployment in the body. Endpoint = `https://<resource>.services.ai.azure.com` (NOT the classic `…openai.azure.com`). `AZURE_OPENAI_API_VERSION` optional, **must be `preview`** (date versions like `2024-10-21` → "DeploymentNotFound"). Deployment name (e.g. `gpt-4.1`) is also the pricing key in `cost.js`. If unset/unreachable, `/api/ask` errors — the Anthropic/Claude fallback was removed 2026-06-22. |
+| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | **Required — sole TTS + STT (EU), no fallback.** Azure AI Speech (Neural TTS in `speak.js`, Fast Transcription in `transcribe.js`); region e.g. `westeurope`. Optional: `AZURE_SPEECH_TTS_VOICE` (default `de-DE-KatjaNeural`), `AZURE_SPEECH_TTS_RATE` (default `+6%`), `AZURE_SPEECH_ENDPOINT`. If unset/unreachable, `/api/speak` and `/api/transcribe` error — the OpenAI `tts-1-hd`/`whisper-1` fallback was removed 2026-06-22. |
 | `SUPABASE_URL` | Project URL |
 | `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key. The whole backend uses service_role (which bypasses RLS). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
@@ -37,7 +35,7 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 
 `src/App.jsx` is ~1900 lines and contains the **entire** UI as one component driven by a `view` string state machine. There is no router. Two top-level flows are selected at boot:
 
-- **ContributorFlow** — active when the URL has `?code=XXXXXX` (the 6-char memorial code from `genCode()` in `api/_lib/codes.js`). The contributor goes through an info form → voice or text interview → done screen. Voice mode uses `MediaRecorder` → base64 → `/api/transcribe` (Whisper) → `askClaude()` → `/api/speak` (TTS) → autoplay. Interview sessions persist **both** to `localStorage` (`lw_session_<code>`, 60-day TTL) **and** to Supabase, so a contributor can resume via `?code=XXX&session=YYY` even on another device.
+- **ContributorFlow** — active when the URL has `?code=XXXXXX` (the 6-char memorial code from `genCode()` in `api/_lib/codes.js`). The contributor goes through an info form → voice or text interview → done screen. Voice mode uses `MediaRecorder` → base64 → `/api/transcribe` (Azure STT) → `askLLM()` → `/api/speak` (Azure TTS) → autoplay. Interview sessions persist **both** to `localStorage` (`lw_session_<code>`, 60-day TTL) **and** to Supabase, so a contributor can resume via `?code=XXX&session=YYY` even on another device.
 - **Admin panel** — no URL flag; the user logs in via `/api/admin/login`, the bearer token is stored in `sessionStorage` as `lw_admin_token` (plus `lw_admin_auth` = `{ admin, cats }`). Views: `list` → `create-category` → `create` → `created`; `detail` (one memorial) → `contribution`, `book-v1`, `book-v2`, `eulogy`, `costs`; `users` (admin-only user management). The detail view also embeds a cost-breakdown table fetched in parallel with contributions.
 
 ### Product categories & customer groups (multi-tenant)
@@ -70,7 +68,7 @@ Function timeouts are overridden in `vercel.json`: `ask` and `admin/generate-ima
 `api/_lib/cost.js` is the single source of truth for pricing and is required by every paid endpoint (`ask`, `speak`, `transcribe`, `admin/generate-image`). The pattern is always:
 
 1. Call the provider.
-2. Compute USD cost via `costClaude` / `costTTS` / `costSTT` / `costImage`.
+2. Compute USD cost via `costLLM` / `costTTS` / `costSTT` / `costImage`.
 3. `await recordCost({ memorial_id, kind, provider, model, cost_usd, ...usage })` — this inserts a row into the `cost_events` Supabase table. EUR is computed at insert time via `USD_TO_EUR`.
 
 Pricing constants are keyed by exact model string. For `gpt-image-1` the key is composite: `${model}-${quality}-${size}` (e.g. `gpt-image-1-high-1536x1024`). When adding a new model, add its pricing here first or its costs will silently record as 0.
@@ -101,9 +99,9 @@ Eulogy has three style presets (`EULOGY_STYLES` in App.jsx) — the user picks o
 
 ### Model defaults
 
-- Interview & generation: production runs **Azure OpenAI `gpt-4.1`** (EU) via `LLM_PROVIDER=azure` (`callAzure` in `api/ask.js`, v1 Foundry API). Fallback path is Anthropic `claude-sonnet-4-5` (hardcoded model in `callAnthropic`, used when `LLM_PROVIDER` is unset/`anthropic`).
-- TTS: `tts-1-hd`, voice `shimmer`.
-- STT: `whisper-1`.
+- Interview & generation: **Azure OpenAI `gpt-4.1`** (EU) via `callAzure` in `api/ask.js` (v1 Foundry API). **Sole LLM — no fallback**; the Anthropic/Claude path was removed 2026-06-22. If Azure is down/unconfigured, `/api/ask` errors.
+- TTS: **Azure AI Speech** Neural (`api/speak.js`), default voice `de-DE-KatjaNeural`. **Sole TTS — no fallback** (OpenAI `tts-1-hd` removed 2026-06-22).
+- STT: **Azure AI Speech** Fast Transcription (`api/transcribe.js`). **Sole STT — no fallback** (OpenAI `whisper-1` removed 2026-06-22).
 - Image: **FLUX.2 [pro]** via Microsoft Foundry (`api/admin/generate-image.js`), 1536×1024 PNG into the `memorial-images` bucket. **Sole image module** — the OpenAI/gpt-image-1 path was removed 2026-06-21. Pricing keyed `flux-2-pro-1536x1024` in `cost.js`. No fallback: if Azure FLUX is down or unconfigured, image generation returns a 502 error.
 
 When swapping models, update both the API call site **and** `PRICING` in `api/_lib/cost.js`.

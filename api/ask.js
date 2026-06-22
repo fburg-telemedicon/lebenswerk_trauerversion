@@ -1,11 +1,11 @@
 // api/ask.js
 // POST /api/ask  { system, messages, memorialCode?, kind?, provider? }  → { text }
 //
-// LLM-Anbieter ist umschaltbar (DSGVO/EU-Migration):
-//   LLM_PROVIDER = 'anthropic' (Default) | 'azure'
-// Eingeloggte Admins können pro Request via { provider } übersteuern
-// (für den A/B-Vergleich Claude vs. Azure-GPT auf demselben Memorial).
-// Azure-Konfiguration (nur für den azure-Pfad nötig):
+// Einziges LLM ist Azure OpenAI (EU, Microsoft Foundry) – KEIN Fallback.
+// Der frühere Anthropic-/Claude-Fallback (LLM_PROVIDER, { provider }-Override)
+// wurde am 2026-06-22 entfernt. Ist Azure unkonfiguriert/nicht erreichbar,
+// antwortet der Endpunkt mit Fehler (kein stiller Wechsel auf einen US-Anbieter).
+// Azure-Konfiguration (Pflicht):
 //   AZURE_OPENAI_ENDPOINT     Ressourcen-Endpoint OHNE Pfad. Microsoft-Foundry-
 //                             Ressourcen: https://<resource>.services.ai.azure.com
 //                             (klassische Azure-OpenAI-Ressourcen: …openai.azure.com)
@@ -23,31 +23,7 @@ const { verifyToken } = require('./_lib/auth')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
-const DEFAULT_PROVIDER = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase()
 const MAX_TOKENS = 8000
-
-// ── Anthropic (Claude) ────────────────────────────────────────────
-async function callAnthropic({ system, messages }) {
-  const model = 'claude-sonnet-4-5'
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({ model, max_tokens: MAX_TOKENS, system: system || '', messages }),
-  })
-  const data = await response.json()
-  if (data.error) throw new Error(data.error.message)
-  return {
-    text: data.content?.[0]?.text || '',
-    provider: 'anthropic',
-    model,
-    inT: data.usage?.input_tokens || 0,
-    outT: data.usage?.output_tokens || 0,
-  }
-}
 
 // ── Azure OpenAI (GPT) ────────────────────────────────────────────
 // Neue OpenAI-v1-API der Microsoft-Foundry-Ressourcen:
@@ -108,16 +84,10 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
 
-    // Anbieter: Default aus Env; eingeloggte Admins dürfen pro Request
-    // übersteuern (A/B-Vergleich). Anonyme Beitragende können das NICHT.
-    const requested = (isLoggedIn && typeof req.body.provider === 'string')
-      ? req.body.provider.toLowerCase()
-      : null
-    const provider = requested || DEFAULT_PROVIDER
-
-    const result = provider === 'azure'
-      ? await callAzure({ system, messages })
-      : await callAnthropic({ system, messages })
+    // Einziges LLM: Azure OpenAI (EU). Kein Fallback – ist Azure nicht
+    // erreichbar oder unkonfiguriert, wirft callAzure und der Handler
+    // antwortet mit Fehler (siehe catch unten).
+    const result = await callAzure({ system, messages })
 
     if (result.inT || result.outT) {
       await recordCost({

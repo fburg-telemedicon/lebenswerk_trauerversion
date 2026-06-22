@@ -10,10 +10,9 @@ const USD_TO_EUR = parseFloat(process.env.USD_TO_EUR || '0.92')
 
 // Alle Preise in USD. Quelle: anbieter-Doku (Stand 2026). Bei Preisänderung anpassen.
 const PRICING = {
-  // Anthropic (USD pro 1.000.000 Tokens)
-  'claude-sonnet-4-5': { inputPerMTokens: 3.0,  outputPerMTokens: 15.0 },
-  'claude-opus-4-7':   { inputPerMTokens: 15.0, outputPerMTokens: 75.0 },
-  'claude-haiku-4-5':  { inputPerMTokens: 1.0,  outputPerMTokens: 5.0  },
+  // Hinweis: Der Anthropic-/Claude-LLM-Fallback wurde am 2026-06-22 entfernt –
+  // einziges LLM ist Azure OpenAI (EU). Bereits verbuchte cost_events behalten
+  // ihre gespeicherten EUR-Werte (Anzeige liest cost_eur, nicht PRICING).
 
   // Azure OpenAI (USD pro 1.000.000 Tokens). Stand 2026 – gegen die aktuelle
   // Azure-OpenAI-Preisliste prüfen (Data-Zone-Preise liegen ggf. leicht höher).
@@ -23,12 +22,9 @@ const PRICING = {
   'gpt-4o':       { inputPerMTokens: 2.5,  outputPerMTokens: 10.0 },
   'gpt-5.5':      { inputPerMTokens: 0,    outputPerMTokens: 0    }, // TODO: Preis eintragen, sobald genutzt
 
-  // OpenAI TTS (USD pro 1.000.000 Zeichen)
-  'tts-1':    { perMChars: 15.0 },
-  'tts-1-hd': { perMChars: 30.0 },
-
-  // OpenAI STT (USD pro Minute)
-  'whisper-1': { perMinute: 0.006 },
+  // Hinweis: Die OpenAI-Sprach-Modelle (tts-1/-hd, whisper-1) wurden am
+  // 2026-06-22 mit dem OpenAI-Sprach-Fallback entfernt – TTS/STT laufen nur
+  // noch über Azure AI Speech (EU). Alte cost_events behalten ihre cost_eur-Werte.
 
   // Azure AI Speech – Stand 2026, gegen Azure-Speech-Preisliste prüfen.
   'azure-stt':        { perMinute: 0.0167 }, // ~$1 / Stunde Audio
@@ -46,15 +42,12 @@ const PRICING = {
   'flux-2-pro-1536x1024': { perImage: 0.047 },
 }
 
-function costClaude(model, inT, outT) {
+// Token-Kosten für ein Chat-Modell aus PRICING (Key = Azure-Deployment-Name).
+function costLLM(model, inT, outT) {
   const p = PRICING[model]; if (!p) return 0
   return (inT  || 0) / 1e6 * p.inputPerMTokens
        + (outT || 0) / 1e6 * p.outputPerMTokens
 }
-
-// Anbieter-neutrale Token-Kosten (gleiche Formel, beliebiges Chat-Modell in
-// PRICING – Claude wie Azure-GPT). costClaude bleibt als Alias erhalten.
-const costLLM = costClaude
 
 function costTTS(model, chars) {
   const p = PRICING[model]; if (!p) return 0
@@ -89,6 +82,6 @@ async function recordCost(event) {
 
 module.exports = {
   USD_TO_EUR, PRICING,
-  costClaude, costLLM, costTTS, costSTT, costImage,
+  costLLM, costTTS, costSTT, costImage,
   recordCost,
 }

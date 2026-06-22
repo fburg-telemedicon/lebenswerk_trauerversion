@@ -1,10 +1,10 @@
 // api/transcribe.js
 // POST /api/transcribe  { audio: base64, mimeType, audioSeconds?, memorialCode?, contributionId?, language? }  →  { text }
 //
-// STT-Anbieter umschaltbar (DSGVO/EU-Migration):
-//   SPEECH_PROVIDER = 'openai' (Default) | 'azure'
-// Azure nutzt Azure AI Speech „Fast Transcription" (EU-Region, höhere Kapazität
-// als das whisper-Modell-Deployment). Nötige Env für den azure-Pfad:
+// Einziges STT ist Azure AI Speech „Fast Transcription" (EU-Region) – KEIN
+// Fallback. Der frühere OpenAI-Whisper-Fallback (SPEECH_PROVIDER) wurde am
+// 2026-06-22 entfernt (nicht von der Datenschutzerklärung gedeckt: US-Transfer).
+// Nötige Env:
 //   AZURE_SPEECH_KEY, AZURE_SPEECH_REGION (z. B. westeurope)
 //   AZURE_SPEECH_ENDPOINT  optional (sonst aus Region gebildet)
 
@@ -15,27 +15,7 @@ const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
-const PROVIDER = (process.env.SPEECH_PROVIDER || 'openai').toLowerCase()
 const LOCALE = { de: 'de-DE', en: 'en-US', pl: 'pl-PL' }
-
-// ── OpenAI Whisper ────────────────────────────────────────────────
-async function transcribeOpenAI({ buffer, mimeType, ext, language }) {
-  const model = 'whisper-1'
-  const formData = new FormData()
-  formData.append('file', new Blob([buffer], { type: mimeType || 'audio/webm' }), `audio.${ext}`)
-  formData.append('model', model)
-  const sttLang = ['de', 'pl', 'en'].includes(language) ? language : null
-  if (sttLang) formData.append('language', sttLang)
-
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: formData,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error?.message || 'Transkription fehlgeschlagen')
-  return { text: data.text || '', provider: 'openai', model }
-}
 
 // ── Azure AI Speech (Fast Transcription) ──────────────────────────
 async function transcribeAzure({ buffer, mimeType, ext, language }) {
@@ -82,9 +62,7 @@ module.exports = async function handler(req, res) {
                  : mimeType?.includes('mp4') ? 'mp4'
                  : 'webm'
 
-    const result = PROVIDER === 'azure'
-      ? await transcribeAzure({ buffer, mimeType, ext, language })
-      : await transcribeOpenAI({ buffer, mimeType, ext, language })
+    const result = await transcribeAzure({ buffer, mimeType, ext, language })
 
     {
       const secs = Number.isFinite(parseFloat(audioSeconds)) ? parseFloat(audioSeconds) : 0
