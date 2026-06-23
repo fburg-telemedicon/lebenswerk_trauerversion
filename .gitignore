@@ -16,6 +16,9 @@ dist/
 *.log
 npm-debug.log*
 
+# Generierte Aufwandsschätzung (lokal, nicht versionieren)
+Aufwandsschaetzung_Spalten_N_O.xlsx
+
 # Editor / OS
 .DS_Store
 Thumbs.db
