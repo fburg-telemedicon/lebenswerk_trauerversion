@@ -2627,7 +2627,7 @@ function Dashboard() {
             </button>
           </div>
 
-          <div style={{ overflowY:'auto', display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:12, padding:'4px 2px', flex:1 }}>
+          <div style={{ overflowY:'auto', display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', alignItems:'start', gap:12, padding:'4px 2px', flex:1 }}>
             {chapters.map((ch, i) => {
               const on = imgEditSel.has(i)
               return (
@@ -2641,7 +2641,13 @@ function Dashboard() {
                 >
                   <div style={{ position:'relative', aspectRatio:'3 / 2', background:'#f5f5f4' }}>
                     {ch.image_url
-                      ? <img src={ch.image_url} alt={ch.heading || `Kapitel ${ch.number}`} loading="lazy" decoding="async" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                      ? <img
+                          src={ch.image_thumb_url || ch.image_url}
+                          alt={ch.heading || `Kapitel ${ch.number}`}
+                          loading="lazy" decoding="async"
+                          onError={(e) => { if (ch.image_thumb_url && e.currentTarget.src !== ch.image_url) e.currentTarget.src = ch.image_url }}
+                          style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+                        />
                       : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#a8a29e' }}>kein Bild</div>}
                     {ch.image_url && (
                       <button

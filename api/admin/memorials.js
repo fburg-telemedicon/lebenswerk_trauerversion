@@ -44,6 +44,48 @@ function applySignedUrls(book, urlMap) {
   }
 }
 
+function applyThumbUrls(book, urlMap) {
+  if (!book?.chapters) return
+  for (const ch of book.chapters) {
+    if (!ch?.image_path) continue
+    const key = String(ch.image_path).replace(/^\/+/, '')
+    if (urlMap[key]) ch.image_thumb_url = urlMap[key]
+  }
+}
+
+// Kleine, schnell ladende Vorschau-URLs via Supabase Image-Transformation.
+// Spart im Bilder-Raster ein Vielfaches an Bytes (statt voller 1536×1024-PNGs).
+// Erfordert das Supabase-Transform-Add-on; ist es nicht verfügbar, liefert die
+// URL beim Laden einen Fehler und der Client fällt per onError auf das Vollbild
+// (image_url) zurück. Komplett fehlertolerant – ein Problem darf den GET nicht
+// beeinträchtigen.
+async function signMemorialThumbs(memorials) {
+  try {
+    const paths = new Set()
+    for (const m of memorials) {
+      collectImagePaths(m.book_v1).forEach(p => paths.add(p))
+      collectImagePaths(m.book_v2).forEach(p => paths.add(p))
+    }
+    if (paths.size === 0) return
+    const entries = await Promise.all([...paths].map(async (p) => {
+      const key = String(p).replace(/^\/+/, '')
+      try {
+        const { data } = await supabase.storage.from(IMAGE_BUCKET)
+          .createSignedUrl(p, SIGNED_URL_TTL, { transform: { width: 480, height: 320, resize: 'cover' } })
+        return [key, data?.signedUrl || null]
+      } catch { return [key, null] }
+    }))
+    const thumbMap = {}
+    for (const [k, v] of entries) if (v) thumbMap[k] = v
+    for (const m of memorials) {
+      applyThumbUrls(m.book_v1, thumbMap)
+      applyThumbUrls(m.book_v2, thumbMap)
+    }
+  } catch (e) {
+    console.error('signMemorialThumbs (non-fatal):', e.message)
+  }
+}
+
 async function signMemorialImages(memorials) {
   const paths = new Set()
   for (const m of memorials) {
@@ -98,6 +140,7 @@ module.exports = async function handler(req, res) {
       if (error) throw error
       const memorials = data || []
       await signMemorialImages(memorials)
+      await signMemorialThumbs(memorials)
 
       // Gesamtkosten pro Memorial aggregieren
       const { data: costRows } = await supabase.from('cost_events').select('memorial_id, cost_eur, cost_usd')
