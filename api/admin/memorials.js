@@ -227,6 +227,21 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'Ungültiges Feld.' })
       }
 
+      // content_reports atomar ZUSAMMENFÜHREN statt überschreiben. Sonst würde
+      // beim parallelen Generieren beider Varianten der Prüf-Report der jeweils
+      // anderen Variante verloren gehen (der Client schickt einen evtl. veralteten
+      // Gesamtstand). Wir lesen den aktuellen Stand und mergen nur die gesendeten
+      // Keys (book_v1/book_v2/eulogy_text) hinein.
+      if (field === 'content_reports') {
+        const incoming = (text && typeof text === 'object' && !Array.isArray(text)) ? text : {}
+        const { data: cur } = await supabase.from('memorials').select('content_reports').eq('id', code).single()
+        const merged = { ...(cur?.content_reports || {}), ...incoming }
+        const { error: mErr } = await supabase.from('memorials').update({ content_reports: merged }).eq('id', code)
+        if (mErr) throw mErr
+        await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { field, keys: Object.keys(incoming) } })
+        return res.json({ ok: true })
+      }
+
       // Bei Büchern: vor dem Überschreiben die bisher referenzierten Bildpfade
       // ermitteln, damit anschließend die nun verwaisten Storage-Dateien (alte
       // Version − neue Version) gelöscht werden können.

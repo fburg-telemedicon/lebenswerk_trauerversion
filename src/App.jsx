@@ -42,6 +42,31 @@ function passwordError(p) {
   return null
 }
 
+// Übersetzt eine (oft englische, technische) Bildgenerierungs-Fehlermeldung in
+// einen verständlichen deutschen Hinweis und ergänzt die Aufforderung, sich an
+// den Administrator zu wenden. Wird an allen Anzeigestellen verwendet; die
+// rohe Meldung bleibt für die Diagnose in den Daten erhalten.
+function imageErrorDe(raw) {
+  const core = String(raw || '').replace(/^Bildgenerierung fehlgeschlagen(?: \([^)]*\))?:\s*/i, '')
+  const admin = ' Bitte wenden Sie sich an den Administrator.'
+  let de
+  if (/RAI policy|BingBlockList|responsible ai|content (policy|filter|management)|blocklist|block list|moderat|flagged/i.test(core))
+    de = 'Das KI-Bildmotiv wurde vom Inhaltsfilter abgelehnt.'
+  else if (/rate.?limit|too many requests|exceeded|\b429\b/i.test(core))
+    de = 'Das Bildlimit wurde kurzzeitig erreicht (zu viele Anfragen in kurzer Zeit).'
+  else if (/image_prompt|Bild-Prompt|kein image_prompt/i.test(core))
+    de = 'Für dieses Kapitel wurde kein Bildmotiv erzeugt.'
+  else if (/timeout|timed out|nicht rechtzeitig|keine bilddaten|HTTP 5\d\d|\b50[234]\b|bad gateway|FUNCTION_INVOCATION_TIMEOUT|fetch failed/i.test(core))
+    de = 'Die Bilderzeugung hat zu lange gedauert oder der Bilddienst war nicht erreichbar.'
+  else if (/Storage|Upload/i.test(core))
+    de = 'Das erzeugte Bild konnte nicht gespeichert werden.'
+  else if (/nicht konfiguriert|AZURE_FLUX/i.test(core))
+    de = 'Der Bilddienst ist nicht korrekt konfiguriert.'
+  else
+    de = 'Die Bilderzeugung ist fehlgeschlagen.'
+  return de + admin
+}
+
 // ── Lokale Session-Persistenz (Option 1: localStorage) ────────────
 const SESSION_TTL_DAYS = 60
 function sessionKey(code) { return `lw_session_${code}` }
@@ -1958,11 +1983,11 @@ function Dashboard() {
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
         findings: Array.isArray(parsed.findings) ? parsed.findings : [],
       }
-      await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: report })
+      await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: report })
       return report
     } catch (e) {
       try {
-        await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: { checked_at: new Date().toISOString(), error: e.message || String(e) } })
+        await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: { checked_at: new Date().toISOString(), error: e.message || String(e) } })
       } catch {}
       throw e
     }
@@ -2014,7 +2039,7 @@ function Dashboard() {
           ? { ...f, status: 'resolved', resolution: 'accept', resolved_at: new Date().toISOString() }
           : f)
         const newReport = { ...report, findings: newFindings }
-        await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
+        await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: newReport })
         const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
         if (r.ok) {
           const fresh = await r.json(); setMemorials(fresh)
@@ -2072,7 +2097,7 @@ function Dashboard() {
         ? { ...f, status: 'resolved', resolution: mode, resolved_at: new Date().toISOString(), new_text: newText }
         : f)
       const newReport = { ...report, findings: newFindings }
-      await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
+      await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: newReport })
 
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) {
@@ -2124,7 +2149,7 @@ function Dashboard() {
       await adminSaveMemorialText(token, selected.id, field, newValue)
       const newFindings = report.findings.map((f, i) => i === index ? { ...f, new_text: edited, resolved_at: new Date().toISOString() } : f)
       const newReport = { ...report, findings: newFindings }
-      await adminSaveMemorialText(token, selected.id, 'content_reports', { ...(selected.content_reports || {}), [field]: newReport })
+      await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: newReport })
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) {
         const fresh = await r.json(); setMemorials(fresh)
@@ -2298,7 +2323,7 @@ function Dashboard() {
             }
             if (!ch.image_prompt) {
               value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
-              imageErrors.push(`Kapitel ${ch.number}: kein image_prompt`)
+              imageErrors.push(`Kapitel ${ch.number}: ${imageErrorDe('kein image_prompt')}`)
               bumpPct() // Bild-Schritt erledigt
               continue
             }
@@ -2317,7 +2342,7 @@ function Dashboard() {
             } catch (e) {
               console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
               value.chapters[i] = { ...ch, image_error: e.message || String(e) }
-              imageErrors.push(`Kapitel ${ch.number}: ${e.message}`)
+              imageErrors.push(`Kapitel ${ch.number}: ${imageErrorDe(e.message)}`)
             }
             bumpPct() // Bild fertig
           }
@@ -2485,7 +2510,7 @@ function Dashboard() {
       for (const i of indices) {
         const ch = newChapters[i]
         setImgEditProgress(`Bild ${done + 1}/${indices.length} wird neu erstellt …`)
-        if (!ch.image_prompt) { errs.push(`Kapitel ${ch.number}: kein Bild-Prompt`); done++; continue }
+        if (!ch.image_prompt) { errs.push(`Kapitel ${ch.number}: ${imageErrorDe('kein Bild-Prompt')}`); done++; continue }
         // Sanftes Pacing gegen das pro-Minute-Rate-Limit (FLUX).
         if (done > 0) await new Promise(r => setTimeout(r, 1500))
         try {
@@ -2497,7 +2522,7 @@ function Dashboard() {
           })
           newChapters[i] = { ...ch, image_path: storagePath, image_url: undefined, image_error: null }
         } catch (e) {
-          errs.push(`Kapitel ${ch.number}: ${e.message}`)
+          errs.push(`Kapitel ${ch.number}: ${imageErrorDe(e.message)}`)
         }
         done++
       }
@@ -4151,8 +4176,8 @@ function Dashboard() {
                   <div style={{ background:'#fef2f2', border:'1px dashed #fecaca', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#991b1b', fontSize:13, lineHeight:1.5 }}>
                     🖼 Kein Bild gespeichert — Generierung war nicht erfolgreich.<br />
                     {ch.image_error && (
-                      <span style={{ display:'inline-block', marginTop:6, padding:'4px 10px', background:'#fff', border:'1px solid #fecaca', borderRadius:6, fontFamily:'monospace', fontSize:12, color:'#7f1d1d' }}>
-                        {ch.image_error}
+                      <span style={{ display:'inline-block', marginTop:6, padding:'4px 10px', background:'#fff', border:'1px solid #fecaca', borderRadius:6, fontSize:12, color:'#7f1d1d' }}>
+                        {imageErrorDe(ch.image_error)}
                       </span>
                     )}
                     <div style={{ fontSize:12, color:'#7f1d1d', marginTop:8 }}>Prompt war: „{ch.image_prompt}"</div>
