@@ -8,7 +8,7 @@ import {
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
-  getSettings, saveSettings,
+  getSettings, saveSettings, changeOwnPassword,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -1394,6 +1394,9 @@ function Dashboard() {
   const [logo, setLogo]               = useState(null)   // eigenes Firmenlogo (Data-URL)
   const [logoLoading, setLogoLoading] = useState(false)
   const [logoSaved, setLogoSaved]     = useState(false)
+  const [pwForm, setPwForm]           = useState({ current: '', next: '', next2: '' })
+  const [pwErr, setPwErr]             = useState('')
+  const [pwSaved, setPwSaved]         = useState(false)
   const [createdCode, setCreatedCode] = useState('')
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1630,6 +1633,7 @@ function Dashboard() {
   // ── Einstellungen (eigenes Firmenlogo) ──
   async function openSettings() {
     setErr(''); setLogoSaved(false); setLogoLoading(true); setView('settings')
+    setPwForm({ current: '', next: '', next2: '' }); setPwErr(''); setPwSaved(false)
     try {
       const d = await getSettings(token)
       setLogo(d.logo || null)
@@ -1657,6 +1661,23 @@ function Dashboard() {
       setLogo(value)
       setLogoSaved(true)
     } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+
+  // Eigenes Passwort ändern (Einstellungen). Nur für Benutzerkonten.
+  async function saveOwnPassword(e) {
+    e?.preventDefault()
+    setPwErr(''); setPwSaved(false)
+    if (!pwForm.current) { setPwErr('Bitte das aktuelle Passwort eingeben.'); return }
+    const policyErr = passwordError(pwForm.next)
+    if (policyErr) { setPwErr(policyErr); return }
+    if (pwForm.next !== pwForm.next2) { setPwErr('Die beiden neuen Passwörter stimmen nicht überein.'); return }
+    setBusy(true)
+    try {
+      await changeOwnPassword(token, { currentPassword: pwForm.current, newPassword: pwForm.next })
+      setPwForm({ current: '', next: '', next2: '' })
+      setPwSaved(true)
+    } catch (e) { setPwErr(e.message) }
     finally { setBusy(false) }
   }
 
@@ -2759,7 +2780,7 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', ...(showCategoryColumn ? ['Kategorie'] : []), 'Organisator', 'Variante', 'Erfassung bis', 'Antworten', 'Kosten', ''].map(h => (
+                  {['Name', ...(showCategoryColumn ? ['Kategorie'] : []), 'Organisator', 'Variante', 'Erfassung bis', 'Antworten', ...(auth.admin ? ['Kosten'] : []), ''].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -2799,6 +2820,7 @@ function Dashboard() {
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         {(m.contribution_count || 0)} {(m.contribution_count === 1) ? 'Beitrag' : 'Beiträge'} · {(m.answer_count || 0)} {(m.answer_count === 1) ? 'Antwort' : 'Antworten'}
                       </td>
+                      {auth.admin && (
                       <td
                         style={{ ...col, textAlign:'right', whiteSpace:'nowrap', padding:'6px 14px', background: costHover ? COST_BG : '', transition:'background .1s' }}
                         onMouseEnter={() => setHoveredRow({ id: m.id, zone: 'cost' })}
@@ -2827,6 +2849,7 @@ function Dashboard() {
                           <span style={{ textDecoration:'underline', textUnderlineOffset:2 }}>{formatEur(m.cost_total_eur)}</span>
                         </button>
                       </td>
+                      )}
                       <td style={{ ...col, textAlign:'right' }}>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
@@ -3128,6 +3151,31 @@ function Dashboard() {
             </>
           )}
         </div>
+
+        <form onSubmit={saveOwnPassword} style={{ ...S.card, marginTop:'1.25rem' }}>
+          <Lbl>Passwort ändern</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'4px 0 14px' }}>{PASSWORD_RULES_TEXT}</p>
+          <Err msg={pwErr} />
+          <div style={{ marginBottom:12 }}>
+            <Lbl>Aktuelles Passwort</Lbl>
+            <input type="password" autoComplete="current-password" value={pwForm.current}
+              onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} placeholder="••••" />
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <Lbl>Neues Passwort</Lbl>
+            <input type="password" autoComplete="new-password" value={pwForm.next}
+              onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} placeholder="••••" />
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <Lbl>Neues Passwort wiederholen</Lbl>
+            <input type="password" autoComplete="new-password" value={pwForm.next2}
+              onChange={e => setPwForm(f => ({ ...f, next2: e.target.value }))} placeholder="••••" />
+          </div>
+          <button type="submit" disabled={busy || !pwForm.current || !pwForm.next || !pwForm.next2} style={{ fontSize:13, padding:'9px 16px' }}>
+            {busy ? 'Wird geändert …' : 'Passwort ändern'}
+          </button>
+          {pwSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>✓ Passwort geändert.</p>}
+        </form>
       </div>
     </div>
   )

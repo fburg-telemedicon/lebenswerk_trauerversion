@@ -87,6 +87,16 @@ export async function saveSettings(token, { logo }) {
   return parseResponse(res) // { ok }
 }
 
+// Eigenes Passwort ändern (nur Benutzerkonten, nicht der Env-Admin).
+export async function changeOwnPassword(token, { currentPassword, newPassword }) {
+  const res = await fetch('/api/admin/users?self=1', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  return parseResponse(res) // { ok }
+}
+
 export async function adminDeleteMemorial(token, code) {
   const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
     method: 'DELETE',

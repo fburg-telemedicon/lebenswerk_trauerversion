@@ -13,7 +13,7 @@
 //   DELETE /api/admin/users?id=…
 
 const { createClient } = require('@supabase/supabase-js')
-const { checkAuth, hashPassword, validatePasswordPolicy } = require('../_lib/auth')
+const { checkAuth, hashPassword, validatePasswordPolicy, verifyPassword } = require('../_lib/auth')
 const { isValidCategory } = require('../_lib/categories')
 const { audit } = require('../_lib/audit')
 
@@ -52,7 +52,34 @@ async function handleSelf(req, res) {
     return res.json({ username: data?.username ?? null, logo: data?.logo ?? null })
   }
   if (req.method === 'PATCH' || req.method === 'PUT') {
-    const v = validateLogo((req.body || {}).logo)
+    const body = req.body || {}
+
+    // Eigenes Passwort ändern: { currentPassword, newPassword }. Das aktuelle
+    // Passwort muss stimmen (auch wenn der Token schon authentifiziert ist –
+    // verhindert Missbrauch einer offen liegenden Sitzung).
+    if (body.currentPassword !== undefined || body.newPassword !== undefined) {
+      const { currentPassword, newPassword } = body
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'Aktuelles und neues Passwort sind erforderlich.' })
+      }
+      const pol = validatePasswordPolicy(newPassword)
+      if (!pol.ok) return res.status(400).json({ error: pol.error })
+      const { data: user, error: selErr } = await supabase
+        .from('app_users').select('pw_hash, pw_salt').eq('id', req.auth.uid).single()
+      if (selErr) throw selErr
+      if (!user || !verifyPassword(currentPassword, user.pw_hash, user.pw_salt)) {
+        return res.status(403).json({ error: 'Das aktuelle Passwort ist nicht korrekt.' })
+      }
+      const { hash, salt } = hashPassword(newPassword)
+      const { error } = await supabase
+        .from('app_users').update({ pw_hash: hash, pw_salt: salt }).eq('id', req.auth.uid)
+      if (error) throw error
+      await audit(req, { actor: req.auth, action: 'user.password_change', target: req.auth.uid, detail: { self: true } })
+      return res.json({ ok: true })
+    }
+
+    // Sonst: Firmenlogo speichern/entfernen.
+    const v = validateLogo(body.logo)
     if (v.error) return res.status(400).json({ error: v.error })
     const { error } = await supabase
       .from('app_users').update({ logo: v.value }).eq('id', req.auth.uid)
