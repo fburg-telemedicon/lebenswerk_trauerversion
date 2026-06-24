@@ -197,6 +197,26 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: `Storage-Upload fehlgeschlagen: ${upErr.message}` })
     }
 
+    // Kleine JPEG-Vorschau (Thumbnail) miterzeugen und unter <pfad>_thumb.jpg
+    // ablegen — fürs schnelle Bilder-Raster. Der Pfad wird beim Signieren aus
+    // image_path abgeleitet, daher kein Schema-/Kapitelfeld nötig. Voll
+    // fehlertolerant: schlägt es fehl, bleibt einfach nur das Vollbild.
+    try {
+      const sharp = require('sharp')
+      const thumbBuf = await sharp(result.buffer)
+        .resize(480, 320, { fit: 'cover' })
+        .jpeg({ quality: 72 })
+        .toBuffer()
+      const thumbPath = storagePath.replace(/\.png$/i, '_thumb.jpg')
+      const { error: tErr } = await supabase.storage.from(BUCKET).upload(thumbPath, thumbBuf, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      })
+      if (tErr) console.warn('Thumbnail-Upload fehlgeschlagen (nicht kritisch):', tErr.message)
+    } catch (e) {
+      console.warn('Thumbnail-Erzeugung übersprungen (nicht kritisch):', e.message)
+    }
+
     await recordCost({
       memorial_id: code,
       kind: 'image',

@@ -44,39 +44,44 @@ function applySignedUrls(book, urlMap) {
   }
 }
 
-function applyThumbUrls(book, urlMap) {
+// Pfad der gespeicherten JPEG-Vorschau, abgeleitet aus dem Vollbild-Pfad.
+// Muss zur Ableitung in api/admin/generate-image.js passen (<pfad>_thumb.jpg).
+function thumbPathFor(p) {
+  if (!p) return null
+  return String(p).replace(/^\/+/, '').replace(/\.(png|jpe?g|webp)$/i, '_thumb.jpg')
+}
+
+function applyThumbUrls(book, thumbMap) {
   if (!book?.chapters) return
   for (const ch of book.chapters) {
     if (!ch?.image_path) continue
-    const key = String(ch.image_path).replace(/^\/+/, '')
-    if (urlMap[key]) ch.image_thumb_url = urlMap[key]
+    const t = thumbPathFor(ch.image_path)
+    if (t && thumbMap[t]) ch.image_thumb_url = thumbMap[t]
   }
 }
 
-// Kleine, schnell ladende Vorschau-URLs via Supabase Image-Transformation.
-// Spart im Bilder-Raster ein Vielfaches an Bytes (statt voller 1536×1024-PNGs).
-// Erfordert das Supabase-Transform-Add-on; ist es nicht verfügbar, liefert die
-// URL beim Laden einen Fehler und der Client fällt per onError auf das Vollbild
-// (image_url) zurück. Komplett fehlertolerant – ein Problem darf den GET nicht
-// beeinträchtigen.
+// Signiert die kleinen gespeicherten JPEG-Vorschauen (<pfad>_thumb.jpg) fürs
+// schnelle Bilder-Raster. Unabhängig vom Supabase-Plan (echte Dateien, keine
+// Transformation). Ältere Bilder ohne Thumbnail liefern hier einen Eintrags-
+// Fehler -> wird übersprungen, der Client fällt per onError auf das Vollbild
+// zurück. Komplett fehlertolerant – darf den GET nicht beeinträchtigen.
 async function signMemorialThumbs(memorials) {
   try {
-    const paths = new Set()
+    const thumbPaths = new Set()
     for (const m of memorials) {
-      collectImagePaths(m.book_v1).forEach(p => paths.add(p))
-      collectImagePaths(m.book_v2).forEach(p => paths.add(p))
+      for (const p of [...collectImagePaths(m.book_v1), ...collectImagePaths(m.book_v2)]) {
+        const t = thumbPathFor(p)
+        if (t) thumbPaths.add(t)
+      }
     }
-    if (paths.size === 0) return
-    const entries = await Promise.all([...paths].map(async (p) => {
-      const key = String(p).replace(/^\/+/, '')
-      try {
-        const { data } = await supabase.storage.from(IMAGE_BUCKET)
-          .createSignedUrl(p, SIGNED_URL_TTL, { transform: { width: 480, height: 320, resize: 'cover' } })
-        return [key, data?.signedUrl || null]
-      } catch { return [key, null] }
-    }))
+    if (thumbPaths.size === 0) return
+    const { data } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls([...thumbPaths], SIGNED_URL_TTL)
+    if (!Array.isArray(data)) return
     const thumbMap = {}
-    for (const [k, v] of entries) if (v) thumbMap[k] = v
+    for (const entry of data) {
+      if (entry?.error || !entry?.signedUrl || !entry?.path) continue
+      thumbMap[String(entry.path).replace(/^\/+/, '')] = entry.signedUrl
+    }
     for (const m of memorials) {
       applyThumbUrls(m.book_v1, thumbMap)
       applyThumbUrls(m.book_v2, thumbMap)
@@ -300,10 +305,12 @@ module.exports = async function handler(req, res) {
       const { error } = await supabase.from('memorials').update({ [field]: text ?? null }).eq('id', code)
       if (error) throw error
 
-      // Aufräumen: nicht mehr referenzierte Bilddateien aus dem Storage löschen.
-      // Fehler hier dürfen den erfolgreichen Speichervorgang NICHT scheitern lassen.
+      // Aufräumen: nicht mehr referenzierte Bilddateien (inkl. ihrer _thumb.jpg)
+      // aus dem Storage löschen. Fehler hier dürfen den erfolgreichen
+      // Speichervorgang NICHT scheitern lassen.
       if (orphanPaths.length) {
-        const { error: rmErr } = await supabase.storage.from(IMAGE_BUCKET).remove(orphanPaths)
+        const toRemove = [...orphanPaths, ...orphanPaths.map(thumbPathFor).filter(Boolean)]
+        const { error: rmErr } = await supabase.storage.from(IMAGE_BUCKET).remove(toRemove)
         if (rmErr) console.error('Verwaiste Bilder konnten nicht gelöscht werden:', rmErr)
       }
 
