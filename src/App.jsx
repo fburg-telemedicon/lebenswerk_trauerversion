@@ -2623,9 +2623,9 @@ function Dashboard() {
                       display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:14, fontWeight:700,
                     }}>{on ? '✓' : ''}</div>
                   </div>
-                  <div style={{ padding:'7px 9px' }}>
-                    <div style={{ fontSize:11, color:'#a8a29e' }}>Kapitel {ch.number}</div>
-                    <div style={{ fontSize:13, fontWeight:600, lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{ch.heading || '—'}</div>
+                  <div style={{ padding:'7px 9px 11px' }}>
+                    <div style={{ fontSize:11, color:'#a8a29e', marginBottom:2 }}>Kapitel {ch.number}</div>
+                    <div style={{ fontSize:13, fontWeight:600, lineHeight:1.4, paddingBottom:2, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{ch.heading || '—'}</div>
                   </div>
                 </div>
               )

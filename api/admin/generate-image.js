@@ -49,6 +49,21 @@ const SPREAD_DIRECTIVE =
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// Azure lehnt einzelne (vom LLM erzeugte) Bild-Prompts ueber den Inhaltsfilter
+// dauerhaft ab (Responsible AI / Bing-Sperrliste). Solche Fehler sind NICHT
+// transient – ein Wiederholen mit demselben Prompt hilft nicht.
+function isContentPolicyError(msg) {
+  return /RAI policy|BingBlockList|responsible ai|content (policy|filter|management)|blocklist|block list|moderat|flagged/i.test(String(msg || ''))
+}
+
+// Neutrales, garantiert zulaessiges Ersatzmotiv: wird verwendet, wenn der
+// eigentliche Kapitel-Prompt vom Inhaltsfilter blockiert wird, damit das
+// Kapitel nicht ganz ohne Bild bleibt. Bewusst ohne Personen, Namen, Text und
+// religioese/sensible Symbole.
+const SAFE_FALLBACK_PROMPT =
+  'A serene, atmospheric memorial illustration in a warm, painterly style: a peaceful natural landscape at soft golden-hour light, a gentle meadow with wildflowers, distant calm hills and a tender sky. ' +
+  'Quiet, comforting and dignified mood, evoking remembrance, love and gratitude. No people, no faces, no text, no lettering, no logos, no symbols, no religious icons.'
+
 // Bytes aus der FLUX-Antwort holen: entweder direkt base64 oder eine URL,
 // die wir nachladen.
 async function bytesFromResult(out) {
@@ -150,10 +165,24 @@ module.exports = async function handler(req, res) {
     const fullPrompt = `${prompt}\n\n${SPREAD_DIRECTIVE}`
 
     let result
+    let usedFallback = false
     try {
       result = await generateAzureFlux(fullPrompt)
     } catch (e) {
-      return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e.message}` })
+      // Inhaltsfilter-Block: GENAU dieser Prompt wird dauerhaft abgelehnt –
+      // einmalig auf ein neutrales Ersatzmotiv ausweichen, statt das Kapitel
+      // ganz ohne Bild zu lassen.
+      if (isContentPolicyError(e.message)) {
+        console.warn('FLUX Inhaltsfilter-Block, weiche auf neutrales Motiv aus:', e.message)
+        try {
+          result = await generateAzureFlux(`${SAFE_FALLBACK_PROMPT}\n\n${SPREAD_DIRECTIVE}`)
+          usedFallback = true
+        } catch (e2) {
+          return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen (Inhaltsfilter): ${e.message}` })
+        }
+      } else {
+        return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e.message}` })
+      }
     }
 
     const code = String(memorialCode).toUpperCase().trim()
@@ -181,10 +210,11 @@ module.exports = async function handler(req, res) {
         ...(variant ? { variant: String(variant) } : {}),
         ...(chapterNumber != null ? { chapter: Number(chapterNumber) } : {}),
         ...(chapterHeading ? { chapter_heading: String(chapterHeading).slice(0, 200) } : {}),
+        ...(usedFallback ? { fallback: 'content_policy' } : {}),
       },
     })
 
-    return res.json({ storagePath })
+    return res.json({ storagePath, ...(usedFallback ? { fallback: 'content_policy' } : {}) })
   } catch (e) {
     console.error('/api/admin/generate-image:', e)
     res.status(500).json({ error: e.message })
