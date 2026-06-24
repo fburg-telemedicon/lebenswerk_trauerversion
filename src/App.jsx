@@ -2635,11 +2635,12 @@ function Dashboard() {
                   key={i}
                   onClick={() => !imgEditBusy && toggleImgSel(i)}
                   style={{
-                    border:`2px solid ${on ? '#1c1917' : '#e7e5e4'}`, borderRadius:10, overflow:'hidden',
+                    border:`2px solid ${on ? '#1c1917' : '#e7e5e4'}`, borderRadius:10,
+                    // KEIN overflow:hidden auf der Kachel — das beschnitt die Beschriftung.
                     cursor: imgEditBusy ? 'default' : 'pointer', background:'#fff', position:'relative',
                   }}
                 >
-                  <div style={{ position:'relative', aspectRatio:'3 / 2', background:'#f5f5f4' }}>
+                  <div style={{ position:'relative', aspectRatio:'3 / 2', background:'#f5f5f4', borderTopLeftRadius:8, borderTopRightRadius:8, overflow:'hidden' }}>
                     {ch.image_url
                       ? <img
                           src={ch.image_thumb_url || ch.image_url}
