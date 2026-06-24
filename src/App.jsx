@@ -1462,6 +1462,7 @@ function Dashboard() {
   const [imgEditSel, setImgEditSel]     = useState(new Set()) // ausgewählte Kapitelindizes
   const [imgEditBusy, setImgEditBusy]   = useState(false)
   const [imgEditProgress, setImgEditProgress] = useState('')
+  const [imgZoom, setImgZoom]           = useState(null) // { url, heading } | null – Bild groß ansehen (Lightbox)
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
   const [costData, setCostData]       = useState(null)
   const [costsLoading, setCostsLoading] = useState(false)
@@ -2640,8 +2641,19 @@ function Dashboard() {
                 >
                   <div style={{ position:'relative', aspectRatio:'3 / 2', background:'#f5f5f4' }}>
                     {ch.image_url
-                      ? <img src={ch.image_url} alt={ch.heading || `Kapitel ${ch.number}`} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                      ? <img src={ch.image_url} alt={ch.heading || `Kapitel ${ch.number}`} loading="lazy" decoding="async" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
                       : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#a8a29e' }}>kein Bild</div>}
+                    {ch.image_url && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setImgZoom({ url: ch.image_url, heading: ch.heading || `Kapitel ${ch.number}` }) }}
+                        title="Größer ansehen"
+                        style={{
+                          position:'absolute', top:6, left:6, width:24, height:24, borderRadius:6,
+                          background:'rgba(255,255,255,.85)', border:'1px solid #d6d3d1', cursor:'zoom-in',
+                          display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, lineHeight:1, padding:0,
+                        }}
+                      >🔍</button>
+                    )}
                     <div style={{
                       position:'absolute', top:6, right:6, width:22, height:22, borderRadius:6,
                       background: on ? '#1c1917' : 'rgba(255,255,255,.85)', border:`1px solid ${on ? '#1c1917' : '#d6d3d1'}`,
@@ -2650,7 +2662,8 @@ function Dashboard() {
                   </div>
                   <div style={{ padding:'7px 9px 11px' }}>
                     <div style={{ fontSize:11, color:'#a8a29e', marginBottom:2 }}>Kapitel {ch.number}</div>
-                    <div style={{ fontSize:13, fontWeight:600, lineHeight:1.4, paddingBottom:2, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{ch.heading || '—'}</div>
+                    {/* Volltext-Umbruch statt Zeilen-Clamp: die Überschrift wird nie abgeschnitten. */}
+                    <div style={{ fontSize:13, fontWeight:600, lineHeight:1.35, wordBreak:'break-word' }}>{ch.heading || '—'}</div>
                   </div>
                 </div>
               )
@@ -2671,6 +2684,24 @@ function Dashboard() {
       </div>
     )
   })() : null
+
+  // Lightbox: ein einzelnes Kapitelbild groß ansehen (über dem Rework-Dialog).
+  const imgZoomOverlay = imgZoom ? (
+    <div
+      onClick={() => setImgZoom(null)}
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.82)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', zIndex:200, padding:'2rem', cursor:'zoom-out' }}
+    >
+      <button onClick={() => setImgZoom(null)} title="Schließen"
+        style={{ position:'fixed', top:14, right:20, fontSize:28, lineHeight:1, color:'#fff', background:'none', border:'none', cursor:'pointer' }}>×</button>
+      <img
+        src={imgZoom.url}
+        alt={imgZoom.heading || ''}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth:'95vw', maxHeight:'88vh', objectFit:'contain', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.5)' }}
+      />
+      {imgZoom.heading && <div style={{ color:'#fff', marginTop:12, fontSize:14, textAlign:'center' }}>{imgZoom.heading}</div>}
+    </div>
+  ) : null
 
   const sevStyle = sev => sev === 'hoch' ? { color:'#b91c1c', background:'#fee2e2' }
     : sev === 'mittel' ? { color:'#b45309', background:'#fef3c7' }
@@ -3849,6 +3880,7 @@ function Dashboard() {
         {eulogyStyleOverlay}
         {genLangOverlay}
         {imgEditOverlay}
+        {imgZoomOverlay}
         {reportOverlay}
       </div>
     )
@@ -4228,6 +4260,7 @@ function Dashboard() {
         {eulogyStyleOverlay}
         {genLangOverlay}
         {imgEditOverlay}
+        {imgZoomOverlay}
         {reportOverlay}
       </div>
     )
