@@ -267,12 +267,19 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
     }
     if (imgPara) sections.push(docxSection([imgPara], SectionType.NEXT_PAGE))
 
+    // V1: Name + Beziehung des Beitragenden (Fallback über contribution_id).
+    const chSrc = ch.contributor_name ? ch : (contributors || []).find(c => c.id === ch.contribution_id)
+    const chName = ch.contributor_name || chSrc?.contributor_name
+    const chRel  = ch.relationship    || chSrc?.relationship
+
     // Kapiteltext beginnt auf der linken (geraden) Seite.
     const content = [
       new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: tw(2), after: 100 },
         children: [new TextRun({ text: `${bt.chapterLabel} ${ch.number}`, font: DOCX_FONT, size: 20, color: 'a8a29e' })] }),
-      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
+      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: chName ? 100 : 300 },
         children: [new TextRun({ text: ch.heading || '', font: DOCX_FONT, size: 36, bold: true })] }),
+      ...(chName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
+        children: [new TextRun({ text: chRel ? `${chName} – ${chRel}` : chName, font: DOCX_FONT, size: 24, italics: true, color: '78716c' })] })] : []),
       ...String(ch.body || '').split('\n\n').map(r => r.trim()).filter(Boolean).map(chunk =>
         new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: DOCX_FONT, size: 24 })] })),
     ]
@@ -410,6 +417,16 @@ async function downloadPrintPdf(filename, book, contributors = []) {
     doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
     let hy = 46
     for (const line of doc.splitTextToSize(ch.heading || '', maxW)) { doc.text(line, PDF_PAGE_W / 2, hy, { align: 'center' }); hy += 9 }
+    // V1: Name + Beziehung des Beitragenden unter die Überschrift (Fallback über contribution_id).
+    {
+      const src = ch.contributor_name ? ch : (contributors || []).find(c => c.id === ch.contribution_id)
+      const nm = ch.contributor_name || src?.contributor_name
+      const rel = ch.relationship || src?.relationship
+      if (nm) {
+        doc.setFont('times', 'italic'); doc.setFontSize(12); doc.setTextColor(120, 113, 108)
+        doc.text(rel ? `${nm} – ${rel}` : nm, PDF_PAGE_W / 2, hy + 2, { align: 'center' })
+      }
+    }
     // Seitenumbruch nach der Kapitelüberschrift: der Fließtext beginnt auf
     // einer neuen Seite (Überschriftenseite bleibt für sich).
     newPage(); y = MT
@@ -2207,7 +2224,11 @@ function Dashboard() {
               body: ch.body,
               image_prompt: ch.image_prompt || '',
               // Stabiler Schlüssel für die spätere Bild-Wiederverwendung (V1).
-              ...(key === 'book_v1' && plan.contribution?.id ? { contribution_id: plan.contribution.id } : {}),
+              ...(key === 'book_v1' && plan.contribution?.id ? {
+                contribution_id: plan.contribution.id,
+                contributor_name: plan.contribution.contributor_name,
+                relationship: plan.contribution.relationship,
+              } : {}),
             })
           } catch (e) {
             writeErrors.push(`Kapitel ${plan.number}: ${e.message}`)
@@ -2217,7 +2238,11 @@ function Dashboard() {
               body: '',
               image_prompt: '',
               generate_error: e.message || String(e),
-              ...(key === 'book_v1' && plan.contribution?.id ? { contribution_id: plan.contribution.id } : {}),
+              ...(key === 'book_v1' && plan.contribution?.id ? {
+                contribution_id: plan.contribution.id,
+                contributor_name: plan.contribution.contributor_name,
+                relationship: plan.contribution.relationship,
+              } : {}),
             })
           }
           bumpPct() // Kapitel fertig
@@ -4095,6 +4120,18 @@ function Dashboard() {
                 <div style={{ textAlign:'center', marginBottom:'1.25rem' }}>
                   <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>{bt.chapterLabel} {ch.number ?? i + 1}</p>
                   <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif' }}>{ch.heading || ''}</h3>
+                  {(() => {
+                    // V1: Name + Beziehung des Beitragenden unter der Überschrift.
+                    // Fallback über contribution_id für ältere Bücher ohne die Felder.
+                    const src = ch.contributor_name ? ch : (contributions || []).find(x => x.id === ch.contribution_id)
+                    const nm = ch.contributor_name || src?.contributor_name
+                    const rel = ch.relationship || src?.relationship
+                    return nm ? (
+                      <p style={{ fontSize:15, fontStyle:'italic', color:'#78716c', fontFamily:'Georgia,serif', marginTop:8 }}>
+                        {rel ? `${nm} – ${rel}` : nm}
+                      </p>
+                    ) : null
+                  })()}
                 </div>
                 {ch.image_url ? (
                   <img
