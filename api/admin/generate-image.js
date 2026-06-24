@@ -72,6 +72,7 @@ async function generateAzureFlux(fullPrompt) {
   const apiVersion = process.env.AZURE_FLUX_API_VERSION || 'preview'
   if (!endpoint || !key) throw new Error('Azure FLUX ist nicht konfiguriert (AZURE_FLUX_ENDPOINT/KEY).')
 
+  const startedAt = Date.now()   // Basis für das Poll-Zeitbudget (s. unten)
   const url = `${endpoint}/providers/blackforestlabs/v1/${modelPath}?api-version=${apiVersion}`
   const resp = await fetch(url, {
     method: 'POST',
@@ -94,15 +95,27 @@ async function generateAzureFlux(fullPrompt) {
   }
   let data = await resp.json()
 
-  // Async-Variante: solange pollen, bis das Sample bereitsteht.
+  const hasImageData = (d) => Boolean(
+    d?.b64_json || d?.image || d?.data?.[0]?.b64_json ||
+    d?.result?.sample || d?.sample || d?.url || d?.data?.[0]?.url
+  )
+
+  // Async-Variante: pollen, bis das Sample tatsächlich bereitsteht. Wir pollen
+  // bis kurz vor dem 60-s-Function-Budget (statt fixer 45 s) – einzelne Kapitel-
+  // bilder brauchen unter Last gelegentlich länger, und ein zu kurzes Fenster
+  // war die häufigste Ursache für "Keine Bilddaten". Abbruchgrund (Timeout vs.
+  // echter Fehler) wird unten unterschieden.
+  const POLL_DEADLINE_MS = 50000  // lässt ~10 s für Upload + Kostenerfassung
+  let polled = false
   const pollUrl = data?.polling_url || data?.poll_url
-  if (pollUrl && !(data?.b64_json || data?.image || data?.result?.sample)) {
-    for (let i = 0; i < 30; i++) {        // ~30 × 1,5 s ≈ 45 s, innerhalb des 60-s-Budgets
+  if (pollUrl && !hasImageData(data)) {
+    polled = true
+    while (Date.now() - startedAt < POLL_DEADLINE_MS) {
       await sleep(1500)
       const pr = await fetch(pollUrl, { headers: { Authorization: `Bearer ${key}` } })
       data = await pr.json().catch(() => ({}))
       const st = String(data?.status || data?.state || '')
-      if (/ready|complete|succeed|success/i.test(st) || data?.result) break
+      if (hasImageData(data)) break       // erst abbrechen, wenn die Daten WIRKLICH da sind
       if (/error|fail|moderat/i.test(st)) throw new Error(`FLUX: ${st || 'Fehler'}`)
     }
   }
@@ -111,7 +124,12 @@ async function generateAzureFlux(fullPrompt) {
   const out = b64 ? { b64 } : { url: data?.result?.sample || data?.sample || data?.url || data?.data?.[0]?.url }
   if (!b64 && !out.url) {
     console.error('FLUX: unerwartete Antwort:', JSON.stringify(data).slice(0, 500))
-    throw new Error('Keine Bilddaten von FLUX erhalten.')
+    // Polling-Timeout enthält bewusst "timeout" → der Client wertet das als
+    // transient und versucht es (mit frischem 60-s-Budget) automatisch erneut.
+    const st = String(data?.status || data?.state || '')
+    throw new Error(polled
+      ? `FLUX-Bild nicht rechtzeitig fertig (timeout, Status: ${st || 'pending'}).`
+      : 'Keine Bilddaten von FLUX erhalten.')
   }
   const buffer = await bytesFromResult(out)
   return { buffer, model: FLUX_MODEL, provider: 'azure-flux' }

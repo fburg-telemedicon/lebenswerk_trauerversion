@@ -1884,7 +1884,10 @@ function Dashboard() {
         lastErr = e
         const msg = String(e?.message || '')
         const rateLimited = /rate.?limit|too many requests|exceeded|\b429\b/i.test(msg)
-        const transient = rateLimited || /HTTP 5\d\d|timeout|timed out|FUNCTION_INVOCATION_TIMEOUT|fetch failed/i.test(msg)
+        // Auch ein 502 „Keine Bilddaten von FLUX erhalten" (FLUX wurde im
+        // Zeitfenster nicht fertig) ist transient: ein erneuter Versuch mit
+        // frischem 60-s-Budget gelingt fast immer.
+        const transient = rateLimited || /HTTP 5\d\d|\b50[234]\b|bad gateway|timeout|timed out|FUNCTION_INVOCATION_TIMEOUT|fetch failed|keine bilddaten/i.test(msg)
         if (!transient || attempt === maxAttempts) throw e
         // Rate-Limit gilt pro Minute → 20s, 40s, 60s; sonst 3s, 6s, 9s.
         const waitMs = rateLimited ? 20000 * attempt : 3000 * attempt
