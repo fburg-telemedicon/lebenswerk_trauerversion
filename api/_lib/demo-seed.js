@@ -1,15 +1,15 @@
 // api/_lib/demo-seed.js
 // Demo-Daten für einen neu angelegten Benutzer.
 //
-// Erzeugt für den Benutzer 3 vollständige Trauerbücher, jeweils mit 10
-// Beitragenden, die je 15 Fragen mit Antworten aus je 3 Sätzen beantwortet
-// haben. Das ERSTE Buch ist zusätzlich in beiden Buchvarianten (book_v1 +
-// book_v2) bereits „produziert" (als JSON gespeichert, ohne KI-Bilder).
+// Erzeugt für den Benutzer 3 Trauerbücher, jeweils mit 10 Beitragenden, die je
+// 15 Fragen mit Antworten aus je 3 Sätzen beantwortet haben (= 150 Beiträge).
+// Es wird KEIN Buch vorproduziert – das generiert der Benutzer selbst über den
+// normalen Weg.
 //
 // Der INHALT ist für jeden Benutzer identisch (bewusst, siehe Anforderung) –
-// nur die Codes (memorials.id / contributions.id) und der Eigentümer werden je
-// Aufruf neu vergeben. Alles deterministisch (keine Zufallstexte), damit jeder
-// Benutzer exakt dieselben Demo-Bücher erhält.
+// nur die Codes (memorials.id / contributions.id), der Eigentümer und das
+// Bestattungsdatum (= Anlagedatum + 1 Monat) werden je Aufruf neu gesetzt.
+// Alles deterministisch (keine Zufallstexte).
 //
 // Reines Einfügen in Supabase, KEINE LLM-/Bild-Aufrufe → schnell und kostenlos.
 
@@ -226,94 +226,9 @@ function buildMessages(personFirst, contributor, idx) {
   return msgs
 }
 
-// Antworttext eines Beitragenden zu einer bestimmten Frage (0-basiert).
-function answerOf(personFirst, contributor, qIdx, cIdx) {
-  return QUESTIONS[qIdx].a[cIdx % QUESTIONS[qIdx].a.length](personFirst, contributor.relationship)
-}
-
-// Stimmungsvolle, garantiert zulässige Bildmotive (keine Personen/Gesichter/
-// Texte) – damit die Demo-Kapitel über „Bilder überarbeiten" jederzeit ein Bild
-// erzeugen können. Der Server hängt selbst noch die Doppelseiten-Direktive an.
-const SAFE = 'No people, no faces, no text, no lettering, no logos.'
-const IMAGE_PROMPTS_V1 = [
-  `A sunlit cottage garden with blooming roses, warm golden afternoon light, soft painterly watercolor style, peaceful and nostalgic. ${SAFE}`,
-  `A rustic kitchen table with a freshly baked apple cake and cinnamon, warm light through a window, cozy painterly still life. ${SAFE}`,
-  `An old upright piano in a warm living room with soft lamplight, gentle nostalgic painterly atmosphere. ${SAFE}`,
-  `A quiet forest path in autumn with golden leaves and dappled sunlight, calm contemplative landscape painting. ${SAFE}`,
-  `A calm lakeside with a wooden bench at sunset, still water and soft reflections, tender atmospheric scene. ${SAFE}`,
-  `A cozy kitchen with hanging herbs and ceramic cups in soft morning light, warm inviting painterly interior. ${SAFE}`,
-  `A gentle seaside with soft waves and seashells at golden hour, pastel sky, serene coastal scene. ${SAFE}`,
-  `A basket of colorful yarn and knitting needles by a window in soft daylight, warm domestic still life, painterly. ${SAFE}`,
-  `A long family table set for a celebration in a summer garden with lanterns, warm evening light, joyful yet calm. ${SAFE}`,
-  `A meadow of wildflowers under a tender sky at golden hour with gentle distant hills, peaceful mood of remembrance. ${SAFE}`,
-]
-const IMAGE_PROMPTS_V2 = [
-  `A warm golden meadow at sunrise with soft mist and tender, hopeful light, painterly and atmospheric. ${SAFE}`,
-  `A long table set in a sunlit garden with lanterns on a warm summer evening, joyful and calm, painterly. ${SAFE}`,
-  `A blooming cottage garden with roses and a watering can in vibrant warm light, lively painterly scene. ${SAFE}`,
-  `A calm harbor at dusk with a lighthouse beam over still water, reassuring and comforting atmosphere. ${SAFE}`,
-  `A solitary old oak tree on a hill at golden hour, an expansive serene landscape evoking legacy and gratitude. ${SAFE}`,
-]
-
-// book_v1: ein Kapitel je Beitragendem (so wie die echte Generierung).
-function buildBookV1(person, contributors, contribCodes) {
-  const chapters = contributors.map((c, i) => ({
-    number: i + 1,
-    heading: `${c.name} – ${c.relationship}`,
-    // Volltext: ALLE 15 Antworten des Beitragenden als Absätze – so spiegelt das
-    // produzierte Buch die gesamte beigetragene Substanz wider (nicht nur einen
-    // Auszug) und wird entsprechend umfangreich.
-    body: QUESTIONS.map((_, qi) => answerOf(person.first, c, qi, i)).join('\n\n'),
-    image_prompt: IMAGE_PROMPTS_V1[i % IMAGE_PROMPTS_V1.length],
-    contribution_id: contribCodes[i],
-    contributor_name: c.name,
-    relationship: c.relationship,
-  }))
-  return {
-    title: `Erinnerungen an ${person.name}`,
-    subtitle: `${person.birth} – ${person.death}`,
-    language: 'de',
-    chapters,
-  }
-}
-
-// book_v2: thematisch gegliedert (unabhängig von einzelnen Beiträgen).
-function buildBookV2(person) {
-  const n = person.first
-  const chapters = [
-    {
-      number: 1, heading: 'Ein Leben voller Wärme',
-      body: `${person.name} (${person.birth}–${person.death}) hat das Leben vieler Menschen berührt. In den Erinnerungen der Familie und der Weggefährten zeigt sich das Bild eines Menschen, der für andere da war. Dieses Buch versammelt ihre Stimmen.\n\nWer von ${n} erzählt, erzählt von Herzlichkeit, von einem offenen Ohr und von vielen kleinen Gesten, die in Erinnerung geblieben sind.`,
-      image_prompt: '',
-    },
-    {
-      number: 2, heading: 'Familie und Zusammenhalt',
-      body: `Für ${n} stand die Familie an erster Stelle. Kinder und Enkel erinnern sich an einen Menschen, der zusammenhielt, was zusammengehört. Bei jedem Fest war ${n} der ruhende Mittelpunkt.\n\nDie gemeinsamen Sonntage, die selbstgebackenen Kuchen und die langen Gespräche bleiben unvergessen.`,
-      image_prompt: '',
-    },
-    {
-      number: 3, heading: 'Leidenschaften und Freuden',
-      body: `${n} brannte für die schönen Dinge des Lebens – für den Garten, die Musik und die Geselligkeit. Diese Begeisterung steckte alle an, die ${n} nahestanden.\n\nWer ${n} bei einer Lieblingsbeschäftigung erlebte, sah einen Menschen ganz im Reinen mit sich.`,
-      image_prompt: '',
-    },
-    {
-      number: 4, heading: 'Halt in schweren Zeiten',
-      body: `Gerade wenn es darauf ankam, war auf ${n} Verlass. Mit Ruhe, Zuversicht und einer helfenden Hand wurde aus mancher Krise etwas Lösbares. Viele erinnern sich an genau diesen Rückhalt.\n\nDiese Verlässlichkeit hat Spuren hinterlassen, die weit über den Abschied hinaus tragen.`,
-      image_prompt: '',
-    },
-    {
-      number: 5, heading: 'Ein bleibendes Vermächtnis',
-      body: `Was ${n} weitergegeben hat, lebt in den Menschen fort: Ehrlichkeit, Freundlichkeit und die Gewissheit, dass jeder Tag ein Geschenk ist. So bleibt ${n} in liebevoller Erinnerung.\n\nDieses Buch ist ein Dank an ein erfülltes Leben und ein Versprechen, die Erinnerung lebendig zu halten.`,
-      image_prompt: '',
-    },
-  ]
-  return {
-    title: `Erinnerungen an ${person.name}`,
-    subtitle: 'Ein Gedenkbuch',
-    language: 'de',
-    chapters: chapters.map((ch, i) => ({ ...ch, image_prompt: IMAGE_PROMPTS_V2[i] || ch.image_prompt })),
-  }
-}
+// Hinweis: Demo-Bücher werden bewusst NICHT vorproduziert (kein book_v1/book_v2).
+// Es werden nur die Beiträge angelegt; das Buch generiert der Benutzer selbst über
+// den normalen Weg.
 
 // Erzeugt eindeutige Codes (für PKs), die sich innerhalb dieses Aufrufs nicht
 // wiederholen.
@@ -339,8 +254,6 @@ async function seedDemoData(supabase, ownerUid, productCategory = 'memorial') {
 
   const memorialRows = []
   const contributionRows = []
-  let firstBookV1 = null
-  let firstBookV2 = null
 
   PERSONS.forEach((person, pIdx) => {
     const memCode = uniqueCodes(1, usedCodes)[0]
@@ -371,24 +284,12 @@ async function seedDemoData(supabase, ownerUid, productCategory = 'memorial') {
         messages: buildMessages(person.first, c, i),
       })
     })
-
-    // Nur das erste Buch wird „produziert" (beide Varianten).
-    if (pIdx === 0) {
-      firstBookV1 = { code: memCode, book: buildBookV1(person, contributors, contribCodes) }
-      firstBookV2 = buildBookV2(person)
-    }
   })
 
   const { error: memErr } = await supabase.from('memorials').insert(memorialRows)
   if (memErr) throw memErr
   const { error: conErr } = await supabase.from('contributions').insert(contributionRows)
   if (conErr) throw conErr
-  if (firstBookV1) {
-    const { error: bookErr } = await supabase.from('memorials')
-      .update({ book_v1: firstBookV1.book, book_v2: firstBookV2 })
-      .eq('id', firstBookV1.code)
-    if (bookErr) throw bookErr
-  }
 
   return { memorials: memorialRows.length, contributions: contributionRows.length }
 }
