@@ -174,6 +174,16 @@ module.exports = async function handler(req, res) {
         m.answer_count       = answerCounts[m.id] || 0
       }
 
+      // Inhaber-Benutzernamen ergänzen (für die Admin-Liste). owner_user ist
+      // null bei Büchern, die der Env-Superadmin angelegt hat.
+      const ownerIds = [...new Set(memorials.map(m => m.owner_user).filter(Boolean))]
+      if (ownerIds.length) {
+        const { data: owners } = await supabase.from('app_users').select('id, username').in('id', ownerIds)
+        const nameById = {}
+        for (const u of owners || []) nameById[u.id] = u.username
+        for (const m of memorials) m.owner_username = m.owner_user ? (nameById[m.owner_user] || null) : null
+      }
+
       return res.json(memorials)
     }
 

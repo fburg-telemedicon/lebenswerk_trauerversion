@@ -1475,6 +1475,7 @@ function Dashboard() {
   const [copied, setCopied]           = useState('')
   const [err, setErr]                 = useState('')
   const [hoveredRow, setHoveredRow]   = useState(null) // { id, zone: 'main' | 'cost' }
+  const [sort, setSort]               = useState({ key: 'cutoff', dir: 'asc' }) // Sortierung der Buchliste
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
 
@@ -2847,7 +2848,28 @@ function Dashboard() {
   )
 
   // ── LISTE ──
-  if (view === 'list') return (
+  if (view === 'list') {
+    // Sortierbare Spalten (Reihenfolge = Spaltenreihenfolge der Tabelle).
+    const sortCols = [
+      { key: 'name',      label: 'Name',          val: m => (m.name || '').toLowerCase() },
+      ...(showCategoryColumn ? [{ key: 'category', label: 'Kategorie', val: m => getCategory(m.product_category).label.toLowerCase() }] : []),
+      ...(auth.admin ? [{ key: 'owner', label: 'Inhaber', val: m => (m.owner_username || '').toLowerCase() }] : []),
+      { key: 'organizer', label: 'Organisator',   val: m => (m.organizer || '').toLowerCase() },
+      { key: 'variant',   label: 'Variante',      val: m => m.book_variant || 0 },
+      { key: 'cutoff',    label: 'Erfassung bis', val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity } },
+      { key: 'answers',   label: 'Antworten',     val: m => m.answer_count || 0 },
+      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0 }] : []),
+    ]
+    const activeCol = sortCols.find(c => c.key === sort.key) || sortCols[0]
+    const sortedMemorials = [...memorials].sort((a, b) => {
+      const va = activeCol.val(a), vb = activeCol.val(b)
+      const cmp = (typeof va === 'number' && typeof vb === 'number')
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'de')
+      return sort.dir === 'asc' ? cmp : -cmp
+    })
+    const toggleSort = key => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))
+    return (
     <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -2890,20 +2912,17 @@ function Dashboard() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  {['Name', ...(showCategoryColumn ? ['Kategorie'] : []), 'Organisator', 'Variante', 'Erfassung bis', 'Antworten', ...(auth.admin ? ['Kosten'] : []), ''].map(h => (
-                    <th key={h} style={th}>{h}</th>
+                  {sortCols.map(c => (
+                    <th key={c.key} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                        onClick={() => toggleSort(c.key)} title="Spalte sortieren">
+                      {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                    </th>
                   ))}
+                  <th style={th}></th>
                 </tr>
               </thead>
               <tbody>
-                {[...memorials].sort((a, b) => {
-                  const da = cutoffDate(a.funeral_date, cutoffDays(a))
-                  const db = cutoffDate(b.funeral_date, cutoffDays(b))
-                  if (!da && !db) return 0
-                  if (!da) return 1
-                  if (!db) return -1
-                  return da - db
-                }).map(m => {
+                {sortedMemorials.map(m => {
                   const isHover    = hoveredRow?.id === m.id
                   const mainHover  = isHover && hoveredRow.zone === 'main'
                   const costHover  = isHover && hoveredRow.zone === 'cost'
@@ -2923,6 +2942,9 @@ function Dashboard() {
                           {getCategory(m.product_category).label}
                         </span>
                       </td>
+                      )}
+                      {auth.admin && (
+                        <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }} onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.owner_username || '—'}</td>
                       )}
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
@@ -2980,7 +3002,8 @@ function Dashboard() {
         )}
       </div>
     </div>
-  )
+    )
+  }
 
   // ── PRODUKTKATEGORIE WÄHLEN (vor der Anlage) ──
   if (view === 'create-category') return (
