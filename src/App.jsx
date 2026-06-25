@@ -1476,6 +1476,8 @@ function Dashboard() {
   const [err, setErr]                 = useState('')
   const [hoveredRow, setHoveredRow]   = useState(null) // { id, zone: 'main' | 'cost' }
   const [sort, setSort]               = useState({ key: 'cutoff', dir: 'asc' }) // Sortierung der Buchliste
+  const [filters, setFilters]         = useState({}) // { colKey: [erlaubte Werte] } – fehlt = keine Filterung
+  const [filterCol, setFilterCol]     = useState(null) // welches Spalten-Filtermenü offen ist
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
 
@@ -2544,6 +2546,7 @@ function Dashboard() {
           newChapters[i] = { ...ch, image_path: storagePath, image_url: undefined, image_error: null }
         } catch (e) {
           errs.push(`Kapitel ${ch.number}: ${imageErrorDe(e.message)}`)
+          newChapters[i] = { ...ch, image_error: e.message || String(e) }
         }
         done++
       }
@@ -2849,19 +2852,28 @@ function Dashboard() {
 
   // ── LISTE ──
   if (view === 'list') {
-    // Sortierbare Spalten (Reihenfolge = Spaltenreihenfolge der Tabelle).
+    // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
+    //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
-      { key: 'name',      label: 'Name',          val: m => (m.name || '').toLowerCase() },
-      ...(showCategoryColumn ? [{ key: 'category', label: 'Kategorie', val: m => getCategory(m.product_category).label.toLowerCase() }] : []),
-      ...(auth.admin ? [{ key: 'owner', label: 'Inhaber', val: m => (m.owner_username || '').toLowerCase() }] : []),
-      { key: 'organizer', label: 'Organisator',   val: m => (m.organizer || '').toLowerCase() },
-      { key: 'variant',   label: 'Variante',      val: m => m.book_variant || 0 },
-      { key: 'cutoff',    label: 'Erfassung bis', val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity } },
-      { key: 'answers',   label: 'Antworten',     val: m => m.answer_count || 0 },
-      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0 }] : []),
+      { key: 'name',      label: 'Name',          val: m => (m.name || '').toLowerCase(), disp: m => m.name || '—' },
+      ...(showCategoryColumn ? [{ key: 'category', label: 'Kategorie', val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
+      ...(auth.admin ? [{ key: 'owner', label: 'Inhaber', val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
+      { key: 'organizer', label: 'Organisator',   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
+      { key: 'variant',   label: 'Variante',      val: m => m.book_variant || 0, disp: m => m.book_variant ? `Variante ${m.book_variant}` : '—' },
+      { key: 'cutoff',    label: 'Erfassung bis', val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
+      { key: 'answers',   label: 'Antworten',     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} Antworten` },
+      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0, disp: m => formatEur(m.cost_total_eur) }] : []),
     ]
-    const activeCol = sortCols.find(c => c.key === sort.key) || sortCols[0]
-    const sortedMemorials = [...memorials].sort((a, b) => {
+    const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
+    const distinctVals = col => [...new Set(memorials.map(col.disp))].sort((a, b) => String(a).localeCompare(String(b), 'de', { numeric: true }))
+    // Sichtbarkeit: ein Buch passt, wenn es in JEDER aktiven Filterspalte einen
+    // ausgewählten Wert hat. Fehlt der Filtereintrag, ist die Spalte ungefiltert.
+    const visibleMemorials = memorials.filter(m => sortCols.every(c => {
+      const sel = filters[c.key]
+      return !sel || sel.includes(c.disp(m))
+    }))
+    const activeCol = colByKey(sort.key)
+    const sortedMemorials = [...visibleMemorials].sort((a, b) => {
       const va = activeCol.val(a), vb = activeCol.val(b)
       const cmp = (typeof va === 'number' && typeof vb === 'number')
         ? va - vb
@@ -2869,12 +2881,31 @@ function Dashboard() {
       return sort.dir === 'asc' ? cmp : -cmp
     })
     const toggleSort = key => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))
+
+    // Filter-Helfer (filters[key] = Liste erlaubter disp-Werte; fehlt = alle).
+    const filterActive = key => { const sel = filters[key]; return sel && sel.length < distinctVals(colByKey(key)).length }
+    const valChecked = (key, v) => { const sel = filters[key]; return !sel || sel.includes(v) }
+    const allChecked = key => { const sel = filters[key]; return !sel || sel.length === distinctVals(colByKey(key)).length }
+    const toggleVal = (key, v) => setFilters(f => {
+      const all = distinctVals(colByKey(key))
+      const cur = f[key] ? [...f[key]] : [...all]
+      const i = cur.indexOf(v)
+      if (i >= 0) cur.splice(i, 1); else cur.push(v)
+      if (cur.length === all.length) { const n = { ...f }; delete n[key]; return n } // alle = kein Filter
+      return { ...f, [key]: cur }
+    })
+    const toggleAll = key => setFilters(f => {
+      if (allChecked(key)) return { ...f, [key]: [] }        // alle abwählen
+      const n = { ...f }; delete n[key]; return n             // alle anwählen = kein Filter
+    })
     return (
     <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
-          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>{memorials.length} {memorials.length === 1 ? 'Buch' : 'Bücher'}</span>
+          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>
+            {visibleMemorials.length < memorials.length ? `${visibleMemorials.length} / ${memorials.length}` : memorials.length} {memorials.length === 1 ? 'Buch' : 'Bücher'}
+          </span>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
           <span style={{ fontSize: 13, color: '#78716c', marginRight: 4 }}>
@@ -2894,11 +2925,16 @@ function Dashboard() {
       </div>
 
       <div style={{ maxWidth: 1200, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem', gap:12 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Bücher</h2>
-          <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
-            + Neues Buch
-          </button>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            {Object.keys(filters).length > 0 && (
+              <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:13, padding:'8px 12px' }}>Filter zurücksetzen</button>
+            )}
+            <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
+              + Neues Buch
+            </button>
+          </div>
         </div>
         <Err msg={err} />
         {loading ? (
@@ -2908,14 +2944,37 @@ function Dashboard() {
             <p style={S.muted}>Noch keine Bücher angelegt. Beginnen Sie mit „+ Neues Buch".</p>
           </div>
         ) : (
-          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
+          <>
+            {filterCol && <div onClick={() => setFilterCol(null)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />}
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'visible' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {sortCols.map(c => (
-                    <th key={c.key} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-                        onClick={() => toggleSort(c.key)} title="Spalte sortieren">
-                      {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                    <th key={c.key} style={{ ...th, whiteSpace: 'nowrap', position: 'relative', zIndex: filterCol === c.key ? 40 : undefined }}>
+                      <span onClick={() => toggleSort(c.key)} title="Spalte sortieren" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                      </span>
+                      <span onClick={(e) => { e.stopPropagation(); setFilterCol(k => k === c.key ? null : c.key) }}
+                            title="Spalte filtern"
+                            style={{ marginLeft: 6, cursor: 'pointer', color: filterActive(c.key) ? '#1d4ed8' : '#a8a29e' }}>▼</span>
+                      {filterCol === c.key && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.14)', padding: 8, minWidth: 190, maxHeight: 300, overflowY: 'auto', textAlign: 'left', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
+                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 6px', fontSize: 13, fontWeight: 600, color: '#1c1917', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={allChecked(c.key)}
+                                   ref={el => { if (el) el.indeterminate = !allChecked(c.key) && (filters[c.key]?.length > 0) }}
+                                   onChange={() => toggleAll(c.key)} />
+                            Alle
+                          </label>
+                          <div style={{ borderTop: '1px solid #f5f5f4', margin: '4px 0' }} />
+                          {distinctVals(c).map(v => (
+                            <label key={v} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 6px', fontSize: 13, color: '#44403c', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={valChecked(c.key, v)} onChange={() => toggleVal(c.key, v)} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 230 }}>{v}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </th>
                   ))}
                   <th style={th}></th>
@@ -2999,6 +3058,7 @@ function Dashboard() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -4283,15 +4343,20 @@ function Dashboard() {
                     <span style={{ fontSize:12, color:'#92400e' }}>(Signing schlägt fehl — Bucket-Name prüfen oder Liste neu laden)</span>
                   </div>
                 ) : ch.image_prompt ? (
-                  <div style={{ background:'#fef2f2', border:'1px dashed #fecaca', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#991b1b', fontSize:13, lineHeight:1.5 }}>
-                    🖼 Kein Bild gespeichert — Generierung war nicht erfolgreich.<br />
-                    {ch.image_error && (
+                  ch.image_error ? (
+                    <div style={{ background:'#fef2f2', border:'1px dashed #fecaca', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#991b1b', fontSize:13, lineHeight:1.5 }}>
+                      🖼 Bildgenerierung fehlgeschlagen.<br />
                       <span style={{ display:'inline-block', marginTop:6, padding:'4px 10px', background:'#fff', border:'1px solid #fecaca', borderRadius:6, fontSize:12, color:'#7f1d1d' }}>
                         {imageErrorDe(ch.image_error)}
                       </span>
-                    )}
-                    <div style={{ fontSize:12, color:'#7f1d1d', marginTop:8 }}>Prompt war: „{ch.image_prompt}"</div>
-                  </div>
+                      <div style={{ fontSize:12, color:'#7f1d1d', marginTop:8 }}>Prompt war: „{ch.image_prompt}"</div>
+                    </div>
+                  ) : (
+                    <div style={{ background:'#f5f5f4', border:'1px dashed #d6d3d1', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#78716c', fontSize:13, lineHeight:1.5 }}>
+                      🖼 Noch kein Bild – über „🖼 Bilder überarbeiten" erzeugen.
+                      <div style={{ fontSize:12, color:'#a8a29e', marginTop:8 }}>Prompt: „{ch.image_prompt}"</div>
+                    </div>
+                  )
                 ) : (
                   <div style={{ background:'#f5f5f4', border:'1px dashed #d6d3d1', padding:'1.5rem', borderRadius:8, marginBottom:'2rem', textAlign:'center', color:'#78716c', fontSize:13 }}>
                     🖼 Kein image_prompt im Kapitel-JSON.
