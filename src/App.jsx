@@ -2241,7 +2241,11 @@ function Dashboard() {
           { memorialCode: selected.id, kind: `${key}_outline`, token }
         )
         const outline = tryParseJSON(outlineRaw)
-        if (!outline || !outline.title) throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden.')
+        if (!outline || !outline.title) {
+          const snip = String(outlineRaw || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+          throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden.' +
+            (snip ? ` Antwort des KI-Dienstes begann mit: „${snip}…"` : ' Der KI-Dienst lieferte eine leere Antwort (evtl. nicht erreichbar oder Zeitüberschreitung).'))
+        }
 
         // Kapitel-Plan: V1 = aus Beiträgen abgeleitet, V2 = aus Outline
         const chapterPlans = key === 'book_v1'
