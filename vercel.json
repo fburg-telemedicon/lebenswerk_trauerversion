@@ -5,6 +5,7 @@
   "regions": ["fra1"],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/demobuch", "destination": "https://bniwrvfjqewjlzruslnd.supabase.co/storage/v1/object/public/Demo_books/Gedenkbuch_V2_Ingrid_Wagner_Demo_Druck.pdf" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
   ],
   "functions": {
