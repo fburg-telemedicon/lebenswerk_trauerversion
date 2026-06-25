@@ -16,10 +16,13 @@
 const { genCode } = require('./codes')
 
 // ── 3 Verstorbene ─────────────────────────────────────────────────
+// Hinweis: Der Name des/der Verstorbenen trägt bei Demo-Büchern immer den
+// Zusatz „(Demo)" am Ende, damit Demo-Bücher in jeder Liste sofort erkennbar
+// sind. `first` bleibt der reine Vorname (für die Beitragstexte).
 const PERSONS = [
-  { first: 'Margarete', name: 'Margarete Hoffmann', gender: 'weiblich', birth: '1936', death: '2025', organizer: 'Familie Hoffmann' },
-  { first: 'Karl',      name: 'Karl Bauer',         gender: 'männlich', birth: '1940', death: '2024', organizer: 'Familie Bauer' },
-  { first: 'Ingrid',    name: 'Ingrid Wagner',      gender: 'weiblich', birth: '1945', death: '2025', organizer: 'Familie Wagner' },
+  { first: 'Margarete', name: 'Margarete Hoffmann (Demo)', gender: 'weiblich', birth: '1936', death: '2025', organizer: 'Familie Hoffmann' },
+  { first: 'Karl',      name: 'Karl Bauer (Demo)',         gender: 'männlich', birth: '1940', death: '2024', organizer: 'Familie Bauer' },
+  { first: 'Ingrid',    name: 'Ingrid Wagner (Demo)',      gender: 'weiblich', birth: '1945', death: '2025', organizer: 'Familie Wagner' },
 ]
 
 // ── je 10 Beitragende pro Buch ────────────────────────────────────
@@ -228,19 +231,40 @@ function answerOf(personFirst, contributor, qIdx, cIdx) {
   return QUESTIONS[qIdx].a[cIdx % QUESTIONS[qIdx].a.length](personFirst, contributor.relationship)
 }
 
+// Stimmungsvolle, garantiert zulässige Bildmotive (keine Personen/Gesichter/
+// Texte) – damit die Demo-Kapitel über „Bilder überarbeiten" jederzeit ein Bild
+// erzeugen können. Der Server hängt selbst noch die Doppelseiten-Direktive an.
+const SAFE = 'No people, no faces, no text, no lettering, no logos.'
+const IMAGE_PROMPTS_V1 = [
+  `A sunlit cottage garden with blooming roses, warm golden afternoon light, soft painterly watercolor style, peaceful and nostalgic. ${SAFE}`,
+  `A rustic kitchen table with a freshly baked apple cake and cinnamon, warm light through a window, cozy painterly still life. ${SAFE}`,
+  `An old upright piano in a warm living room with soft lamplight, gentle nostalgic painterly atmosphere. ${SAFE}`,
+  `A quiet forest path in autumn with golden leaves and dappled sunlight, calm contemplative landscape painting. ${SAFE}`,
+  `A calm lakeside with a wooden bench at sunset, still water and soft reflections, tender atmospheric scene. ${SAFE}`,
+  `A cozy kitchen with hanging herbs and ceramic cups in soft morning light, warm inviting painterly interior. ${SAFE}`,
+  `A gentle seaside with soft waves and seashells at golden hour, pastel sky, serene coastal scene. ${SAFE}`,
+  `A basket of colorful yarn and knitting needles by a window in soft daylight, warm domestic still life, painterly. ${SAFE}`,
+  `A long family table set for a celebration in a summer garden with lanterns, warm evening light, joyful yet calm. ${SAFE}`,
+  `A meadow of wildflowers under a tender sky at golden hour with gentle distant hills, peaceful mood of remembrance. ${SAFE}`,
+]
+const IMAGE_PROMPTS_V2 = [
+  `A warm golden meadow at sunrise with soft mist and tender, hopeful light, painterly and atmospheric. ${SAFE}`,
+  `A long table set in a sunlit garden with lanterns on a warm summer evening, joyful and calm, painterly. ${SAFE}`,
+  `A blooming cottage garden with roses and a watering can in vibrant warm light, lively painterly scene. ${SAFE}`,
+  `A calm harbor at dusk with a lighthouse beam over still water, reassuring and comforting atmosphere. ${SAFE}`,
+  `A solitary old oak tree on a hill at golden hour, an expansive serene landscape evoking legacy and gratitude. ${SAFE}`,
+]
+
 // book_v1: ein Kapitel je Beitragendem (so wie die echte Generierung).
 function buildBookV1(person, contributors, contribCodes) {
   const chapters = contributors.map((c, i) => ({
     number: i + 1,
     heading: `${c.name} – ${c.relationship}`,
-    body: [
-      answerOf(person.first, c, 0, i),
-      answerOf(person.first, c, 1, i),
-      answerOf(person.first, c, 5, i),
-      answerOf(person.first, c, 7, i),
-      answerOf(person.first, c, 9, i),
-    ].join('\n\n'),
-    image_prompt: '',
+    // Volltext: ALLE 15 Antworten des Beitragenden als Absätze – so spiegelt das
+    // produzierte Buch die gesamte beigetragene Substanz wider (nicht nur einen
+    // Auszug) und wird entsprechend umfangreich.
+    body: QUESTIONS.map((_, qi) => answerOf(person.first, c, qi, i)).join('\n\n'),
+    image_prompt: IMAGE_PROMPTS_V1[i % IMAGE_PROMPTS_V1.length],
     contribution_id: contribCodes[i],
     contributor_name: c.name,
     relationship: c.relationship,
@@ -287,7 +311,7 @@ function buildBookV2(person) {
     title: `Erinnerungen an ${person.name}`,
     subtitle: 'Ein Gedenkbuch',
     language: 'de',
-    chapters,
+    chapters: chapters.map((ch, i) => ({ ...ch, image_prompt: IMAGE_PROMPTS_V2[i] || ch.image_prompt })),
   }
 }
 
