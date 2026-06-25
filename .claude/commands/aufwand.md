@@ -16,10 +16,16 @@ Dezimalstellen IMMER mit Komma (z. B. `0,4`), nicht mit Punkt.
 Schätzungen tendenziell eher knapp halten.
 
 Ablauf:
-1. Master-Sheet lesen (Google Sheets CSV-Export, Redirect folgen):
-   `https://docs.google.com/spreadsheets/d/11s1sb8MfCwuIcQByJJQra5XnHblRivnv/export?format=csv`
-   Alternativ, falls die Microsoft-365-Anbindung autorisiert ist, dieselbe Tabelle aus
-   SharePoint (`/s/FlorianBurgData`) lesen.
+1. Master-Sheet lesen. **Maßgebliche Quelle ist die SharePoint-Tabelle** (M365,
+   `/s/FlorianBurgData`) — hier wird gearbeitet:
+   `https://hcfuturists.sharepoint.com/:x:/s/FlorianBurgData/IQBYBWwSJ3wWQ7Q8YqD9TRNWAQfnVY2G2GRMh0ctlTsfH2o?e=TDvq2z`
+   - Lesen geht nur mit autorisierter **Microsoft-365-Anbindung** (MCP via `/mcp`).
+     Ohne diese liefert der Freigabelink **403** (kein anonymer Zugriff).
+   - Ist keine M365-Anbindung verfügbar: Florian um die aktuellen Daten bitten
+     (lokal exportierte/synchronisierte .xlsx-Datei mit Pfad, oder Backlog-Zeilen
+     A/N/O als Text/Screenshot) — **nicht raten**.
+   - Das frühere Google-Sheet (`docs.google.com/.../11s1sb8…/export?format=csv`) ist
+     nur noch ein **veralteter Spiegel** und darf NICHT als Wahrheit dienen.
 2. Nur Backlog-Zeilen mit einer echten `Nr.` betrachten. **Nur dort schätzen, wo N und O
    noch leer sind** (bestehende Einträge nicht überschreiben).
 3. Für jede solche Zeile N und O in Stunden (Komma-Dezimal) schätzen; Ausreißer kurz

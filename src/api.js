@@ -38,13 +38,30 @@ export async function adminListUsers(token) {
   const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
   return parseResponse(res) // { users }
 }
-export async function adminCreateUser(token, { username, password, allowed_categories, is_admin }) {
+// Legt einen Benutzer OHNE Passwort an; die Antwort enthält invite_token, aus
+// dem das Frontend den Einladungslink (?invite=…) baut.
+export async function adminCreateUser(token, { username, allowed_categories, is_admin }) {
   const res = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ username, password, allowed_categories, is_admin }),
+    body: JSON.stringify({ username, allowed_categories, is_admin }),
   })
-  return parseResponse(res)
+  return parseResponse(res) // { id, username, …, invite_token, invite_expires }
+}
+
+// ── Einladung einlösen (Self-Onboarding, ohne Login) ──────────────
+// Beides läuft über den öffentlichen Login-Endpunkt (siehe api/admin/login.js).
+export async function getInvite(inviteToken) {
+  const res = await fetch(`/api/admin/login?invite=${encodeURIComponent(inviteToken)}`)
+  return parseResponse(res) // { username }
+}
+export async function redeemInvite(inviteToken, password) {
+  const res = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invite: inviteToken, password }),
+  })
+  return parseResponse(res) // { token, admin, cats, uid, username }
 }
 export async function adminUpdateUser(token, id, patch) {
   const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {

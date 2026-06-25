@@ -37,6 +37,16 @@ alter table app_users add    column if not exists allowed_categories text[] not 
 alter table app_users add    column if not exists logo text;  -- Firmenlogo als Data-URL (data:image/...;base64,...); wird Beitragenden statt Demo-Logo gezeigt
 alter table app_users drop   column if exists group_id;
 
+-- Self-Onboarding per Einladungslink: Benutzer werden NUR mit Benutzernamen
+-- angelegt (ohne Passwort) und vergeben sich beim ersten Aufruf von
+-- ?invite=TOKEN selbst ein Passwort. Bis dahin ist pw_hash/pw_salt null.
+alter table app_users alter column pw_hash drop not null;
+alter table app_users alter column pw_salt drop not null;
+alter table app_users add    column if not exists invite_token   text;
+alter table app_users add    column if not exists invite_expires timestamptz;
+create unique index if not exists app_users_invite_token_idx
+  on app_users(invite_token) where invite_token is not null;
+
 -- ----------------------------------------------------------------
 -- Produktkategorie + Ersteller auf bestehenden memorials
 -- ----------------------------------------------------------------

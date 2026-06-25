@@ -9,6 +9,7 @@ import {
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
   getSettings, saveSettings, changeOwnPassword,
+  getInvite, redeemInvite,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -19,6 +20,7 @@ import { reviewSystemPrompt, extractReviewText, contributionsContext } from './r
 const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const sessionFromURL = (urlParams.get('session') || '').trim()
+const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding eines neuen Benutzers
 
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
@@ -1430,7 +1432,8 @@ function Dashboard() {
   const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
   const [usersData, setUsersData]     = useState({ users: [] })
-  const [userForm, setUserForm]       = useState({ username: '', password: '', cats: [] })
+  const [userForm, setUserForm]       = useState({ username: '', cats: [] })
+  const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
   const [auditData, setAuditData]     = useState({ entries: [] })
   const [auditLoading, setAuditLoading] = useState(false)
   const [logo, setLogo]               = useState(null)   // eigenes Firmenlogo (Data-URL)
@@ -1745,20 +1748,35 @@ function Dashboard() {
       cats: f.cats.includes(slug) ? f.cats.filter(s => s !== slug) : [...f.cats, slug],
     }))
   }
+  function inviteLink(tok) { return `${window.location.origin}/?invite=${encodeURIComponent(tok)}` }
   async function submitUser() {
     if (!userForm.username.trim()) { setErr('Benutzername erforderlich.'); return }
-    const pwErr = passwordError(userForm.password)
-    if (pwErr) { setErr(pwErr); return }
     setErr(''); setBusy(true)
     try {
-      await adminCreateUser(token, {
+      const u = await adminCreateUser(token, {
         username: userForm.username.trim(),
-        password: userForm.password,
         allowed_categories: userForm.cats,
       })
-      setUserForm({ username: '', password: '', cats: [] })
+      setUserForm({ username: '', cats: [] })
+      if (u.invite_token) setCreatedInvite({ username: u.username, url: inviteLink(u.invite_token) })
       await loadUsers()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  function copyInviteLink(user) {
+    if (!user.invite_token) return
+    navigator.clipboard?.writeText(inviteLink(user.invite_token))
+    setCreatedInvite({ username: user.username, url: inviteLink(user.invite_token) })
+  }
+  async function regenerateInvite(user) {
+    setErr('')
+    try {
+      const d = await adminUpdateUser(token, user.id, { regenerate_invite: true })
+      if (d.invite_token) {
+        navigator.clipboard?.writeText(inviteLink(d.invite_token))
+        setCreatedInvite({ username: user.username, url: inviteLink(d.invite_token) })
+      }
+      await loadUsers()
+    } catch (e) { setErr(e.message) }
   }
   async function saveUserCats(user, slug) {
     const next = (user.allowed_categories || []).includes(slug)
@@ -3339,10 +3357,19 @@ function Dashboard() {
             <div key={u.id} style={{ ...S.card }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, gap:12, flexWrap:'wrap' }}>
                 <div>
-                  <strong style={{ fontSize:15 }}>{u.username}</strong>{u.is_admin && <span style={{ fontSize:11, marginLeft:8, color:'#1d4ed8' }}>Admin</span>}
+                  <strong style={{ fontSize:15 }}>{u.username}</strong>
+                  {u.is_admin && <span style={{ fontSize:11, marginLeft:8, color:'#1d4ed8' }}>Admin</span>}
+                  {!u.has_password && <span style={{ fontSize:11, marginLeft:8, color:'#b45309' }}>Einladung offen</span>}
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
-                  <button className="secondary" onClick={() => resetUserPassword(u)} style={{ fontSize:12, padding:'5px 10px' }}>Passwort</button>
+                  {u.has_password ? (
+                    <button className="secondary" onClick={() => resetUserPassword(u)} style={{ fontSize:12, padding:'5px 10px' }}>Passwort</button>
+                  ) : (
+                    <>
+                      <button className="secondary" onClick={() => copyInviteLink(u)} style={{ fontSize:12, padding:'5px 10px' }}>Link kopieren</button>
+                      <button className="secondary" onClick={() => regenerateInvite(u)} style={{ fontSize:12, padding:'5px 10px' }}>Neuer Link</button>
+                    </>
+                  )}
                   <button className="secondary" onClick={() => removeUser(u)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
                 </div>
               </div>
@@ -3367,21 +3394,28 @@ function Dashboard() {
           {usersData.users.length === 0 && <p style={S.muted}>Noch keine Benutzer.</p>}
         </div>
 
+        {/* Einladungslink des zuletzt angelegten / neu erzeugten Benutzers */}
+        {createdInvite && (
+          <div style={{ ...S.card, marginBottom:24, borderColor:'#bbf7d0', background:'#f0fdf4' }}>
+            <Lbl>Einladungslink für „{createdInvite.username}"</Lbl>
+            <p style={{ fontSize:13, color:'#3f6212', margin:'4px 0 10px' }}>
+              Schicken Sie diesen Link an den Benutzer. Beim ersten Aufruf vergibt er sich selbst ein Passwort. (Der Link ist 14 Tage gültig und wurde in die Zwischenablage kopiert.)
+            </p>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <a href={createdInvite.url} style={{ fontSize:13, wordBreak:'break-all', flex:'1 1 220px' }}>{createdInvite.url}</a>
+              <button className="secondary" onClick={() => { navigator.clipboard?.writeText(createdInvite.url) }} style={{ fontSize:12, padding:'5px 10px' }}>Kopieren</button>
+              <button className="secondary" onClick={() => setCreatedInvite(null)} style={{ fontSize:12, padding:'5px 10px' }}>Schließen</button>
+            </div>
+          </div>
+        )}
+
         {/* Neuer Benutzer */}
         <div style={{ ...S.card }}>
           <Lbl>Neuer Benutzer</Lbl>
-          <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:10 }} />
-          <input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="Passwort" style={{ marginBottom:6 }} />
-          {(() => {
-            const ok = !passwordError(userForm.password)
-            const empty = !userForm.password
-            return (
-              <p style={{ fontSize:12, lineHeight:1.4, marginBottom:12,
-                color: empty ? '#78716c' : (ok ? '#15803d' : '#b91c1c') }}>
-                {empty ? '' : (ok ? '✓ ' : '• ')}{PASSWORD_RULES_TEXT}
-              </p>
-            )
-          })()}
+          <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:6 }} />
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 12px' }}>
+            Kein Passwort nötig: Nach dem Anlegen erhalten Sie einen Einladungslink, über den der Benutzer sich selbst ein Passwort vergibt.
+          </p>
           <Lbl>Erlaubte Produktkategorien</Lbl>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'6px 0 14px' }}>
             {CATEGORY_ORDER.map(slug => {
@@ -3395,7 +3429,7 @@ function Dashboard() {
               )
             })}
           </div>
-          <button onClick={submitUser} disabled={busy || !userForm.username.trim() || !!passwordError(userForm.password)} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
+          <button onClick={submitUser} disabled={busy || !userForm.username.trim()} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
         </div>
       </div>
     </div>
@@ -4434,6 +4468,84 @@ function LegalFooter() {
 }
 
 // ── Haupt-App ─────────────────────────────────────────────────────
+// ── Einladungs-Flow (Aufruf per ?invite=TOKEN) ────────────────────
+// Ein neu angelegter Benutzer vergibt sich hier beim ersten Aufruf selbst ein
+// Passwort. Bei Erfolg wird er direkt eingeloggt und ins Admin-Dashboard
+// weitergeleitet.
+function InviteFlow({ token }) {
+  const [status, setStatus]     = useState('loading') // loading|ready|invalid
+  const [username, setUsername] = useState('')
+  const [pw, setPw]             = useState('')
+  const [pw2, setPw2]           = useState('')
+  const [err, setErr]           = useState('')
+  const [busy, setBusy]         = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    getInvite(token)
+      .then(d => { if (alive) { setUsername(d.username || ''); setStatus('ready') } })
+      .catch(e => { if (alive) { setErr(e.message); setStatus('invalid') } })
+    return () => { alive = false }
+  }, [token])
+
+  async function submit(e) {
+    e.preventDefault()
+    const pErr = passwordError(pw)
+    if (pErr) { setErr(pErr); return }
+    if (pw !== pw2) { setErr('Die beiden Passwörter stimmen nicht überein.'); return }
+    setErr(''); setBusy(true)
+    try {
+      const d = await redeemInvite(token, pw)
+      sessionStorage.setItem('lw_admin_token', d.token)
+      sessionStorage.setItem('lw_admin_auth', JSON.stringify({
+        admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username,
+      }))
+      // Ohne ?invite neu laden – das Dashboard liest den Token aus sessionStorage.
+      window.location.href = '/'
+    } catch (e) { setErr(e.message); setBusy(false) }
+  }
+
+  const card = { width: '100%', maxWidth: 380, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }
+  const wrap = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }
+
+  if (status === 'loading') return <div style={wrap}><div style={card}><p style={{ ...S.muted, margin: 0 }}>Einladung wird geprüft …</p></div></div>
+
+  if (status === 'invalid') return (
+    <div style={wrap}>
+      <div style={card}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Einladung ungültig</h1>
+        <Err msg={err} />
+        <p style={{ ...S.muted, marginTop: 12, marginBottom: 0 }}>Bitte fordern Sie bei Ihrem Administrator einen neuen Einladungslink an.</p>
+      </div>
+    </div>
+  )
+
+  const okPw = !passwordError(pw)
+  return (
+    <div style={wrap}>
+      <form onSubmit={submit} style={card}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Willkommen{username ? `, ${username}` : ''}</h1>
+        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Bitte vergeben Sie ein Passwort für Ihr Konto.</p>
+        <Err msg={err} />
+        <div style={{ marginBottom: 12 }}>
+          <Lbl>Neues Passwort</Lbl>
+          <input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <Lbl>Passwort wiederholen</Lbl>
+          <input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} />
+        </div>
+        <p style={{ fontSize: 12, lineHeight: 1.4, marginBottom: 16, color: !pw ? '#78716c' : (okPw ? '#15803d' : '#b91c1c') }}>
+          {!pw ? '' : (okPw ? '✓ ' : '• ')}{PASSWORD_RULES_TEXT}
+        </p>
+        <button type="submit" disabled={busy || !okPw || pw !== pw2} style={{ width: '100%', padding: 12, fontSize: 15 }}>
+          {busy ? 'Wird gespeichert …' : 'Passwort festlegen & anmelden'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 export default function App() {
   const [hash, setHash] = useState(() => window.location.hash)
   useEffect(() => {
@@ -4452,7 +4564,9 @@ export default function App() {
         @keyframes lw-spin { to{transform:rotate(360deg)} }
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-      {codeFromURL ? <ContributorFlow code={codeFromURL} /> : <Dashboard />}
+      {inviteFromURL ? <InviteFlow token={inviteFromURL} />
+        : codeFromURL ? <ContributorFlow code={codeFromURL} />
+        : <Dashboard />}
       <LegalFooter />
     </>
   )

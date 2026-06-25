@@ -16,6 +16,7 @@
 const crypto = require('crypto')
 
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000 // 12 Stunden
+const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000 // Einladungslink 14 Tage gültig
 
 function getConfig() {
   return {
@@ -139,6 +140,14 @@ function validatePasswordPolicy(password) {
   return { ok: true }
 }
 
+// ── Einladungs-Token (Self-Onboarding) ────────────────────────────
+// Kryptografisch zufälliger, URL-sicherer Token. Wird bei der Neuanlage eines
+// Benutzers (ohne Passwort) erzeugt und in app_users.invite_token gespeichert;
+// der Benutzer vergibt sich darüber (?invite=TOKEN) sein Passwort.
+function generateInviteToken() {
+  return base64url(crypto.randomBytes(24))
+}
+
 // ── Passwort-Hashing (scrypt, ohne externe Abhängigkeit) ──────────
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -158,4 +167,5 @@ module.exports = {
   checkAuth, verifyCredentials, issueToken, verifyToken, isConfigured,
   canAccessCategory, hashPassword, verifyPassword,
   validatePasswordPolicy, PASSWORD_RULES_TEXT,
+  generateInviteToken, INVITE_TTL_MS,
 }

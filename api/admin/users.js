@@ -8,12 +8,15 @@
 //
 // Benutzerverwaltung (nur Admin):
 //   GET    /api/admin/users                       → { users: [...] }
-//   POST   /api/admin/users   { username, password, allowed_categories, is_admin? }
-//   PATCH  /api/admin/users?id=…  { username?, allowed_categories?, is_admin?, password? }
+//   POST   /api/admin/users   { username, allowed_categories, is_admin? }
+//            → legt den Benutzer OHNE Passwort an und gibt einen Einladungs-Token
+//              zurück (invite_token). Der Benutzer vergibt sich das Passwort selbst
+//              über ?invite=TOKEN (eingelöst in api/admin/login.js).
+//   PATCH  /api/admin/users?id=…  { username?, allowed_categories?, is_admin?, password?, regenerate_invite? }
 //   DELETE /api/admin/users?id=…
 
 const { createClient } = require('@supabase/supabase-js')
-const { checkAuth, hashPassword, validatePasswordPolicy, verifyPassword } = require('../_lib/auth')
+const { checkAuth, hashPassword, validatePasswordPolicy, verifyPassword, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { isValidCategory } = require('../_lib/categories')
 const { audit } = require('../_lib/audit')
 
@@ -117,32 +120,48 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('app_users')
-        .select('id, username, allowed_categories, is_admin, created_at')
+        .select('id, username, allowed_categories, is_admin, created_at, pw_hash, invite_token, invite_expires')
         .order('created_at', { ascending: true })
       if (error) throw error
-      return res.json({ users: data || [] })
+      // Passwort-Hash NIE ausliefern; stattdessen nur ableiten, ob schon ein
+      // Passwort gesetzt ist. Der Einladungs-Token wird nur für noch offene
+      // (passwortlose) Einladungen mitgegeben, damit der Admin den Link erneut
+      // kopieren kann.
+      const users = (data || []).map(u => ({
+        id: u.id,
+        username: u.username,
+        allowed_categories: u.allowed_categories,
+        is_admin: u.is_admin,
+        created_at: u.created_at,
+        has_password: Boolean(u.pw_hash),
+        invite_token: u.pw_hash ? null : u.invite_token,
+        invite_expires: u.pw_hash ? null : u.invite_expires,
+      }))
+      return res.json({ users })
     }
 
     if (req.method === 'POST') {
-      const { username, password, allowed_categories, is_admin } = req.body || {}
+      const { username, allowed_categories, is_admin } = req.body || {}
       if (!username || !String(username).trim()) return res.status(400).json({ error: 'Benutzername fehlt.' })
-      const pol = validatePasswordPolicy(password)
-      if (!pol.ok) return res.status(400).json({ error: pol.error })
-      const { hash, salt } = hashPassword(password)
+      // Kein Passwort bei der Anlage: Es wird ein Einladungs-Token erzeugt, über
+      // den sich der Benutzer beim ersten Aufruf selbst ein Passwort vergibt.
+      const invite_token = generateInviteToken()
+      const invite_expires = new Date(Date.now() + INVITE_TTL_MS).toISOString()
       const { data, error } = await supabase.from('app_users')
         .insert({
           username: String(username).trim(),
-          pw_hash: hash, pw_salt: salt,
+          pw_hash: null, pw_salt: null,
+          invite_token, invite_expires,
           allowed_categories: sanitizeCategories(allowed_categories),
           is_admin: Boolean(is_admin),
         })
-        .select('id, username, allowed_categories, is_admin, created_at').single()
+        .select('id, username, allowed_categories, is_admin, created_at, invite_token, invite_expires').single()
       if (error) {
         if (error.code === '23505') return res.status(409).json({ error: 'Benutzername bereits vergeben.' })
         throw error
       }
       await audit(req, { actor: req.auth, action: 'user.create', target: data.id, detail: { username: data.username, is_admin: data.is_admin } })
-      return res.json(data)
+      return res.json(data) // enthält invite_token für den Einladungslink
     }
 
     if (req.method === 'PATCH') {
@@ -157,17 +176,29 @@ module.exports = async function handler(req, res) {
         if (!pol.ok) return res.status(400).json({ error: pol.error })
         const { hash, salt } = hashPassword(req.body.password)
         patch.pw_hash = hash; patch.pw_salt = salt
+        // Mit gesetztem Passwort wird eine noch offene Einladung entwertet.
+        patch.invite_token = null; patch.invite_expires = null
+      }
+      // Neuen Einladungslink erzeugen (z. B. wenn der alte abgelaufen ist). Setzt
+      // das Konto wieder in den passwortlosen Einladungszustand zurück.
+      if (req.body.regenerate_invite) {
+        patch.invite_token = generateInviteToken()
+        patch.invite_expires = new Date(Date.now() + INVITE_TTL_MS).toISOString()
+        patch.pw_hash = null; patch.pw_salt = null
       }
       const { error } = await supabase.from('app_users').update(patch).eq('id', id)
       if (error) {
         if (error.code === '23505') return res.status(409).json({ error: 'Benutzername bereits vergeben.' })
         throw error
       }
-      // Geänderte Felder protokollieren – aber NIE Passwort-Material.
-      const changed = Object.keys(patch).filter(k => k !== 'pw_hash' && k !== 'pw_salt')
+      // Geänderte Felder protokollieren – aber NIE Passwort-/Token-Material.
+      const changed = Object.keys(patch).filter(k => !['pw_hash', 'pw_salt', 'invite_token', 'invite_expires'].includes(k))
       if (patch.pw_hash) changed.push('password')
+      if (req.body.regenerate_invite) changed.push('invite')
       await audit(req, { actor: req.auth, action: 'user.update', target: id, detail: { changed } })
-      return res.json({ ok: true })
+      // Bei neu erzeugter Einladung den Token zurückgeben, damit der Admin den
+      // Link sofort kopieren kann.
+      return res.json(req.body.regenerate_invite ? { ok: true, invite_token: patch.invite_token, invite_expires: patch.invite_expires } : { ok: true })
     }
 
     if (req.method === 'DELETE') {
