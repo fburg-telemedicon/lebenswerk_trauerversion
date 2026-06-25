@@ -269,7 +269,33 @@ const docxSection = (children, type) => ({
   children,
 })
 
-async function downloadStructuredDocx(filename, book, contributors = []) {
+// Wandelt eine Data-URL (data:image/…;base64,…) in rohe Bytes (für docx ImageRun).
+function dataUrlToUint8(dataUrl) {
+  const bin = atob(String(dataUrl).slice(String(dataUrl).indexOf(',') + 1))
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return arr
+}
+// Bildtyp aus einer Data-URL (png, jpeg, gif, webp, svg+xml …).
+function imageKindOf(dataUrl) {
+  const m = /^data:image\/([a-z0-9.+-]+)/i.exec(dataUrl || '')
+  return (m ? m[1] : '').toLowerCase()
+}
+// Lädt eine Logo-Data-URL und liefert Typ + natürliche Maße (für Export-Skalierung).
+// null, wenn keine (gültige) Bild-Data-URL.
+async function prepareLogoForExport(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return null
+  const dim = await new Promise(res => {
+    const im = new Image()
+    im.onload = () => res({ w: im.naturalWidth || 0, h: im.naturalHeight || 0 })
+    im.onerror = () => res(null)
+    im.src = dataUrl
+  })
+  if (!dim || !dim.w || !dim.h) return null
+  return { dataUrl, kind: imageKindOf(dataUrl), w: dim.w, h: dim.h }
+}
+
+async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null) {
   const bt = uiText(book.language)
   const sections = []
 
@@ -328,6 +354,17 @@ async function downloadStructuredDocx(filename, book, contributors = []) {
   }
   endChildren.push(new Paragraph({ spacing: { before: tw(2), after: 120 },
     children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, font: DOCX_FONT, size: 20, bold: true, color: '78716c' })] }))
+  // Logo des Buch-Inhabers zwischen Hinweis-Titel und Hinweis-Text. Nur Raster-
+  // formate (docx ImageRun kann kein SVG/WebP) – sonst still überspringen.
+  const docxLogo = await prepareLogoForExport(logoDataUrl)
+  if (docxLogo && /^(png|jpe?g|gif)$/.test(docxLogo.kind)) {
+    const w = Math.min(150, docxLogo.w)
+    const h = Math.round(w * docxLogo.h / docxLogo.w)
+    try {
+      endChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 80, after: 140 },
+        children: [new ImageRun({ data: dataUrlToUint8(docxLogo.dataUrl), transformation: { width: w, height: h } })] }))
+    } catch { /* defektes Logo darf den Export nicht abbrechen */ }
+  }
   endChildren.push(new Paragraph({ spacing: { after: 200 },
     children: [new TextRun({ text: BOOK_DISCLAIMER, font: DOCX_FONT, size: 18, italics: true, color: '78716c' })] }))
   sections.push(docxSection(endChildren, SectionType.NEXT_PAGE))
@@ -377,7 +414,7 @@ const PDF_PAGE_W = 154   // mm – Einzelseite inkl. Beschnitt
 const PDF_PAGE_H = 216   // mm
 const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
 
-async function downloadPrintPdf(filename, book, contributors = []) {
+async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null) {
   const bt = uiText(book.language)
   const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H] })
   let page = 1 // jsPDF hat Seite 1 bereits angelegt; recto = ungerade
@@ -483,6 +520,18 @@ async function downloadPrintPdf(filename, book, contributors = []) {
     y += 8
   }
   flow(BOOK_DISCLAIMER_TITLE, { size: 11, style: 'bold', color: [120, 113, 108], gapAfter: 0.5 })
+  // Logo des Buch-Inhabers zwischen Hinweis-Titel und Hinweis-Text (zentriert).
+  // jsPDF kann nur PNG/JPEG – andere Formate still überspringen.
+  const pdfLogo = await prepareLogoForExport(logoDataUrl)
+  if (pdfLogo && /^(png|jpe?g)$/.test(pdfLogo.kind)) {
+    const wmm = 40
+    const hmm = wmm * pdfLogo.h / pdfLogo.w
+    if (y + hmm > PDF_PAGE_H - MB) { newPage(); y = MT }
+    try {
+      doc.addImage(pdfLogo.dataUrl, pdfLogo.kind === 'png' ? 'PNG' : 'JPEG', (PDF_PAGE_W - wmm) / 2, y, wmm, hmm)
+      y += hmm + 4
+    } catch { /* defektes Logo darf den Export nicht abbrechen */ }
+  }
   flow(BOOK_DISCLAIMER, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
 
   downloadBlob(filename, doc.output('blob'))
@@ -2471,7 +2520,7 @@ function Dashboard() {
     if (!data) return
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
-      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions)
+      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo)
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data)
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
@@ -2484,7 +2533,7 @@ function Dashboard() {
     setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      await downloadPrintPdf(filename, data, contributions)
+      await downloadPrintPdf(filename, data, contributions, selected.owner_logo)
     } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
   }
 
@@ -4391,6 +4440,9 @@ function Dashboard() {
         {!busy && data && !editMode && (
           <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4' }}>
             <p style={{ fontSize:12, fontWeight:700, color:'#78716c', margin:'0 0 6px' }}>{BOOK_DISCLAIMER_TITLE}</p>
+            {selected?.owner_logo && (
+              <img src={selected.owner_logo} alt="Logo" style={{ maxHeight:64, maxWidth:'60%', objectFit:'contain', display:'block', margin:'8px 0 10px' }} />
+            )}
             <p style={{ fontSize:12, color:'#a8a29e', fontStyle:'italic', lineHeight:1.6, margin:0 }}>{BOOK_DISCLAIMER}</p>
           </div>
         )}

@@ -178,10 +178,14 @@ module.exports = async function handler(req, res) {
       // null bei Büchern, die der Env-Superadmin angelegt hat.
       const ownerIds = [...new Set(memorials.map(m => m.owner_user).filter(Boolean))]
       if (ownerIds.length) {
-        const { data: owners } = await supabase.from('app_users').select('id, username').in('id', ownerIds)
-        const nameById = {}
-        for (const u of owners || []) nameById[u.id] = u.username
-        for (const m of memorials) m.owner_username = m.owner_user ? (nameById[m.owner_user] || null) : null
+        const { data: owners } = await supabase.from('app_users').select('id, username, logo').in('id', ownerIds)
+        const byId = {}
+        for (const u of owners || []) byId[u.id] = u
+        for (const m of memorials) {
+          const o = m.owner_user ? byId[m.owner_user] : null
+          m.owner_username = o?.username || null
+          m.owner_logo = o?.logo || null   // Firmenlogo des Buch-Inhabers (Data-URL) – fürs Buch-Impressum
+        }
       }
 
       return res.json(memorials)
