@@ -1432,7 +1432,7 @@ function Dashboard() {
   const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
   const [usersData, setUsersData]     = useState({ users: [] })
-  const [userForm, setUserForm]       = useState({ username: '', cats: [] })
+  const [userForm, setUserForm]       = useState({ username: '', cats: [], demo: true })
   const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
   const [auditData, setAuditData]     = useState({ entries: [] })
   const [auditLoading, setAuditLoading] = useState(false)
@@ -1756,9 +1756,10 @@ function Dashboard() {
       const u = await adminCreateUser(token, {
         username: userForm.username.trim(),
         allowed_categories: userForm.cats,
+        demo: userForm.demo,
       })
-      setUserForm({ username: '', cats: [] })
-      if (u.invite_token) setCreatedInvite({ username: u.username, url: inviteLink(u.invite_token) })
+      setUserForm({ username: '', cats: [], demo: true })
+      if (u.invite_token) setCreatedInvite({ username: u.username, url: inviteLink(u.invite_token), demo: u.demo, demoError: u.demo_error })
       await loadUsers()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -3401,6 +3402,12 @@ function Dashboard() {
             <p style={{ fontSize:13, color:'#3f6212', margin:'4px 0 10px' }}>
               Schicken Sie diesen Link an den Benutzer. Beim ersten Aufruf vergibt er sich selbst ein Passwort. (Der Link ist 14 Tage gültig und wurde in die Zwischenablage kopiert.)
             </p>
+            {createdInvite.demo && (
+              <p style={{ fontSize:12, color:'#3f6212', margin:'0 0 10px' }}>✓ {createdInvite.demo.memorials} Demo-Bücher mit {createdInvite.demo.contributions} Beiträgen angelegt.</p>
+            )}
+            {createdInvite.demoError && (
+              <p style={{ fontSize:12, color:'#b45309', margin:'0 0 10px' }}>Hinweis: Demo-Daten konnten nicht angelegt werden ({createdInvite.demoError}).</p>
+            )}
             <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
               <a href={createdInvite.url} style={{ fontSize:13, wordBreak:'break-all', flex:'1 1 220px' }}>{createdInvite.url}</a>
               <button className="secondary" onClick={() => { navigator.clipboard?.writeText(createdInvite.url) }} style={{ fontSize:12, padding:'5px 10px' }}>Kopieren</button>
@@ -3429,7 +3436,14 @@ function Dashboard() {
               )
             })}
           </div>
-          <button onClick={submitUser} disabled={busy || !userForm.username.trim()} style={{ fontSize:14, padding:'9px 16px' }}>Benutzer anlegen</button>
+          <label style={{ display:'flex', alignItems:'flex-start', gap:8, margin:'4px 0 16px', cursor:'pointer', fontSize:14 }}>
+            <input type="checkbox" checked={userForm.demo} onChange={e => setUserForm({ ...userForm, demo: e.target.checked })} style={{ marginTop:3 }} />
+            <span>
+              <strong>Demo-Daten anreichern</strong>
+              <span style={{ ...S.muted, display:'block', fontSize:12 }}>Legt dem Benutzer 3 Beispiel-Trauerbücher mit je 10 Beitragenden an; das erste Buch ist bereits in beiden Varianten produziert.</span>
+            </span>
+          </label>
+          <button onClick={submitUser} disabled={busy || !userForm.username.trim()} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? 'Wird angelegt …' : 'Benutzer anlegen'}</button>
         </div>
       </div>
     </div>

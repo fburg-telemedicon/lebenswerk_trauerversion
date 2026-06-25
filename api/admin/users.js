@@ -19,6 +19,7 @@ const { createClient } = require('@supabase/supabase-js')
 const { checkAuth, hashPassword, validatePasswordPolicy, verifyPassword, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { isValidCategory } = require('../_lib/categories')
 const { audit } = require('../_lib/audit')
+const { seedDemoData } = require('../_lib/demo-seed')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -141,18 +142,19 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { username, allowed_categories, is_admin } = req.body || {}
+      const { username, allowed_categories, is_admin, demo } = req.body || {}
       if (!username || !String(username).trim()) return res.status(400).json({ error: 'Benutzername fehlt.' })
       // Kein Passwort bei der Anlage: Es wird ein Einladungs-Token erzeugt, über
       // den sich der Benutzer beim ersten Aufruf selbst ein Passwort vergibt.
       const invite_token = generateInviteToken()
       const invite_expires = new Date(Date.now() + INVITE_TTL_MS).toISOString()
+      const cats = sanitizeCategories(allowed_categories)
       const { data, error } = await supabase.from('app_users')
         .insert({
           username: String(username).trim(),
           pw_hash: null, pw_salt: null,
           invite_token, invite_expires,
-          allowed_categories: sanitizeCategories(allowed_categories),
+          allowed_categories: cats,
           is_admin: Boolean(is_admin),
         })
         .select('id, username, allowed_categories, is_admin, created_at, invite_token, invite_expires').single()
@@ -161,7 +163,22 @@ module.exports = async function handler(req, res) {
         throw error
       }
       await audit(req, { actor: req.auth, action: 'user.create', target: data.id, detail: { username: data.username, is_admin: data.is_admin } })
-      return res.json(data) // enthält invite_token für den Einladungslink
+
+      // Demo-Daten anreichern (Default: ja). Bücher unter einer Kategorie, die
+      // der Benutzer auch sieht – bevorzugt 'memorial' (Trauerbuch). Ein
+      // Fehler beim Seeden darf die Benutzeranlage NICHT scheitern lassen.
+      const result = { ...data }
+      if (demo !== false) {
+        const seedCat = cats.includes('memorial') ? 'memorial' : (cats[0] || 'memorial')
+        try {
+          result.demo = await seedDemoData(supabase, data.id, seedCat)
+          await audit(req, { actor: req.auth, action: 'user.demo_seed', target: data.id, detail: result.demo })
+        } catch (e) {
+          console.error('/api/admin/users demo-seed:', e)
+          result.demo_error = e.message
+        }
+      }
+      return res.json(result) // enthält invite_token + ggf. demo-Ergebnis
     }
 
     if (req.method === 'PATCH') {

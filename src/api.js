@@ -40,13 +40,13 @@ export async function adminListUsers(token) {
 }
 // Legt einen Benutzer OHNE Passwort an; die Antwort enthält invite_token, aus
 // dem das Frontend den Einladungslink (?invite=…) baut.
-export async function adminCreateUser(token, { username, allowed_categories, is_admin }) {
+export async function adminCreateUser(token, { username, allowed_categories, is_admin, demo }) {
   const res = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ username, allowed_categories, is_admin }),
+    body: JSON.stringify({ username, allowed_categories, is_admin, demo }),
   })
-  return parseResponse(res) // { id, username, …, invite_token, invite_expires }
+  return parseResponse(res) // { id, username, …, invite_token, invite_expires, demo? }
 }
 
 // ── Einladung einlösen (Self-Onboarding, ohne Login) ──────────────
