@@ -86,10 +86,51 @@ function contributorGenderRule(contributorGender) {
 // Wird in jeden Interview-Prompt eingebunden (memorial + generische Kategorien).
 const THIRD_PARTY_RULE = 'Datenminimierung (Datenschutz): Frage nicht gezielt nach identifizierenden oder sensiblen Angaben zu WEITEREN lebenden Personen – etwa vollständige Namen, Anschriften, Kontaktdaten, Gesundheits- oder Glaubensangaben Dritter. Wenn die befragte Person so etwas von sich aus erzählt, ist das in Ordnung; hake dort aber nicht nach und führe das Gespräch zur eigentlichen Person bzw. zum Anlass zurück.'
 
+// ── Fragenkatalog-Modus ───────────────────────────────────────────
+// Ist dem Buch ein Katalog zugeordnet (memorial.catalog = { name, chapters }),
+// führt die KI das Interview an ihm entlang statt frei zu fragen. x
+// (memorial.followups) ist die Obergrenze an Nachfragen pro Frage.
+function catalogFollowups(v) {
+  const n = parseInt(v, 10)
+  if (!Number.isFinite(n) || n < 0) return 7
+  return Math.min(n, 30)
+}
+
+function catalogBlock(memorial) {
+  const cat = memorial && memorial.catalog
+  const chapters = cat && Array.isArray(cat.chapters) ? cat.chapters : []
+  if (chapters.length === 0) return null
+  const lines = []
+  chapters.forEach((ch, ci) => {
+    lines.push(`Kapitel ${ci + 1}: ${(ch.title || '').trim()}`.trim())
+    ;(Array.isArray(ch.questions) ? ch.questions : []).forEach((q, qi) => lines.push(`  ${qi + 1}. ${q}`))
+  })
+  return { x: catalogFollowups(memorial.followups), name: cat.name || '', text: lines.join('\n') }
+}
+
+// Die Regel-Bullets für den Katalog-Modus (ersetzen die freien „Themenfeld"-
+// Bullets). Werden zwischen die übrigen Interview-Regeln eingefügt.
+function catalogRules(cb, name) {
+  return `- Du folgst einem festen FRAGENKATALOG. Arbeite die Kapitel und Fragen GENAU in dieser Reihenfolge ab (Kapitel für Kapitel, Frage für Frage).
+- Formuliere jede Katalogfrage natürlich und warm ins Gespräch eingebettet – nicht wörtlich ablesen, aber die Intention der Frage treffen.
+- Stelle zu jeder Antwort HÖCHSTENS ${cb.x} vertiefende Nachfragen (einzeln, eine pro Nachricht), um konkrete Geschichten und Details herauszukitzeln. Danach gehst du zur nächsten Katalogfrage.
+- Sobald ${name} in IRGENDEINER Formulierung signalisiert, weitermachen zu wollen (z. B. „weiter", „nächste Frage", „das reicht", „lass uns weitergehen"), springe SOFORT und ohne weitere Nachfrage zur nächsten Katalogfrage.
+- Verfolge den Fortschritt anhand des Gesprächsverlaufs. Erfinde KEINE Fragen außerhalb des Katalogs.
+- Wenn ALLE Fragen ALLER Kapitel beantwortet sind, schließe das Gespräch herzlich ab (bedanke dich und weise darauf hin, dass alle Fragen durch sind) und stelle KEINE neue Frage mehr.
+
+FRAGENKATALOG${cb.name ? ` „${cb.name}"` : ''}:
+${cb.text}`
+}
+
 function memorialInterview(memorial, name, rel, address, contributorGender) {
   const g = genderNote(memorial)
   const addr = addressRule(address)
   const gen = contributorGenderRule(contributorGender)
+  const cb = catalogBlock(memorial)
+  const flow = cb
+    ? catalogRules(cb, name)
+    : `- WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
+- Variiere die Themenfelder bewusst: erste Begegnung, Kindheit, Schule, Familie, Beruf, Hobbies, Reisen, Charakterzüge, kleine Marotten, Lieblingsorte, besondere Momente, Werte, was die Person bedeutete, Abschied — wähle pro neuer Frage ein anderes Feld.`
   return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}), der/die ${memorial.name}${g} kannte.
 
 Ziel: Wertvolle persönliche Erinnerungen für ein Gedenkbuch sammeln.
@@ -101,8 +142,7 @@ Regeln:
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - Sei einfühlsam, respektiere die Trauer
 - ${THIRD_PARTY_RULE}
-- WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
-- Variiere die Themenfelder bewusst: erste Begegnung, Kindheit, Schule, Familie, Beruf, Hobbies, Reisen, Charakterzüge, kleine Marotten, Lieblingsorte, besondere Momente, Werte, was die Person bedeutete, Abschied — wähle pro neuer Frage ein anderes Feld.
+${flow}
 - Schreibe auf Deutsch`
 }
 
@@ -275,6 +315,11 @@ function makeInterview(p) {
     const g = genderNote(memorial)
     const addr = addressRule(address)
     const gen = contributorGenderRule(contributorGender)
+    const cb = catalogBlock(memorial)
+    const flow = cb
+      ? catalogRules(cb, name)
+      : `- WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
+- Variiere die Themenfelder bewusst: ${p.themeFields} — wähle pro neuer Frage ein anderes Feld.`
     return `Du bist ${p.interviewRole}. Du sprichst mit ${name} (${rel})${p.relationClause(memorial, g)}.
 
 Ziel: ${p.interviewGoal}
@@ -286,8 +331,7 @@ Regeln:
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - ${p.empathyRule}
 - ${THIRD_PARTY_RULE}
-- WICHTIG: Bohre nicht zu tief. Maximal EINE Nachfrage zu einer Antwort. Danach wechsle zu einem völlig neuen, thematisch unabhängigen Themenfeld — kein weiterer Anknüpfungspunkt an die vorherige Antwort.
-- Variiere die Themenfelder bewusst: ${p.themeFields} — wähle pro neuer Frage ein anderes Feld.
+${flow}
 - Schreibe auf Deutsch`
   }
 }

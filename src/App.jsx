@@ -8,6 +8,7 @@ import {
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
+  adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
   getSettings, saveSettings, changeOwnPassword,
   getInvite, redeemInvite,
 } from './api.js'
@@ -597,6 +598,7 @@ const EMPTY_CREATE = {
   productCategory: DEFAULT_CATEGORY, intake: {},
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },
+  catalogId: '', followups: 7,
 }
 
 function qrCodeUrl(text, size = 240) {
@@ -1009,6 +1011,16 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
               <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginTop:12, fontSize:14, lineHeight:1.6, textAlign:'left' }}>
                 {transcript}
               </div>
+            )}
+            {memorial.catalog && micState === 'idle' && (
+              <button
+                onClick={() => sendAnswer(({ de:'Weiter zur nächsten Frage, bitte.', en:'Please move on to the next question.', pl:'Przejdźmy do następnego pytania.' })[lang] || 'Weiter zur nächsten Frage, bitte.')}
+                disabled={aiLoading}
+                className="secondary"
+                style={{ marginTop:16, fontSize:13, padding:'8px 16px' }}
+              >
+                {({ de:'Nächste Frage →', en:'Next question →', pl:'Następne pytanie →' })[lang] || 'Nächste Frage →'}
+              </button>
             )}
           </div>
         )}
@@ -1492,6 +1504,8 @@ function Dashboard() {
   const [pwErr, setPwErr]             = useState('')
   const [pwSaved, setPwSaved]         = useState(false)
   const [createdCode, setCreatedCode] = useState('')
+  const [catalogs, setCatalogs]       = useState([])    // Fragenkataloge (Auswahl beim Anlegen + Admin-Verwaltung)
+  const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [genPct, setGenPct]           = useState({}) // { book_v1: 42 } – Fortschritt in %
@@ -1576,8 +1590,56 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       setMemorials(d); setView('list')
+      loadCatalogs(t)   // Kataloge im Hintergrund laden (für Auswahl beim Anlegen)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
+  }
+
+  // Fragenkataloge laden (für die Auswahl beim Buch-Anlegen und die Verwaltung).
+  // Fehler bewusst still – die Liste ist optional, ohne sie überlegt die KI selbst.
+  async function loadCatalogs(t = token) {
+    try {
+      const d = await adminListCatalogs(t)
+      setCatalogs(d.catalogs || [])
+    } catch { /* still */ }
+  }
+
+  // ── Fragenkatalog-Editor (nur Admin) ──
+  function newCatalog() { setErr(''); setCatalogForm({ id: null, name: '', cats: [], chapters: [{ title: '', questions: [''] }] }) }
+  function editCatalog(c) {
+    setErr('')
+    setCatalogForm({
+      id: c.id, name: c.name || '', cats: [...(c.product_categories || [])],
+      chapters: (c.chapters && c.chapters.length)
+        ? c.chapters.map(ch => ({ title: ch.title || '', questions: (ch.questions && ch.questions.length) ? [...ch.questions] : [''] }))
+        : [{ title: '', questions: [''] }],
+    })
+  }
+  async function saveCatalog() {
+    const cf = catalogForm; if (!cf) return
+    const payload = {
+      name: cf.name.trim(),
+      product_categories: cf.cats,
+      chapters: cf.chapters
+        .map(ch => ({ title: ch.title.trim(), questions: ch.questions.map(q => q.trim()).filter(Boolean) }))
+        .filter(ch => ch.title || ch.questions.length),
+    }
+    if (!payload.name) { setErr('Bitte einen Namen für den Katalog vergeben.'); return }
+    setBusy(true); setErr('')
+    try {
+      if (cf.id) await adminUpdateCatalog(token, cf.id, payload)
+      else await adminCreateCatalog(token, payload)
+      setCatalogForm(null)
+      await loadCatalogs()
+    } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+  async function removeCatalog(c) {
+    if (!window.confirm(`Fragenkatalog „${c.name}" löschen? Bücher, die ihn nutzen, fallen auf den KI-Standardmodus zurück.`)) return
+    setBusy(true); setErr('')
+    try { await adminDeleteCatalog(token, c.id); await loadCatalogs() }
+    catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
   }
 
   async function openMemorial(memorial) {
@@ -1721,6 +1783,8 @@ function Dashboard() {
         languages: createForm.languages?.length ? createForm.languages : [DEFAULT_LANGUAGE],
         note: createForm.note?.trim() || null,
         pickupAddress: createForm.pickupAddress,
+        catalogId: createForm.catalogId || null,
+        followups: createForm.followups,
       })
       setCreatedCode(code)
       setView('created')
@@ -2970,6 +3034,9 @@ function Dashboard() {
           {auth.admin && (
             <button className="secondary" onClick={() => { loadAudit(); setErr(''); setView('audit') }} style={{ fontSize: 13, padding: '7px 14px' }}>Audit-Log</button>
           )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>Fragenkataloge</button>
+          )}
           {myUid && (
             <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
           )}
@@ -3284,6 +3351,40 @@ function Dashboard() {
             ))}
           </div>
         </div>
+        {(() => {
+          const avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
+          if (avail.length === 0) return null
+          return (
+            <div style={{ marginBottom: 24 }}>
+              <Lbl>Fragenkatalog</Lbl>
+              <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
+                Standard: die KI überlegt sich die Interviewfragen selbst. Alternativ führt sie das Interview entlang eines vordefinierten Katalogs.
+              </p>
+              <select
+                value={createForm.catalogId}
+                onChange={e => setCreateForm({ ...createForm, catalogId: e.target.value })}
+                style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
+              >
+                <option value="">KI überlegt selbst (Standard)</option>
+                {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {createForm.catalogId && (
+                <div style={{ marginTop:12 }}>
+                  <Lbl>Nachfragen pro Frage (max.)</Lbl>
+                  <input
+                    type="number" min={0} max={30} step={1}
+                    value={createForm.followups}
+                    onChange={e => { const v = e.target.value; setCreateForm({ ...createForm, followups: v === '' ? '' : Math.max(0, Math.min(30, parseInt(v, 10) || 0)) }) }}
+                    style={{ width:120 }}
+                  />
+                  <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                    Wie viele vertiefende Nachfragen die KI höchstens zu jeder Katalogfrage stellt. Der Beitragende kann jederzeit „weiter" sagen. Standard: 7.
+                  </p>
+                </div>
+              )}
+            </div>
+          )
+        })()}
         {createForm.productCategory === 'memorial' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Einführungsvideo</Lbl>
@@ -3581,6 +3682,107 @@ function Dashboard() {
           </label>
           <button onClick={submitUser} disabled={busy || !userForm.username.trim()} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? 'Wird angelegt …' : 'Benutzer anlegen'}</button>
         </div>
+      </div>
+    </div>
+  )
+
+  // ── FRAGENKATALOGE (nur Admin) ──
+  if (view === 'catalogs') return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 760, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => { setCatalogForm(null); setView('list') }} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Fragenkataloge</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
+          Vordefinierte Kataloge aus Kapiteln und Fragen. Manager wählen sie beim Anlegen eines Buchs (nur für passende Produktkategorien); die KI führt das Interview dann daran entlang.
+        </p>
+        <Err msg={err} />
+
+        {catalogForm ? (() => {
+          const cf = catalogForm
+          const setCf         = patch      => setCatalogForm(f => ({ ...f, ...patch }))
+          const setChapter    = (ci, patch)=> setCatalogForm(f => { const chapters=[...f.chapters]; chapters[ci]={...chapters[ci],...patch}; return { ...f, chapters } })
+          const setQuestion   = (ci,qi,val)=> setCatalogForm(f => { const chapters=[...f.chapters]; const questions=[...chapters[ci].questions]; questions[qi]=val; chapters[ci]={...chapters[ci],questions}; return { ...f, chapters } })
+          const addQuestion   = ci         => setCatalogForm(f => { const chapters=[...f.chapters]; chapters[ci]={...chapters[ci],questions:[...chapters[ci].questions,'']}; return { ...f, chapters } })
+          const removeQuestion= (ci,qi)    => setCatalogForm(f => { const chapters=[...f.chapters]; const questions=chapters[ci].questions.filter((_,i)=>i!==qi); chapters[ci]={...chapters[ci],questions:questions.length?questions:['']}; return { ...f, chapters } })
+          const addChapter    = ()         => setCatalogForm(f => ({ ...f, chapters:[...f.chapters,{title:'',questions:['']}] }))
+          const removeChapter = ci         => setCatalogForm(f => { const chapters=f.chapters.filter((_,i)=>i!==ci); return { ...f, chapters: chapters.length?chapters:[{title:'',questions:['']}] } })
+          const toggleCat     = slug       => setCatalogForm(f => ({ ...f, cats: f.cats.includes(slug)?f.cats.filter(s=>s!==slug):[...f.cats,slug] }))
+          return (
+            <div style={{ ...S.card, marginBottom:24 }}>
+              <Lbl>{cf.id ? 'Katalog bearbeiten' : 'Neuer Katalog'}</Lbl>
+              <input value={cf.name} onChange={e=>setCf({ name:e.target.value })} placeholder="Name des Katalogs" style={{ marginBottom:14 }} />
+              <Lbl>Produktkategorien</Lbl>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'6px 0 16px' }}>
+                {CATEGORY_ORDER.map(slug => {
+                  const on = cf.cats.includes(slug)
+                  return (
+                    <span key={slug} onClick={()=>toggleCat(slug)}
+                      style={{ cursor:'pointer', fontSize:12, padding:'5px 10px', borderRadius:999, border:'1px solid',
+                        borderColor: on?'#1c1917':'#e7e5e4', background: on?'#1c1917':'#fff', color: on?'#fafaf9':'#78716c' }}>
+                      {CATEGORIES[slug].label}
+                    </span>
+                  )
+                })}
+              </div>
+              {cf.chapters.map((ch, ci) => (
+                <div key={ci} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:12, marginBottom:12 }}>
+                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
+                    <span style={{ fontSize:12, color:'#78716c', fontWeight:600, whiteSpace:'nowrap' }}>Kapitel {ci+1}</span>
+                    <input value={ch.title} onChange={e=>setChapter(ci,{ title:e.target.value })} placeholder="Kapitel-Titel" style={{ flex:1 }} />
+                    <button className="secondary" onClick={()=>removeChapter(ci)} title="Kapitel entfernen" style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>✕</button>
+                  </div>
+                  {ch.questions.map((q, qi) => (
+                    <div key={qi} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6, marginLeft:12 }}>
+                      <span style={{ fontSize:12, color:'#a8a29e', whiteSpace:'nowrap' }}>{qi+1}.</span>
+                      <input value={q} onChange={e=>setQuestion(ci,qi,e.target.value)} placeholder="Frage" style={{ flex:1 }} />
+                      <button className="secondary" onClick={()=>removeQuestion(ci,qi)} title="Frage entfernen" style={{ fontSize:12, padding:'4px 9px' }}>✕</button>
+                    </div>
+                  ))}
+                  <button className="secondary" onClick={()=>addQuestion(ci)} style={{ fontSize:12, padding:'5px 10px', marginLeft:12, marginTop:4 }}>+ Frage</button>
+                </div>
+              ))}
+              <button className="secondary" onClick={addChapter} style={{ fontSize:13, padding:'7px 14px', marginBottom:16 }}>+ Kapitel</button>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={saveCatalog} disabled={busy || !cf.name.trim()} style={{ fontSize:14, padding:'9px 16px' }}>{busy?'Speichert …':'Speichern'}</button>
+                <button className="secondary" onClick={()=>{ setCatalogForm(null); setErr('') }} style={{ fontSize:14, padding:'9px 16px' }}>Abbrechen</button>
+              </div>
+            </div>
+          )
+        })() : (
+          <button onClick={newCatalog} style={{ fontSize:14, padding:'9px 16px', marginBottom:20 }}>+ Neuer Katalog</button>
+        )}
+
+        {!catalogForm && (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {catalogs.map(c => (
+              <div key={c.id} style={{ ...S.card }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap' }}>
+                  <div>
+                    <strong style={{ fontSize:15 }}>{c.name}</strong>
+                    <span style={{ fontSize:12, color:'#78716c', marginLeft:8 }}>
+                      {(c.chapters||[]).length} Kapitel · {(c.chapters||[]).reduce((n,ch)=>n+((ch.questions||[]).length),0)} Fragen
+                    </span>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                      {(c.product_categories||[]).map(slug => CATEGORIES[slug] && (
+                        <span key={slug} style={{ fontSize:11, padding:'3px 8px', borderRadius:999, background:'#f5f5f4', color:'#57534e' }}>{CATEGORIES[slug].label}</span>
+                      ))}
+                      {(c.product_categories||[]).length===0 && <span style={{ fontSize:11, color:'#b45309' }}>keiner Kategorie zugeordnet – für Manager nicht wählbar</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button className="secondary" onClick={()=>editCatalog(c)} style={{ fontSize:12, padding:'5px 10px' }}>Bearbeiten</button>
+                    <button className="secondary" onClick={()=>removeCatalog(c)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {catalogs.length===0 && <p style={S.muted}>Noch keine Kataloge. Legen Sie einen an.</p>}
+          </div>
+        )}
       </div>
     </div>
   )

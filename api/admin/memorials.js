@@ -125,13 +125,113 @@ async function signMemorialImages(memorials) {
   }
 }
 
+// Katalog-Nachfragezahl (x) säubern: ganze Zahl 0..30, Default 7.
+function sanitizeFollowups(v) {
+  const n = parseInt(v, 10)
+  if (!Number.isFinite(n) || n < 0) return 7
+  return Math.min(n, 30)
+}
+
+// Kapitel-/Fragen-Struktur eines Katalogs säubern:
+//   [{ title, questions: [text, …] }]  — leere Fragen/leere Kapitel fallen weg.
+function sanitizeChapters(input) {
+  if (!Array.isArray(input)) return []
+  const out = []
+  for (const ch of input) {
+    if (!ch || typeof ch !== 'object') continue
+    const title = typeof ch.title === 'string' ? ch.title.trim().slice(0, 300) : ''
+    const questions = Array.isArray(ch.questions)
+      ? ch.questions.map(q => (typeof q === 'string' ? q.trim().slice(0, 1000) : '')).filter(Boolean)
+      : []
+    if (!title && questions.length === 0) continue
+    out.push({ title, questions })
+  }
+  return out
+}
+
+function sanitizeCatalogCats(input) {
+  if (!Array.isArray(input)) return []
+  return [...new Set(input.filter(isValidCategory))]
+}
+
+// Fragenkatalog-Verwaltung (?catalogs). Hier eingebettet wegen des Vercel-
+// 12-Funktionen-Limits (analog zum ?audit-Zweig in api/admin/users.js).
+//   GET    ?catalogs=1              → { catalogs }  (jeder Benutzer; Nicht-Admins
+//                                      nur Kataloge ihrer erlaubten Kategorien)
+//   POST   ?catalogs=1  { name, product_categories, chapters }   (nur Admin)
+//   PATCH  ?catalogs=1&id=…  { name?, product_categories?, chapters? }  (nur Admin)
+//   DELETE ?catalogs=1&id=…                                       (nur Admin)
+async function handleCatalogs(req, res) {
+  if (req.method === 'GET') {
+    let q = supabase.from('question_catalogs')
+      .select('id, name, product_categories, chapters, created_at')
+      .order('created_at', { ascending: true })
+    if (!req.auth.admin) {
+      const cats = Array.isArray(req.auth.cats) ? req.auth.cats : []
+      if (cats.length === 0) return res.json({ catalogs: [] })
+      q = q.overlaps('product_categories', cats)
+    }
+    const { data, error } = await q
+    if (error) throw error
+    return res.json({ catalogs: data || [] })
+  }
+
+  // Schreiben nur für Admins.
+  if (!req.auth.admin) return res.status(403).json({ error: 'Nur Administratoren dürfen Fragenkataloge bearbeiten.' })
+
+  if (req.method === 'POST') {
+    const { name, product_categories, chapters } = req.body || {}
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name fehlt.' })
+    const { data, error } = await supabase.from('question_catalogs').insert({
+      name: String(name).trim().slice(0, 200),
+      product_categories: sanitizeCatalogCats(product_categories),
+      chapters: sanitizeChapters(chapters),
+    }).select('id, name, product_categories, chapters, created_at').single()
+    if (error) throw error
+    await audit(req, { actor: req.auth, action: 'catalog.create', target: data.id, detail: { name: data.name } })
+    return res.json({ catalog: data })
+  }
+
+  if (req.method === 'PATCH') {
+    const id = (req.query.id || '').trim()
+    if (!id) return res.status(400).json({ error: 'id fehlt.' })
+    const patch = {}
+    if (req.body.name !== undefined) {
+      if (!String(req.body.name).trim()) return res.status(400).json({ error: 'Name darf nicht leer sein.' })
+      patch.name = String(req.body.name).trim().slice(0, 200)
+    }
+    if (req.body.product_categories !== undefined) patch.product_categories = sanitizeCatalogCats(req.body.product_categories)
+    if (req.body.chapters !== undefined) patch.chapters = sanitizeChapters(req.body.chapters)
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
+    const { error } = await supabase.from('question_catalogs').update(patch).eq('id', id)
+    if (error) throw error
+    await audit(req, { actor: req.auth, action: 'catalog.update', target: id, detail: { changed: Object.keys(patch) } })
+    return res.json({ ok: true })
+  }
+
+  if (req.method === 'DELETE') {
+    const id = (req.query.id || '').trim()
+    if (!id) return res.status(400).json({ error: 'id fehlt.' })
+    // memorials.catalog_id ist ON DELETE SET NULL → betroffene Bücher fallen
+    // automatisch auf den KI-Standardmodus zurück.
+    const { error } = await supabase.from('question_catalogs').delete().eq('id', id)
+    if (error) throw error
+    await audit(req, { actor: req.auth, action: 'catalog.delete', target: id })
+    return res.json({ ok: true })
+  }
+
+  return res.status(405).end()
+}
+
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   try {
+    if (req.query.catalogs !== undefined) return await handleCatalogs(req, res)
+
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, created_at')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -192,7 +292,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress, catalogId, followups } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -219,6 +319,8 @@ module.exports = async function handler(req, res) {
         languages: langs,
         note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
         pickup_address: sanitizePickupAddress(pickupAddress),
+        catalog_id: catalogId || null,
+        followups: sanitizeFollowups(followups),
       })
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'memorial.create', target: code, detail: { category } })
@@ -275,6 +377,8 @@ module.exports = async function handler(req, res) {
         }
         if ('note' in meta)          update.note = (typeof meta.note === 'string' && meta.note.trim()) ? meta.note.trim() : null
         if ('pickupAddress' in meta) update.pickup_address = sanitizePickupAddress(meta.pickupAddress)
+        if ('catalogId' in meta)     update.catalog_id = meta.catalogId || null
+        if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
 
         if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
 

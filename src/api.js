@@ -24,13 +24,44 @@ async function parseResponse(res) {
 // Anlage läuft jetzt authentifiziert über den Admin-Endpoint, damit
 // Produktkategorie + Eigentümer-Gruppe serverseitig vertrauenswürdig
 // gesetzt werden können.
-export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress }) {
+export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress, catalogId, followups }) {
   const res = await fetch('/api/admin/memorials', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress, catalogId, followups }),
   })
   return parseResponse(res) // { code }
+}
+
+// ── Fragenkataloge ────────────────────────────────────────────────
+// CRUD ist in api/admin/memorials.js (?catalogs) eingebettet wegen des
+// Vercel-12-Funktionen-Limits. Lesen: jeder eingeloggte Benutzer (gefiltert
+// auf seine Kategorien) für die Auswahl beim Buch-Anlegen. Schreiben: nur Admin.
+export async function adminListCatalogs(token) {
+  const res = await fetch('/api/admin/memorials?catalogs=1', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { catalogs }
+}
+export async function adminCreateCatalog(token, { name, product_categories, chapters }) {
+  const res = await fetch('/api/admin/memorials?catalogs=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, product_categories, chapters }),
+  })
+  return parseResponse(res) // { catalog }
+}
+export async function adminUpdateCatalog(token, id, { name, product_categories, chapters }) {
+  const res = await fetch(`/api/admin/memorials?catalogs=1&id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, product_categories, chapters }),
+  })
+  return parseResponse(res) // { ok }
+}
+export async function adminDeleteCatalog(token, id) {
+  const res = await fetch(`/api/admin/memorials?catalogs=1&id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { ok }
 }
 
 // ── Benutzer (Admin) ──────────────────────────────────────────────
