@@ -224,7 +224,9 @@ function tryParseJSON(raw) {
   const first = s.indexOf('{')
   const last  = s.lastIndexOf('}')
   if (first > 0 || (first === 0 && last > 0 && last < s.length - 1)) s = s.slice(first, last + 1)
-  try { return JSON.parse(s) } catch { return null }
+  try { return JSON.parse(s) } catch {}
+  // Zweiter Versuch: häufigen LLM-Ausrutscher „trailing comma" (Komma vor } oder ]) entfernen.
+  try { return JSON.parse(s.replace(/,(\s*[}\]])/g, '$1')) } catch { return null }
 }
 
 async function fetchImageBuffer(url) {
@@ -2348,15 +2350,25 @@ function Dashboard() {
       if (gen.kind === 'book') {
         // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
         setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
-        const outlineRaw = await askLLM(
-          gen.outlineSystem(selected, contributions) + dir,
-          [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
-          { memorialCode: selected.id, kind: `${key}_outline`, token }
-        )
-        const outline = tryParseJSON(outlineRaw)
-        if (!outline || !outline.title) {
-          const snip = String(outlineRaw || '').replace(/\s+/g, ' ').trim().slice(0, 200)
-          throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden.' +
+        // Das Gerüst kann – wie einzelne Kapitel – gelegentlich als ungültiges
+        // JSON zurückkommen (sporadischer Modell-Ausrutscher / Zeitüberschreitung).
+        // Deshalb bis zu 3 Versuche mit Backoff, bevor wir aufgeben.
+        const outlineSys = gen.outlineSystem(selected, contributions) + dir
+        let outline = null, lastOutlineRaw = ''
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          checkCancel()
+          lastOutlineRaw = await askLLM(
+            outlineSys,
+            [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
+            { memorialCode: selected.id, kind: `${key}_outline`, token }
+          )
+          const parsed = tryParseJSON(lastOutlineRaw)
+          if (parsed && parsed.title) { outline = parsed; break }
+          if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt))
+        }
+        if (!outline) {
+          const snip = String(lastOutlineRaw || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+          throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden (auch nach mehreren Versuchen).' +
             (snip ? ` Antwort des KI-Dienstes begann mit: „${snip}…"` : ' Der KI-Dienst lieferte eine leere Antwort (evtl. nicht erreichbar oder Zeitüberschreitung).'))
         }
 
