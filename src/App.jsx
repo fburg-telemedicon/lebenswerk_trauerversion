@@ -542,9 +542,10 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   }
   flow(BOOK_DISCLAIMER, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
 
-  // ── Seitenzahlen unten mittig – ohne Bild- und Leerseiten ──
+  // ── Seitenzahlen unten mittig – ohne Titel-, Bild- und Leerseiten ──
+  // Seite 1 ist immer die (innere) Titelseite und bleibt klassisch ohne Nummer.
   const totalPages = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
+  for (let i = 2; i <= totalPages; i++) {
     if (pageImage.has(i) || pageEmpty.has(i)) continue
     doc.setPage(i)
     doc.setFont('times', 'normal'); doc.setFontSize(10); doc.setTextColor(120, 113, 108)
