@@ -32,7 +32,7 @@ jobs:
             echo "::error::Repo-Secret CRON_SECRET fehlt."
             exit 1
           fi
-          URL="https://lebensgeschichten.vercel.app/api/cron/purge"
+          URL="https://lebensgeschichten.ai/api/cron/purge"
           if [ "${{ github.event.inputs.dry }}" = "true" ]; then URL="$URL?dry=1"; fi
           echo "Rufe $URL auf …"
           code=$(curl -sS -o response.json -w "%{http_code}" \
