@@ -1512,6 +1512,7 @@ function Dashboard() {
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
   const [genPct, setGenPct]           = useState({}) // { book_v1: 42 } – Fortschritt in %
   const [genErr, setGenErr]           = useState({}) // { book_v1: 'Fehler …' } – Fehler PRO Variante (nicht global)
+  const [genOwner, setGenOwner]       = useState({}) // { book_v1: <memorialId> } – welches Buchprojekt diese Variante generiert; Fortschritt/Fehler NUR dort anzeigen
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
   const [reviewPct, setReviewPct]       = useState(0)     // simulierter %-Fortschritt der Prüfung
@@ -2330,6 +2331,7 @@ function Dashboard() {
     const dir = langDirective(genLang)
     setErr('')
     setGenErr(p => ({ ...p, [key]: '' })) // Fehler DIESER Variante zurücksetzen
+    setGenOwner(o => ({ ...o, [key]: selected.id })) // Fortschritt an dieses Buchprojekt binden
     setGenerating(g => ({ ...g, [key]: true }))
     setGenProgress(p => ({ ...p, [key]: 'Text wird generiert …' }))
     setGenPct(p => ({ ...p, [key]: 0 }))
@@ -4023,7 +4025,7 @@ function Dashboard() {
               ].map(({ key, icon, title, sub }) => {
                 const gen   = GENERATORS[key]
                 const has   = !!selected[gen.field]
-                const busy  = !!generating[key]
+                const busy  = !!generating[key] && genOwner[key] === selected.id
                 const report = selected.content_reports?.[gen.field]
                 const totalFindings = report?.findings?.length || 0
                 const openFindings = report?.findings?.filter(f => f.status !== 'resolved').length || 0
@@ -4075,7 +4077,7 @@ function Dashboard() {
                         </button>
                       </div>
                     )}
-                    {!busy && genErr[key] && (
+                    {!busy && genErr[key] && genOwner[key] === selected.id && (
                       <div style={{ marginTop:10 }}><Err msg={genErr[key]} /></div>
                     )}
                     {reviewingKey === key && (
@@ -4492,7 +4494,7 @@ function Dashboard() {
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
     const data = selected[gen.field]
-    const busy = !!generating[key]
+    const busy = !!generating[key] && genOwner[key] === selected.id
     const bt = uiText(data?.language)
     const reviewReport = selected.content_reports?.[gen.field]
     const reviewMarks = (reviewReport?.findings || []).filter(f => f.quote && f.status !== 'resolved').map(f => ({ quote: String(f.quote), severity: f.severity }))
@@ -4513,7 +4515,7 @@ function Dashboard() {
           </div>
         )}
 
-        <Err msg={genErr[key]} />
+        {genOwner[key] === selected.id && <Err msg={genErr[key]} />}
         <Err msg={err} />
 
         {busy ? (
