@@ -421,13 +421,17 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   const bt = uiText(book.language)
   const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H] })
   let page = 1 // jsPDF hat Seite 1 bereits angelegt; recto = ungerade
+  // Seitenklassifizierung für die Seitenzahlen: Bild- und Leerseiten bekommen
+  // KEINE Nummer; alle übrigen (Text-)Seiten schon. Nummern werden am Ende gesetzt.
+  const pageImage = new Set()
+  const pageEmpty = new Set()
 
   const newPage = () => { doc.addPage([PDF_PAGE_W, PDF_PAGE_H]); page++ }
   const isRecto = p => p % 2 === 1
   // Auf die nächste rechte Seite springen (ggf. eine leere linke Seite davor).
-  const startRecto = () => { newPage(); if (!isRecto(page)) newPage() }
+  const startRecto = () => { newPage(); if (!isRecto(page)) { pageEmpty.add(page); newPage() } }
   // Auf die nächste linke Seite springen (für die linke Bildhälfte).
-  const startVerso = () => { newPage(); if (isRecto(page)) newPage() }
+  const startVerso = () => { newPage(); if (isRecto(page)) { pageEmpty.add(page); newPage() } }
 
   // Eine Hälfte des Cover-skalierten Doppelseiten-Bildes randlos setzen.
   // side: 'left' zeigt Doppelseiten-Bereich 0…154, 'right' zeigt 154…308.
@@ -440,6 +444,7 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
     const offY = (PDF_PAGE_H - dh) / 2
     const baseX = side === 'left' ? offX : offX - PDF_PAGE_W
     doc.addImage(img.dataUrl, 'PNG', baseX, offY, dw, dh)
+    pageImage.add(page)
   }
 
   // Textsatz mit y-Cursor und automatischem Seitenumbruch (Fortsetzungsseiten
@@ -473,7 +478,7 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
     if (img) {
       startVerso(); drawHalf(img, 'left')   // linke Seite: linke Bildhälfte
       newPage();    drawHalf(img, 'right')  // rechte Seite: rechte Bildhälfte
-      newPage()                             // leere linke Seite
+      newPage(); pageEmpty.add(page)        // leere linke Seite
       newPage()                             // rechte Seite: Kapitelbeginn
     } else {
       startRecto()                          // ohne Bild trotzdem rechts beginnen
@@ -536,6 +541,15 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
   flow(BOOK_DISCLAIMER, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
+
+  // ── Seitenzahlen unten mittig – ohne Bild- und Leerseiten ──
+  const totalPages = doc.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    if (pageImage.has(i) || pageEmpty.has(i)) continue
+    doc.setPage(i)
+    doc.setFont('times', 'normal'); doc.setFontSize(10); doc.setTextColor(120, 113, 108)
+    doc.text(String(i), PDF_PAGE_W / 2, PDF_PAGE_H - 10, { align: 'center' })
+  }
 
   downloadBlob(filename, doc.output('blob'))
 }
