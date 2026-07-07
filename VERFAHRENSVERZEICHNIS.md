@@ -1,7 +1,7 @@
 # Verzeichnis von Verarbeitungstätigkeiten (Art. 30 Abs. 1 DSGVO)
 
 Gedenkbuch-/Lebensgeschichten-App. **Entwurf — juristisch zu prüfen.**
-Stand: 2026-06-22. Produktion: lebensgeschichten.vercel.app.
+Stand: 2026-07-07. Produktion: lebensgeschichten.ai.
 
 Dieses Dokument erfüllt zusammen mit `SICHERHEIT.md` (technische und organisatorische
 Maßnahmen, Art. 32) und `BETRIEB-DSGVO.md` (Betriebs-Runbook, Art. 33/34) die

@@ -1,7 +1,7 @@
 # Sicherheit & technische Maßnahmen (TOM)
 
 Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App
-(DSGVO Art. 32). Stand: 2026-06-22. Produktion: lebensgeschichten.vercel.app.
+(DSGVO Art. 32). Stand: 2026-07-07. Produktion: lebensgeschichten.ai.
 
 ## 1. Verschlüsselung
 

@@ -1,7 +1,7 @@
 # Datenschutz-Folgenabschätzung (DSFA, Art. 35 DSGVO)
 
 Gedenkbuch-/Lebensgeschichten-App. **Entwurf — durch DSB/Jurist:in zu prüfen und freizugeben.**
-Stand: 2026-06-22. Produktion: lebensgeschichten.vercel.app.
+Stand: 2026-07-07. Produktion: lebensgeschichten.ai.
 Verantwortlicher: **HealthCare Futurists GmbH**, Köln (GF Dr. Gantner).
 
 Baut auf den bestehenden Dokumenten auf und wiederholt deren Inhalte nicht:
