@@ -39,33 +39,51 @@ async function downloadBuffer(path) {
 // leere Passepartout-Flächen. Fotos werden ohnehin vollständig (contain)
 // gezeigt, damit bei gemischten Formaten nichts (v. a. keine Gesichter)
 // abgeschnitten wird.
-function cellsFor(n, oris = []) {
+// Anteile aus Gewichten (z. B. Auflösung), aber gedämpft: 42 % gleichmäßig +
+// 58 % nach Gewicht. So variieren die Größen sichtbar, ohne dass ein Bild
+// verschwindend klein oder übermächtig groß wird. Summe = 1.
+function shares(weights, blend = 0.58) {
+  const k = weights.length
+  const sum = weights.reduce((a, b) => a + b, 0) || 1
+  return weights.map(w => (1 - blend) / k + blend * (w / sum))
+}
+
+// Verteilt eine Achse (start..start+total) auf Zellen gemäß Anteilen; zwischen
+// den Zellen liegt jeweils GAP.
+function splitAxis(start, total, sh) {
+  const usable = total - (sh.length - 1) * GAP
+  const out = []
+  let pos = start
+  for (const s of sh) { const len = usable * s; out.push({ pos, len }); pos += len + GAP }
+  return out
+}
+
+// Zell-Raster je nach Bildanzahl, Orientierung UND Auflösung. Die Zellgrößen
+// werden nach `weights` (i. d. R. Original-Auflösung) gewichtet – höher
+// aufgelöste Fotos bekommen mehr Fläche. Sind alle Bilder Querformat, wird
+// gestapelt (Reihen), sonst nebeneinander (Spalten). 4 Bilder → gewichtetes
+// 2×2-Mosaik (Zeilenhöhen und je Zeile die Spaltenbreiten variieren).
+function cellsFor(n, oris = [], weights = []) {
   const x0 = EDGE, y0 = EDGE, w = W - 2 * EDGE, h = H - 2 * EDGE
-  const allLandscape = oris.length === n && oris.every(o => o === 'landscape')
   if (n <= 1) return [{ x: x0, y: y0, w, h }]
-  if (n === 2) {
+  const wts = (Array.isArray(weights) && weights.length === n) ? weights : oris.map(() => 1)
+  const allLandscape = oris.length === n && oris.every(o => o === 'landscape')
+  if (n === 2 || n === 3) {
+    const sh = shares(wts)
     if (allLandscape) {
-      const ch = (h - GAP) / 2
-      return [{ x: x0, y: y0, w, h: ch }, { x: x0, y: y0 + ch + GAP, w, h: ch }]
+      return splitAxis(y0, h, sh).map(c => ({ x: x0, y: c.pos, w, h: c.len }))
     }
-    const cw = (w - GAP) / 2
-    return [{ x: x0, y: y0, w: cw, h }, { x: x0 + cw + GAP, y: y0, w: cw, h }]
+    return splitAxis(x0, w, sh).map(c => ({ x: c.pos, y: y0, w: c.len, h }))
   }
-  if (n === 3) {
-    if (allLandscape) {
-      const ch = (h - 2 * GAP) / 3
-      return [0, 1, 2].map(i => ({ x: x0, y: y0 + i * (ch + GAP), w, h: ch }))
-    }
-    const cw = (w - 2 * GAP) / 3
-    return [0, 1, 2].map(i => ({ x: x0 + i * (cw + GAP), y: y0, w: cw, h }))
-  }
-  // 4 → 2×2
-  const cw = (w - GAP) / 2, ch = (h - GAP) / 2
+  // n === 4: gewichtetes 2×2-Mosaik
+  const ys = splitAxis(y0, h, shares([wts[0] + wts[1], wts[2] + wts[3]]))
+  const topX = splitAxis(x0, w, shares([wts[0], wts[1]]))
+  const botX = splitAxis(x0, w, shares([wts[2], wts[3]]))
   return [
-    { x: x0, y: y0, w: cw, h: ch },
-    { x: x0 + cw + GAP, y: y0, w: cw, h: ch },
-    { x: x0, y: y0 + ch + GAP, w: cw, h: ch },
-    { x: x0 + cw + GAP, y: y0 + ch + GAP, w: cw, h: ch },
+    { x: topX[0].pos, y: ys[0].pos, w: topX[0].len, h: ys[0].len },
+    { x: topX[1].pos, y: ys[0].pos, w: topX[1].len, h: ys[0].len },
+    { x: botX[0].pos, y: ys[1].pos, w: botX[0].len, h: ys[1].len },
+    { x: botX[1].pos, y: ys[1].pos, w: botX[1].len, h: ys[1].len },
   ]
 }
 
@@ -185,8 +203,12 @@ async function composeBuffers(bufs, metas) {
   // ── 2..4 Bilder: Raster mit Passepartout + Schatten ──────────────
   const base = await blurredBase(sharp, bufs[0])
   overlays.push({ input: vignetteLayer(), left: 0, top: 0 })
-  const oris = metas.slice(0, n).map(m => m?.orientation)
-  const cells = cellsFor(n, oris)
+  // Auflösungen einmal lesen: für Orientierung, Seitenverhältnis UND die
+  // Größen-Gewichtung. sqrt(Pixel) dämpft die Spanne etwas.
+  const mds = await Promise.all(bufs.slice(0, n).map(b => sharp(b).metadata().catch(() => ({}))))
+  const oris = metas.slice(0, n).map((m, i) => m?.orientation || ((mds[i].width || 0) > (mds[i].height || 0) ? 'landscape' : 'portrait'))
+  const weights = mds.map(md => Math.sqrt((md.width || 1200) * (md.height || 1200)))
+  const cells = cellsFor(n, oris, weights)
   const anyCap = metas.slice(0, n).some((_, i) => cap(i))
   const capRoom = anyCap ? 44 : 0
   const capParts = []
@@ -197,7 +219,7 @@ async function composeBuffers(bufs, metas) {
     // Zelle). So füllt jedes Foto seinen Rahmen randlos (kein Beschnitt, weil
     // Seitenverhältnis passt) und der atmosphärische Hintergrund zeigt sich
     // ringsum – gemischte Hoch-/Querformate wirken jeweils richtig proportioniert.
-    const md = await sharp(bufs[i]).metadata()
+    const md = mds[i] || {}
     const ar = (md.width && md.height) ? md.width / md.height : (oris[i] === 'landscape' ? 1.5 : 0.72)
     const availW = cl.w - 2 * pad
     const availH = cl.h - capRoom - 2 * pad

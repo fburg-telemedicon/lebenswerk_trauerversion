@@ -1778,6 +1778,7 @@ function Dashboard() {
   const [imgEditSel, setImgEditSel]     = useState(new Set()) // ausgewählte Kapitelindizes
   const [imgEditBusy, setImgEditBusy]   = useState(false)
   const [imgEditProgress, setImgEditProgress] = useState('')
+  const [imgEditMsg, setImgEditMsg]     = useState('') // Erfolgsmeldung im Bilder-Modal (bleibt offen)
   const [imgZoom, setImgZoom]           = useState(null) // { url, heading } | null – Bild groß ansehen (Lightbox)
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
   const [costData, setCostData]       = useState(null)
@@ -2958,6 +2959,7 @@ function Dashboard() {
   function openImgEdit(key) {
     setImgEditSel(new Set())
     setImgEditProgress('')
+    setImgEditMsg('')
     setImgEditModal({ key })
   }
   function toggleImgSel(i) {
@@ -2970,7 +2972,7 @@ function Dashboard() {
     const book = selected?.[gen.field]
     const indices = [...imgEditSel].sort((a, b) => a - b)
     if (!book?.chapters || indices.length === 0) return
-    setImgEditBusy(true); setErr('')
+    setImgEditBusy(true); setErr(''); setImgEditMsg('')
     try {
       const newChapters = book.chapters.map(c => ({ ...c }))
       // Referenzfoto für die Personen-Ähnlichkeit (nur serverseitig aktiv bei
@@ -3014,7 +3016,11 @@ function Dashboard() {
         }
       } catch {}
       if (errs.length) setErr(`${errs.length} Bild(er) fehlgeschlagen. Erster: ${errs[0]}`)
-      setImgEditModal(null)
+      // Modal bewusst OFFEN lassen, damit die neu erzeugten Bilder direkt
+      // sichtbar sind (Thumbnails haben sich durch den Reload aktualisiert).
+      const ok = indices.length - errs.length
+      setImgEditMsg(ok > 0 ? `✓ ${ok} Bild${ok > 1 ? 'er' : ''} neu erstellt.` : '')
+      setImgEditSel(new Set())
     } catch (e) {
       setErr(e.message)
     } finally {
@@ -3152,6 +3158,9 @@ function Dashboard() {
 
           {imgEditBusy && imgEditProgress && (
             <p style={{ fontSize:13, color:'#78716c', margin:'12px 0 0' }}>⏳ {imgEditProgress}</p>
+          )}
+          {!imgEditBusy && imgEditMsg && (
+            <p style={{ fontSize:13, color:'#15803d', margin:'12px 0 0' }}>{imgEditMsg}</p>
           )}
 
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:12 }}>
