@@ -11,7 +11,7 @@
   "functions": {
     "api/ask.js":                  { "maxDuration": 60 },
     "api/admin/generate-image.js": { "maxDuration": 60 },
-    "api/admin/compose-image.js":  { "maxDuration": 60 },
+    "api/admin/compose-image.js":  { "maxDuration": 60, "includeFiles": "api/_fonts/**" },
     "api/transcribe.js":           { "maxDuration": 30 },
     "api/cron/purge.js":           { "maxDuration": 60 }
   }
