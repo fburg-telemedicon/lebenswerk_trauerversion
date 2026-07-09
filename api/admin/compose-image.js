@@ -204,6 +204,21 @@ async function blurredBase(sharp, buf) {
   return sharp(bg)
 }
 
+// Kontrast-Absicherung („Backup"): dezentes, dunkel-transparentes, abgerundetes
+// Feld HINTER einer Bildunterschrift – hält die helle Serifenschrift auch auf
+// sehr hellen Motiven lesbar. Für zentrierten Text (text-anchor=middle): cx =
+// Textmitte, baselineY = Grundlinie der ERSTEN Zeile, lh = Zeilenhöhe.
+function captionPlate(cx, baselineY, lines, F, lh) {
+  const maxChars = Math.max(1, ...lines.map(l => l.length))
+  const padH = Math.round(F * 0.7), padV = Math.round(F * 0.4)
+  const w = Math.round(maxChars * F * 0.52) + 2 * padH
+  const h = Math.round((lines.length - 1) * lh + F * 1.15) + 2 * padV
+  const x = Math.round(cx - w / 2)
+  const y = Math.round(baselineY - F * 0.85 - padV)
+  const r = Math.round(F * 0.5)
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="#140f0b" fill-opacity="0.40"/>`
+}
+
 async function composeBuffers(bufs, metas) {
   const sharp = require('sharp')
   const n = Math.min(bufs.length, 4)
@@ -229,7 +244,9 @@ async function composeBuffers(bufs, metas) {
       const c = cap(0)
       if (c) {
         const F = Math.round(outW * 0.02), maxCh = Math.floor(outW / (F * 0.5))
-        const grad = `<svg width="${outW}" height="${outH}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0.7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.6"/></linearGradient></defs><rect width="${outW}" height="${outH}" fill="url(#g)"/><text x="${outW / 2}" y="${outH - Math.round(outH * 0.045)}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(wrapText(c, maxCh)[0])}</text></svg>`
+        const line = wrapText(c, maxCh)[0]
+        const capY = outH - Math.round(outH * 0.045)
+        const grad = `<svg width="${outW}" height="${outH}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0.7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.6"/></linearGradient></defs><rect width="${outW}" height="${outH}" fill="url(#g)"/>${captionPlate(outW / 2, capY, [line], F, F)}<text x="${outW / 2}" y="${capY}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(line)}</text></svg>`
         overlays.push({ input: Buffer.from(grad), left: 0, top: 0 })
       }
       return await base.composite(overlays).png().toBuffer()
@@ -256,7 +273,7 @@ async function composeBuffers(bufs, metas) {
         const F = Math.round(30 * S)
         const line = wrapText(c, Math.max(10, Math.floor(box.w / (F * 0.5))))[0]
         const cy = Math.min(Math.round(box.y + box.h + Math.round(30 * S)), H - Math.round(30 * S))
-        overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg"><text x="${W / 2}" y="${cy}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(line)}</text></svg>`), left: 0, top: 0 })
+        overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${captionPlate(W / 2, cy, [line], F, F)}<text x="${W / 2}" y="${cy}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(line)}</text></svg>`), left: 0, top: 0 })
       }
       return await base.composite(overlays).png().toBuffer()
     }
@@ -273,8 +290,9 @@ async function composeBuffers(bufs, metas) {
       const areaX = Math.round(70 * S), areaW = FOLD - Math.round(140 * S)
       const lines = wrapText(c, Math.max(10, Math.floor(areaW / (F * 0.5)))).slice(0, 5)
       const startY = Math.round(H / 2 - (lines.length * lh) / 2 + F)
+      const plate = captionPlate(areaX + areaW / 2, startY, lines, F, lh)
       const t = lines.map((ln, i) => `<text x="${areaX + areaW / 2}" y="${startY + i * lh}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(ln)}</text>`).join('')
-      overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${t}</svg>`), left: 0, top: 0 })
+      overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${plate}${t}</svg>`), left: 0, top: 0 })
     }
     return await base.composite(overlays).png().toBuffer()
   }
@@ -317,7 +335,8 @@ async function composeBuffers(bufs, metas) {
       const F = Math.round(22 * S)
       const line = wrapText(c, Math.max(8, Math.floor(box.w / (F * 0.5))))[0]
       const cy = Math.min(Math.round(box.y + box.h + Math.round(34 * S)), cl.y + cl.h - Math.round(6 * S))
-      capParts.push(`<text x="${Math.round(box.x + box.w / 2)}" y="${cy}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f4eee4">${escapeXml(line)}</text>`)
+      const ccx = Math.round(box.x + box.w / 2)
+      capParts.push(`${captionPlate(ccx, cy, [line], F, F)}<text x="${ccx}" y="${cy}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f4eee4">${escapeXml(line)}</text>`)
     }
   }
   if (capParts.length) overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${capParts.join('')}</svg>`), left: 0, top: 0 })
