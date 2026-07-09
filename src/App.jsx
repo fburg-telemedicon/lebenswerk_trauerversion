@@ -1279,16 +1279,30 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
   const [err, setErr]       = useState('')
   const [editId, setEditId] = useState(null)
   const [editVals, setEditVals] = useState({ caption: '', description: '' })
+  // Beim Upload wird das Bild NICHT sofort gespeichert, sondern zunächst hier
+  // vorgehalten, bis Bildtitel + Bildbeschreibung eingegeben und mit „Hochladen"
+  // bestätigt wurden. { image: dataURL, name, caption, description } | null.
+  const [pending, setPending] = useState(null)
   const inStyle = { width:'100%', padding:'8px 10px', border:'1px solid #d6d3d1', borderRadius:8, fontSize:13, boxSizing:'border-box' }
 
   async function onPick(e) {
     const file = e.target.files?.[0]; e.target.value = ''
     if (!file) return
-    setBusy(true); setErr('')
+    setErr('')
     try {
       const image = await fileToDownscaledDataURL(file)
-      const { image: entry } = await adminUploadImage(token, code, { image, caption: '', description: '' })
+      setPending({ image, name: file.name || '', caption: '', description: '' })
+    } catch (e2) { setErr(e2.message) }
+  }
+  async function confirmUpload() {
+    if (!pending) return
+    setBusy(true); setErr('')
+    try {
+      const { image: entry } = await adminUploadImage(token, code, {
+        image: pending.image, caption: pending.caption.trim(), description: pending.description.trim(),
+      })
       onChange([...list, entry])
+      setPending(null)
     } catch (e2) { setErr(e2.message) } finally { setBusy(false) }
   }
   async function remove(id) {
@@ -1350,10 +1364,29 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
             ))}
           </div>
         )}
-        <label className="secondary" style={{ display:'inline-block', cursor: busy ? 'default' : 'pointer', padding:'9px 16px', borderRadius:8, fontSize:14, opacity: busy ? 0.6 : 1 }}>
-          {busy ? 'Wird hochgeladen …' : '＋ Foto hochladen'}
-          <input type="file" accept="image/*,.heic,.heif" onChange={onPick} disabled={busy} style={{ display:'none' }} />
-        </label>
+        {pending ? (
+          // Sofort-Abfrage von Bildtitel + Bildbeschreibung VOR dem Speichern.
+          <div style={{ border:'1px solid #d6d3d1', borderRadius:10, padding:12, background:'#faf9f7' }}>
+            <div style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
+              <img src={pending.image} alt="" style={{ width:110, height:110, objectFit:'cover', borderRadius:8, flexShrink:0, border:'1px solid #e7e5e4' }} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4 }}>Bildtitel <span style={{ color:'#a8a29e', fontWeight:400 }}>(optional, kommt ins Buch)</span></label>
+                <input value={pending.caption} onChange={e => setPending(p => ({ ...p, caption:e.target.value }))} placeholder="z. B. Sonntagskaffee auf der Terrasse" style={{ ...inStyle, marginBottom:10 }} maxLength={300} autoFocus />
+                <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4 }}>Bildbeschreibung <span style={{ color:'#a8a29e', fontWeight:400 }}>(zur Einordnung / für die KI)</span></label>
+                <textarea value={pending.description} onChange={e => setPending(p => ({ ...p, description:e.target.value }))} placeholder="Wer/was ist zu sehen, wann und wo?" style={{ ...inStyle, minHeight:60, resize:'vertical' }} maxLength={1000} />
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:8, marginTop:10 }}>
+              <button onClick={confirmUpload} disabled={busy} style={{ fontSize:13, padding:'8px 16px' }}>{busy ? 'Wird hochgeladen …' : 'Hochladen'}</button>
+              <button className="secondary" onClick={() => setPending(null)} disabled={busy} style={{ fontSize:13, padding:'8px 16px' }}>Abbrechen</button>
+            </div>
+          </div>
+        ) : (
+          <label className="secondary" style={{ display:'inline-block', cursor: busy ? 'default' : 'pointer', padding:'9px 16px', borderRadius:8, fontSize:14, opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Wird hochgeladen …' : '＋ Foto hochladen'}
+            <input type="file" accept="image/*,.heic,.heif" onChange={onPick} disabled={busy} style={{ display:'none' }} />
+          </label>
+        )}
       </div>
     </div>
   )
