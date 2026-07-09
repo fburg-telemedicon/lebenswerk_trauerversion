@@ -24,3 +24,5 @@ Aufwandsschaetzung_Spalten_N_O.xlsx
 Thumbs.db
 .idea/
 .vscode/
+.vercel
+.env*
