@@ -1269,6 +1269,21 @@ function ContributorPhotoUpload({ code, contribId, t }) {
   )
 }
 
+// Bewertet ein hochgeladenes Foto für die Druckverwendung – gleiche Schwellen
+// wie der Kompositor (Doppelseite 308×216 mm, Vollbild nur bei Querformat ab
+// 150 DPI). Liefert Auflösungstext + Indikator (wie gut / wofür nutzbar).
+function uploadPrintInfo(u) {
+  const w = Number(u.width) || 0, h = Number(u.height) || 0
+  const res = (w && h) ? `${w} × ${h} px` : 'Auflösung unbekannt'
+  const landscape = u.orientation === 'landscape' || (w > h * 1.05)
+  const coverDpi = (w && h) ? Math.min(w * 25.4 / 308, h * 25.4 / 216) : 0
+  if (landscape && coverDpi >= 150)
+    return { res, label: 'Hohe Auflösung', use: 'füllt eine ganze Doppelseite (Vollbild)', color: '#15803d', bg: '#dcfce7' }
+  if (u.quality_flag === 'low')
+    return { res, label: 'Geringe Auflösung', use: 'wird klein oder mit anderen Fotos gruppiert', color: '#b45309', bg: '#fef3c7' }
+  return { res, label: 'Gute Auflösung', use: 'als gerahmtes Einzelbild auf der Seite', color: '#0369a1', bg: '#e0f2fe' }
+}
+
 // Foto-Verwaltung im Admin/Manager-Bereich (Detailansicht eines Gedenkbuchs):
 // hochgeladene Fotos ansehen, Bildunterschrift/Beschreibung bearbeiten, löschen
 // und eigene Fotos hinzufügen. `uploads` = selected.uploaded_images (mit
@@ -1335,11 +1350,17 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
               <div key={u.id} style={{ border:'1px solid #e7e5e4', borderRadius:10, overflow:'hidden', background:'#faf9f7' }}>
                 <img src={u.image_thumb_url || u.image_url} alt="" style={{ width:'100%', height:100, objectFit:'cover', display:'block' }} />
                 <div style={{ padding:'8px 9px' }}>
-                  <div style={{ fontSize:11, color:'#a8a29e', marginBottom:4 }}>
-                    {u.orientation === 'portrait' ? '↕ Hochkant' : u.orientation === 'landscape' ? '↔ Quer' : '□ Quadrat'}
-                    {u.quality_flag === 'low' ? ' · geringe Qualität' : ''}
-                    {u.source === 'contributor' ? ' · Beitragende:r' : ' · Manager'}
-                  </div>
+                  {(() => { const pi = uploadPrintInfo(u); return (
+                    <div style={{ marginBottom:6 }}>
+                      <div style={{ fontSize:11, color:'#a8a29e', marginBottom:4 }}>
+                        {u.orientation === 'portrait' ? '↕ Hochkant' : u.orientation === 'landscape' ? '↔ Quer' : '□ Quadrat'} · {pi.res}
+                      </div>
+                      <div style={{ display:'inline-block', fontSize:10.5, fontWeight:600, color:pi.color, background:pi.bg, borderRadius:6, padding:'2px 7px', lineHeight:1.3 }}>
+                        {pi.label}
+                      </div>
+                      <div style={{ fontSize:10.5, color:'#78716c', marginTop:3, lineHeight:1.35 }}>{pi.use}</div>
+                    </div>
+                  )})()}
                   {editId === u.id ? (
                     <div>
                       <input value={editVals.caption} onChange={e => setEditVals(v => ({ ...v, caption:e.target.value }))} placeholder="Bildunterschrift" style={{ ...inStyle, marginBottom:6 }} maxLength={300} />
