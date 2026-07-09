@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import {
   createMemorial, getMemorial, getContribution, addContribution,
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
+  uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload, adminComposeImage,
   adminDeleteContribution, adminUpdateContributionMessages,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
@@ -33,6 +34,34 @@ const CONSENT_VERSION = '1.4 (2026-06-22)'
 const BOOK_DISCLAIMER_TITLE = 'Hinweis zur Entstehung dieses Buches'
 const BOOK_DISCLAIMER =
   'Dieses Buch wurde auf Grundlage von Interviews mit nahestehenden Personen mithilfe von künstlicher Intelligenz erstellt. Es gibt persönliche Erinnerungen und Schilderungen der Beitragenden wieder. Ihre inhaltliche Richtigkeit, Vollständigkeit und Aktualität können wir nicht überprüfen; eine Haftung hierfür ist – soweit gesetzlich zulässig – ausgeschlossen.'
+
+// Liest eine Bilddatei und gibt eine herunterskalierte JPEG-Data-URL zurück
+// (längste Kante ≤ maxEdge). Hält die Upload-Nutzlast unter dem Vercel-Body-
+// Limit und beschleunigt den Upload. Bei nicht darstellbaren Formaten (z. B.
+// HEIC) fällt sie auf die Original-Data-URL zurück (sharp kann sie serverseitig).
+function fileToDownscaledDataURL(file, maxEdge = 2400, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        try {
+          let { width, height } = img
+          const scale = Math.min(1, maxEdge / Math.max(width, height))
+          width = Math.round(width * scale); height = Math.round(height * scale)
+          const canvas = document.createElement('canvas')
+          canvas.width = width; canvas.height = height
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL('image/jpeg', quality))
+        } catch { resolve(reader.result) }
+      }
+      img.onerror = () => resolve(reader.result)
+      img.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
 
 // ── Passwortrichtlinie (identisch zu api/_lib/auth.js) ────────────
 // Moderat: mind. 8 Zeichen, mind. 1 Ziffer, mind. 1 Sonderzeichen.
@@ -227,6 +256,31 @@ function tryParseJSON(raw) {
   try { return JSON.parse(s) } catch {}
   // Zweiter Versuch: häufigen LLM-Ausrutscher „trailing comma" (Komma vor } oder ]) entfernen.
   try { return JSON.parse(s.replace(/,(\s*[}\]])/g, '$1')) } catch { return null }
+}
+
+// Prompt für die KI-Bildzuordnung: welche hochgeladenen Fotos passen in welches
+// Kapitel? Liefert JSON { assignments: [{ chapter, image_ids:[…] }] }.
+function imageAssignSystem(chapters, uploads) {
+  const chapLines = chapters.map(c => `${c.number}. ${c.heading || ''}`).join('\n')
+  const upLines = uploads.map(u =>
+    `- id ${u.id}: ${u.caption ? '„' + u.caption + '" – ' : ''}${u.description || '(keine Beschreibung)'} [${u.orientation}${u.quality_flag === 'low' ? ', geringe Qualität' : ''}]`
+  ).join('\n')
+  return `Du ordnest hochgeladene Fotos den Kapiteln eines Buches zu.
+
+Kapitel:
+${chapLines}
+
+Fotos:
+${upLines}
+
+Ordne jedes Foto dem inhaltlich und zeitlich am besten passenden Kapitel zu (nutze Bildunterschrift und Beschreibung). Ein Kapitel darf mehrere Fotos bekommen; nicht jedes Kapitel braucht eines. Lässt sich ein Foto nicht sinnvoll zuordnen, lass es weg.
+
+Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
+{
+  "assignments": [
+    { "chapter": <Kapitelnummer als Zahl>, "image_ids": ["id1", "id2"] }
+  ]
+}`
 }
 
 async function fetchImageBuffer(url) {
@@ -1120,6 +1174,183 @@ function TextInterview({ memorial, contribForm, onDone }) {
 }
 
 // ── Beitragenden-Flow (Aufruf per ?code=XXX[&session=…]) ──────────
+// Foto-Upload für Beitragende (am Ende des Interviews, auf dem Danke-Bildschirm).
+// Der Beitrag ist zu diesem Zeitpunkt bereits gespeichert; die Fotos werden
+// einzeln direkt hochgeladen. Die Einverständniserklärung (Rechte + KI-
+// Verarbeitung aller abgebildeten Personen) ist Pflicht vor dem ersten Upload.
+function ContributorPhotoUpload({ code, contribId, t }) {
+  const [consent, setConsent] = useState(false)
+  const [staged, setStaged]   = useState(null) // { dataUrl, caption, description }
+  const [uploaded, setUploaded] = useState([])
+  const [busy, setBusy]       = useState(false)
+  const [err, setErr]         = useState('')
+  const inStyle = { width:'100%', padding:'9px 11px', border:'1px solid #d6d3d1', borderRadius:8, fontSize:14, boxSizing:'border-box' }
+
+  async function onPick(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!/^image\//.test(file.type) && !/\.(hei[cf]|jpe?g|png|webp)$/i.test(file.name)) { setErr(t.uploadError); return }
+    setErr('')
+    try { setStaged({ dataUrl: await fileToDownscaledDataURL(file), caption:'', description:'' }) }
+    catch (e2) { setErr(e2.message) }
+  }
+
+  async function addStaged() {
+    if (!staged) return
+    if (!consent) { setErr(t.uploadConsentRequired); return }
+    setBusy(true); setErr('')
+    try {
+      await uploadContributorImage(code, {
+        image: staged.dataUrl, caption: staged.caption, description: staged.description,
+        consent: true, contributionId: contribId,
+      })
+      setUploaded(u => [...u, { caption: staged.caption, thumb: staged.dataUrl }])
+      setStaged(null)
+    } catch (e2) { setErr(e2.message || t.uploadError) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ ...S.card, maxWidth:460, margin:'0 auto', textAlign:'left' }}>
+      <h3 style={{ fontSize:17, fontWeight:700, marginBottom:6 }}>{t.uploadStepTitle}</h3>
+      <p style={{ ...S.muted, marginBottom:14 }}>{t.uploadStepIntro}</p>
+
+      {uploaded.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:14 }}>
+          {uploaded.map((u, i) => (
+            <div key={i} style={{ width:72 }}>
+              <img src={u.thumb} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:8, border:'1px solid #e7e5e4' }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Err msg={err} />
+
+      {!staged ? (
+        <label className="secondary" style={{ display:'inline-block', cursor:'pointer', padding:'10px 16px', borderRadius:8, fontSize:14 }}>
+          {t.uploadPick}
+          <input type="file" accept="image/*,.heic,.heif" onChange={onPick} style={{ display:'none' }} />
+        </label>
+      ) : (
+        <div>
+          <img src={staged.dataUrl} alt="" style={{ width:'100%', maxHeight:240, objectFit:'contain', borderRadius:8, border:'1px solid #e7e5e4', marginBottom:12, background:'#faf9f7' }} />
+          <div style={{ marginBottom:10 }}>
+            <Lbl>{t.uploadCaption}</Lbl>
+            <input value={staged.caption} onChange={e => setStaged(s => ({ ...s, caption:e.target.value }))} style={inStyle} maxLength={300} />
+            <div style={{ ...S.muted, fontSize:12, marginTop:4 }}>{t.uploadCaptionHint}</div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <Lbl>{t.uploadDesc}</Lbl>
+            <textarea value={staged.description} onChange={e => setStaged(s => ({ ...s, description:e.target.value }))} style={{ ...inStyle, minHeight:64, resize:'vertical' }} maxLength={1000} />
+            <div style={{ ...S.muted, fontSize:12, marginTop:4 }}>{t.uploadDescHint}</div>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={addStaged} disabled={busy} style={{ fontSize:14, padding:'10px 16px' }}>{busy ? t.uploadUploading : t.uploadSubmit}</button>
+            <button className="secondary" onClick={() => setStaged(null)} disabled={busy} style={{ fontSize:14, padding:'10px 16px' }}>{t.uploadRemove}</button>
+          </div>
+        </div>
+      )}
+
+      <label style={{ display:'flex', gap:10, alignItems:'flex-start', marginTop:16, cursor:'pointer' }}>
+        <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop:3, flexShrink:0 }} />
+        <span style={{ ...S.muted, fontSize:12.5 }}>{t.uploadConsent}</span>
+      </label>
+    </div>
+  )
+}
+
+// Foto-Verwaltung im Admin/Manager-Bereich (Detailansicht eines Gedenkbuchs):
+// hochgeladene Fotos ansehen, Bildunterschrift/Beschreibung bearbeiten, löschen
+// und eigene Fotos hinzufügen. `uploads` = selected.uploaded_images (mit
+// signierten image_url/image_thumb_url); `onChange` aktualisiert selected.
+function ManagerPhotos({ code, token, uploads, onChange }) {
+  const list = Array.isArray(uploads) ? uploads : []
+  const [busy, setBusy]     = useState(false)
+  const [err, setErr]       = useState('')
+  const [editId, setEditId] = useState(null)
+  const [editVals, setEditVals] = useState({ caption: '', description: '' })
+  const inStyle = { width:'100%', padding:'8px 10px', border:'1px solid #d6d3d1', borderRadius:8, fontSize:13, boxSizing:'border-box' }
+
+  async function onPick(e) {
+    const file = e.target.files?.[0]; e.target.value = ''
+    if (!file) return
+    setBusy(true); setErr('')
+    try {
+      const image = await fileToDownscaledDataURL(file)
+      const { image: entry } = await adminUploadImage(token, code, { image, caption: '', description: '' })
+      onChange([...list, entry])
+    } catch (e2) { setErr(e2.message) } finally { setBusy(false) }
+  }
+  async function remove(id) {
+    if (!window.confirm('Dieses Foto entfernen?')) return
+    setBusy(true); setErr('')
+    try { await adminDeleteUpload(token, code, id); onChange(list.filter(u => u.id !== id)) }
+    catch (e2) { setErr(e2.message) } finally { setBusy(false) }
+  }
+  function startEdit(u) { setEditId(u.id); setEditVals({ caption: u.caption || '', description: u.description || '' }) }
+  async function saveEdit() {
+    setBusy(true); setErr('')
+    try {
+      await adminUpdateUpload(token, code, { id: editId, caption: editVals.caption, description: editVals.description })
+      onChange(list.map(u => u.id === editId ? { ...u, ...editVals } : u))
+      setEditId(null)
+    } catch (e2) { setErr(e2.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ marginBottom:'1.5rem' }}>
+      <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Fotos ({list.length})</h3>
+      <div style={{ ...S.card }}>
+        <p style={{ ...S.muted, fontSize:13, marginTop:0, marginBottom:12 }}>
+          Hochgeladene Fotos werden bei der Bucherstellung berücksichtigt: die KI schlägt passende Kapitel vor, Hochkant-/mehrere Bilder werden auf der Doppelseite gruppiert. Die Bildunterschrift wird – wenn angegeben – ins Buch übernommen; die Beschreibung dient nur der Einordnung.
+        </p>
+        <Err msg={err} />
+        {list.length > 0 && (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:12, marginBottom:14 }}>
+            {list.map(u => (
+              <div key={u.id} style={{ border:'1px solid #e7e5e4', borderRadius:10, overflow:'hidden', background:'#faf9f7' }}>
+                <img src={u.image_thumb_url || u.image_url} alt="" style={{ width:'100%', height:100, objectFit:'cover', display:'block' }} />
+                <div style={{ padding:'8px 9px' }}>
+                  <div style={{ fontSize:11, color:'#a8a29e', marginBottom:4 }}>
+                    {u.orientation === 'portrait' ? '↕ Hochkant' : u.orientation === 'landscape' ? '↔ Quer' : '□ Quadrat'}
+                    {u.quality_flag === 'low' ? ' · geringe Qualität' : ''}
+                    {u.source === 'contributor' ? ' · Beitragende:r' : ' · Manager'}
+                  </div>
+                  {editId === u.id ? (
+                    <div>
+                      <input value={editVals.caption} onChange={e => setEditVals(v => ({ ...v, caption:e.target.value }))} placeholder="Bildunterschrift" style={{ ...inStyle, marginBottom:6 }} maxLength={300} />
+                      <textarea value={editVals.description} onChange={e => setEditVals(v => ({ ...v, description:e.target.value }))} placeholder="Beschreibung (für die KI)" style={{ ...inStyle, minHeight:48, resize:'vertical', marginBottom:6 }} maxLength={1000} />
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button onClick={saveEdit} disabled={busy} style={{ fontSize:12, padding:'6px 10px' }}>Speichern</button>
+                        <button className="secondary" onClick={() => setEditId(null)} disabled={busy} style={{ fontSize:12, padding:'6px 10px' }}>Abbrechen</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize:12.5, fontWeight:600, minHeight:16 }}>{u.caption || <span style={{ color:'#a8a29e', fontWeight:400 }}>ohne Bildunterschrift</span>}</div>
+                      {u.description && <div style={{ fontSize:11.5, color:'#78716c', marginTop:2, lineHeight:1.4 }}>{u.description}</div>}
+                      <div style={{ display:'flex', gap:6, marginTop:8 }}>
+                        <button className="secondary" onClick={() => startEdit(u)} style={{ fontSize:12, padding:'5px 9px' }}>Bearbeiten</button>
+                        <button className="secondary" onClick={() => remove(u.id)} disabled={busy} style={{ fontSize:12, padding:'5px 9px', color:'#dc2626' }}>Entfernen</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <label className="secondary" style={{ display:'inline-block', cursor: busy ? 'default' : 'pointer', padding:'9px 16px', borderRadius:8, fontSize:14, opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Wird hochgeladen …' : '＋ Foto hochladen'}
+          <input type="file" accept="image/*,.heic,.heif" onChange={onPick} disabled={busy} style={{ display:'none' }} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 function ContributorFlow({ code }) {
   const [view, setView]                       = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]               = useState(null)
@@ -1430,6 +1661,7 @@ function ContributorFlow({ code }) {
           <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>{t.doneTitle}</h2>
           <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>{t.doneBody(ct.nounBook)}</p>
+          <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
         </div>
       )}
 
@@ -2449,6 +2681,54 @@ function Dashboard() {
           chapters,
         }
 
+        // Phase 2b: hochgeladene Fotos den Kapiteln zuordnen ────────────
+        // Erst deterministisch (Contributor-Fotos mit contribution_id → Kapitel
+        // dieses Beitrags, nur V1), dann per KI für den Rest. Ergebnis:
+        // chapterAssign[Kapitelnummer] = [uploadObj, …].
+        const uploads = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
+        const chapterAssign = {}
+        const assignById = {}
+        for (const u of uploads) assignById[u.id] = u
+        const assignedIds = new Set()
+        const takeFor = (num, u) => { (chapterAssign[num] = chapterAssign[num] || []).push(u) }
+        if (key === 'book_v1') {
+          for (const ch of value.chapters) {
+            if (!ch.contribution_id) continue
+            for (const u of uploads) {
+              if (u.contribution_id && u.contribution_id === ch.contribution_id && !assignedIds.has(u.id)) {
+                takeFor(ch.number, u); assignedIds.add(u.id)
+              }
+            }
+          }
+        }
+        const remainingUploads = uploads.filter(u => !assignedIds.has(u.id))
+        if (remainingUploads.length > 0) {
+          try {
+            setGenProgress(p => ({ ...p, [key]: 'Fotos werden Kapiteln zugeordnet …' }))
+            const sysAssign = imageAssignSystem(value.chapters, remainingUploads) + dir
+            let parsed = null
+            for (let attempt = 1; attempt <= 2 && !parsed; attempt++) {
+              checkCancel()
+              const raw = await askLLM(sysAssign, [{ role: 'user', content: 'Ordne die Fotos jetzt zu (JSON).' }],
+                { memorialCode: selected.id, kind: `${key}_image_assign`, token })
+              parsed = tryParseJSON(raw)
+              if (!parsed && attempt < 2) await new Promise(r => setTimeout(r, 1500))
+            }
+            for (const a of (Array.isArray(parsed?.assignments) ? parsed.assignments : [])) {
+              const num = Number(a.chapter)
+              for (const id of (Array.isArray(a.image_ids) ? a.image_ids : [])) {
+                const u = assignById[id]
+                if (u && !assignedIds.has(u.id)) { takeFor(num, u); assignedIds.add(u.id) }
+              }
+            }
+          } catch (e) { console.warn('Bildzuordnung fehlgeschlagen (nicht kritisch):', e.message) }
+        }
+        // Referenzfoto für die KI-Bilder (Personen-Ähnlichkeit): bevorzugt ein
+        // Hochkant-Foto; wird allen FLUX-Kapiteln als Referenz mitgegeben.
+        // Serverseitig nur aktiv, wenn AZURE_FLUX_IMG2IMG gesetzt ist.
+        const faceRef = uploads.find(u => u.orientation === 'portrait') || uploads[0]
+        const faceRefPaths = faceRef?.path ? [faceRef.path] : []
+
         // Phase 3: Bilder pro Kapitel (sequenziell, mit Auto-Retry) ─────
         // Per Checkbox überspringbar (Debug: spart die langsame Bildphase).
         const total = value.chapters.length
@@ -2477,6 +2757,25 @@ function Dashboard() {
             const ch = value.chapters[i]
             setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
             checkCancel()
+            // Zugeordnete Uploads → EIN komponiertes Landscape-Doppelseiten-Bild
+            // (Hochkant/mehrere/geringe Qualität werden serverseitig sinnvoll
+            // gruppiert, Bildunterschriften eingebrannt). Hat Vorrang vor FLUX.
+            const assigned = (chapterAssign[ch.number] || []).slice(0, 4)
+            if (assigned.length > 0) {
+              setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total}: Fotos werden gesetzt …` }))
+              try {
+                const { storagePath } = await adminComposeImage(token, selected.id,
+                  assigned.map(u => ({ path: u.path, caption: u.caption, orientation: u.orientation })),
+                  { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading })
+                value.chapters[i] = { ...ch, image_path: storagePath, image_error: null, from_upload: true }
+              } catch (e) {
+                console.warn(`Kompositor für Kapitel ${ch.number}:`, e.message)
+                value.chapters[i] = { ...ch, image_error: e.message || String(e) }
+                imageErrors.push(`Kapitel ${ch.number}: ${imageErrorDe(e.message)}`)
+              }
+              bumpPct()
+              continue
+            }
             // Wenn möglich vorhandenes Bild wiederverwenden (kein neuer Call).
             {
               let reusedPath = null
@@ -2502,7 +2801,7 @@ function Dashboard() {
             freshCount++
             try {
               const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
-                meta: { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading },
+                meta: { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(faceRefPaths.length ? { referencePaths: faceRefPaths } : {}) },
                 onWait: (s, rl) => setGenProgress(p => ({ ...p, [key]: rl
                   ? `Bild ${i + 1}/${total}: Rate-Limit erreicht – warte ${s}s und versuche es erneut …`
                   : `Bild ${i + 1}/${total}: erneuter Versuch in ${s}s …` })),
@@ -2674,6 +2973,11 @@ function Dashboard() {
     setImgEditBusy(true); setErr('')
     try {
       const newChapters = book.chapters.map(c => ({ ...c }))
+      // Referenzfoto für die Personen-Ähnlichkeit (nur serverseitig aktiv bei
+      // AZURE_FLUX_IMG2IMG). Bevorzugt ein Hochkant-Upload.
+      const ups = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
+      const fref = ups.find(u => u.orientation === 'portrait') || ups[0]
+      const frefPaths = fref?.path ? [fref.path] : []
       const errs = []
       let done = 0
       for (const i of indices) {
@@ -2684,7 +2988,7 @@ function Dashboard() {
         if (done > 0) await new Promise(r => setTimeout(r, 1500))
         try {
           const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
-            meta: { variant: m.key, chapterNumber: ch.number, chapterHeading: ch.heading },
+            meta: { variant: m.key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(frefPaths.length ? { referencePaths: frefPaths } : {}) },
             onWait: (s, rl) => setImgEditProgress(rl
               ? `Bild ${done + 1}/${indices.length}: Rate-Limit – warte ${s}s und versuche es erneut …`
               : `Bild ${done + 1}/${indices.length}: erneuter Versuch in ${s}s …`),
@@ -4000,6 +4304,13 @@ function Dashboard() {
               })}
               </div>
             )}
+
+            <ManagerPhotos
+              code={selected.id}
+              token={token}
+              uploads={selected.uploaded_images}
+              onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
+            />
 
             <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & {GENERATORS.eulogy.label}</h3>
             {(() => {

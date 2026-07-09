@@ -57,14 +57,29 @@ async function purgeMemorialContributions(supabase, code, reason) {
   const { error: delErr } = await supabase.from('contributions').delete().eq('memorial_id', code)
   if (delErr) throw delErr
 
-  // Protokoll je Beitrag + Gesamtmarker; Änderungs-/Prüfprotokoll mitlöschen.
+  // Hochgeladene Roh-Fotos sind ebenfalls personenbezogene Rohdaten und werden
+  // mit den Beiträgen aufbewahrungsgelöscht. Die ins Buch übernommenen
+  // (komponierten/generierten) Bilder bleiben erhalten – sie sind Teil des
+  // aufbewahrten Produkts und liegen als eigene <uuid>.png-Dateien (NICHT in
+  // uploaded_images). Best effort: Storage-Fehler dürfen den Purge nicht stoppen.
+  const { data: cur } = await supabase.from('memorials').select('uploaded_images').eq('id', code).single()
+  const uploads = Array.isArray(cur?.uploaded_images) ? cur.uploaded_images : []
+  const uploadPaths = uploads.flatMap(u => [u?.path, u?.thumb_path].filter(Boolean))
+  if (uploadPaths.length) {
+    try { await supabase.storage.from(IMAGE_BUCKET).remove(uploadPaths) }
+    catch (e) { console.warn('Purge: Roh-Uploads Storage-Löschung:', e.message) }
+  }
+
+  // Protokoll je Beitrag + Gesamtmarker; Änderungs-/Prüfprotokoll mitlöschen;
+  // uploaded_images leeren (Rohfotos sind nun weg).
   const purge_info = {
     purged_at: now,
     reason,
     contributions: ids.map(id => ({ ref: id, deleted_at: now, reason })),
+    ...(uploadPaths.length ? { uploaded_images_purged: uploads.length } : {}),
   }
   const { error: updErr } = await supabase
-    .from('memorials').update({ purge_info, content_reports: null }).eq('id', code)
+    .from('memorials').update({ purge_info, content_reports: null, uploaded_images: [] }).eq('id', code)
   if (updErr) throw updErr
 
   return { count: ids.length, purge_info }

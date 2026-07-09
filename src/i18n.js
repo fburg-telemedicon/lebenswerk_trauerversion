@@ -93,6 +93,23 @@ ${url}
   // Buch-Überschriften
   chapterLabel: 'Kapitel',
   contributorsHeading: 'An diesem Buch haben mitgewirkt:',
+  // Foto-Upload (am Ende des Interviews)
+  uploadStepTitle: 'Möchten Sie Fotos beitragen?',
+  uploadStepIntro: 'Sie können persönliche Fotos hochladen, die bei der Gestaltung des Buches berücksichtigt werden. Zu jedem Bild können Sie optional eine Bildunterschrift und eine kurze Beschreibung angeben.',
+  uploadPick: '＋ Foto auswählen',
+  uploadCaption: 'Bildunterschrift (optional)',
+  uploadCaptionHint: 'Wird – wenn angegeben – genau so ins Buch übernommen.',
+  uploadDesc: 'Bildbeschreibung (optional)',
+  uploadDescHint: 'Nur zur Einordnung durch die KI; erscheint nicht im Buch.',
+  uploadConsent: 'Ich versichere, dass ich berechtigt bin, diese Fotos hochzuladen, und dass alle abgebildeten Personen (bzw. deren Angehörige) damit einverstanden sind, dass die Bilder zur Gestaltung des Buches verwendet sowie durch KI verarbeitet und künstlerisch verändert werden – auch, um abgebildete Personen stilistisch in die jeweilige Zeit eines Kapitels zu versetzen. Die Verarbeitung erfolgt durch KI-Dienste, die ausschließlich in der EU laufen.',
+  uploadConsentRequired: 'Bitte bestätigen Sie die Einverständniserklärung, um Fotos hochzuladen.',
+  uploadSubmit: 'Fotos hochladen',
+  uploadSkip: 'Ohne Fotos abschließen',
+  uploadUploading: 'Wird hochgeladen …',
+  uploadAdded: (n) => `${n} Foto${n === 1 ? '' : 's'} hinzugefügt`,
+  uploadError: 'Upload fehlgeschlagen',
+  uploadRemove: 'Entfernen',
+  uploadDoneBtn: 'Fertig',
 }
 
 const PL = {
@@ -152,6 +169,23 @@ ${url}
   langPickTitle: 'W jakim języku chcesz kontynuować?',
   chapterLabel: 'Rozdział',
   contributorsHeading: 'W tej księdze wzięli udział:',
+  // Przesyłanie zdjęć (na końcu wywiadu)
+  uploadStepTitle: 'Czy chcesz dodać zdjęcia?',
+  uploadStepIntro: 'Możesz przesłać osobiste zdjęcia, które zostaną uwzględnione przy tworzeniu księgi. Do każdego zdjęcia możesz opcjonalnie dodać podpis i krótki opis.',
+  uploadPick: '＋ Wybierz zdjęcie',
+  uploadCaption: 'Podpis zdjęcia (opcjonalnie)',
+  uploadCaptionHint: 'Jeśli podany, zostanie przeniesiony do księgi dokładnie w tej formie.',
+  uploadDesc: 'Opis zdjęcia (opcjonalnie)',
+  uploadDescHint: 'Tylko dla AI, aby właściwie umieścić zdjęcie; nie pojawia się w księdze.',
+  uploadConsent: 'Zapewniam, że jestem uprawniony/a do przesłania tych zdjęć oraz że wszystkie przedstawione na nich osoby (lub ich bliscy) wyrażają zgodę na wykorzystanie zdjęć do stworzenia księgi, a także na ich przetwarzanie i artystyczną modyfikację przez AI – również w celu stylistycznego przeniesienia osób w czas danego rozdziału. Przetwarzanie odbywa się za pomocą usług AI działających wyłącznie w UE.',
+  uploadConsentRequired: 'Potwierdź zgodę, aby przesłać zdjęcia.',
+  uploadSubmit: 'Prześlij zdjęcia',
+  uploadSkip: 'Zakończ bez zdjęć',
+  uploadUploading: 'Przesyłanie …',
+  uploadAdded: (n) => `Dodano ${n} zdjęć`,
+  uploadError: 'Przesyłanie nie powiodło się',
+  uploadRemove: 'Usuń',
+  uploadDoneBtn: 'Gotowe',
 }
 
 const EN = {
@@ -211,6 +245,23 @@ ${url}
   langPickTitle: 'Which language would you like to continue in?',
   chapterLabel: 'Chapter',
   contributorsHeading: 'Contributors to this book:',
+  // Photo upload (at the end of the interview)
+  uploadStepTitle: 'Would you like to add photos?',
+  uploadStepIntro: 'You can upload personal photos to be considered when the book is designed. For each image you can optionally add a caption and a short description.',
+  uploadPick: '＋ Choose photo',
+  uploadCaption: 'Caption (optional)',
+  uploadCaptionHint: 'If provided, it will be used in the book exactly as written.',
+  uploadDesc: 'Image description (optional)',
+  uploadDescHint: 'Only helps the AI place the image; it does not appear in the book.',
+  uploadConsent: 'I confirm that I am entitled to upload these photos and that all persons shown (or their relatives) agree to the images being used to create the book and being processed and artistically altered by AI – including to stylistically place depicted persons into the period of a chapter. Processing is carried out using AI services that run exclusively in the EU.',
+  uploadConsentRequired: 'Please confirm the declaration of consent to upload photos.',
+  uploadSubmit: 'Upload photos',
+  uploadSkip: 'Finish without photos',
+  uploadUploading: 'Uploading …',
+  uploadAdded: (n) => `${n} photo${n === 1 ? '' : 's'} added`,
+  uploadError: 'Upload failed',
+  uploadRemove: 'Remove',
+  uploadDoneBtn: 'Done',
 }
 
 const UI = { de: DE, pl: PL, en: EN }

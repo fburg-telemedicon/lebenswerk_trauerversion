@@ -125,6 +125,37 @@ async function signMemorialImages(memorials) {
   }
 }
 
+// Signiert die Vollbild- UND Thumbnail-Pfade der hochgeladenen Fotos
+// (memorials.uploaded_images) und hängt image_url / image_thumb_url an jeden
+// Eintrag. Fehlertolerant – darf den GET nicht scheitern lassen.
+async function signUploadedImages(memorials) {
+  try {
+    const paths = new Set()
+    for (const m of memorials) {
+      for (const u of (Array.isArray(m.uploaded_images) ? m.uploaded_images : [])) {
+        if (u?.path) paths.add(String(u.path).replace(/^\/+/, ''))
+        if (u?.thumb_path) paths.add(String(u.thumb_path).replace(/^\/+/, ''))
+      }
+    }
+    if (paths.size === 0) return
+    const { data } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls([...paths], SIGNED_URL_TTL)
+    if (!Array.isArray(data)) return
+    const urlMap = {}
+    for (const d of data) {
+      if (d?.error || !d?.signedUrl || !d?.path) continue
+      urlMap[String(d.path).replace(/^\/+/, '')] = d.signedUrl
+    }
+    for (const m of memorials) {
+      for (const u of (Array.isArray(m.uploaded_images) ? m.uploaded_images : [])) {
+        if (u?.path) u.image_url = urlMap[String(u.path).replace(/^\/+/, '')] || null
+        if (u?.thumb_path) u.image_thumb_url = urlMap[String(u.thumb_path).replace(/^\/+/, '')] || null
+      }
+    }
+  } catch (e) {
+    console.error('signUploadedImages (non-fatal):', e.message)
+  }
+}
+
 // Katalog-Nachfragezahl (x) säubern: ganze Zahl 0..30, Default 7.
 function sanitizeFollowups(v) {
   const n = parseInt(v, 10)
@@ -231,7 +262,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -246,6 +277,7 @@ module.exports = async function handler(req, res) {
       const memorials = data || []
       await signMemorialImages(memorials)
       await signMemorialThumbs(memorials)
+      await signUploadedImages(memorials)
 
       // Gesamtkosten pro Memorial aggregieren
       const { data: costRows } = await supabase.from('cost_events').select('memorial_id, cost_eur, cost_usd')
@@ -348,7 +380,28 @@ module.exports = async function handler(req, res) {
       const access = await loadAccessibleMemorial(supabase, req.auth, code)
       if (access.error) return res.status(access.status).json({ error: access.error })
 
-      const { field, text, meta } = req.body || {}
+      const { field, text, meta, uploadEdit } = req.body || {}
+
+      // Bildunterschrift/-beschreibung eines hochgeladenen Fotos bearbeiten.
+      if (uploadEdit && uploadEdit.id) {
+        const { data: cur } = await supabase.from('memorials').select('uploaded_images').eq('id', code).single()
+        const list = Array.isArray(cur?.uploaded_images) ? cur.uploaded_images : []
+        let found = false
+        const next = list.map(u => {
+          if (u?.id !== uploadEdit.id) return u
+          found = true
+          return {
+            ...u,
+            ...(uploadEdit.caption != null ? { caption: String(uploadEdit.caption).trim().slice(0, 300) } : {}),
+            ...(uploadEdit.description != null ? { description: String(uploadEdit.description).trim().slice(0, 1000) } : {}),
+          }
+        })
+        if (!found) return res.status(404).json({ error: 'Bild nicht gefunden.' })
+        const { error } = await supabase.from('memorials').update({ uploaded_images: next }).eq('id', code)
+        if (error) throw error
+        await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { uploadEdit: uploadEdit.id } })
+        return res.json({ ok: true })
+      }
 
       // Auftragsdaten (Stammdaten des Buchs) bearbeiten. Nur die mitgesendeten
       // Felder werden aktualisiert; Validierung/Normalisierung wie bei POST.

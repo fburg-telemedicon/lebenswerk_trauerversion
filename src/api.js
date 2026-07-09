@@ -202,6 +202,55 @@ export async function adminGenerateImage(token, memorialCode, prompt, meta = {})
   return parseResponse(res) // { storagePath }
 }
 
+// ── Hochgeladene Fotos ────────────────────────────────────────────
+// Beitragender lädt am Ende des Interviews ein Foto hoch (öffentlich, Code +
+// Einverständnis Pflicht). `image` = Data-URL/base64 (Client skaliert vorher).
+export async function uploadContributorImage(code, { image, caption, description, consent, contributionId }) {
+  const res = await fetch(`/api/upload?code=${encodeURIComponent(code)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image, caption, description, consent, contributionId }),
+  })
+  return parseResponse(res) // { image }
+}
+
+// Manager lädt ein eigenes Foto zum Buch hoch (auth).
+export async function adminUploadImage(token, code, { image, caption, description }) {
+  const res = await fetch(`/api/admin/upload-image?code=${encodeURIComponent(code)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ image, caption, description }),
+  })
+  return parseResponse(res) // { image }
+}
+
+export async function adminDeleteUpload(token, code, imageId) {
+  const res = await fetch(`/api/admin/upload-image?code=${encodeURIComponent(code)}&imageId=${encodeURIComponent(imageId)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { removed }
+}
+
+// Bildunterschrift/-beschreibung eines Uploads bearbeiten.
+export async function adminUpdateUpload(token, code, uploadEdit) {
+  const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ uploadEdit }),
+  })
+  return parseResponse(res) // { ok }
+}
+
+// Setzt aus 1..4 Uploads EIN Landscape-Doppelseiten-Bild zusammen (auth).
+export async function adminComposeImage(token, memorialCode, images, meta = {}) {
+  const res = await fetch('/api/admin/compose-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ memorialCode, images, ...meta }),
+  })
+  return parseResponse(res) // { storagePath }
+}
+
 export async function getMemorial(code) {
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`)
   return parseResponse(res) // { id, name, birth_year, death_year, organizer, created_at }

@@ -1,0 +1,31 @@
+-- ================================================================
+-- Lebenswerk – Hochgeladene Bilder (eigene Fotos fürs Buch)
+-- Ausführen in: Supabase Dashboard → SQL Editor → New query → Run
+-- ================================================================
+--
+-- Fügt die Spalte memorials.uploaded_images hinzu. Sie hält die Metadaten
+-- der von Beitragenden oder Managern hochgeladenen Fotos als JSON-Array.
+-- Die Bilddateien selbst liegen im privaten Storage-Bucket "memorial-images"
+-- FLACH unter <CODE>/up-<uuid>.<ext> (+ <CODE>/up-<uuid>_thumb.jpg), damit die
+-- bestehende ordnerweite Löschung (api/_lib/delete-memorial.js) sie bei der
+-- Art.-17-Löschung automatisch miterfasst.
+--
+-- Struktur je Eintrag (siehe api/_lib/upload-asset.js):
+--   {
+--     id, path, thumb_path,
+--     caption,        -- Bildunterschrift, wird im Buch verbatim übernommen
+--     description,    -- Bildbeschreibung, nur für die KI-Einordnung
+--     orientation,    -- 'landscape' | 'portrait' | 'square'
+--     width, height,
+--     quality_flag,   -- 'ok' | 'low'
+--     source,         -- 'manager' | 'contributor'
+--     contribution_id,-- optional: Beitrag, aus dem der Upload stammt
+--     consent: { granted, version, at },  -- Einverständnis (Rechte + KI-Verarbeitung)
+--     uploaded_at
+--   }
+--
+-- RLS liegt bereits auf memorials (supabase/rls.sql) => nur service_role
+-- greift zu. Idempotent: mehrfach ausführbar.
+-- ================================================================
+
+alter table memorials add column if not exists uploaded_images jsonb not null default '[]'::jsonb;

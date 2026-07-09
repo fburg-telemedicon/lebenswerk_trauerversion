@@ -43,9 +43,13 @@ const SPREAD_DIRECTIVE =
   'Render this as ONE single continuous panoramic landscape illustration in a wide format (roughly 1.43:1). ' +
   'The artwork itself must fill the entire frame edge to edge (full-bleed). ' +
   'It is the scene itself — NOT a photo of a printed image. ' +
-  'Do NOT depict a book, an open book, pages, a page spread, a printed photograph, a poster, a postcard, a screen, a frame, a border, a mat, a passe-partout, a tabletop, a desk, a wall, or any object that contains or displays the picture. No mockup, no product shot, no hands. ' +
-  'Keep the main focal elements and any important detail away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
-  'Balanced, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions.'
+  // Personen sind ausdrücklich erwünscht: das Bild soll die Person(en) des
+  // Kapitels in ihrer Handlung und im Zeitkolorit der jeweiligen Epoche zeigen
+  // (periodengerechte Kleidung, Umgebung und Foto-/Filmanmutung dieser Zeit).
+  'People are welcome and preferred when the chapter is about a person: depict them warmly and authentically, dressed and set in the correct historical period of the chapter, with the photographic look of that era. ' +
+  'Do NOT depict a book, an open book, pages, a page spread, a printed photograph, a poster, a postcard, a screen, a frame, a border, a mat, a passe-partout, a tabletop, a desk, a wall, or any object that contains or displays the picture. No mockup, no product shot. ' +
+  'Keep the main focal elements — especially faces — away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
+  'Balanced, warm, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions.'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -79,27 +83,35 @@ async function bytesFromResult(out) {
 // ── Azure Foundry: FLUX.2 [pro] (Black Forest Labs) ───────────────
 // BFL-Provider-API. Antwort kann synchron (b64/url) oder asynchron mit
 // polling_url kommen – beides wird abgedeckt.
-async function generateAzureFlux(fullPrompt) {
+async function generateAzureFlux(fullPrompt, referenceB64) {
   const endpoint   = (process.env.AZURE_FLUX_ENDPOINT || '').replace(/\/+$/, '')
   const key        = process.env.AZURE_FLUX_KEY
   const model      = process.env.AZURE_FLUX_MODEL || 'FLUX.2-pro'
   const modelPath  = process.env.AZURE_FLUX_MODEL_PATH || 'flux-2-pro'
   const apiVersion = process.env.AZURE_FLUX_API_VERSION || 'preview'
+  // Body-Feldname für das Referenzbild (image-to-image). Je nach Foundry-/BFL-
+  // Variante 'input_image' oder 'image_prompt'. Vor dem Scharfschalten gegen den
+  // echten Endpunkt verifizieren; Default 'input_image'.
+  const refField   = process.env.AZURE_FLUX_IMG2IMG_FIELD || 'input_image'
   if (!endpoint || !key) throw new Error('Azure FLUX ist nicht konfiguriert (AZURE_FLUX_ENDPOINT/KEY).')
 
   const startedAt = Date.now()   // Basis für das Poll-Zeitbudget (s. unten)
   const url = `${endpoint}/providers/blackforestlabs/v1/${modelPath}?api-version=${apiVersion}`
+  const body = {
+    model,
+    prompt: fullPrompt,
+    width: IMAGE_W,
+    height: IMAGE_H,
+    output_format: 'png',
+    num_images: 1,
+  }
+  // Referenzbild (Person soll wie auf dem echten Foto aussehen, in die
+  // Kapitelzeit versetzt). Nur gesetzt, wenn ein Referenzbild übergeben wurde.
+  if (referenceB64) body[refField] = referenceB64
   const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      prompt: fullPrompt,
-      width: IMAGE_W,
-      height: IMAGE_H,
-      output_format: 'png',
-      num_images: 1,
-    }),
+    body: JSON.stringify(body),
   })
   if (!resp.ok) {
     const errBody = await resp.text()
@@ -150,11 +162,31 @@ async function generateAzureFlux(fullPrompt) {
   return { buffer, model: FLUX_MODEL, provider: 'azure-flux' }
 }
 
+// Lädt ein Referenzbild aus dem eigenen Gedenkbuch-Ordner und gibt es klein
+// skaliert als base64-JPEG zurück (hält die Anfrage kompakt). Nur Pfade unter
+// <CODE>/ sind zulässig. Fehlertolerant: liefert null bei Problemen.
+async function loadReferenceB64(refPath, code) {
+  try {
+    if (!refPath || !String(refPath).startsWith(`${code}/`)) return null
+    const { data, error } = await supabase.storage.from(BUCKET).download(refPath)
+    if (error || !data) return null
+    const buf = Buffer.from(await data.arrayBuffer())
+    const sharp = require('sharp')
+    const small = await sharp(buf).rotate()
+      .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 88 }).toBuffer()
+    return small.toString('base64')
+  } catch (e) {
+    console.warn('Referenzbild nicht ladbar:', e.message)
+    return null
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   if (req.method !== 'POST') return res.status(405).end()
   try {
-    const { prompt, memorialCode, variant, chapterNumber, chapterHeading } = req.body || {}
+    const { prompt, memorialCode, variant, chapterNumber, chapterHeading, referencePaths } = req.body || {}
     if (!prompt || !memorialCode) return res.status(400).json({ error: 'prompt und memorialCode erforderlich.' })
 
     // Nur für eigene Gedenkbücher (bzw. Admin) Bilder generieren – sonst könnte
@@ -162,12 +194,24 @@ module.exports = async function handler(req, res) {
     const access = await loadAccessibleMemorial(supabase, req.auth, memorialCode)
     if (access.error) return res.status(access.status).json({ error: access.error })
 
+    const code = String(memorialCode).toUpperCase().trim()
     const fullPrompt = `${prompt}\n\n${SPREAD_DIRECTIVE}`
+
+    // image-to-image (echte Personen-Ähnlichkeit, in die Kapitelzeit versetzt):
+    // NUR wenn AZURE_FLUX_IMG2IMG gesetzt ist UND ein Referenzbild vorliegt.
+    // Voraussetzung ist ein Consent, der die KI-Verarbeitung deckt – das prüft
+    // der Aufrufer (nur solche Pfade werden übergeben).
+    let referenceB64 = null
+    const img2imgEnabled = Boolean(process.env.AZURE_FLUX_IMG2IMG)
+    if (img2imgEnabled && Array.isArray(referencePaths) && referencePaths.length) {
+      referenceB64 = await loadReferenceB64(referencePaths[0], code)
+    }
 
     let result
     let usedFallback = false
+    let usedImg2img = Boolean(referenceB64)
     try {
-      result = await generateAzureFlux(fullPrompt)
+      result = await generateAzureFlux(fullPrompt, referenceB64)
     } catch (e) {
       // Inhaltsfilter-Block: GENAU dieser Prompt wird dauerhaft abgelehnt –
       // einmalig auf ein neutrales Ersatzmotiv ausweichen, statt das Kapitel
@@ -177,15 +221,30 @@ module.exports = async function handler(req, res) {
         try {
           result = await generateAzureFlux(`${SAFE_FALLBACK_PROMPT}\n\n${SPREAD_DIRECTIVE}`)
           usedFallback = true
+          usedImg2img = false
         } catch (e2) {
           return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen (Inhaltsfilter): ${e.message}` })
+        }
+      } else if (referenceB64) {
+        // Referenzbild evtl. vom Endpunkt nicht akzeptiert → ohne Referenz erneut
+        // (text-to-image), damit das Kapitel trotzdem ein Bild bekommt.
+        console.warn('FLUX image-to-image fehlgeschlagen, weiche auf text-to-image aus:', e.message)
+        try {
+          result = await generateAzureFlux(fullPrompt)
+          usedImg2img = false
+        } catch (e2) {
+          if (isContentPolicyError(e2.message)) {
+            try { result = await generateAzureFlux(`${SAFE_FALLBACK_PROMPT}\n\n${SPREAD_DIRECTIVE}`); usedFallback = true; usedImg2img = false }
+            catch (e3) { return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen (Inhaltsfilter): ${e2.message}` }) }
+          } else {
+            return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e2.message}` })
+          }
         }
       } else {
         return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e.message}` })
       }
     }
 
-    const code = String(memorialCode).toUpperCase().trim()
     const storagePath = `${code}/${crypto.randomUUID()}.png`
 
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, result.buffer, {
@@ -231,6 +290,7 @@ module.exports = async function handler(req, res) {
         ...(chapterNumber != null ? { chapter: Number(chapterNumber) } : {}),
         ...(chapterHeading ? { chapter_heading: String(chapterHeading).slice(0, 200) } : {}),
         ...(usedFallback ? { fallback: 'content_policy' } : {}),
+        ...(usedImg2img ? { img2img: true } : {}),
       },
     })
 
