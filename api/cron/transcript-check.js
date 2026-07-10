@@ -23,7 +23,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Niedrige Parallelität + Backoff: das Azure-gpt-4.1-Rate-Limit (westeurope) ist
 // der Engpass, nicht die Serverless-Zeit. Zu viel Parallelität/zu schnelle Ketten
 // erzeugen nur 429-Stürme. Werte per Env feinjustierbar.
-const CONCURRENCY = Math.max(1, parseInt(process.env.TRANSCRIPT_CONCURRENCY || '2', 10))
+const CONCURRENCY = Math.max(1, parseInt(process.env.TRANSCRIPT_CONCURRENCY || '6', 10))
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.TRANSCRIPT_BUDGET_MS || '50000', 10))
 const PAGE = 200          // ungeprüfte pro Invocation nachladen (Rest via Selbst-Fortsetzung)
 const MAX_CHAIN = 40      // Sicherheitskappe gegen Endlos-Ketten
