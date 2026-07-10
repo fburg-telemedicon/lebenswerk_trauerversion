@@ -15,6 +15,7 @@ import {
   getInvite, redeemInvite,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
+import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
@@ -685,6 +686,7 @@ const EMPTY_CREATE = {
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },
   catalogId: '', followups: 7,
+  imageStyle: DEFAULT_IMAGE_STYLE,
 }
 
 function qrCodeUrl(text, size = 240) {
@@ -1289,6 +1291,34 @@ function uploadPrintInfo(u) {
   if (u.quality_flag === 'low')
     return { res, label: 'Geringe Auflösung', use: 'wird klein oder mit anderen Fotos gruppiert', color: '#b45309', bg: '#fef3c7' }
   return { res, label: 'Gute Auflösung', use: 'als gerahmtes Einzelbild auf der Seite', color: '#0369a1', bg: '#e0f2fe' }
+}
+
+// Auswahl des Grafikstils (Anlage + Dashboard). Zeigt je Stil ein Beispielbild,
+// Label und Beschreibung. Fehlt das Beispielbild, bleibt eine dezente Fläche.
+function ImageStylePicker({ value, onChange, disabled }) {
+  const cur = value || DEFAULT_IMAGE_STYLE
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:10 }}>
+      {IMAGE_STYLES.map(s => {
+        const on = cur === s.key
+        return (
+          <div key={s.key} onClick={() => !disabled && onChange(s.key)}
+            style={{ cursor: disabled ? 'default' : 'pointer', border:`2px solid ${on ? '#1c1917' : '#e7e5e4'}`, borderRadius:10, overflow:'hidden', background:'#fff', opacity: disabled ? 0.6 : 1 }}>
+            <div style={{ aspectRatio:'3 / 2', background:'#f5f5f4', position:'relative' }}>
+              <img src={s.example} alt={s.label} loading="lazy"
+                onError={e => { e.currentTarget.style.display = 'none' }}
+                style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+              {on && <div style={{ position:'absolute', top:6, right:6, width:22, height:22, borderRadius:6, background:'#1c1917', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>✓</div>}
+            </div>
+            <div style={{ padding:'8px 10px' }}>
+              <div style={{ fontSize:13, fontWeight:600 }}>{s.label}</div>
+              <div style={{ fontSize:11.5, color:'#78716c', lineHeight:1.4, marginTop:2 }}>{s.description}</div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // Foto-Verwaltung im Admin/Manager-Bereich (Detailansicht eines Gedenkbuchs):
@@ -2029,6 +2059,7 @@ function Dashboard() {
       languages: Array.isArray(m.languages) && m.languages.length ? [...m.languages] : ['de'],
       note: m.note || '',
       pickupAddress: m.pickup_address ? { ...EMPTY_PICKUP, ...m.pickup_address } : { ...EMPTY_PICKUP },
+      imageStyle: m.image_style || DEFAULT_IMAGE_STYLE,
     })
     setOrderEdit(true)
   }
@@ -2047,6 +2078,7 @@ function Dashboard() {
         cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo,
         intake: d.intake, languages: d.languages, note: d.note,
         pickupAddress: d.pickupAddress,
+        imageStyle: d.imageStyle,
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -2064,6 +2096,7 @@ function Dashboard() {
         languages: (d.languages && d.languages.length) ? d.languages : ['de'],
         note: d.note.trim() || null,
         pickup_address: hasAddr ? { ...pa, country: (pa.country || '').trim() || 'Deutschland' } : null,
+        image_style: d.imageStyle || DEFAULT_IMAGE_STYLE,
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
@@ -2128,6 +2161,7 @@ function Dashboard() {
         pickupAddress: createForm.pickupAddress,
         catalogId: createForm.catalogId || null,
         followups: createForm.followups,
+        imageStyle: createForm.imageStyle || DEFAULT_IMAGE_STYLE,
       })
       setCreatedCode(code)
       setView('created')
@@ -2439,7 +2473,10 @@ function Dashboard() {
     let lastErr
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await adminGenerateImage(token, memorialId, prompt, meta || {})
+        // Grafikstil des Buchs bei JEDER Bildgenerierung mitgeben → alle Bilder
+        // eines Buchs bleiben konsistent im gewählten Stil (Server hat zusätzlich
+        // einen DB-Fallback). Explizites meta darf den Wert überschreiben.
+        return await adminGenerateImage(token, memorialId, prompt, { imageStyle: selected?.image_style || DEFAULT_IMAGE_STYLE, ...(meta || {}) })
       } catch (e) {
         lastErr = e
         const msg = String(e?.message || '')
@@ -3827,6 +3864,11 @@ function Dashboard() {
             ))}
           </div>
         </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Grafikstil der Bilder</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
+          <ImageStylePicker value={createForm.imageStyle} onChange={k => setCreateForm({ ...createForm, imageStyle: k })} />
+        </div>
         {(() => {
           const avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
           if (avail.length === 0) return null
@@ -4764,6 +4806,11 @@ function Dashboard() {
                       </div>
                     ))}
                   </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Grafikstil der Bilder</Lbl>
+                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gilt für künftig erzeugte Bilder. Bereits generierte Bilder bleiben, bis sie neu erzeugt werden (im Buch über „🖼 Bilder überarbeiten").</p>
+                  <ImageStylePicker value={od.imageStyle} onChange={k => setOd({ imageStyle: k })} />
                 </div>
                 {selected.product_category === 'memorial' && (
                 <div style={{ marginBottom:14 }}>

@@ -20,6 +20,7 @@ const { costImage, recordCost } = require('../_lib/cost')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
+const { normalizeStyle, styleDirective, DEFAULT_STYLE } = require('../_lib/image-styles')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -46,7 +47,9 @@ const SPREAD_DIRECTIVE =
   // Personen sind ausdrücklich erwünscht: das Bild soll die Person(en) des
   // Kapitels in ihrer Handlung und im Zeitkolorit der jeweiligen Epoche zeigen
   // (periodengerechte Kleidung, Umgebung und Foto-/Filmanmutung dieser Zeit).
-  'People are welcome and preferred when the chapter is about a person: depict them warmly and authentically, dressed and set in the correct historical period of the chapter, with the photographic look of that era. ' +
+  // Medien-NEUTRAL formuliert: das konkrete Medium (Foto/Aquarell/Zeichnung) gibt
+  // die separate Stil-Direktive vor (image-styles.js), nicht diese Zeile.
+  'People are welcome and preferred when the chapter is about a person: depict them warmly and authentically, dressed and set in the correct historical period of the chapter, evoking the mood and atmosphere of that era. ' +
   'Do NOT depict a book, an open book, pages, a page spread, a printed photograph, a poster, a postcard, a screen, a frame, a border, a mat, a passe-partout, a tabletop, a desk, a wall, or any object that contains or displays the picture. No mockup, no product shot. ' +
   'Keep the main focal elements — especially faces — away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
   'Balanced, warm, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions.'
@@ -65,7 +68,7 @@ function isContentPolicyError(msg) {
 // Kapitel nicht ganz ohne Bild bleibt. Bewusst ohne Personen, Namen, Text und
 // religioese/sensible Symbole.
 const SAFE_FALLBACK_PROMPT =
-  'A serene, atmospheric memorial illustration in a warm, painterly style: a peaceful natural landscape at soft golden-hour light, a gentle meadow with wildflowers, distant calm hills and a tender sky. ' +
+  'A serene, atmospheric memorial scene: a peaceful natural landscape at soft golden-hour light, a gentle meadow with wildflowers, distant calm hills and a tender sky. ' +
   'Quiet, comforting and dignified mood, evoking remembrance, love and gratitude. No people, no faces, no text, no lettering, no logos, no symbols, no religious icons.'
 
 // Bytes aus der FLUX-Antwort holen: entweder direkt base64 oder eine URL,
@@ -186,7 +189,7 @@ module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return
   if (req.method !== 'POST') return res.status(405).end()
   try {
-    const { prompt, memorialCode, variant, chapterNumber, chapterHeading, referencePaths } = req.body || {}
+    const { prompt, memorialCode, variant, chapterNumber, chapterHeading, referencePaths, imageStyle } = req.body || {}
     if (!prompt || !memorialCode) return res.status(400).json({ error: 'prompt und memorialCode erforderlich.' })
 
     // Nur für eigene Gedenkbücher (bzw. Admin) Bilder generieren – sonst könnte
@@ -195,7 +198,21 @@ module.exports = async function handler(req, res) {
     if (access.error) return res.status(access.status).json({ error: access.error })
 
     const code = String(memorialCode).toUpperCase().trim()
-    const fullPrompt = `${prompt}\n\n${SPREAD_DIRECTIVE}`
+
+    // Grafikstil bestimmen: primär aus dem Request (der Generierungs-Loop kennt den
+    // Stil des Buchs), sonst defensiv aus der DB, sonst Default. So bleibt jedes
+    // Bild eines Buchs konsistent im gewählten Stil – ohne harte Migrations-Abhängigkeit.
+    let style = normalizeStyle(imageStyle)
+    if (!style) {
+      try {
+        const { data } = await supabase.from('memorials').select('image_style').eq('id', code).maybeSingle()
+        style = normalizeStyle(data?.image_style)
+      } catch { /* Spalte evtl. noch nicht vorhanden → Default */ }
+    }
+    style = style || DEFAULT_STYLE
+    const styleDir = styleDirective(style)
+    const fullPrompt = `${prompt}\n\n${styleDir}\n\n${SPREAD_DIRECTIVE}`
+    const fallbackPrompt = `${SAFE_FALLBACK_PROMPT}\n\n${styleDir}\n\n${SPREAD_DIRECTIVE}`
 
     // image-to-image (echte Personen-Ähnlichkeit, in die Kapitelzeit versetzt):
     // NUR wenn AZURE_FLUX_IMG2IMG gesetzt ist UND ein Referenzbild vorliegt.
@@ -219,7 +236,7 @@ module.exports = async function handler(req, res) {
       if (isContentPolicyError(e.message)) {
         console.warn('FLUX Inhaltsfilter-Block, weiche auf neutrales Motiv aus:', e.message)
         try {
-          result = await generateAzureFlux(`${SAFE_FALLBACK_PROMPT}\n\n${SPREAD_DIRECTIVE}`)
+          result = await generateAzureFlux(fallbackPrompt)
           usedFallback = true
           usedImg2img = false
         } catch (e2) {
@@ -234,7 +251,7 @@ module.exports = async function handler(req, res) {
           usedImg2img = false
         } catch (e2) {
           if (isContentPolicyError(e2.message)) {
-            try { result = await generateAzureFlux(`${SAFE_FALLBACK_PROMPT}\n\n${SPREAD_DIRECTIVE}`); usedFallback = true; usedImg2img = false }
+            try { result = await generateAzureFlux(fallbackPrompt); usedFallback = true; usedImg2img = false }
             catch (e3) { return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen (Inhaltsfilter): ${e2.message}` }) }
           } else {
             return res.status(502).json({ error: `Bildgenerierung fehlgeschlagen: ${e2.message}` })

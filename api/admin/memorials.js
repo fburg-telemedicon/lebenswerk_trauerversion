@@ -9,6 +9,7 @@ const { audit } = require('../_lib/audit')
 const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
+const { normalizeStyle, DEFAULT_STYLE } = require('../_lib/image-styles')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -320,11 +321,21 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      // Grafikstil defensiv nachladen (Spalte evtl. noch nicht migriert → Default),
+      // damit der kritische Haupt-Select unabhängig von der Migration bleibt.
+      try {
+        const { data: styleRows, error: styleErr } = await supabase.from('memorials').select('id, image_style')
+        if (styleErr) throw styleErr
+        const styleMap = {}
+        for (const r of styleRows || []) styleMap[r.id] = r.image_style
+        for (const m of memorials) m.image_style = styleMap[m.id] || DEFAULT_STYLE
+      } catch { for (const m of memorials) m.image_style = DEFAULT_STYLE }
+
       return res.json(memorials)
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress, catalogId, followups } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -340,7 +351,7 @@ module.exports = async function handler(req, res) {
       const variant = (bookVariant === 2 || bookVariant === '2') ? 2 : 1
       let days = parseInt(cutoffDays, 10)
       if (!Number.isFinite(days) || days < 0) days = 7
-      const { error } = await supabase.from('memorials').insert({
+      const insertRow = {
         id: code, name, organizer, gender: gender || null, book_variant: variant,
         funeral_date: funeralDate || null,
         cutoff_days: days,
@@ -353,7 +364,15 @@ module.exports = async function handler(req, res) {
         pickup_address: sanitizePickupAddress(pickupAddress),
         catalog_id: catalogId || null,
         followups: sanitizeFollowups(followups),
-      })
+        image_style: normalizeStyle(imageStyle) || DEFAULT_STYLE,
+      }
+      let { error } = await supabase.from('memorials').insert(insertRow)
+      // Falls image-style.sql noch nicht lief, existiert die Spalte nicht → ohne
+      // image_style erneut anlegen (Buch-Anlage darf nie an der Migration hängen).
+      if (error && /image_style|column/i.test(error.message || '')) {
+        delete insertRow.image_style
+        ;({ error } = await supabase.from('memorials').insert(insertRow))
+      }
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'memorial.create', target: code, detail: { category } })
       return res.json({ code })
@@ -432,10 +451,17 @@ module.exports = async function handler(req, res) {
         if ('pickupAddress' in meta) update.pickup_address = sanitizePickupAddress(meta.pickupAddress)
         if ('catalogId' in meta)     update.catalog_id = meta.catalogId || null
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
+        if ('imageStyle' in meta)    update.image_style = normalizeStyle(meta.imageStyle) || DEFAULT_STYLE
 
         if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
 
-        const { error } = await supabase.from('memorials').update(update).eq('id', code)
+        let { error } = await supabase.from('memorials').update(update).eq('id', code)
+        // image_style-Spalte evtl. noch nicht migriert → ohne sie erneut speichern.
+        if (error && 'image_style' in update && /image_style|column/i.test(error.message || '')) {
+          delete update.image_style
+          if (Object.keys(update).length) { ({ error } = await supabase.from('memorials').update(update).eq('id', code)) }
+          else error = null
+        }
         if (error) throw error
         await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { meta: Object.keys(update) } })
         return res.json({ ok: true })
