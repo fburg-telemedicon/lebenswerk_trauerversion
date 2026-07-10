@@ -6,7 +6,7 @@ import {
   createMemorial, getMemorial, getContribution, addContribution,
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload, adminComposeImage,
-  adminDeleteContribution, adminUpdateContributionMessages,
+  adminDeleteContribution, adminUpdateContributionMessages, adminSaveTranscriptCheck,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
@@ -20,6 +20,7 @@ import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } fro
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
+import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -1928,6 +1929,7 @@ function Dashboard() {
   const [memorials, setMemorials]     = useState([])
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
+  const [transcriptReport, setTranscriptReport] = useState(false) // Transkript-Bericht-Modal offen?
   const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
   const [usersData, setUsersData]     = useState({ users: [] })
@@ -2479,6 +2481,25 @@ function Dashboard() {
       const updated = await adminUpdateContributionMessages(token, c.id, newMessages)
       setContribs(cs => cs.map(x => x.id === c.id ? updated : x))
       if (selectedContrib?.id === c.id) setSelectedContrib(updated)
+    } catch (e) { setErr(e.message) }
+  }
+
+  // Transkript-Korrektur rückgängig machen bzw. wieder anwenden (Bericht). Ändert
+  // den Antworttext des Beitrags und den applied-Status der Korrektur; speichert
+  // beides (ohne den „geprüft"-Stempel zu verändern).
+  async function toggleTranscriptCorrection(contribId, corrId) {
+    const c = contributions.find(x => x.id === contribId)
+    if (!c) return
+    const corrs = (Array.isArray(c.transcript_corrections) ? c.transcript_corrections : []).map(x => ({ ...x }))
+    const corr = corrs.find(x => x.id === corrId)
+    if (!corr) return
+    const r = corr.applied ? revertCorrectionInMessages(c.messages, corr) : applyCorrectionToMessages(c.messages, corr)
+    if (!r.ok) { setErr('Textstelle nicht gefunden – der Beitrag wurde evtl. zwischenzeitlich manuell geändert.'); return }
+    corr.applied = !corr.applied
+    setErr('')
+    try {
+      const updated = await adminSaveTranscriptCheck(token, contribId, { messages: r.messages, transcriptCorrections: corrs })
+      setContribs(cs => cs.map(x => x.id === contribId ? { ...x, ...updated, transcript_corrections: corrs } : x))
     } catch (e) { setErr(e.message) }
   }
 
@@ -3477,6 +3498,51 @@ function Dashboard() {
       {imgZoom.heading && <div style={{ color:'#fff', marginTop:12, fontSize:14, textAlign:'center' }}>{imgZoom.heading}</div>}
     </div>
   ) : null
+
+  // Transkriptions-Bericht: alle vom Cron vorgenommenen Korrekturen, je Änderung
+  // mit „Rückgängig" (bzw. „Wieder anwenden").
+  const transcriptReportOverlay = transcriptReport ? (() => {
+    const items = contributions.flatMap(c => (Array.isArray(c.transcript_corrections) ? c.transcript_corrections : [])
+      .map(x => ({ ...x, contribId: c.id, contributor: c.contributor_name || 'Unbekannt' })))
+    return (
+      <div onClick={() => setTranscriptReport(false)} style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:150, padding:'1rem', overflowY:'auto' }}>
+        <div onClick={e => e.stopPropagation()} style={{ ...S.card, maxWidth:720, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
+            <div>
+              <h2 style={{ fontSize:18, fontWeight:700, margin:'0 0 4px' }}>🔎 Transkriptions-Bericht</h2>
+              <p style={{ ...S.muted, margin:0, fontSize:13 }}>Automatisch korrigiertes Transkriptions-Rauschen (STT-Fehler, Fremdgeräusche, Eigennamen). „Rückgängig" stellt den Originaltext dieser Stelle wieder her.</p>
+            </div>
+            <button className="ghost" onClick={() => setTranscriptReport(false)} style={{ fontSize:22, lineHeight:1 }}>×</button>
+          </div>
+          <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:10, padding:'4px 2px' }}>
+            {items.length === 0 ? (
+              <p style={S.muted}>Noch keine Korrekturen gefunden. Neue Beiträge werden im Hintergrund geprüft.</p>
+            ) : items.map(corr => (
+              <div key={corr.id} style={{ border:'1px solid #e7e5e4', borderRadius:10, padding:'10px 12px', background: corr.applied ? '#fff' : '#faf9f7' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, marginBottom:6 }}>
+                  <span style={{ fontSize:12, color:'#a8a29e' }}>{corr.contributor}</span>
+                  <button className="secondary" onClick={() => toggleTranscriptCorrection(corr.contribId, corr.id)}
+                    style={{ fontSize:12, padding:'4px 10px', ...(corr.applied ? {} : { color:'#15803d', borderColor:'#bbf7d0' }) }}>
+                    {corr.applied ? '↩ Rückgängig' : '↺ Wieder anwenden'}
+                  </button>
+                </div>
+                <div style={{ fontSize:14, lineHeight:1.6 }}>
+                  <span style={{ background:'#fee2e2', color:'#991b1b', textDecoration:'line-through', padding:'0 3px', borderRadius:3 }}>{corr.before}</span>
+                  {' → '}
+                  <span style={{ background:'#dcfce7', color:'#166534', padding:'0 3px', borderRadius:3 }}>{corr.after}</span>
+                </div>
+                {corr.reason && <div style={{ fontSize:12, color:'#78716c', marginTop:5 }}>{corr.reason}</div>}
+                {!corr.applied && <div style={{ fontSize:11.5, color:'#b45309', marginTop:4 }}>rückgängig gemacht – Originaltext aktiv</div>}
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:12 }}>
+            <button className="secondary" onClick={() => setTranscriptReport(false)} style={{ fontSize:14 }}>Schließen</button>
+          </div>
+        </div>
+      </div>
+    )
+  })() : null
 
   const sevStyle = sev => sev === 'hoch' ? { color:'#b91c1c', background:'#fee2e2' }
     : sev === 'mittel' ? { color:'#b45309', background:'#fef3c7' }
@@ -4606,6 +4672,27 @@ function Dashboard() {
           {loading ? (
             <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
           ) : (<>
+            {(() => {
+              const corrs = contributions.flatMap(c => (Array.isArray(c.transcript_corrections) ? c.transcript_corrections : []).map(x => ({ ...x, contribId: c.id, contributor: c.contributor_name })))
+              const appliedN = corrs.filter(x => x.applied).length
+              const checkedN = contributions.filter(c => c.transcript_checked_at).length
+              const totalN = contributions.length
+              if (totalN === 0) return null
+              return (
+                <div style={{ ...S.card, marginBottom:'1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:600, fontSize:15 }}>🔎 Transkriptions-Prüfung</div>
+                    <p style={{ ...S.muted, fontSize:13, margin:'4px 0 0' }}>
+                      {checkedN}/{totalN} Beiträge geprüft · {appliedN} aktive Korrektur{appliedN === 1 ? '' : 'en'}.
+                      {checkedN < totalN ? ' Neue Beiträge werden im Hintergrund automatisch geprüft.' : ''}
+                    </p>
+                  </div>
+                  <button className="secondary" onClick={() => setTranscriptReport(true)} disabled={corrs.length === 0} style={{ fontSize:13, padding:'8px 14px', flexShrink:0 }}>
+                    Bericht öffnen{corrs.length ? ` (${corrs.length})` : ''}
+                  </button>
+                </div>
+              )
+            })()}
             {selected.purge_info ? (
               <div style={{ ...S.card, marginBottom:'1.5rem', background:'#fffbeb', borderColor:'#fde68a' }}>
                 <div style={{ fontWeight:600, marginBottom:6 }}>🗄 Beiträge gelöscht (Aufbewahrungsfrist)</div>
@@ -4992,6 +5079,7 @@ function Dashboard() {
         {imgEditOverlay}
         {imgZoomOverlay}
         {reportOverlay}
+        {transcriptReportOverlay}
       </div>
     )
   }
@@ -5384,6 +5472,7 @@ function Dashboard() {
         {imgEditOverlay}
         {imgZoomOverlay}
         {reportOverlay}
+        {transcriptReportOverlay}
       </div>
     )
   }

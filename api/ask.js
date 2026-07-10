@@ -20,45 +20,9 @@ const { costLLM, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { verifyToken } = require('./_lib/auth')
+const { callAzure } = require('./_lib/llm')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-
-const MAX_TOKENS = 8000
-
-// ── Azure OpenAI (GPT) ────────────────────────────────────────────
-// Neue OpenAI-v1-API der Microsoft-Foundry-Ressourcen:
-//   POST {endpoint}/openai/v1/chat/completions?api-version=preview
-//   Body enthält `model` = Deployment-Name (NICHT im URL-Pfad).
-// Der Anthropic-Stil { system, messages } wird auf OpenAI gemappt: system wird
-// als erste Nachricht (role 'system') vorangestellt. Antwort- und Usage-Format
-// sind identisch zur klassischen Chat-Completions-API (choices[].message.content).
-async function callAzure({ system, messages }) {
-  const endpoint   = (process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/+$/, '')
-  const key        = process.env.AZURE_OPENAI_KEY
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || 'preview'
-  if (!endpoint || !key || !deployment) {
-    throw new Error('Azure OpenAI ist nicht konfiguriert (AZURE_OPENAI_ENDPOINT/KEY/DEPLOYMENT).')
-  }
-  const url = `${endpoint}/openai/v1/chat/completions?api-version=${apiVersion}`
-  const oaiMessages = (system ? [{ role: 'system', content: system }] : []).concat(messages || [])
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'api-key': key },
-    // temperature bewusst nicht gesetzt (Modell-Default) – manche neueren
-    // Modelle erlauben nur den Default-Wert.
-    body: JSON.stringify({ model: deployment, messages: oaiMessages, max_tokens: MAX_TOKENS }),
-  })
-  const data = await response.json()
-  if (data.error) throw new Error(data.error.message || 'Azure-OpenAI-Fehler')
-  return {
-    text: data.choices?.[0]?.message?.content || '',
-    provider: 'azure-openai',
-    model: deployment, // Deployment-Name = Pricing-Key in cost.js
-    inT: data.usage?.prompt_tokens || 0,
-    outT: data.usage?.completion_tokens || 0,
-  }
-}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })

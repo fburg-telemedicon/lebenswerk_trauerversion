@@ -229,6 +229,21 @@ export async function adminUpdateContributionMessages(token, id, messages) {
   return parseResponse(res) // updated contribution row
 }
 
+// Transkript-Prüfung speichern: korrigierte messages + optional Prüf-Zeitstempel
+// und Korrekturliste (für Bericht/Undo). Für Undo/Redo nur messages+corrections
+// senden (transcriptCheckedAt weglassen, damit der „geprüft"-Stempel bleibt).
+export async function adminSaveTranscriptCheck(token, id, { messages, transcriptCheckedAt, transcriptCorrections }) {
+  const body = { messages }
+  if (transcriptCheckedAt !== undefined) body.transcriptCheckedAt = transcriptCheckedAt
+  if (transcriptCorrections !== undefined) body.transcriptCorrections = transcriptCorrections
+  const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  return parseResponse(res) // updated contribution row
+}
+
 export async function adminGenerateImage(token, memorialCode, prompt, meta = {}) {
   // meta (optional): { variant, chapterNumber, chapterHeading } – nur für die
   // Kosten-Zuordnung (welche Buch-Variante / welches Kapitel).

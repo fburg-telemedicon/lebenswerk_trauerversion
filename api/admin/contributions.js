@@ -31,17 +31,22 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const id = (req.query.id || '').trim()
       if (!id) return res.status(400).json({ error: 'id fehlt.' })
-      const { messages } = req.body || {}
+      const { messages, transcriptCheckedAt, transcriptCorrections } = req.body || {}
       if (!Array.isArray(messages)) return res.status(400).json({ error: 'messages muss ein Array sein.' })
       // Nur Beiträge eigener Gedenkbücher (bzw. Admin) ändern.
       const access = await loadAccessibleContribution(supabase, req.auth, id)
       if (access.error) return res.status(access.status).json({ error: access.error })
-      const { data, error } = await supabase
-        .from('contributions')
-        .update({ messages })
-        .eq('id', id)
-        .select()
-        .single()
+      // Transkript-Prüffelder optional mitschreiben (Migration transcript-check.sql).
+      const update = { messages }
+      if (transcriptCheckedAt !== undefined) update.transcript_checked_at = transcriptCheckedAt || null
+      if (Array.isArray(transcriptCorrections)) update.transcript_corrections = transcriptCorrections
+      let { data, error } = await supabase.from('contributions').update(update).eq('id', id).select().single()
+      // Spalten evtl. noch nicht migriert → ohne die Transkript-Felder erneut speichern.
+      if (error && /transcript_|column/i.test(error.message || '')) {
+        delete update.transcript_checked_at
+        delete update.transcript_corrections
+        ;({ data, error } = await supabase.from('contributions').update(update).eq('id', id).select().single())
+      }
       if (error) throw error
       return res.json(data)
     }

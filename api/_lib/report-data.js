@@ -250,6 +250,7 @@ async function gatherReport(supabase, opts = {}) {
   const EXPECTED_JOBS = [
     { job: 'purge', label: 'DSGVO-Löschung (Purge)', maxAgeH: 26 },
     { job: 'report', label: 'Tagesreport', maxAgeH: 26 },
+    { job: 'transcript', label: 'Transkript-Prüfung', maxAgeH: 3 },
   ]
   const hbByJob = Object.fromEntries((heartbeats || []).map(h => [h.job, h]))
   const jobs = EXPECTED_JOBS.map(({ job, label, maxAgeH }) => {
