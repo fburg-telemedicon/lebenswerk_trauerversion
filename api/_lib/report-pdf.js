@@ -217,14 +217,6 @@ function page4(d) {
     { label: 'Hochgeladene Fotos gesamt', value: int(d.totals.photos) },
   ], { rowH: 44 })
 
-  ry += 44 * 4 + 50
-  s += txt(MARGIN, ry, 'Methodik', { size: 22, bold: true })
-  ry += 32
-  const note = 'Alle Angaben beziehen sich auf den Vortag (Zeitzone Europe/Berlin) bzw. die genannten Zeiträume. Der Bericht enthält ausschließlich aggregierte Kennzahlen. Es werden keine Namen, E-Mail-Adressen, Interview-Inhalte oder sonstige personenbezogenen Daten von Beitragenden oder Verstorbenen verarbeitet oder übermittelt.'
-  const words = note.split(/\s+/); let ln = ''; const lines = []
-  for (const wd of words) { if ((ln + ' ' + wd).trim().length > 104) { lines.push(ln.trim()); ln = wd } else ln += ' ' + wd }
-  if (ln.trim()) lines.push(ln.trim())
-  lines.forEach(l => { s += txt(MARGIN, ry, l, { size: 18, fill: MUTED }); ry += 28 })
   return s
 }
 
