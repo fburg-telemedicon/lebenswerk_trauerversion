@@ -294,6 +294,34 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 }`
 }
 
+// Prompt: pro Kapitel das am besten passende REFERENZFOTO einer Person wählen
+// (für die Personen-Ähnlichkeit der KI-Bilder, image-to-image). Nutzt Bildtitel/
+// Beschreibung, um das Foto der im Kapitel behandelten Person zuzuordnen.
+// Liefert JSON { refs: [{ chapter, image_id }] } – nur Kapitel mit klar passendem
+// Personenfoto. Ein Foto darf für mehrere Kapitel dienen.
+function faceRefSystem(chapters, uploads) {
+  const chapLines = chapters.map(c => `${c.number}. ${c.heading || ''}`).join('\n')
+  const upLines = uploads.map(u =>
+    `- id ${u.id}: ${u.caption ? '„' + u.caption + '" – ' : ''}${u.description || '(keine Beschreibung)'} [${u.orientation}]`
+  ).join('\n')
+  return `Du wählst für die Kapitel eines Erinnerungsbuchs jeweils das am besten geeignete REFERENZFOTO einer Person. Dieses Foto dient später als Vorlage, damit ein KI-generiertes Bild die abgebildete Person ähnlich darstellt.
+
+Kapitel:
+${chapLines}
+
+Hochgeladene Fotos:
+${upLines}
+
+Wähle je Kapitel EIN Foto, das die im Kapitel behandelte Person am klarsten zeigt. Nutze Bildtitel und Beschreibung, um Namen/Beziehung dem Kapitel zuzuordnen; Porträts/Hochkant-Fotos eignen sich meist besser. Ein Foto darf für mehrere Kapitel gewählt werden. Gibt es für ein Kapitel kein klar passendes Personenfoto (z. B. reines Landschafts-/Sachfoto oder unpassende Person), lass das Kapitel weg.
+
+Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
+{
+  "refs": [
+    { "chapter": <Kapitelnummer als Zahl>, "image_id": "<id>" }
+  ]
+}`
+}
+
 async function fetchImageBuffer(url) {
   try {
     const r = await fetch(url)
@@ -2514,6 +2542,37 @@ function Dashboard() {
     },
   }
 
+  // Wählt per KI je Kapitel das beste Referenzfoto einer Person (anhand Bildtitel/
+  // Beschreibung) für die Personen-Ähnlichkeit der KI-Bilder (image-to-image).
+  // Rückgabe: { byChapter: {Kapitelnummer: path}, globalPath }. Der globalPath
+  // (erstes Hochkant/erstes Foto) dient als Fallback für Kapitel ohne KI-Treffer.
+  // Voll fehlertolerant: bei Problemen bleibt nur der Fallback. Serverseitig wird
+  // die Referenz ohnehin nur genutzt, wenn AZURE_FLUX_IMG2IMG gesetzt ist.
+  async function selectFaceRefs(chapters, uploads, kindKey, dir = '') {
+    const list = Array.isArray(uploads) ? uploads : []
+    const faceRef = list.find(u => u.orientation === 'portrait') || list[0]
+    const globalPath = faceRef?.path || null
+    const byChapter = {}
+    if (list.length === 0 || !Array.isArray(chapters) || chapters.length === 0) return { byChapter, globalPath }
+    const byId = {}
+    for (const u of list) byId[u.id] = u
+    try {
+      const sys = faceRefSystem(chapters, list) + dir
+      let parsed = null
+      for (let attempt = 1; attempt <= 2 && !parsed; attempt++) {
+        const raw = await askLLM(sys, [{ role: 'user', content: 'Wähle die Referenzfotos jetzt (JSON).' }],
+          { memorialCode: selected.id, kind: `${kindKey}_face_ref`, token })
+        parsed = tryParseJSON(raw)
+        if (!parsed && attempt < 2) await new Promise(r => setTimeout(r, 1200))
+      }
+      for (const r of (Array.isArray(parsed?.refs) ? parsed.refs : [])) {
+        const u = byId[r.image_id]
+        if (u?.path) byChapter[Number(r.chapter)] = u.path
+      }
+    } catch (e) { console.warn('Referenzfoto-Auswahl fehlgeschlagen (nicht kritisch):', e.message) }
+    return { byChapter, globalPath }
+  }
+
   // Bildgenerierung mit Auto-Retry. Zwei Klassen transienter Fehler:
   //  - 5xx/Timeout (FLUX läuft am 60s-Limit) → kurze Pause genügt.
   //  - Rate-Limit (FLUX „exceeded rate limit", pro-Minute-Kontingent in
@@ -2945,11 +3004,12 @@ function Dashboard() {
             }
           } catch (e) { console.warn('Bildzuordnung fehlgeschlagen (nicht kritisch):', e.message) }
         }
-        // Referenzfoto für die KI-Bilder (Personen-Ähnlichkeit): bevorzugt ein
-        // Hochkant-Foto; wird allen FLUX-Kapiteln als Referenz mitgegeben.
-        // Serverseitig nur aktiv, wenn AZURE_FLUX_IMG2IMG gesetzt ist.
-        const faceRef = uploads.find(u => u.orientation === 'portrait') || uploads[0]
-        const faceRefPaths = faceRef?.path ? [faceRef.path] : []
+        // Referenzfoto PRO Kapitel per KI wählen (Personen-Ähnlichkeit, image-to-
+        // image): das Foto der jeweils im Kapitel behandelten Person – anhand
+        // Bildtitel/Beschreibung. Fallback: erstes Hochkant/erstes Foto. Server
+        // nutzt die Referenz nur, wenn AZURE_FLUX_IMG2IMG gesetzt ist.
+        if (uploads.length > 0) setGenProgress(p => ({ ...p, [key]: 'Referenzfotos werden Kapiteln zugeordnet …' }))
+        const { byChapter: faceRefByChapter, globalPath: faceRefGlobal } = await selectFaceRefs(value.chapters, uploads, key, dir)
 
         // Phase 3: Bilder pro Kapitel (sequenziell, mit Auto-Retry) ─────
         // Per Checkbox überspringbar (Debug: spart die langsame Bildphase).
@@ -3022,8 +3082,10 @@ function Dashboard() {
             if (freshCount > 0) await new Promise(r => setTimeout(r, 1500))
             freshCount++
             try {
+              const refPath = faceRefByChapter[ch.number] || faceRefGlobal
+              const refPaths = refPath ? [refPath] : []
               const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
-                meta: { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(faceRefPaths.length ? { referencePaths: faceRefPaths } : {}) },
+                meta: { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPaths.length ? { referencePaths: refPaths } : {}) },
                 onWait: (s, rl) => setGenProgress(p => ({ ...p, [key]: rl
                   ? `Bild ${i + 1}/${total}: Rate-Limit erreicht – warte ${s}s und versuche es erneut …`
                   : `Bild ${i + 1}/${total}: erneuter Versuch in ${s}s …` })),
@@ -3196,11 +3258,12 @@ function Dashboard() {
     setImgEditBusy(true); setErr(''); setImgEditMsg('')
     try {
       const newChapters = book.chapters.map(c => ({ ...c }))
-      // Referenzfoto für die Personen-Ähnlichkeit (nur serverseitig aktiv bei
-      // AZURE_FLUX_IMG2IMG). Bevorzugt ein Hochkant-Upload.
+      // Referenzfoto JE KAPITEL per KI wählen (Personen-Ähnlichkeit, nur server-
+      // seitig aktiv bei AZURE_FLUX_IMG2IMG) – nur für die neu zu erzeugenden
+      // Kapitel; Fallback: erstes Hochkant/erstes Foto.
       const ups = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
-      const fref = ups.find(u => u.orientation === 'portrait') || ups[0]
-      const frefPaths = fref?.path ? [fref.path] : []
+      if (ups.length > 0) setImgEditProgress('Referenzfotos werden zugeordnet …')
+      const { byChapter: refByChapter, globalPath: refGlobal } = await selectFaceRefs(indices.map(i => newChapters[i]), ups, m.key)
       const errs = []
       let done = 0
       for (const i of indices) {
@@ -3210,8 +3273,10 @@ function Dashboard() {
         // Sanftes Pacing gegen das pro-Minute-Rate-Limit (FLUX).
         if (done > 0) await new Promise(r => setTimeout(r, 1500))
         try {
+          const refPath = refByChapter[ch.number] || refGlobal
+          const refPaths = refPath ? [refPath] : []
           const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
-            meta: { variant: m.key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(frefPaths.length ? { referencePaths: frefPaths } : {}) },
+            meta: { variant: m.key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPaths.length ? { referencePaths: refPaths } : {}) },
             onWait: (s, rl) => setImgEditProgress(rl
               ? `Bild ${done + 1}/${indices.length}: Rate-Limit – warte ${s}s und versuche es erneut …`
               : `Bild ${done + 1}/${indices.length}: erneuter Versuch in ${s}s …`),
