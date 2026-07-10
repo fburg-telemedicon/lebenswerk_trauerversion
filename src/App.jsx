@@ -10,6 +10,7 @@ import {
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
+  adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
   getInvite, redeemInvite,
 } from './api.js'
@@ -1808,6 +1809,9 @@ function Dashboard() {
   const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
   const [auditData, setAuditData]     = useState({ entries: [] })
   const [auditLoading, setAuditLoading] = useState(false)
+  const [recipients, setRecipients]   = useState([])          // Tagesreport-Empfänger
+  const [recipientForm, setRecipientForm] = useState({ email: '', name: '' })
+  const [reportMsg, setReportMsg]     = useState('')          // Status nach Test-Versand
   const [logo, setLogo]               = useState(null)   // eigenes Firmenlogo (Data-URL)
   const [logoLoading, setLogoLoading] = useState(false)
   const [logoSaved, setLogoSaved]     = useState(false)
@@ -2230,6 +2234,45 @@ function Dashboard() {
     setErr('')
     try { await adminDeleteUser(token, user.id); await loadUsers() }
     catch (e) { setErr(e.message) }
+  }
+
+  // ── Tagesreport-Empfänger (nur Admin) ──
+  async function loadRecipients() {
+    setErr('')
+    try { const d = await adminListRecipients(token); setRecipients(d.recipients || []) }
+    catch (e) { setErr(e.message) }
+  }
+  async function submitRecipient() {
+    const email = recipientForm.email.trim()
+    if (!email) { setErr('E-Mail-Adresse erforderlich.'); return }
+    setErr(''); setBusy(true)
+    try {
+      await adminAddRecipient(token, { email, name: recipientForm.name.trim() || null })
+      setRecipientForm({ email: '', name: '' })
+      await loadRecipients()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function toggleRecipient(r) {
+    setErr('')
+    try { await adminUpdateRecipient(token, r.id, { active: !r.active }); await loadRecipients() }
+    catch (e) { setErr(e.message) }
+  }
+  async function removeRecipient(r) {
+    if (!window.confirm(`Empfänger „${r.email}" entfernen?`)) return
+    setErr('')
+    try { await adminDeleteRecipient(token, r.id); await loadRecipients() }
+    catch (e) { setErr(e.message) }
+  }
+  // Test-Versand: an eine eingegebene Adresse (sonst an alle aktiven Empfänger).
+  async function sendReportNow(toOverride) {
+    setErr(''); setReportMsg(''); setBusy(true)
+    try {
+      const d = await adminSendReportNow(token, toOverride ? { to: toOverride } : {})
+      const parts = [`Report für ${d.date} erstellt`, `${d.sent}/${d.recipients} gesendet`, d.pdfBytes ? `PDF ${(d.pdfBytes / 1024).toFixed(0)} KB` : 'PDF fehlte']
+      if (d.errors?.length) parts.push(`Fehler: ${d.errors.map(e => `${e.to} (${e.error})`).join('; ')}`)
+      if (d.note) parts.push(d.note)
+      setReportMsg(parts.join(' · '))
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
   async function handleDelete(m) {
@@ -3441,6 +3484,9 @@ function Dashboard() {
           {auth.admin && (
             <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>Fragenkataloge</button>
           )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>Report</button>
+          )}
           {myUid && (
             <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
           )}
@@ -3980,6 +4026,65 @@ function Dashboard() {
       </div>
     )
   }
+
+  // ── TAGESREPORT-EMPFÄNGER (nur Admin) ──
+  if (view === 'reports') return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView('list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Tagesreport</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
+          Jede Nacht (gegen 1:00 Uhr) geht ein Report mit den wichtigsten Kennzahlen des Vortags an die aktiven Empfänger – kompakte Zahlen im Text, ausführlicher Bericht mit Diagrammen als PDF-Anhang. Es werden ausschließlich aggregierte Zahlen versendet (keine personenbezogenen Daten).
+        </p>
+        <Err msg={err} />
+        {reportMsg && (
+          <div style={{ ...S.card, marginBottom:20, borderColor:'#bbf7d0', background:'#f0fdf4', fontSize:13, color:'#166534' }}>{reportMsg}</div>
+        )}
+
+        {/* Empfängerliste */}
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:24 }}>
+          {recipients.map(r => (
+            <div key={r.id} style={{ ...S.card, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+              <div>
+                <strong style={{ fontSize:15 }}>{r.email}</strong>
+                {r.name && <span style={{ ...S.muted, fontSize:13, marginLeft:8 }}>{r.name}</span>}
+                {!r.active && <span style={{ fontSize:11, marginLeft:8, color:'#b45309' }}>pausiert</span>}
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="secondary" onClick={() => toggleRecipient(r)} style={{ fontSize:12, padding:'5px 10px' }}>{r.active ? 'Pausieren' : 'Aktivieren'}</button>
+                <button className="secondary" onClick={() => removeRecipient(r)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+              </div>
+            </div>
+          ))}
+          {recipients.length === 0 && <p style={S.muted}>Noch keine Empfänger. Fügen Sie unten die erste Adresse hinzu.</p>}
+        </div>
+
+        {/* Neuer Empfänger */}
+        <div style={{ ...S.card, marginBottom:24 }}>
+          <Lbl>Empfänger hinzufügen</Lbl>
+          <input value={recipientForm.email} onChange={e => setRecipientForm({ ...recipientForm, email: e.target.value })} placeholder="E-Mail-Adresse" type="email" style={{ marginBottom:8 }} />
+          <input value={recipientForm.name} onChange={e => setRecipientForm({ ...recipientForm, name: e.target.value })} placeholder="Name (optional)" style={{ marginBottom:12 }} />
+          <button onClick={submitRecipient} disabled={busy || !recipientForm.email.trim()} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? 'Wird gespeichert …' : 'Hinzufügen'}</button>
+        </div>
+
+        {/* Test-Versand */}
+        <div style={{ ...S.card }}>
+          <Lbl>Report jetzt testen</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 12px' }}>
+            Erzeugt den Report sofort mit den aktuellen Zahlen (Vortag) und verschickt ihn – praktisch zur Kontrolle, ohne bis 1:00 Uhr zu warten.
+          </p>
+          <input value={recipientForm.test || ''} onChange={e => setRecipientForm({ ...recipientForm, test: e.target.value })} placeholder="Test-Adresse (leer = alle aktiven Empfänger)" type="email" style={{ marginBottom:12 }} />
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => sendReportNow((recipientForm.test || '').trim() || undefined)} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? 'Wird gesendet …' : 'Report senden'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 
   if (view === 'users') return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>

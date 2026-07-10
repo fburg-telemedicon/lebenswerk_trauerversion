@@ -69,7 +69,8 @@ function toRecipients(v) {
 //     from      Absender-Postfach; Default = GRAPH_MAIL_SENDER. MUSS von der
 //               Access Policy gedeckt sein (noreply@ / support@).
 //     replyTo   Antwort-an (z. B. support@), optional
-async function sendMail({ to, subject, text, html, from, replyTo, cc, bcc, saveToSentItems = false } = {}) {
+//     attachments [{ filename, contentBytes(base64), contentType? }] – optional
+async function sendMail({ to, subject, text, html, from, replyTo, cc, bcc, attachments, saveToSentItems = false } = {}) {
   const sender = String(from || process.env.GRAPH_MAIL_SENDER || '').trim()
   if (!sender) throw new Error('Kein Absender gesetzt (GRAPH_MAIL_SENDER oder from).')
   const toRec = toRecipients(to)
@@ -88,6 +89,17 @@ async function sendMail({ to, subject, text, html, from, replyTo, cc, bcc, saveT
   if (ccRec.length) message.ccRecipients = ccRec
   if (bccRec.length) message.bccRecipients = bccRec
   if (replyRec.length) message.replyTo = replyRec
+
+  if (Array.isArray(attachments) && attachments.length) {
+    message.attachments = attachments
+      .filter(a => a && a.contentBytes)
+      .map(a => ({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: a.filename || 'anhang',
+        contentType: a.contentType || 'application/octet-stream',
+        contentBytes: a.contentBytes,
+      }))
+  }
 
   const token = await getToken()
   const r = await fetch(`${GRAPH}/users/${encodeURIComponent(sender)}/sendMail`, {

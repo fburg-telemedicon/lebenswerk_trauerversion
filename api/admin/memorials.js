@@ -473,7 +473,18 @@ module.exports = async function handler(req, res) {
         orphanPaths = [...new Set(oldPaths.filter(p => p && !newPaths.has(p)))]
       }
 
-      const { error } = await supabase.from('memorials').update({ [field]: text ?? null }).eq('id', code)
+      // Generierungs-Zeitstempel mitschreiben (für den Tagesreport: "neu erzeugte
+      // Bücher/Nachrufe gestern"). Nur beim Setzen (text != null), nicht beim Leeren.
+      const upd = { [field]: text ?? null }
+      const tsCol = { book_v1: 'book_v1_at', book_v2: 'book_v2_at', eulogy_text: 'eulogy_at' }[field]
+      if (tsCol && text != null) upd[tsCol] = new Date().toISOString()
+      let { error } = await supabase.from('memorials').update(upd).eq('id', code)
+      // Falls die Migration supabase/report.sql noch nicht lief, existiert die
+      // *_at-Spalte nicht → ohne Zeitstempel erneut speichern (Buch darf nie scheitern).
+      if (error && tsCol && upd[tsCol] !== undefined && /column|does not exist|_at/i.test(error.message || '')) {
+        delete upd[tsCol]
+        ;({ error } = await supabase.from('memorials').update(upd).eq('id', code))
+      }
       if (error) throw error
 
       // Aufräumen: nicht mehr referenzierte Bilddateien (inkl. ihrer _thumb.jpg)

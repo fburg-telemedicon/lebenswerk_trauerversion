@@ -1,0 +1,13 @@
+{
+  "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
+  "entries": [
+    {
+      "date": "2026-07-10",
+      "items": [
+        "Fotoseiten falz-sicher: Bei mehreren Fotos auf einer Doppelseite liegt keines mehr über der Mittelfalz (Aufteilung 1|1, 2|1 bzw. 2|2).",
+        "Serverseitiger E-Mail-Versand über Microsoft Graph aufgebaut (Entra-App, Access Policy, Helfer graphmail.js, Test-Endpoint).",
+        "Täglicher E-Mail-Report mit Kennzahlen-Body und PDF-Anhang (mit Diagrammen); Empfängerverwaltung im Dashboard."
+      ]
+    }
+  ]
+}

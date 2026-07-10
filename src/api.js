@@ -119,6 +119,44 @@ export async function adminListAudit(token, { limit = 100, action } = {}) {
   return parseResponse(res) // { entries }
 }
 
+// ── Tagesreport-Empfänger (Admin) ─────────────────────────────────
+export async function adminListRecipients(token) {
+  const res = await fetch('/api/admin/reports', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { recipients }
+}
+export async function adminAddRecipient(token, { email, name }) {
+  const res = await fetch('/api/admin/reports', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ email, name }),
+  })
+  return parseResponse(res) // { recipient }
+}
+export async function adminUpdateRecipient(token, id, patch) {
+  const res = await fetch(`/api/admin/reports?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(patch),
+  })
+  return parseResponse(res) // { ok }
+}
+export async function adminDeleteRecipient(token, id) {
+  const res = await fetch(`/api/admin/reports?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { ok }
+}
+// Report jetzt bauen & senden. Ohne `to` an die aktiven Empfänger, sonst an die
+// angegebene Adresse (String) – praktisch zum Testen.
+export async function adminSendReportNow(token, { to } = {}) {
+  const res = await fetch('/api/admin/reports?send=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(to ? { to } : {}),
+  })
+  return parseResponse(res) // { ok, sent, recipients, errors, pdfBytes, ... }
+}
+
 // ── Eigene Einstellungen (Firmenlogo) ─────────────────────────────
 // Liegt aus Funktions-Limit-Gründen mit der Benutzerverwaltung im selben
 // Endpoint (?self=1 umgeht dort die Admin-Schranke).
