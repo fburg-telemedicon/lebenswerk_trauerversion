@@ -7,7 +7,11 @@
 //
 // Test ohne Versand:  GET /api/cron/report?dry=1   (mit Bearer-Secret)
 
+const { createClient } = require('@supabase/supabase-js')
 const { buildAndSendReport } = require('../_lib/report-send')
+const { recordHeartbeat } = require('../_lib/heartbeat')
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET
@@ -21,6 +25,11 @@ module.exports = async function handler(req, res) {
     const dry = req.query?.dry === '1' || req.query?.dry === 'true'
     const result = await buildAndSendReport({ dryRun: dry })
     console.log('[cron/report]', JSON.stringify(result))
+    // Heartbeat nur bei echten Läufen (nicht Dry-Run) – für den Systemstatus im
+    // nächsten Report.
+    if (!dry) await recordHeartbeat(supabase, 'report', result.errors?.length ? 'partial' : 'ok', {
+      date: result.date, sent: result.sent, recipients: result.recipients,
+    })
     return res.json({ ok: true, ...result })
   } catch (e) {
     console.error('/api/cron/report:', e)

@@ -93,7 +93,7 @@ async function gatherReport(supabase, opts = {}) {
   // *_at-Spalten existieren evtl. noch nicht (Migration report.sql). Fallback.
   let memorials = await safe('memorials(full)', async () => {
     const { data, error } = await supabase.from('memorials')
-      .select('id, product_category, created_at, book_v1_at, book_v2_at, eulogy_at, funeral_date, uploaded_images, languages')
+      .select('id, product_category, created_at, book_v1_at, book_v2_at, eulogy_at, funeral_date, uploaded_images, languages, purge_info')
     if (error) throw error
     return data || []
   }, null)
@@ -102,11 +102,18 @@ async function gatherReport(supabase, opts = {}) {
     genTimestamps = false
     memorials = await safe('memorials(minimal)', async () => {
       const { data, error } = await supabase.from('memorials')
-        .select('id, product_category, created_at, funeral_date, uploaded_images, languages')
+        .select('id, product_category, created_at, funeral_date, uploaded_images, languages, purge_info')
       if (error) throw error
       return data || []
     }, [])
   }
+
+  // Heartbeats geplanter Jobs (für den Systemstatus).
+  const heartbeats = await safe('job_heartbeats', async () => {
+    const { data, error } = await supabase.from('job_heartbeats').select('job, last_run_at, last_status, detail')
+    if (error) throw error
+    return data || []
+  }, [])
 
   // ── Kostenevents letzte 30 Tage (+ gestern) ─────────────────────
   const costRange = await safe('cost(30d)', async () => {
@@ -224,8 +231,9 @@ async function gatherReport(supabase, opts = {}) {
   const catDist = {}
   for (const m of memorials) { const c = m.product_category || 'memorial'; catDist[c] = (catDist[c] || 0) + 1 }
 
-  // Retention-Vorschau: fällige Löschungen in den nächsten 7/30 Tagen.
-  let retention7 = 0, retention30 = 0
+  // Retention-Vorschau: fällige Löschungen in den nächsten 7/30 Tagen +
+  // ÜBERFÄLLIGE (Frist seit >1 Tag vorbei, aber noch nicht bereinigt → Purge klemmt).
+  let retention7 = 0, retention30 = 0, retentionOverdue = 0
   const nowMs = now.getTime()
   for (const m of memorials) {
     const anchor = m.funeral_date ? new Date(m.funeral_date) : new Date(m.created_at)
@@ -233,6 +241,29 @@ async function gatherReport(supabase, opts = {}) {
     const inDays = (due - nowMs) / DAY_MS
     if (inDays >= 0 && inDays <= 7) retention7++
     if (inDays >= 0 && inDays <= 30) retention30++
+    if (!m.purge_info?.purged_at && due + DAY_MS < nowMs) retentionOverdue++
+  }
+
+  // ── Systemstatus: geplante Jobs ─────────────────────────────────
+  // Erwartete Jobs + max. Alter, ab dem "überfällig". Purge läuft täglich (GitHub
+  // Action 03:00 UTC), der Report täglich (Vercel-Cron). 26 h Toleranz.
+  const EXPECTED_JOBS = [
+    { job: 'purge', label: 'DSGVO-Löschung (Purge)', maxAgeH: 26 },
+    { job: 'report', label: 'Tagesreport', maxAgeH: 26 },
+  ]
+  const hbByJob = Object.fromEntries((heartbeats || []).map(h => [h.job, h]))
+  const jobs = EXPECTED_JOBS.map(({ job, label, maxAgeH }) => {
+    const hb = hbByJob[job]
+    if (!hb) return { job, label, ok: null, ageHours: null, lastRunAt: null, status: 'unbekannt' }
+    const ageHours = Math.round((nowMs - new Date(hb.last_run_at).getTime()) / 3600000)
+    const fresh = ageHours <= maxAgeH
+    const statusOk = !hb.last_status || hb.last_status === 'ok'
+    return { job, label, ok: fresh && statusOk, ageHours, lastRunAt: hb.last_run_at, status: hb.last_status || 'ok' }
+  })
+  const health = {
+    jobs,
+    retentionOverdue,
+    allOk: jobs.every(j => j.ok !== false) && retentionOverdue === 0,
   }
 
   const prevMemorials = memorialsPerDay[28] || 0
@@ -271,7 +302,8 @@ async function gatherReport(supabase, opts = {}) {
     mtd: { costEur: round2(costMtd), prevMonthCostEur: round2(costPrevMonth) },
     series: { days, contributionsPerDay, costPerDay: costPerDay.map(round2), memorialsPerDay, memByCat30 },
     distributions: { langDist, catDist },
-    retention: { next7: retention7, next30: retention30 },
+    retention: { next7: retention7, next30: retention30, overdue: retentionOverdue },
+    health,
     changelog: changelogForDate(dateStr),
   }
 }

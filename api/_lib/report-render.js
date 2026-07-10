@@ -40,6 +40,13 @@ function htmlBody(d) {
   const changelog = (d.changelog.length ? d.changelog : ['— keine Einträge —'])
     .map(it => `<li style="margin:4px 0;color:#2b2723">${esc(it)}</li>`).join('')
 
+  const mark = ok => ok === true ? '<span style="color:#5f7d5a">✓</span>' : ok === false ? '<span style="color:#a85a4a">⚠</span>' : '<span style="color:#9a9187">•</span>'
+  const statusItems = (d.health?.jobs || []).map(j => {
+    const detail = j.lastRunAt == null ? 'noch kein Lauf' : (!j.ok ? `überfällig (vor ${j.ageHours} h)` : `zuletzt vor ${j.ageHours} h`)
+    return `<li style="margin:4px 0">${mark(j.ok)} ${esc(j.label)} – <span style="color:#6b645c">${detail}</span></li>`
+  })
+  statusItems.push(`<li style="margin:4px 0">${mark((d.health?.retentionOverdue || 0) === 0)} Überfällige DSGVO-Löschungen – <span style="color:#6b645c">${(d.health?.retentionOverdue || 0) === 0 ? 'keine' : d.health.retentionOverdue + ' überfällig'}</span></li>`)
+
   return `<div style="font-family:Georgia,'Times New Roman',serif;max-width:640px;margin:0 auto;color:#2b2723">
     <div style="border-top:6px solid #8a7a5e;padding-top:16px">
       <div style="color:#8a7a5e;font-weight:bold;font-size:14px">LEBENSGESCHICHTEN</div>
@@ -52,6 +59,8 @@ function htmlBody(d) {
       <b>Monat bisher:</b> ${eur(d.mtd.costEur)} Kosten &nbsp;·&nbsp;
       <b>Bestand:</b> ${int(d.totals.memorials)} Gedenkbücher, ${int(d.totals.contributions)} Beiträge, ${int(d.totals.managers)} Manager
     </p>
+    <h2 style="font-size:16px;margin:22px 0 6px">⚙️ Systemstatus</h2>
+    <ul style="font-size:14px;padding-left:20px;margin:0;list-style:none">${statusItems.join('')}</ul>
     <h2 style="font-size:16px;margin:22px 0 6px">🛠️ Gestern umgesetzt</h2>
     <ul style="font-size:14px;padding-left:20px;margin:0">${changelog}</ul>
     <p style="font-size:13px;color:#9a9187;margin:22px 0 8px;border-top:1px solid #eee;padding-top:12px">
@@ -76,6 +85,16 @@ function textBody(d) {
   L.push(`  Kosten gestern: ${eur(y.costEur)}${deltaText(y.delta.costEur, true)}`)
   L.push('')
   L.push(`Monat bisher: ${eur(d.mtd.costEur)} · Bestand: ${int(d.totals.memorials)} Gedenkbücher, ${int(d.totals.contributions)} Beiträge, ${int(d.totals.managers)} Manager`)
+  L.push('')
+  L.push('Systemstatus:')
+  for (const j of (d.health?.jobs || [])) {
+    const detail = j.lastRunAt == null ? 'noch kein Lauf' : (!j.ok ? `ÜBERFÄLLIG (vor ${j.ageHours} h)` : `ok, zuletzt vor ${j.ageHours} h`)
+    L.push(`  ${j.ok === false ? '[!]' : '[ok]'} ${j.label}: ${detail}`)
+  }
+  {
+    const ov = d.health?.retentionOverdue || 0
+    L.push(`  ${ov === 0 ? '[ok]' : '[!]'} Überfällige DSGVO-Löschungen: ${ov === 0 ? 'keine' : ov}`)
+  }
   L.push('')
   L.push('Gestern umgesetzt:')
   for (const it of (d.changelog.length ? d.changelog : ['— keine Einträge —'])) L.push(`  - ${it}`)

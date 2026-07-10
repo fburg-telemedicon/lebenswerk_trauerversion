@@ -181,10 +181,33 @@ function page4(d) {
   const x = MARGIN, w = W - 2 * MARGIN
   const langItems = Object.entries(d.distributions.langDist).map(([k, v]) => ({ label: langLabel(k), value: v })).sort((a, b) => b.value - a.value)
   const catItems = Object.entries(d.distributions.catDist).map(([k, v]) => ({ label: catLabel(k), value: v })).sort((a, b) => b.value - a.value)
-  s += charts.hBarsChart({ x, y: 440, w: w * 0.48, h: 340, title: 'Kategorien (Bestand)', items: catItems })
-  s += charts.hBarsChart({ x: x + w * 0.52, y: 440, w: w * 0.48, h: 340, title: 'Angebotene Sprachen', items: langItems, color: charts.SERIES[3] })
+  s += charts.hBarsChart({ x, y: 440, w: w * 0.48, h: 300, title: 'Kategorien (Bestand)', items: catItems })
+  s += charts.hBarsChart({ x: x + w * 0.52, y: 440, w: w * 0.48, h: 300, title: 'Angebotene Sprachen', items: langItems, color: charts.SERIES[3] })
 
-  let ry = 850
+  // Systemstatus (laufen die geplanten Jobs?)
+  let ry = 800
+  s += sectionTitle(MARGIN, ry, 'Systemstatus')
+  ry += 40
+  const statusRow = (label, ok, detail) => {
+    const color = ok === true ? POS : ok === false ? NEG : MUTED
+    const mark = ok === true ? '●' : ok === false ? '▲' : '○'
+    let r = txt(MARGIN, ry + 4, mark, { size: 22, fill: color })
+    r += txt(MARGIN + 34, ry + 4, label, { size: 20, fill: INK })
+    r += txt(W - MARGIN, ry + 4, detail, { size: 19, fill: MUTED, anchor: 'end' })
+    r += `<line x1="${MARGIN}" y1="${ry + 22}" x2="${W - MARGIN}" y2="${ry + 22}" stroke="${LINE}" stroke-width="0.75"/>`
+    ry += 46
+    return r
+  }
+  for (const j of d.health.jobs) {
+    let detail
+    if (j.lastRunAt == null) detail = 'noch kein Lauf erfasst'
+    else if (!j.ok) detail = `überfällig – zuletzt vor ${j.ageHours} h${j.status !== 'ok' ? ` (${j.status})` : ''}`
+    else detail = `läuft – zuletzt vor ${j.ageHours} h`
+    s += statusRow(j.label, j.ok, detail)
+  }
+  s += statusRow('Überfällige DSGVO-Löschungen', d.health.retentionOverdue === 0, d.health.retentionOverdue === 0 ? 'keine' : `${int(d.health.retentionOverdue)} überfällig`)
+
+  ry += 34
   s += sectionTitle(MARGIN, ry, 'Betrieb')
   ry += 24
   s += table(MARGIN, ry, w, [
@@ -192,9 +215,9 @@ function page4(d) {
     { label: 'Automatische Löschungen in den nächsten 30 Tagen', value: int(d.retention.next30) },
     { label: 'KI-generierte Bilder gesamt', value: int(d.totals.images) },
     { label: 'Hochgeladene Fotos gesamt', value: int(d.totals.photos) },
-  ], { rowH: 46 })
+  ], { rowH: 44 })
 
-  ry += 46 * 4 + 50
+  ry += 44 * 4 + 50
   s += txt(MARGIN, ry, 'Methodik', { size: 22, bold: true })
   ry += 32
   const note = 'Alle Angaben beziehen sich auf den Vortag (Zeitzone Europe/Berlin) bzw. die genannten Zeiträume. Der Bericht enthält ausschließlich aggregierte Kennzahlen. Es werden keine Namen, E-Mail-Adressen, Interview-Inhalte oder sonstige personenbezogenen Daten von Beitragenden oder Verstorbenen verarbeitet oder übermittelt.'

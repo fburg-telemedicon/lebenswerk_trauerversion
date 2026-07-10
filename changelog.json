@@ -6,7 +6,8 @@
       "items": [
         "Fotoseiten falz-sicher: Bei mehreren Fotos auf einer Doppelseite liegt keines mehr über der Mittelfalz (Aufteilung 1|1, 2|1 bzw. 2|2).",
         "Serverseitiger E-Mail-Versand über Microsoft Graph aufgebaut (Entra-App, Access Policy, Helfer graphmail.js, Test-Endpoint).",
-        "Täglicher E-Mail-Report mit Kennzahlen-Body und PDF-Anhang (mit Diagrammen); Empfängerverwaltung im Dashboard."
+        "Täglicher E-Mail-Report mit Kennzahlen-Body und PDF-Anhang (mit Diagrammen); Empfängerverwaltung im Dashboard.",
+        "Report-Systemstatus: geplante Jobs (Purge, Report) melden Heartbeats; der Report zeigt, ob sie liefen und ob DSGVO-Löschungen überfällig sind."
       ]
     }
   ]

@@ -14,6 +14,7 @@
 
 const { createClient } = require('@supabase/supabase-js')
 const { purgeMemorialContributions } = require('../_lib/delete-memorial')
+const { recordHeartbeat } = require('../_lib/heartbeat')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
@@ -62,7 +63,13 @@ module.exports = async function handler(req, res) {
         results.push({ code: m.id, ok: false, error: e.message })
       }
     }
-    console.log(`[purge] geprüft ${rows?.length || 0}, fällig ${due.length}, bereinigt ${results.filter(r => r.ok).length}`)
+    const purgedOk = results.filter(r => r.ok).length
+    console.log(`[purge] geprüft ${rows?.length || 0}, fällig ${due.length}, bereinigt ${purgedOk}`)
+
+    // Heartbeat für den Systemstatus im Tagesreport (nur echte Läufe, kein Dry-Run).
+    await recordHeartbeat(supabase, 'purge', results.some(r => !r.ok) ? 'partial' : 'ok', {
+      checked: rows?.length || 0, due: due.length, purged: purgedOk,
+    })
 
     // Best-effort Haushaltspflege (darf den Purge nie scheitern lassen):
     // abgelaufene Rate-Limit-Eimer und alte Audit-Logs (> 365 Tage) entfernen.
