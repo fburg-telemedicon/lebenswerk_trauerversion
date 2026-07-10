@@ -311,7 +311,11 @@ module.exports = async function handler(req, res) {
       },
     })
 
-    return res.json({ storagePath, ...(usedFallback ? { fallback: 'content_policy' } : {}) })
+    // img2img im Response melden → macht die Verifizierung von AZURE_FLUX_IMG2IMG
+    // eindeutig (true = Referenzbild wurde tatsächlich mitgeschickt & akzeptiert;
+    // fehlt es trotz gesetztem Flag+Referenz, ist der Endpunkt/das Feldname-Mapping
+    // zu prüfen – dann wurde auf reines Text-zu-Bild zurückgefallen).
+    return res.json({ storagePath, ...(usedFallback ? { fallback: 'content_policy' } : {}), ...(usedImg2img ? { img2img: true } : {}) })
   } catch (e) {
     console.error('/api/admin/generate-image:', e)
     res.status(500).json({ error: e.message })
