@@ -24,6 +24,16 @@ const STYLES = {
       'fine graphite pencil drawing — soft hand-drawn shading and subtle cross-hatching on warm off-white paper, ' +
       'restrained near-monochrome tones with gentle highlights. An intimate, hand-sketched look throughout.',
   },
+  oil: {
+    directive:
+      'a classic oil painting — rich impasto brushstrokes, warm layered glazes and painterly depth, ' +
+      'in the timeless, dignified manner of fine portrait art. A hand-painted, museum-like look throughout.',
+  },
+  vintage: {
+    directive:
+      'a nostalgic vintage photograph — warm sepia and gently faded tones, soft focus, fine analog film grain ' +
+      'and a subtle vignette, evoking a treasured, lovingly kept old family photo.',
+  },
 }
 
 function normalizeStyle(key) {

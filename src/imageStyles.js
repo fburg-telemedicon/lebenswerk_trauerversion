@@ -22,6 +22,18 @@ export const IMAGE_STYLES = [
     description: 'Feine Graphit-Skizze mit sanften Schraffuren – ruhig, intim, monochrom.',
     example: '/styles/pencil.jpg',
   },
+  {
+    key: 'oil',
+    label: 'Ölgemälde',
+    description: 'Klassische Malerei mit sichtbarem Pinselduktus – warm, zeitlos, würdevoll.',
+    example: '/styles/oil.jpg',
+  },
+  {
+    key: 'vintage',
+    label: 'Vintage-Foto',
+    description: 'Nostalgische Sepia-Töne, weicher Fokus – wie ein altes Familienfoto.',
+    example: '/styles/vintage.jpg',
+  },
 ]
 
 export const DEFAULT_IMAGE_STYLE = 'realistic'
