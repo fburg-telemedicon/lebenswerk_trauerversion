@@ -36,9 +36,16 @@ async function buildAndSendReport(opts = {}) {
     ...(opts.includeData ? { data } : {}),
   }
 
-  let recipients = (opts.recipients && opts.recipients.length)
-    ? [...new Set(opts.recipients.map(e => String(e).trim()).filter(Boolean))]
-    : await getActiveRecipients(supabase)
+  let recipients
+  if (opts.recipients && opts.recipients.length) {
+    recipients = [...new Set(opts.recipients.map(e => String(e).trim()).filter(Boolean))]
+  } else {
+    // Empfängerliste ist unkritisch für Vorschau/PDF: fehlt die Tabelle (Migration
+    // report.sql noch nicht ausgeführt) oder ist sie leer, geht der Report an
+    // niemanden statt zu crashen.
+    try { recipients = await getActiveRecipients(supabase) }
+    catch (e) { recipients = []; result.recipientsError = e.message }
+  }
   result.recipients = recipients.length
 
   if (opts.dryRun) return result
