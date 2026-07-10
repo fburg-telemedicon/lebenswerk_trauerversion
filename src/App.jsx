@@ -605,6 +605,12 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   }
   flow(BOOK_DISCLAIMER, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
 
+  // ── Auf ein Vielfaches von 4 auffüllen (Druckbogen/Signaturen) ──
+  // Buchbindung setzt Seiten in 4er-Bögen; die Gesamtseitenzahl muss durch 4
+  // teilbar sein. Fehlende Seiten werden als LEERE Seiten OHNE Seitenzahl am
+  // Schluss ergänzt (als pageEmpty markiert → die Nummerierung unten überspringt sie).
+  while (doc.getNumberOfPages() % 4 !== 0) { newPage(); pageEmpty.add(page) }
+
   // ── Seitenzahlen unten mittig – ohne Titel-, Bild- und Leerseiten ──
   // Seite 1 ist immer die (innere) Titelseite und bleibt klassisch ohne Nummer.
   const totalPages = doc.getNumberOfPages()
@@ -1299,6 +1305,7 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
   // vorgehalten, bis Bildtitel + Bildbeschreibung eingegeben und mit „Hochladen"
   // bestätigt wurden. { image: dataURL, name, caption, description } | null.
   const [pending, setPending] = useState(null)
+  const [zoom, setZoom]       = useState(null) // Foto groß ansehen (Lightbox)
   const inStyle = { width:'100%', padding:'8px 10px', border:'1px solid #d6d3d1', borderRadius:8, fontSize:13, boxSizing:'border-box' }
 
   async function onPick(e) {
@@ -1349,7 +1356,9 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:12, marginBottom:14 }}>
             {list.map(u => (
               <div key={u.id} style={{ border:'1px solid #e7e5e4', borderRadius:10, overflow:'hidden', background:'#faf9f7' }}>
-                <img src={u.image_thumb_url || u.image_url} alt="" style={{ width:'100%', height:100, objectFit:'cover', display:'block' }} />
+                <img src={u.image_thumb_url || u.image_url} alt="" title="Größer ansehen"
+                  onClick={() => setZoom(u.image_url || u.image_thumb_url)}
+                  style={{ width:'100%', height:100, objectFit:'cover', display:'block', cursor:'zoom-in' }} />
                 <div style={{ padding:'8px 9px' }}>
                   {(() => { const pi = uploadPrintInfo(u); return (
                     <div style={{ marginBottom:6 }}>
@@ -1410,6 +1419,16 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
           </label>
         )}
       </div>
+
+      {zoom && (
+        <div onClick={() => setZoom(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.82)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'2rem', cursor:'zoom-out' }}>
+          <button onClick={() => setZoom(null)} title="Schließen"
+            style={{ position:'fixed', top:14, right:20, fontSize:28, lineHeight:1, color:'#fff', background:'none', border:'none', cursor:'pointer' }}>×</button>
+          <img src={zoom} alt="" onClick={e => e.stopPropagation()}
+            style={{ maxWidth:'95vw', maxHeight:'88vh', objectFit:'contain', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.5)' }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -1860,6 +1879,13 @@ function Dashboard() {
   const [filterCol, setFilterCol]     = useState(null) // welches Spalten-Filtermenü offen ist
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
+
+  // Buch-/Redeansicht immer oben (bei der Titelseite) beginnen. Ohne das landet
+  // man beim Öffnen durch das Nachladen der Kapitelbilder (lazy, ohne reservierten
+  // Platz) via Scroll-Anchoring mitten im Buch (z. B. bei Kapitel 2).
+  useEffect(() => {
+    if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') window.scrollTo(0, 0)
+  }, [view])
 
   // Fehlt der Anzeigename (z. B. Session von vor dem Deploy), serverseitig
   // nachladen – damit oben der echte Benutzername statt eines Platzhalters steht.
