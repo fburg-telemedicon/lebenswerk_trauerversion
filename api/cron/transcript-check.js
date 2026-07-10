@@ -20,14 +20,32 @@ const { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parse
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
-const CONCURRENCY = Math.max(1, parseInt(process.env.TRANSCRIPT_CONCURRENCY || '4', 10))
+// Niedrige Parallelität + Backoff: das Azure-gpt-4.1-Rate-Limit (westeurope) ist
+// der Engpass, nicht die Serverless-Zeit. Zu viel Parallelität/zu schnelle Ketten
+// erzeugen nur 429-Stürme. Werte per Env feinjustierbar.
+const CONCURRENCY = Math.max(1, parseInt(process.env.TRANSCRIPT_CONCURRENCY || '2', 10))
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.TRANSCRIPT_BUDGET_MS || '50000', 10))
 const PAGE = 200          // ungeprüfte pro Invocation nachladen (Rest via Selbst-Fortsetzung)
-const MAX_CHAIN = 60      // Sicherheitskappe gegen Endlos-Ketten
+const MAX_CHAIN = 40      // Sicherheitskappe gegen Endlos-Ketten
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const isRateLimit = msg => /rate limit|exceeded|429|too many requests|throttl/i.test(String(msg || ''))
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET
   return Boolean(secret) && req.headers.authorization === `Bearer ${secret}`
+}
+
+// Azure-Aufruf mit Backoff bei Rate-Limit (pausiert und wiederholt), damit sich
+// der Cron auf das TPM-Kontingent einpegelt statt es zu hämmern.
+async function callWithBackoff(args) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { return await callAzure(args) }
+    catch (e) {
+      if (attempt < 3 && isRateLimit(e.message)) { await sleep(7000 * attempt); continue }
+      throw e
+    }
+  }
 }
 
 async function countPending() {
@@ -43,7 +61,7 @@ async function processOne(c, memName, dry) {
     .map((m, idx) => ({ index: idx, role: m.role, content: m.content }))
     .filter(a => a.role === 'user' && String(a.content || '').trim())
   const sys = transcriptCheckSystem({ name: memName[c.memorial_id] }, c, userAnswers)
-  const r = await callAzure({ system: sys, messages: [{ role: 'user', content: 'Prüfe und liste die Korrekturen als JSON.' }] })
+  const r = await callWithBackoff({ system: sys, messages: [{ role: 'user', content: 'Prüfe und liste die Korrekturen als JSON.' }] })
   if (r.inT || r.outT) {
     await recordCost({ memorial_id: c.memorial_id, contribution_id: c.id, kind: 'transcript_check', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) })
   }
@@ -129,7 +147,10 @@ module.exports = async function handler(req, res) {
     let remaining = 0
     try { remaining = await countPending() } catch {}
     let chained = false
-    if (!dry && remaining > 0 && chain < MAX_CHAIN) { await triggerNext(chain); chained = true }
+    // Nur weiterketten, wenn dieser Lauf Fortschritt gemacht hat. Bei Nullfortschritt
+    // (z. B. anhaltendes Rate-Limit) stoppen → keine Leerlauf-Kette; der nächste
+    // nächtliche Lauf holt den Rest nach.
+    if (!dry && remaining > 0 && chain < MAX_CHAIN && checked > 0) { await triggerNext(chain); chained = true }
 
     const summary = { checked, corrected, errors, remaining, chain, chained, budgetHit, dry, ms: Date.now() - startedAt }
     // Heartbeat nur am Kettenanfang (chain 0) setzen – markiert „Job lief heute".
