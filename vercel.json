@@ -19,7 +19,7 @@
     "api/cron/transcript-check.js": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/api/cron/report", "schedule": "0 23 * * *" },
-    { "path": "/api/cron/transcript-check", "schedule": "0 * * * *" }
+    { "path": "/api/cron/transcript-check", "schedule": "0 22 * * *" },
+    { "path": "/api/cron/report", "schedule": "0 23 * * *" }
   ]
 }
