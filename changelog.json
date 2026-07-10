@@ -12,7 +12,8 @@
         "Druck-PDF: Gesamtseitenzahl wird auf ein Vielfaches von 4 aufgefüllt (Leerseiten ohne Seitenzahl am Schluss, für die Buchbindung).",
         "Buch-/Redeansicht öffnet jetzt oben bei der Titelseite (kein Sprung mehr zu Kapitel 2 durch nachladende Bilder).",
         "Grafikstile für die Bildgenerierung: 5 Stile (Fotorealistisch, Aquarell, Bleistiftzeichnung, Ölgemälde, Vintage-Foto) – wählbar bei der Buchanlage (mit vergrößerbarem Beispielbild) und änderbar im Dashboard; alle Buch-Bilder entstehen konsistent im gewählten Stil.",
-        "Buchlayouts (Typografie): 3 Designs (Klassisch, Modern, Elegant) mit Live-Schriftvorschau – wählbar bei der Anlage und im Dashboard; wirkt konsistent auf Leseansicht, DOCX-Export und Druck-PDF (gleiches Format)."
+        "Buchlayouts (Typografie): 3 Designs (Klassisch, Modern, Elegant) mit Live-Schriftvorschau – wählbar bei der Anlage und im Dashboard; wirkt konsistent auf Leseansicht, DOCX-Export und Druck-PDF (gleiches Format).",
+        "KI-Bilder: Referenzfoto für die Personen-Ähnlichkeit wird jetzt pro Kapitel per KI anhand von Bildtitel/Beschreibung gewählt (statt global) – image-to-image live verifiziert (starke Ähnlichkeit)."
       ]
     }
   ]
