@@ -16,6 +16,7 @@ import {
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
+import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
@@ -362,16 +363,18 @@ async function prepareLogoForExport(dataUrl) {
   return { dataUrl, kind: imageKindOf(dataUrl), w: dim.w, h: dim.h }
 }
 
-async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null) {
+async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout()) {
   const bt = uiText(book.language)
+  const HF = layout.heading.docx, BF = layout.body.docx
+  const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
   const sections = []
 
   // Titelseite
   sections.push(docxSection([
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: tw(4), after: 240 },
-      children: [new TextRun({ text: book.title || '', font: DOCX_FONT, size: 48, bold: true })] }),
+      children: [new TextRun({ text: up(book.title), font: HF, size: 48, bold: true })] }),
     ...(book.subtitle ? [new Paragraph({ alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: book.subtitle, font: DOCX_FONT, size: 28, italics: true, color: '78716c' })] })] : []),
+      children: [new TextRun({ text: book.subtitle, font: BF, size: 28, italics: true, color: '78716c' })] })] : []),
   ]))
 
   for (const ch of (book.chapters || [])) {
@@ -395,13 +398,13 @@ async function downloadStructuredDocx(filename, book, contributors = [], logoDat
     // Kapiteltext beginnt auf der linken (geraden) Seite.
     const content = [
       new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: tw(2), after: 100 },
-        children: [new TextRun({ text: `${bt.chapterLabel} ${ch.number}`, font: DOCX_FONT, size: 20, color: 'a8a29e' })] }),
+        children: [new TextRun({ text: `${bt.chapterLabel} ${ch.number}`, font: HF, size: 20, color: 'a8a29e' })] }),
       new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: chName ? 100 : 300 },
-        children: [new TextRun({ text: ch.heading || '', font: DOCX_FONT, size: 36, bold: true })] }),
+        children: [new TextRun({ text: up(ch.heading), font: HF, size: 36, bold: true })] }),
       ...(chName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
-        children: [new TextRun({ text: chRel ? `${chName} – ${chRel}` : chName, font: DOCX_FONT, size: 24, italics: true, color: '78716c' })] })] : []),
+        children: [new TextRun({ text: chRel ? `${chName} – ${chRel}` : chName, font: BF, size: 24, italics: true, color: '78716c' })] })] : []),
       ...String(ch.body || '').split('\n\n').map(r => r.trim()).filter(Boolean).map(chunk =>
-        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: DOCX_FONT, size: 24 })] })),
+        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: BF, size: 24 })] })),
     ]
     sections.push(docxSection(content, SectionType.EVEN_PAGE))
   }
@@ -410,17 +413,17 @@ async function downloadStructuredDocx(filename, book, contributors = [], logoDat
   const endChildren = []
   if (contributors && contributors.length) {
     endChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
-      children: [new TextRun({ text: bt.contributorsHeading, font: DOCX_FONT, size: 36, bold: true })] }))
+      children: [new TextRun({ text: up(bt.contributorsHeading), font: HF, size: 36, bold: true })] }))
     for (const c of dedupeContributors(contributors)) {
       const rel = c.relationship ? ` — ${c.relationship}` : ''
       endChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 }, children: [
-        new TextRun({ text: c.contributor_name || '', font: DOCX_FONT, bold: true, size: 24 }),
-        new TextRun({ text: rel, font: DOCX_FONT, color: '78716c', size: 24 }),
+        new TextRun({ text: c.contributor_name || '', font: BF, bold: true, size: 24 }),
+        new TextRun({ text: rel, font: BF, color: '78716c', size: 24 }),
       ] }))
     }
   }
   endChildren.push(new Paragraph({ spacing: { before: tw(2), after: 120 },
-    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, font: DOCX_FONT, size: 20, bold: true, color: '78716c' })] }))
+    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, font: BF, size: 20, bold: true, color: '78716c' })] }))
   // Logo des Buch-Inhabers zwischen Hinweis-Titel und Hinweis-Text. Nur Raster-
   // formate (docx ImageRun kann kein SVG/WebP) – sonst still überspringen.
   const docxLogo = await prepareLogoForExport(logoDataUrl)
@@ -433,12 +436,12 @@ async function downloadStructuredDocx(filename, book, contributors = [], logoDat
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
   endChildren.push(new Paragraph({ spacing: { after: 200 },
-    children: [new TextRun({ text: BOOK_DISCLAIMER, font: DOCX_FONT, size: 18, italics: true, color: '78716c' })] }))
+    children: [new TextRun({ text: BOOK_DISCLAIMER, font: BF, size: 18, italics: true, color: '78716c' })] }))
   sections.push(docxSection(endChildren, SectionType.NEXT_PAGE))
 
   const doc = new Document({
     creator: 'Lebenswerk', title: book.title || '',
-    styles: { default: { document: { run: { font: DOCX_FONT, size: 24 } } } },
+    styles: { default: { document: { run: { font: BF, size: 24 } } } },
     sections,
   })
   downloadBlob(filename, await Packer.toBlob(doc))
@@ -481,8 +484,10 @@ const PDF_PAGE_W = 154   // mm – Einzelseite inkl. Beschnitt
 const PDF_PAGE_H = 216   // mm
 const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
 
-async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null) {
+async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout()) {
   const bt = uiText(book.language)
+  const HF = layout.heading.pdf, BF = layout.body.pdf
+  const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
   const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H] })
   let page = 1 // jsPDF hat Seite 1 bereits angelegt; recto = ungerade
   // Seitenklassifizierung für die Seitenzahlen: Bild- und Leerseiten bekommen
@@ -518,7 +523,7 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   const lh = pt => pt * 0.3528 * 1.5
   let y = MT
   const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0 } = {}) => {
-    doc.setFont('times', style); doc.setFontSize(size); doc.setTextColor(...color)
+    doc.setFont(BF, style); doc.setFontSize(size); doc.setTextColor(...color)
     const lineH = lh(size)
     for (const line of doc.splitTextToSize(String(chunk ?? ''), maxW - indent)) {
       if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
@@ -528,11 +533,11 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   }
 
   // ── Titelseite (recto) ──
-  doc.setFont('times', 'bold'); doc.setFontSize(28); doc.setTextColor(30, 30, 30)
+  doc.setFont(HF, 'bold'); doc.setFontSize(28); doc.setTextColor(30, 30, 30)
   let ty = 90
-  for (const line of doc.splitTextToSize(book.title || '', PDF_PAGE_W - 40)) { doc.text(line, PDF_PAGE_W / 2, ty, { align: 'center' }); ty += 12 }
+  for (const line of doc.splitTextToSize(up(book.title), PDF_PAGE_W - 40)) { doc.text(line, PDF_PAGE_W / 2, ty, { align: 'center' }); ty += 12 }
   if (book.subtitle) {
-    doc.setFont('times', 'italic'); doc.setFontSize(15); doc.setTextColor(120, 113, 108); ty += 4
+    doc.setFont(BF, 'italic'); doc.setFontSize(15); doc.setTextColor(120, 113, 108); ty += 4
     for (const line of doc.splitTextToSize(book.subtitle, PDF_PAGE_W - 50)) { doc.text(line, PDF_PAGE_W / 2, ty, { align: 'center' }); ty += 8 }
   }
 
@@ -548,18 +553,18 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
       startRecto()                          // ohne Bild trotzdem rechts beginnen
     }
     // Kapitellabel + Überschrift (zentriert), dann Fließtext
-    doc.setFont('times', 'normal'); doc.setFontSize(11); doc.setTextColor(150, 150, 150)
+    doc.setFont(HF, 'normal'); doc.setFontSize(11); doc.setTextColor(150, 150, 150)
     doc.text(`${bt.chapterLabel} ${ch.number || ''}`.trim(), PDF_PAGE_W / 2, 34, { align: 'center' })
-    doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
+    doc.setFont(HF, 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
     let hy = 46
-    for (const line of doc.splitTextToSize(ch.heading || '', maxW)) { doc.text(line, PDF_PAGE_W / 2, hy, { align: 'center' }); hy += 9 }
+    for (const line of doc.splitTextToSize(up(ch.heading), maxW)) { doc.text(line, PDF_PAGE_W / 2, hy, { align: 'center' }); hy += 9 }
     // V1: Name + Beziehung des Beitragenden unter die Überschrift (Fallback über contribution_id).
     {
       const src = ch.contributor_name ? ch : (contributors || []).find(c => c.id === ch.contribution_id)
       const nm = ch.contributor_name || src?.contributor_name
       const rel = ch.relationship || src?.relationship
       if (nm) {
-        doc.setFont('times', 'italic'); doc.setFontSize(12); doc.setTextColor(120, 113, 108)
+        doc.setFont(BF, 'italic'); doc.setFontSize(12); doc.setTextColor(120, 113, 108)
         doc.text(rel ? `${nm} – ${rel}` : nm, PDF_PAGE_W / 2, hy + 2, { align: 'center' })
       }
     }
@@ -574,18 +579,18 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   // ── Mitwirkende + Disclaimer (neue Seite) ──
   newPage(); y = MT
   if (contributors && contributors.length) {
-    doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
-    doc.text(bt.contributorsHeading, PDF_PAGE_W / 2, y, { align: 'center' }); y += 14
+    doc.setFont(HF, 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
+    doc.text(up(bt.contributorsHeading), PDF_PAGE_W / 2, y, { align: 'center' }); y += 14
     doc.setFontSize(12)
     for (const c of dedupeContributors(contributors)) {
       if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
       const rel = c.relationship ? `  —  ${c.relationship}` : ''
-      doc.setFont('times', 'bold'); doc.setTextColor(40, 40, 40)
+      doc.setFont(BF, 'bold'); doc.setTextColor(40, 40, 40)
       const nameW = doc.getTextWidth(c.contributor_name || '')
       const relW = doc.getTextWidth(rel)
       const startX = (PDF_PAGE_W - nameW - relW) / 2
       doc.text(c.contributor_name || '', startX, y)
-      doc.setFont('times', 'normal'); doc.setTextColor(120, 113, 108)
+      doc.setFont(BF, 'normal'); doc.setTextColor(120, 113, 108)
       doc.text(rel, startX + nameW, y)
       y += 7
     }
@@ -618,7 +623,7 @@ async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl =
   for (let i = 2; i <= totalPages; i++) {
     if (pageImage.has(i) || pageEmpty.has(i)) continue
     doc.setPage(i)
-    doc.setFont('times', 'normal'); doc.setFontSize(10); doc.setTextColor(120, 113, 108)
+    doc.setFont(BF, 'normal'); doc.setFontSize(10); doc.setTextColor(120, 113, 108)
     doc.text(String(i), PDF_PAGE_W / 2, PDF_PAGE_H - 10, { align: 'center' })
   }
 
@@ -687,6 +692,7 @@ const EMPTY_CREATE = {
   pickupAddress: { ...EMPTY_PICKUP },
   catalogId: '', followups: 7,
   imageStyle: DEFAULT_IMAGE_STYLE,
+  bookLayout: DEFAULT_BOOK_LAYOUT,
 }
 
 function qrCodeUrl(text, size = 240) {
@@ -1334,6 +1340,33 @@ function ImageStylePicker({ value, onChange, disabled }) {
         </div>
       )}
     </>
+  )
+}
+
+// Auswahl des Buchlayouts (Typografie). Zeigt je Design eine LIVE-Schriftvorschau
+// (Kapitel + Überschrift + Textzeilen) in den echten Fonts des Layouts.
+function BookLayoutPicker({ value, onChange, disabled }) {
+  const cur = value || DEFAULT_BOOK_LAYOUT
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:10 }}>
+      {BOOK_LAYOUTS.map(l => {
+        const on = cur === l.key
+        return (
+          <div key={l.key} onClick={() => !disabled && onChange(l.key)}
+            style={{ cursor: disabled ? 'default' : 'pointer', border:`2px solid ${on ? '#1c1917' : '#e7e5e4'}`, borderRadius:10, overflow:'hidden', background:'#fff', opacity: disabled ? 0.6 : 1 }}>
+            <div style={{ padding:'12px 12px 11px', background:'#faf9f7', borderBottom:'1px solid #f0ede8' }}>
+              <div style={{ fontSize:9, letterSpacing:'.15em', textTransform:'uppercase', color:'#a8a29e', fontFamily:l.heading.css }}>Kapitel 1</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#1c1917', fontFamily:l.heading.css, letterSpacing:l.heading.track, textTransform: l.heading.upper ? 'uppercase' : 'none', margin:'2px 0 5px' }}>Sommertage</div>
+              <div style={{ fontSize:10.5, lineHeight:1.5, color:'#57534e', fontFamily:l.body.css }}>Es war ein warmer Nachmittag, als wir gemeinsam im Garten saßen und alte Geschichten erzählten.</div>
+            </div>
+            <div style={{ padding:'8px 10px' }}>
+              <div style={{ fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>{on && <span>✓</span>}{l.label}</div>
+              <div style={{ fontSize:11.5, color:'#78716c', lineHeight:1.4, marginTop:2 }}>{l.description}</div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -2076,6 +2109,7 @@ function Dashboard() {
       note: m.note || '',
       pickupAddress: m.pickup_address ? { ...EMPTY_PICKUP, ...m.pickup_address } : { ...EMPTY_PICKUP },
       imageStyle: m.image_style || DEFAULT_IMAGE_STYLE,
+      bookLayout: m.book_layout || DEFAULT_BOOK_LAYOUT,
     })
     setOrderEdit(true)
   }
@@ -2095,6 +2129,7 @@ function Dashboard() {
         intake: d.intake, languages: d.languages, note: d.note,
         pickupAddress: d.pickupAddress,
         imageStyle: d.imageStyle,
+        bookLayout: d.bookLayout,
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -2113,6 +2148,7 @@ function Dashboard() {
         note: d.note.trim() || null,
         pickup_address: hasAddr ? { ...pa, country: (pa.country || '').trim() || 'Deutschland' } : null,
         image_style: d.imageStyle || DEFAULT_IMAGE_STYLE,
+        book_layout: d.bookLayout || DEFAULT_BOOK_LAYOUT,
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
@@ -2178,6 +2214,7 @@ function Dashboard() {
         catalogId: createForm.catalogId || null,
         followups: createForm.followups,
         imageStyle: createForm.imageStyle || DEFAULT_IMAGE_STYLE,
+        bookLayout: createForm.bookLayout || DEFAULT_BOOK_LAYOUT,
       })
       setCreatedCode(code)
       setView('created')
@@ -3097,7 +3134,7 @@ function Dashboard() {
     if (!data) return
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
-      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo)
+      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data)
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
@@ -3110,7 +3147,7 @@ function Dashboard() {
     setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      await downloadPrintPdf(filename, data, contributions, selected.owner_logo)
+      await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
     } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
   }
 
@@ -3884,6 +3921,11 @@ function Dashboard() {
           <Lbl>Grafikstil der Bilder</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
           <ImageStylePicker value={createForm.imageStyle} onChange={k => setCreateForm({ ...createForm, imageStyle: k })} />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gleiches Format, unterschiedliche Typografie. Später im Dashboard änderbar.</p>
+          <BookLayoutPicker value={createForm.bookLayout} onChange={k => setCreateForm({ ...createForm, bookLayout: k })} />
         </div>
         {(() => {
           const avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
@@ -4828,6 +4870,11 @@ function Dashboard() {
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gilt für künftig erzeugte Bilder. Bereits generierte Bilder bleiben, bis sie neu erzeugt werden (im Buch über „🖼 Bilder überarbeiten").</p>
                   <ImageStylePicker value={od.imageStyle} onChange={k => setOd({ imageStyle: k })} />
                 </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
+                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wirkt sofort auf Leseansicht und die nächsten Exporte (DOCX/Druck-PDF); der Buchinhalt bleibt gleich.</p>
+                  <BookLayoutPicker value={od.bookLayout} onChange={k => setOd({ bookLayout: k })} />
+                </div>
                 {selected.product_category === 'memorial' && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Einführungsvideo</Lbl>
@@ -5092,12 +5139,16 @@ function Dashboard() {
     const subtitle = view === 'book-v1' ? `${getCategory(selected?.product_category).nounBook} · Version 1`
                    : view === 'book-v2' ? `${getCategory(selected?.product_category).nounBook} · Version 2`
                    : GENERATORS.eulogy.label
+    // Buchlayout (Typografie) für die Leseansicht.
+    const bookLayout = getBookLayout(selected.book_layout)
+    const headFont = { fontFamily: bookLayout.heading.css, letterSpacing: bookLayout.heading.track, ...(bookLayout.heading.upper ? { textTransform: 'uppercase' } : {}) }
+    const bodyFont = { fontFamily: bookLayout.body.css }
     return (
       <div style={{ maxWidth:720, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
         <Back onClick={() => { setEditMode(false); setEditDraft(null); setView('detail') }} />
         <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
           <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}{editMode ? ' · Bearbeiten' : ''}</p>
-          <h1 style={{ fontSize:24, fontWeight:600, fontFamily:'Georgia,serif', color:'#78716c' }}>{selected.name}</h1>
+          <h1 style={{ fontSize:24, fontWeight:600, ...headFont, color:'#78716c' }}>{selected.name}</h1>
         </div>
 
         {!busy && data && !editMode && (
@@ -5161,8 +5212,8 @@ function Dashboard() {
         ) : gen.kind === 'book' ? (
           <>
             <div style={{ textAlign:'center', padding:'2rem 0 3rem', borderTop:'1px solid #e7e5e4' }}>
-              <h2 style={{ fontSize:36, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:12, color:'#1c1917' }}>{data.title || '—'}</h2>
-              {data.subtitle && <p style={{ fontSize:18, fontStyle:'italic', color:'#78716c', fontFamily:'Georgia,serif' }}>{data.subtitle}</p>}
+              <h2 style={{ fontSize:36, fontWeight:700, ...headFont, marginBottom:12, color:'#1c1917' }}>{data.title || '—'}</h2>
+              {data.subtitle && <p style={{ fontSize:18, fontStyle:'italic', color:'#78716c', ...bodyFont }}>{data.subtitle}</p>}
             </div>
             {reviewMarks.length > 0 && (
               <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:'2rem', fontSize:13, color:'#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
@@ -5174,7 +5225,7 @@ function Dashboard() {
               <div key={i} style={{ marginBottom:'3rem' }}>
                 <div style={{ textAlign:'center', marginBottom:'1.25rem' }}>
                   <p style={{ fontSize:11, letterSpacing:'.18em', textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>{bt.chapterLabel} {ch.number ?? i + 1}</p>
-                  <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif' }}>{ch.heading || ''}</h3>
+                  <h3 style={{ fontSize:24, fontWeight:700, ...headFont }}>{ch.heading || ''}</h3>
                   {(() => {
                     // V1: Name + Beziehung des Beitragenden unter der Überschrift.
                     // Fallback über contribution_id für ältere Bücher ohne die Felder.
@@ -5182,7 +5233,7 @@ function Dashboard() {
                     const nm = ch.contributor_name || src?.contributor_name
                     const rel = ch.relationship || src?.relationship
                     return nm ? (
-                      <p style={{ fontSize:15, fontStyle:'italic', color:'#78716c', fontFamily:'Georgia,serif', marginTop:8 }}>
+                      <p style={{ fontSize:15, fontStyle:'italic', color:'#78716c', ...bodyFont, marginTop:8 }}>
                         {rel ? `${nm} – ${rel}` : nm}
                       </p>
                     ) : null
@@ -5222,16 +5273,16 @@ function Dashboard() {
                     🖼 Kein image_prompt im Kapitel-JSON.
                   </div>
                 )}
-                <div style={{ fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+                <div style={{ fontSize:17, lineHeight:1.9, ...bodyFont }}>
                   {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{highlightParagraph(p, reviewMarks)}</p>)}
                 </div>
               </div>
             ))}
             {contributions.length > 0 && (
               <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
-                <h3 style={{ fontSize:24, fontWeight:700, fontFamily:'Georgia,serif', marginBottom:'1.5rem' }}>{bt.contributorsHeading}</h3>
+                <h3 style={{ fontSize:24, fontWeight:700, ...headFont, marginBottom:'1.5rem' }}>{bt.contributorsHeading}</h3>
                 {dedupeContributors(contributions).map(c => (
-                  <p key={c.id} style={{ fontSize:16, lineHeight:1.7, fontFamily:'Georgia,serif', margin:'0 0 6px' }}>
+                  <p key={c.id} style={{ fontSize:16, lineHeight:1.7, ...bodyFont, margin:'0 0 6px' }}>
                     <strong>{c.contributor_name}</strong>{c.relationship ? <span style={{ color:'#78716c' }}> — {c.relationship}</span> : null}
                   </p>
                 ))}
@@ -5239,7 +5290,7 @@ function Dashboard() {
             )}
           </>
         ) : (
-          <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem', fontSize:17, lineHeight:1.9, fontFamily:'Georgia,serif' }}>
+          <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'2rem', fontSize:17, lineHeight:1.9, ...bodyFont }}>
             {renderRichText(data)}
           </div>
         )}
