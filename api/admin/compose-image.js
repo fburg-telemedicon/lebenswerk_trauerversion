@@ -80,13 +80,6 @@ async function downloadBuffer(path) {
   return Buffer.from(await data.arrayBuffer())
 }
 
-// Zell-Raster je nach Bildanzahl UND Orientierung. Rechtecke innerhalb des
-// Beschnitt-Rahmens; Spalten-Layouts legen den Spalt auf die Falzmitte.
-// Sind alle Bilder Querformat, wird gestapelt (Reihen) statt nebeneinander
-// (Spalten) – so passt die Zellform besser zum Motiv und es entstehen weniger
-// leere Passepartout-Flächen. Fotos werden ohnehin vollständig (contain)
-// gezeigt, damit bei gemischten Formaten nichts (v. a. keine Gesichter)
-// abgeschnitten wird.
 // Anteile aus Gewichten (z. B. Auflösung), aber gedämpft: 42 % gleichmäßig +
 // 58 % nach Gewicht. So variieren die Größen sichtbar, ohne dass ein Bild
 // verschwindend klein oder übermächtig groß wird. Summe = 1.
@@ -106,33 +99,37 @@ function splitAxis(start, total, sh) {
   return out
 }
 
-// Zell-Raster je nach Bildanzahl, Orientierung UND Auflösung. Die Zellgrößen
-// werden nach `weights` (i. d. R. Original-Auflösung) gewichtet – höher
-// aufgelöste Fotos bekommen mehr Fläche. Sind alle Bilder Querformat, wird
-// gestapelt (Reihen), sonst nebeneinander (Spalten). 4 Bilder → gewichtetes
-// 2×2-Mosaik (Zeilenhöhen und je Zeile die Spaltenbreiten variieren).
+// Zell-Raster je nach Bildanzahl UND Auflösung – FALZ-SICHER: liegen MEHRERE
+// Fotos auf der Doppelseite, darf KEINES über der Mittelfalz liegen. Die Fotos
+// werden deshalb auf linke bzw. rechte Buchseite verteilt (n=2 → 1|1, n=3 →
+// 2|1, n=4 → 2|2); der Spalt zwischen den Seiten liegt mittig auf der Falz.
+// Innerhalb einer halben Doppelseite (hochformatig) werden mehrere Fotos
+// vertikal gestapelt. Zeilenhöhen nach `weights` (i. d. R. Auflösung) gewichtet
+// – höher aufgelöste Fotos bekommen mehr Fläche. (Ein einzelnes Foto darf die
+// Falz überlaufen; das steuert der 1-Bild-Pfad, nicht diese Funktion.)
 function cellsFor(n, oris = [], weights = []) {
-  const x0 = EDGE, y0 = EDGE, w = W - 2 * EDGE, h = H - 2 * EDGE
-  if (n <= 1) return [{ x: x0, y: y0, w, h }]
-  const wts = (Array.isArray(weights) && weights.length === n) ? weights : oris.map(() => 1)
-  const allLandscape = oris.length === n && oris.every(o => o === 'landscape')
-  if (n === 2 || n === 3) {
-    const sh = shares(wts)
-    if (allLandscape) {
-      return splitAxis(y0, h, sh).map(c => ({ x: x0, y: c.pos, w, h: c.len }))
-    }
-    return splitAxis(x0, w, sh).map(c => ({ x: c.pos, y: y0, w: c.len, h }))
-  }
-  // n === 4: gewichtetes 2×2-Mosaik
-  const ys = splitAxis(y0, h, shares([wts[0] + wts[1], wts[2] + wts[3]]))
-  const topX = splitAxis(x0, w, shares([wts[0], wts[1]]))
-  const botX = splitAxis(x0, w, shares([wts[2], wts[3]]))
-  return [
-    { x: topX[0].pos, y: ys[0].pos, w: topX[0].len, h: ys[0].len },
-    { x: topX[1].pos, y: ys[0].pos, w: topX[1].len, h: ys[0].len },
-    { x: botX[0].pos, y: ys[1].pos, w: botX[0].len, h: ys[1].len },
-    { x: botX[1].pos, y: ys[1].pos, w: botX[1].len, h: ys[1].len },
+  const y0 = EDGE, h = H - 2 * EDGE
+  if (n <= 1) return [{ x: EDGE, y: y0, w: W - 2 * EDGE, h }]
+  const wts = (Array.isArray(weights) && weights.length === n) ? weights : new Array(n).fill(1)
+  // Halber GAP beidseits der Falz → nichts berührt die Mitte.
+  const halfGap = Math.round(GAP / 2)
+  const leftX  = EDGE,            leftW  = FOLD - halfGap - EDGE
+  const rightX = FOLD + halfGap,  rightW = W - EDGE - (FOLD + halfGap)
+  // Fotos in Reihenfolge auf die zwei Seiten verteilen: linke Seite zuerst
+  // (ceil(n/2)), Rest rechts. n=2→1|1, n=3→2|1, n=4→2|2.
+  const leftCount = Math.ceil(n / 2)
+  const pages = [
+    { x: leftX,  w: leftW,  idx: [] },
+    { x: rightX, w: rightW, idx: [] },
   ]
+  for (let i = 0; i < n; i++) (i < leftCount ? pages[0] : pages[1]).idx.push(i)
+  const cells = new Array(n)
+  for (const p of pages) {
+    if (p.idx.length === 0) continue
+    const rows = splitAxis(y0, h, shares(p.idx.map(i => wts[i])))
+    p.idx.forEach((i, k) => { cells[i] = { x: p.x, y: rows[k].pos, w: p.w, h: rows[k].len } })
+  }
+  return cells
 }
 
 const MATTE = '#fbfaf7'          // cremefarbenes Passepartout
