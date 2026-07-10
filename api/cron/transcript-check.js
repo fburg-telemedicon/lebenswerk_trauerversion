@@ -66,27 +66,39 @@ async function processOne(c, memName, dry) {
     await recordCost({ memorial_id: c.memorial_id, contribution_id: c.id, kind: 'transcript_check', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) })
   }
   let msgs = c.messages
-  const applied = []
+  const corrs = []
   for (const rc of parseCorrectionsJSON(r.text)) {
+    const kind = rc.kind === 'suggestion' ? 'suggestion' : 'correction'
     const corr = {
       id: newCorrectionId(),
+      kind,
       message_index: Number(rc.message_index),
       before: String(rc.before || ''),
       after: String(rc.after || ''),
       reason: String(rc.reason || '').slice(0, 300),
-      applied: true,
+      applied: false,
     }
-    if (!corr.before || corr.after === corr.before || !Number.isInteger(corr.message_index)) continue
-    const out = applyCorrectionToMessages(msgs, corr)
-    if (out.ok) { msgs = out.messages; applied.push(corr) }
+    if (!corr.before || !Number.isInteger(corr.message_index)) continue
+    const target = msgs[corr.message_index]
+    if (!target || typeof target.content !== 'string' || target.content.indexOf(corr.before) < 0) continue
+    if (kind === 'correction') {
+      // Klarer Fehler → automatisch anwenden.
+      if (corr.after === corr.before) continue
+      const out = applyCorrectionToMessages(msgs, corr)
+      if (out.ok) { msgs = out.messages; corr.applied = true; corrs.push(corr) }
+    } else {
+      // Vorschlag (z. B. Störeinschub) → NICHT anwenden, nur flaggen. Der Manager
+      // wendet ihn per Knopfdruck an; 'before' ist auffindbar, also anwendbar.
+      corrs.push(corr)
+    }
   }
   if (!dry) {
     const { error: upErr } = await supabase.from('contributions')
-      .update({ messages: msgs, transcript_checked_at: new Date().toISOString(), transcript_corrections: applied })
+      .update({ messages: msgs, transcript_checked_at: new Date().toISOString(), transcript_corrections: corrs })
       .eq('id', c.id)
     if (upErr) throw upErr
   }
-  return applied.length
+  return corrs.length
 }
 
 // Feuert den nächsten Ketten-Lauf an, ohne auf dessen Ende zu warten (Trigger

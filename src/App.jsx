@@ -3503,38 +3503,63 @@ function Dashboard() {
   // mit „Rückgängig" (bzw. „Wieder anwenden").
   const transcriptReportOverlay = transcriptReport ? (() => {
     const items = contributions.flatMap(c => (Array.isArray(c.transcript_corrections) ? c.transcript_corrections : [])
-      .map(x => ({ ...x, contribId: c.id, contributor: c.contributor_name || 'Unbekannt' })))
+      .map(x => ({
+        ...x, contribId: c.id, contributor: c.contributor_name || 'Unbekannt',
+        content: (Array.isArray(c.messages) && typeof c.messages[x.message_index]?.content === 'string') ? c.messages[x.message_index].content : '',
+      })))
     return (
       <div onClick={() => setTranscriptReport(false)} style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:150, padding:'1rem', overflowY:'auto' }}>
         <div onClick={e => e.stopPropagation()} style={{ ...S.card, maxWidth:720, width:'100%', maxHeight:'88vh', display:'flex', flexDirection:'column' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
             <div>
               <h2 style={{ fontSize:18, fontWeight:700, margin:'0 0 4px' }}>🔎 Transkriptions-Bericht</h2>
-              <p style={{ ...S.muted, margin:0, fontSize:13 }}>Automatisch korrigiertes Transkriptions-Rauschen (STT-Fehler, Fremdgeräusche, Eigennamen). „Rückgängig" stellt den Originaltext dieser Stelle wieder her.</p>
+              <p style={{ ...S.muted, margin:0, fontSize:13 }}>Klare Verhörer &amp; Eigennamen werden automatisch korrigiert („Rückgängig" stellt das Original wieder her). Störeinschübe/Fremdgeräusche werden nur <strong>vorgeschlagen</strong> — per „Anwenden" übernehmen. Jede Stelle mit Kontext.</p>
             </div>
             <button className="ghost" onClick={() => setTranscriptReport(false)} style={{ fontSize:22, lineHeight:1 }}>×</button>
           </div>
           <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:10, padding:'4px 2px' }}>
             {items.length === 0 ? (
               <p style={S.muted}>Noch keine Korrekturen gefunden. Neue Beiträge werden im Hintergrund geprüft.</p>
-            ) : items.map(corr => (
-              <div key={corr.id} style={{ border:'1px solid #e7e5e4', borderRadius:10, padding:'10px 12px', background: corr.applied ? '#fff' : '#faf9f7' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, marginBottom:6 }}>
-                  <span style={{ fontSize:12, color:'#a8a29e' }}>{corr.contributor}</span>
-                  <button className="secondary" onClick={() => toggleTranscriptCorrection(corr.contribId, corr.id)}
-                    style={{ fontSize:12, padding:'4px 10px', ...(corr.applied ? {} : { color:'#15803d', borderColor:'#bbf7d0' }) }}>
-                    {corr.applied ? '↩ Rückgängig' : '↺ Wieder anwenden'}
-                  </button>
+            ) : items.map(corr => {
+              const isSug = corr.kind === 'suggestion'
+              const pending = isSug && !corr.applied
+              // Kontext-Umgebung: aktuell im Text stehende Stelle (angewandt → after, sonst → before).
+              const needle = corr.applied ? corr.after : corr.before
+              const content = corr.content || ''
+              const pos = needle ? content.indexOf(needle) : -1
+              const R = 80
+              const ctx = pos >= 0 ? {
+                pre: (pos > R ? '… ' : '') + content.slice(Math.max(0, pos - R), pos),
+                mid: content.slice(pos, pos + needle.length),
+                post: content.slice(pos + needle.length, Math.min(content.length, pos + needle.length + R)) + (pos + needle.length + R < content.length ? ' …' : ''),
+              } : null
+              return (
+                <div key={corr.id} style={{ border:`1px solid ${pending ? '#fde68a' : '#e7e5e4'}`, borderRadius:10, padding:'10px 12px', background: pending ? '#fffbeb' : (corr.applied ? '#fff' : '#faf9f7') }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, marginBottom:7 }}>
+                    <span style={{ fontSize:12, color:'#a8a29e' }}>{corr.contributor}{isSug ? ' · Vorschlag' : ''}</span>
+                    <button className="secondary" onClick={() => toggleTranscriptCorrection(corr.contribId, corr.id)}
+                      style={{ fontSize:12, padding:'4px 10px', ...(corr.applied ? {} : { color:'#15803d', borderColor:'#bbf7d0' }) }}>
+                      {corr.applied ? '↩ Rückgängig' : '✓ Anwenden'}
+                    </button>
+                  </div>
+                  {ctx && (
+                    <div style={{ fontSize:13, lineHeight:1.6, color:'#57534e', background:'#f5f5f4', borderRadius:6, padding:'7px 9px', marginBottom:7 }}>
+                      {ctx.pre}
+                      <span style={{ background: corr.applied ? '#dcfce7' : '#fee2e2', color: corr.applied ? '#166534' : '#991b1b', padding:'0 3px', borderRadius:3, fontWeight:600 }}>{ctx.mid}</span>
+                      {ctx.post}
+                    </div>
+                  )}
+                  <div style={{ fontSize:13, lineHeight:1.6 }}>
+                    <span style={{ background:'#fee2e2', color:'#991b1b', textDecoration:'line-through', padding:'0 3px', borderRadius:3 }}>{corr.before}</span>
+                    {' → '}
+                    <span style={{ background:'#dcfce7', color:'#166534', padding:'0 3px', borderRadius:3 }}>{corr.after || '∅ (entfernen)'}</span>
+                  </div>
+                  {corr.reason && <div style={{ fontSize:12, color:'#78716c', marginTop:5 }}>{corr.reason}</div>}
+                  {pending && <div style={{ fontSize:11.5, color:'#b45309', marginTop:4 }}>Vorschlag – wird erst mit „Anwenden" übernommen.</div>}
+                  {!corr.applied && !isSug && <div style={{ fontSize:11.5, color:'#b45309', marginTop:4 }}>rückgängig gemacht – Originaltext aktiv.</div>}
                 </div>
-                <div style={{ fontSize:14, lineHeight:1.6 }}>
-                  <span style={{ background:'#fee2e2', color:'#991b1b', textDecoration:'line-through', padding:'0 3px', borderRadius:3 }}>{corr.before}</span>
-                  {' → '}
-                  <span style={{ background:'#dcfce7', color:'#166534', padding:'0 3px', borderRadius:3 }}>{corr.after}</span>
-                </div>
-                {corr.reason && <div style={{ fontSize:12, color:'#78716c', marginTop:5 }}>{corr.reason}</div>}
-                {!corr.applied && <div style={{ fontSize:11.5, color:'#b45309', marginTop:4 }}>rückgängig gemacht – Originaltext aktiv</div>}
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:12 }}>
             <button className="secondary" onClick={() => setTranscriptReport(false)} style={{ fontSize:14 }}>Schließen</button>
@@ -3776,18 +3801,18 @@ function Dashboard() {
                             title="Spalte filtern"
                             style={{ marginLeft: 6, cursor: 'pointer', color: filterActive(c.key) ? '#1d4ed8' : '#a8a29e' }}>▼</span>
                       {filterCol === c.key && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.14)', padding: 8, minWidth: 190, maxHeight: 300, overflowY: 'auto', textAlign: 'left', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
-                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 6px', fontSize: 13, fontWeight: 600, color: '#1c1917', cursor: 'pointer' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.14)', padding: 6, minWidth: 240, maxWidth: 360, maxHeight: 320, overflowY: 'auto', textAlign: 'left', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
+                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', padding: '4px 6px', fontSize: 13, fontWeight: 600, color: '#1c1917', cursor: 'pointer' }}>
                             <input type="checkbox" checked={allChecked(c.key)}
                                    ref={el => { if (el) el.indeterminate = !allChecked(c.key) && (filters[c.key]?.length > 0) }}
-                                   onChange={() => toggleAll(c.key)} />
-                            Alle
+                                   onChange={() => toggleAll(c.key)} style={{ flexShrink: 0, margin: 0, width: 15, height: 15 }} />
+                            <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>Alle</span>
                           </label>
                           <div style={{ borderTop: '1px solid #f5f5f4', margin: '4px 0' }} />
                           {distinctVals(c).map(v => (
-                            <label key={v} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 6px', fontSize: 13, color: '#44403c', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={valChecked(c.key, v)} onChange={() => toggleVal(c.key, v)} />
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 230 }}>{v}</span>
+                            <label key={v} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', padding: '4px 6px', fontSize: 13, color: '#44403c', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={valChecked(c.key, v)} onChange={() => toggleVal(c.key, v)} style={{ flexShrink: 0, margin: 0, width: 15, height: 15 }} />
+                              <span style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v}>{v}</span>
                             </label>
                           ))}
                         </div>
@@ -4675,6 +4700,7 @@ function Dashboard() {
             {(() => {
               const corrs = contributions.flatMap(c => (Array.isArray(c.transcript_corrections) ? c.transcript_corrections : []).map(x => ({ ...x, contribId: c.id, contributor: c.contributor_name })))
               const appliedN = corrs.filter(x => x.applied).length
+              const suggestN = corrs.filter(x => !x.applied && x.kind === 'suggestion').length
               const checkedN = contributions.filter(c => c.transcript_checked_at).length
               const totalN = contributions.length
               if (totalN === 0) return null
@@ -4683,7 +4709,7 @@ function Dashboard() {
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontWeight:600, fontSize:15 }}>🔎 Transkriptions-Prüfung</div>
                     <p style={{ ...S.muted, fontSize:13, margin:'4px 0 0' }}>
-                      {checkedN}/{totalN} Beiträge geprüft · {appliedN} aktive Korrektur{appliedN === 1 ? '' : 'en'}.
+                      {checkedN}/{totalN} Beiträge geprüft · {appliedN} übernommen{suggestN ? ` · ${suggestN} Vorschlag${suggestN === 1 ? '' : 'e'}` : ''}.
                       {checkedN < totalN ? ' Neue Beiträge werden im Hintergrund automatisch geprüft.' : ''}
                     </p>
                   </div>
