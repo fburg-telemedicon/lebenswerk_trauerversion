@@ -31,7 +31,8 @@
         "UI: Geschlecht um „Keine Angabe“ ergänzt.",
         "UI: Filter-Symbol in der Buch-Übersicht ist jetzt ein Trichter (statt eines Dreiecks, das wie der Sortier-Pfeil aussah).",
         "UI: In allen Admin-Ansichten sitzt der Zurück-Button jetzt in der oben klebenden Leiste und bleibt beim Scrollen sichtbar (auch bei Produktkategorie-Auswahl und Buch-Anlage).",
-        "Buchanlage: Neuer „Expertenmodus“-Button. Fortgeschrittene Optionen (Grafikstil, Buchlayout, Sammelbestellungs-Adresse, Fragenkatalog, interne Bemerkung) sind standardmäßig eingeklappt und erscheinen erst auf Klick – das Formular bleibt für den Normalfall schlank."
+        "Buchanlage: Neuer „Expertenmodus“-Button. Fortgeschrittene Optionen (Grafikstil, Buchlayout, Sammelbestellungs-Adresse, Fragenkatalog, interne Bemerkung) sind standardmäßig eingeklappt und erscheinen erst auf Klick – das Formular bleibt für den Normalfall schlank.",
+        "Buchanlage: Einführungsvideo und Sprachauswahl ebenfalls in den Expertenmodus verschoben; Einführungsvideo ist jetzt standardmäßig AUS."
       ]
     },
     {

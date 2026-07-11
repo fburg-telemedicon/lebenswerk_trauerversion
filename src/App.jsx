@@ -141,7 +141,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
 // Leeres Anlage-Formular (inkl. Produktkategorie + kategorieabhängige Felder).
 const EMPTY_CREATE = {
   name: '', organizer: '', gender: '', bookVariant: 1,
-  funeralDate: '', cutoffDays: 7, showIntroVideo: true,
+  funeralDate: '', cutoffDays: 7, showIntroVideo: false,
   productCategory: DEFAULT_CATEGORY, intake: {},
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },

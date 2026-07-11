@@ -910,35 +910,6 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </div>
         )}
         <div style={{ marginBottom: 24 }}>
-          <Lbl>Sprachen *</Lbl>
-          <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
-            In welchen Sprachen sollen Beitragende den Prozess durchführen können? Bei mehreren Sprachen wählt der Beitragende zu Beginn seine Sprache.
-          </p>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-            {LANGUAGES.map(l => {
-              const on = createForm.languages.includes(l.code)
-              return (
-                <label key={l.code} style={{
-                  display:'flex', alignItems:'center', gap:8, cursor:'pointer',
-                  ...S.card, padding:'10px 14px',
-                  borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1,
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => setCreateForm(f => {
-                      const next = on ? f.languages.filter(c => c !== l.code) : [...f.languages, l.code]
-                      return { ...f, languages: next.length ? next : f.languages }
-                    })}
-                    style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
-                  />
-                  <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
-                </label>
-              )
-            })}
-          </div>
-        </div>
-        <div style={{ marginBottom: 24 }}>
           <Lbl>Buch-Variante *</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
             {BOOK_VARIANTS.map(v => (
@@ -957,23 +928,6 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             ))}
           </div>
         </div>
-        {createForm.productCategory === 'memorial' && (
-        <div style={{ marginBottom: 24 }}>
-          <Lbl>Einführungsvideo</Lbl>
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
-            <input
-              type="checkbox"
-              checked={createForm.showIntroVideo}
-              onChange={e => setCreateForm({ ...createForm, showIntroVideo: e.target.checked })}
-              style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
-            />
-            <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
-          </label>
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
-          </p>
-        </div>
-        )}
         <button type="button" onClick={() => setExpertMode(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>
           {expertMode ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
         </button>
@@ -1048,6 +1002,52 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
             Nur intern sichtbar. Wird bei der Bucherstellung angezeigt – z. B. Hinweise zur Gestaltung oder zum Inhalt.
           </p>
+        </div>
+        {createForm.productCategory === 'memorial' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Einführungsvideo</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input
+              type="checkbox"
+              checked={createForm.showIntroVideo}
+              onChange={e => setCreateForm({ ...createForm, showIntroVideo: e.target.checked })}
+              style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
+            />
+            <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
+          </p>
+        </div>
+        )}
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Sprachen *</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
+            In welchen Sprachen sollen Beitragende den Prozess durchführen können? Bei mehreren Sprachen wählt der Beitragende zu Beginn seine Sprache.
+          </p>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {LANGUAGES.map(l => {
+              const on = createForm.languages.includes(l.code)
+              return (
+                <label key={l.code} style={{
+                  display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                  ...S.card, padding:'10px 14px',
+                  borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => setCreateForm(f => {
+                      const next = on ? f.languages.filter(c => c !== l.code) : [...f.languages, l.code]
+                      return { ...f, languages: next.length ? next : f.languages }
+                    })}
+                    style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
+                  />
+                  <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
         </>)}
         <button
