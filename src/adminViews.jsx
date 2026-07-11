@@ -23,11 +23,13 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
     return (
       <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
         <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+            <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
+          </div>
           <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
         </div>
         <div style={{ maxWidth:1000, margin:'2rem auto', padding:'0 1.5rem' }}>
-          <Back onClick={() => setView('list')} />
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
             <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Audit-Log</h2>
             <button className="secondary" onClick={loadAudit} disabled={auditLoading} style={{ fontSize:12, padding:'6px 12px' }}>{auditLoading ? 'Lädt…' : 'Aktualisieren'}</button>
@@ -66,11 +68,10 @@ export function ReportsView({ err, reportMsg, recipients, recipientForm, busy, l
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
       <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => setView('list')} />
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Tagesreport</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
           Jede Nacht (gegen 1:00 Uhr) geht ein Report mit den wichtigsten Kennzahlen des Vortags an die aktiven Empfänger – kompakte Zahlen im Text, ausführlicher Bericht mit Diagrammen als PDF-Anhang. Es werden ausschließlich aggregierte Zahlen versendet (keine personenbezogenen Daten).
@@ -232,11 +233,10 @@ export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, p
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => setView('list')} />
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Einstellungen</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
           Hinterlegen Sie Ihr Firmenlogo. Es wird den Beitragenden Ihrer Bücher oben angezeigt –
@@ -361,11 +361,10 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
       <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => setView('list')} />
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Benutzer</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Pro Benutzer legen Sie fest, welche Produktkategorien er anlegen darf.</p>
         <Err msg={err} />
@@ -472,11 +471,10 @@ export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => { setCatalogForm(null); setView('list') }} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
       <div style={{ maxWidth: 760, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => { setCatalogForm(null); setView('list') }} />
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Fragenkataloge</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
           Vordefinierte Kataloge aus Kapiteln und Fragen. Manager wählen sie beim Anlegen eines Buchs (nur für passende Produktkategorien); die KI führt das Interview dann daran entlang.
@@ -798,11 +796,10 @@ export function CreateCategoryView({ err, allowedSlugs, logout, setView, chooseC
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => setView('list')} />
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Produktkategorie wählen</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Für welchen Anlass soll das Buch entstehen?</p>
         <Err msg={err} />
@@ -841,11 +838,10 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView(allowedSlugs.length > 1 ? 'create-category' : 'list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => setView(allowedSlugs.length > 1 ? 'create-category' : 'list')} />
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{ci.createHeading}</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>{ci.createIntro}</p>
         <Err msg={err} />

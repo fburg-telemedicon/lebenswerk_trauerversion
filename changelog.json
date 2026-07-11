@@ -29,7 +29,11 @@
         "Wartung: Die Buch-Detailseite (zentraler Arbeitsbereich) aus dem Dashboard ausgelagert — damit ist die große App-Datei um rund 60 % verschlankt (5.758 → 2.319 Zeilen), aufgeteilt in klar getrennte Module. Verhalten unverändert.",
         "UI: Die obere Leiste (Menü/„Zurück“) bleibt im Admin-Bereich beim Scrollen oben sichtbar (sticky); in der Buch-Ansicht bleibt „Zurück“ oben und beim Bearbeiten die „Speichern“-Leiste unten sichtbar.",
         "UI: Geschlecht um „Keine Angabe“ ergänzt.",
-        "UI: Filter-Symbol in der Buch-Übersicht ist jetzt ein Trichter (statt eines Dreiecks, das wie der Sortier-Pfeil aussah)."
+        "UI: Filter-Symbol in der Buch-Übersicht ist jetzt ein Trichter (statt eines Dreiecks, das wie der Sortier-Pfeil aussah).",
+        "UI: Die obere Leiste (Menü/„Zurück“) bleibt im Admin-Bereich beim Scrollen oben sichtbar (sticky); in der Buch-Ansicht bleibt „Zurück“ oben und beim Bearbeiten die „Speichern“-Leiste unten sichtbar.",
+        "UI: Geschlecht um „Keine Angabe“ ergänzt.",
+        "UI: Filter-Symbol in der Buch-Übersicht ist jetzt ein Trichter (statt eines Dreiecks, das wie der Sortier-Pfeil aussah).",
+        "UI: In allen Admin-Ansichten sitzt der Zurück-Button jetzt in der oben klebenden Leiste und bleibt beim Scrollen sichtbar (auch bei Produktkategorie-Auswahl und Buch-Anlage)."
       ]
     },
     {
