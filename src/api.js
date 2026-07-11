@@ -267,6 +267,16 @@ export async function uploadContributorImage(code, { image, caption, description
   return parseResponse(res) // { image }
 }
 
+// Beitragenden-Feedback nach dem Interview (Smiley 1..5 + optionaler Text).
+export async function submitFeedback(code, contributionId, rating, text) {
+  const res = await fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ memorialCode: code, contributionId, rating, text }),
+  })
+  return parseResponse(res) // { ok }
+}
+
 // Manager lädt ein eigenes Foto zum Buch hoch (auth).
 export async function adminUploadImage(token, code, { image, caption, description }) {
   const res = await fetch(`/api/admin/upload-image?code=${encodeURIComponent(code)}`, {

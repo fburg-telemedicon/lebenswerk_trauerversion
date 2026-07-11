@@ -110,6 +110,15 @@ ${url}
   uploadError: 'Upload fehlgeschlagen',
   uploadRemove: 'Entfernen',
   uploadDoneBtn: 'Fertig',
+  fbQuestion: 'Wie war das Interview für Sie?',
+  fbHint: 'Ihre kurze Rückmeldung hilft uns, den Ablauf zu verbessern (freiwillig).',
+  fbLabels: ['Sehr unzufrieden', 'Unzufrieden', 'Neutral', 'Zufrieden', 'Sehr zufrieden'],
+  fbTextPlaceholder: 'Möchten Sie uns noch etwas mitteilen? (optional)',
+  fbSubmit: 'Feedback senden',
+  fbThanks: 'Vielen Dank für Ihre Rückmeldung!',
+  fbSaveErr: 'Das Feedback konnte nicht gespeichert werden.',
+  closeBtn: 'Interview beenden',
+  closeHint: 'Sie können dieses Fenster nun schließen.',
 }
 
 const PL = {
@@ -186,6 +195,15 @@ ${url}
   uploadError: 'Przesyłanie nie powiodło się',
   uploadRemove: 'Usuń',
   uploadDoneBtn: 'Gotowe',
+  fbQuestion: 'Jak wyglądała rozmowa z Twojej perspektywy?',
+  fbHint: 'Twoja krótka opinia pomoże nam ulepszyć proces (dobrowolnie).',
+  fbLabels: ['Bardzo niezadowolony(a)', 'Niezadowolony(a)', 'Neutralnie', 'Zadowolony(a)', 'Bardzo zadowolony(a)'],
+  fbTextPlaceholder: 'Czy chcesz nam coś jeszcze przekazać? (opcjonalnie)',
+  fbSubmit: 'Wyślij opinię',
+  fbThanks: 'Dziękujemy za Twoją opinię!',
+  fbSaveErr: 'Nie udało się zapisać opinii.',
+  closeBtn: 'Zakończ rozmowę',
+  closeHint: 'Możesz teraz zamknąć to okno.',
 }
 
 const EN = {
@@ -262,6 +280,15 @@ ${url}
   uploadError: 'Upload failed',
   uploadRemove: 'Remove',
   uploadDoneBtn: 'Done',
+  fbQuestion: 'How was the interview for you?',
+  fbHint: 'Your brief feedback helps us improve the process (optional).',
+  fbLabels: ['Very dissatisfied', 'Dissatisfied', 'Neutral', 'Satisfied', 'Very satisfied'],
+  fbTextPlaceholder: 'Would you like to tell us anything else? (optional)',
+  fbSubmit: 'Send feedback',
+  fbThanks: 'Thank you for your feedback!',
+  fbSaveErr: 'The feedback could not be saved.',
+  closeBtn: 'Finish',
+  closeHint: 'You can now close this window.',
 }
 
 const UI = { de: DE, pl: PL, en: EN }

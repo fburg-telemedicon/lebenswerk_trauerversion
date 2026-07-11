@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback } from './api.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE } from './i18n.js'
 import { getCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -378,6 +378,46 @@ function TextInterview({ memorial, contribForm, onDone }) {
 
 // ── Beitragenden-Flow (Aufruf per ?code=XXX[&session=…]) ──────────
 // Foto-Upload für Beitragende (am Ende des Interviews, auf dem Danke-Bildschirm).
+// Kurzes Feedback nach dem Interview (Smiley-Skala 1..5 + optionaler Freitext).
+// Speichert auf dem eigenen Beitrag; für das Qualitätsmanagement im Dashboard.
+function FeedbackBlock({ code, contribId, t }) {
+  const [rating, setRating] = useState(0)
+  const [text, setText]     = useState('')
+  const [sent, setSent]     = useState(false)
+  const [busy, setBusy]     = useState(false)
+  const [err, setErr]       = useState('')
+  const faces = ['😞', '😕', '😐', '🙂', '😍']
+  async function send() {
+    if (!rating || busy) return
+    setBusy(true); setErr('')
+    try { await submitFeedback(code, contribId, rating, text.trim()); setSent(true) }
+    catch { setErr(t.fbSaveErr) } finally { setBusy(false) }
+  }
+  if (sent) return <p style={{ ...S.muted, maxWidth:420, margin:'0 auto 1.5rem' }}>✓ {t.fbThanks}</p>
+  return (
+    <div style={{ ...S.card, maxWidth:420, margin:'0 auto 1.5rem', textAlign:'center' }}>
+      <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{t.fbQuestion}</div>
+      <p style={{ ...S.muted, fontSize:12.5, margin:'0 0 12px' }}>{t.fbHint}</p>
+      <div style={{ display:'flex', justifyContent:'center', gap:6, marginBottom:8 }}>
+        {faces.map((f, i) => {
+          const val = i + 1, on = rating === val
+          return (
+            <button key={val} type="button" onClick={() => setRating(val)} title={t.fbLabels[i]} aria-label={t.fbLabels[i]}
+              style={{ background:'none', border: on ? '2px solid #1c1917' : '1px solid #e7e5e4', borderRadius:10, padding:'6px 9px', fontSize:26, lineHeight:1, cursor:'pointer', opacity: rating && !on ? 0.45 : 1, transition:'opacity .1s, border-color .1s' }}>
+              {f}
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ fontSize:12.5, color:'#57534e', minHeight:18, marginBottom:10 }}>{rating > 0 ? t.fbLabels[rating - 1] : ''}</div>
+      <textarea value={text} onChange={e => setText(e.target.value)} placeholder={t.fbTextPlaceholder} rows={3} maxLength={2000}
+        style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14, marginBottom:10 }} />
+      {err && <p style={{ fontSize:12.5, color:'#dc2626', margin:'0 0 8px' }}>{err}</p>}
+      <button onClick={send} disabled={!rating || busy} style={{ fontSize:14, padding:'9px 18px' }}>{busy ? '…' : t.fbSubmit}</button>
+    </div>
+  )
+}
+
 // Der Beitrag ist zu diesem Zeitpunkt bereits gespeichert; die Fotos werden
 // einzeln direkt hochgeladen. Die Einverständniserklärung (Rechte + KI-
 // Verarbeitung aller abgebildeten Personen) ist Pflicht vor dem ersten Upload.
@@ -774,7 +814,12 @@ export function ContributorFlow({ code }) {
           <div style={{ fontSize:40, marginBottom:'1rem' }}>🤍</div>
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>{t.doneTitle}</h2>
           <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>{t.doneBody(ct.nounBook)}</p>
+          <FeedbackBlock code={code} contribId={contribId} t={t} />
           <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
+          <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', maxWidth:420, margin:'2.5rem auto 0' }}>
+            <button onClick={() => window.close()} className="secondary" style={{ fontSize:14, padding:'10px 22px' }}>{t.closeBtn}</button>
+            <p style={{ ...S.muted, fontSize:12, marginTop:10 }}>{t.closeHint}</p>
+          </div>
         </div>
       )}
 
