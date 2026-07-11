@@ -2,6 +2,7 @@
 // Jede View bekommt State + Handler als GLEICHNAMIGE Props -> Body verbatim,
 // verhaltensneutral. Modul-Helfer (S/Back/Err) werden importiert.
 
+import { Fragment } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
@@ -1329,6 +1330,495 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
             <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
         )}
+        {eulogyStyleOverlay}
+        {genLangOverlay}
+        {imgEditOverlay}
+        {imgZoomOverlay}
+        {reportOverlay}
+        {transcriptReportOverlay}
+      </div>
+    )
+}
+
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages }) {
+    const inviteUrl = `${window.location.origin}/?code=${selected.id}`
+    // Auftragsdaten-Bearbeitung: Feldkonfiguration der Kategorie + Draft-Helfer.
+    const oci = getCategory(selected.product_category).intake
+    const od = orderDraft
+    const setOd  = patch => setOrderDraft(o => ({ ...o, ...patch }))
+    const setOdPa = patch => setOrderDraft(o => ({ ...o, pickupAddress: { ...o.pickupAddress, ...patch } }))
+    const dash = '—'
+    const orderVariant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+    const orderLangLabels = (selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
+    return (
+      <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="secondary" onClick={reloadContributions} disabled={loading} style={{ fontSize: 13, padding: '8px 14px' }}>
+              {loading ? '…' : '↻ Aktualisieren'}
+            </button>
+            {contributions.length > 0 && (
+              <button onClick={dlAll} style={{ fontSize: 13, padding: '8px 16px' }}>
+                ⬇ Alle herunterladen ({contributions.length})
+              </button>
+            )}
+            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Beiträge</h2>
+          <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
+            Organisator: {selected.organizer}
+            {selected.gender ? ` · ${selected.gender}` : ''}
+            {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
+            {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
+            {selected.funeral_date ? ` · Erfassung bis: ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : ''}
+          </p>
+
+          <div style={{ ...S.card, marginBottom: '1.5rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+              <div style={{ minWidth:0 }}>
+                <Lbl>Einladungslink (für Beitragende)</Lbl>
+                <a
+                  href={inviteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display:'block', fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#1d4ed8', marginTop:6, textDecoration:'underline' }}
+                >{inviteUrl}</a>
+              </div>
+              <button className="secondary" onClick={() => copyInvite(selected.id)} style={{ fontSize:13, flexShrink:0 }}>
+                {copied === selected.id ? '✓ Kopiert' : '📋 Kopieren'}
+              </button>
+            </div>
+            <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+              <img
+                src={qrCodeUrl(inviteUrl, 220)}
+                alt={`QR-Code für ${inviteUrl}`}
+                width={220}
+                height={220}
+                style={{ borderRadius:8, background:'#fff' }}
+              />
+              <button className="secondary" onClick={() => copyQR(selected.id)} style={{ fontSize: 13 }}>
+                {copied === `qr-${selected.id}` ? '✓ QR kopiert' : '📋 QR-Code kopieren'}
+              </button>
+            </div>
+          </div>
+
+          <Err msg={err} />
+          {loading ? (
+            <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
+          ) : (<>
+            {(() => {
+              const corrs = contributions.flatMap(c => (Array.isArray(c.transcript_corrections) ? c.transcript_corrections : []).map(x => ({ ...x, contribId: c.id, contributor: c.contributor_name })))
+              const appliedN = corrs.filter(x => x.applied).length
+              const suggestN = corrs.filter(x => !x.applied && x.kind === 'suggestion').length
+              const checkedN = contributions.filter(c => c.transcript_checked_at).length
+              const totalN = contributions.length
+              if (totalN === 0) return null
+              return (
+                <div style={{ ...S.card, marginBottom:'1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:600, fontSize:15 }}>🔎 Transkriptions-Prüfung</div>
+                    <p style={{ ...S.muted, fontSize:13, margin:'4px 0 0' }}>
+                      {checkedN}/{totalN} Beiträge geprüft · {appliedN} übernommen{suggestN ? ` · ${suggestN} Vorschlag${suggestN === 1 ? '' : 'e'}` : ''}.
+                      {checkedN < totalN ? ' Neue Beiträge werden im Hintergrund automatisch geprüft.' : ''}
+                    </p>
+                  </div>
+                  <button className="secondary" onClick={() => setTranscriptReport(true)} disabled={corrs.length === 0} style={{ fontSize:13, padding:'8px 14px', flexShrink:0 }}>
+                    Bericht öffnen{corrs.length ? ` (${corrs.length})` : ''}
+                  </button>
+                </div>
+              )
+            })()}
+            {selected.purge_info ? (
+              <div style={{ ...S.card, marginBottom:'1.5rem', background:'#fffbeb', borderColor:'#fde68a' }}>
+                <div style={{ fontWeight:600, marginBottom:6 }}>🗄 Beiträge gelöscht (Aufbewahrungsfrist)</div>
+                <p style={{ ...S.muted, fontSize:13, margin:'0 0 10px' }}>
+                  Am {new Date(selected.purge_info.purged_at).toLocaleString('de-DE')} wurden die einzelnen Beiträge gemäß Aufbewahrungsfrist gelöscht. Das Buch bleibt vollständig erhalten (Ansehen &amp; Download weiterhin möglich).
+                </p>
+                {(selected.purge_info.contributions || []).length > 0 && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {selected.purge_info.contributions.map((t, ti) => (
+                      <div key={ti} style={{ fontSize:13, color:'#57534e', borderTop:'1px solid #fde68a', paddingTop:6 }}>
+                        Beitrag #{ti + 1} — gelöscht am {new Date(t.deleted_at).toLocaleString('de-DE')} · {t.reason}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : contributions.length === 0 ? (
+              <div style={{ ...S.card, textAlign:'center', padding:'1.5rem', marginBottom:'1.5rem' }}>
+                <p style={S.muted}>Noch keine Beiträge für dieses Buch.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom:'1.5rem' }}>
+              {contributions.map((c, i) => {
+                const answerCount = c.messages.filter(m => m.role === 'user').length
+                return (
+                  <div
+                    key={i}
+                    onClick={() => { setSelectedContrib(c); setView('contribution') }}
+                    style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, cursor:'pointer', transition:'background .1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafaf9'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, color: '#1d4ed8', flexShrink: 0 }}>
+                        {c.contributor_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>{c.contributor_name}</div>
+                        <div style={{ fontSize: 13, color: '#78716c' }}>
+                          {c.relationship} · {new Date(c.created_at).toLocaleDateString('de-DE')} · {answerCount} Antwort{answerCount !== 1 ? 'en' : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); dlOne(c) }}
+                        className="secondary"
+                        style={{ fontSize: 13, padding: '8px 16px' }}
+                      >
+                        ⬇ Herunterladen
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteContribution(c) }}
+                        className="secondary"
+                        title="Beitrag löschen"
+                        style={{ fontSize: 15, padding: '8px 12px', color: '#dc2626' }}
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              </div>
+            )}
+
+            <ManagerPhotos
+              code={selected.id}
+              token={token}
+              uploads={selected.uploaded_images}
+              contributions={contributions}
+              onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
+            />
+
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & {GENERATORS.eulogy.label}</h3>
+            {(() => {
+              const variant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+              return (
+                <div style={{ ...S.card, marginBottom:'1rem', background:'#f5f5f4', borderColor:'#e7e5e4' }}>
+                  <Lbl>Gewählte Buch-Variante</Lbl>
+                  <div style={{ fontWeight:600, fontSize:15, margin:'4px 0 2px' }}>{variant.title}</div>
+                  <p style={{ ...S.muted, fontSize:13, margin:0 }}>{variant.sub}</p>
+                  {selected.note && (
+                    <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #e7e5e4' }}>
+                      <Lbl>Bemerkung</Lbl>
+                      <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{selected.note}</p>
+                    </div>
+                  )}
+                  {selected.pickup_address && (
+                    <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #e7e5e4' }}>
+                      <Lbl>Sammelbestellungs-Adresse</Lbl>
+                      <p style={{ fontSize:14, lineHeight:1.6, color:'#44403c', margin:'4px 0 0' }}>
+                        {[
+                          selected.pickup_address.name,
+                          selected.pickup_address.addon,
+                          selected.pickup_address.street,
+                          [selected.pickup_address.zip, selected.pickup_address.city].filter(Boolean).join(' '),
+                          selected.pickup_address.country,
+                        ].filter(Boolean).map((line, i) => <span key={i}>{line}<br /></span>)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
+              {[
+                { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
+                { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub:'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
+                { key:'eulogy',  icon:'🕯', title:GENERATORS.eulogy.label,  sub:`KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.` },
+              ].map(({ key, icon, title, sub }) => {
+                const gen   = GENERATORS[key]
+                const has   = !!selected[gen.field]
+                const busy  = !!generating[key] && genOwner[key] === selected.id
+                const report = selected.content_reports?.[gen.field]
+                const totalFindings = report?.findings?.length || 0
+                const openFindings = report?.findings?.filter(f => f.status !== 'resolved').length || 0
+                return (
+                  <div key={key} style={{ ...S.card }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+                      <div>
+                        <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
+                        <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
+                      </div>
+                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Generiert</span>}
+                    </div>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                        {busy ? 'Wird generiert …' : has ? '↻ Neu generieren' : '✨ Generieren'}
+                      </button>
+                      <button onClick={() => { setEditMode(false); setEditDraft(null); setView(gen.view) }} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        👁 Ansehen/Bearbeiten
+                      </button>
+                      <button onClick={() => downloadGenerated(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        ⬇ Download .docx
+                      </button>
+                      {gen.kind === 'book' && (
+                        <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          🖨 Druck-PDF
+                        </button>
+                      )}
+                      {gen.kind === 'book' && (
+                        <button onClick={() => openImgEdit(key)} disabled={!has || busy || !bookHasImages(selected[gen.field])} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          🖼 Bilder überarbeiten
+                        </button>
+                      )}
+                      <button onClick={() => recheck(key)} disabled={!has || busy || reviewingKey === key} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
+                      </button>
+                    </div>
+                    {busy && (
+                      <div style={{ marginTop:10 }}>
+                        {genPct[key] != null && (
+                          <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                            <div style={{ width:`${genPct[key]}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+                          </div>
+                        )}
+                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+                          {genPct[key] != null ? `${genPct[key]} % · ` : ''}{genProgress[key] || 'Wird generiert …'}
+                        </p>
+                        <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+                          ✕ Abbrechen
+                        </button>
+                      </div>
+                    )}
+                    {!busy && genErr[key] && genOwner[key] === selected.id && (
+                      <div style={{ marginTop:10 }}><Err msg={genErr[key]} /></div>
+                    )}
+                    {reviewingKey === key && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                          <div style={{ width:`${reviewPct}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+                        </div>
+                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>🛡 Inhaltsprüfung läuft … {reviewPct} %</p>
+                      </div>
+                    )}
+                    {gen.kind === 'book' && (
+                      <label style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:10, fontSize:12, color:'#78716c', cursor:'pointer' }}>
+                        <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} style={{ width:16, height:16, flexShrink:0, margin:0, cursor:'pointer' }} />
+                        🐞 Bilder überspringen (schneller – für Tests)
+                      </label>
+                    )}
+                    {has && !busy && report && (
+                      <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f5f5f4' }}>
+                        {report.error ? (
+                          <span style={{ fontSize:12, color:'#b45309' }}>⚠ Inhaltsprüfung fehlgeschlagen.{' '}
+                            <button className="ghost" onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:12, padding:0, textDecoration:'underline' }}>Details</button>
+                          </span>
+                        ) : openFindings > 0 ? (
+                          <button onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:13, padding:'7px 12px', background:'#b91c1c' }}>
+                            🛡 Prüfbericht ansehen ({openFindings} offen{totalFindings > openFindings ? `, ${totalFindings - openFindings} erledigt` : ''})
+                          </button>
+                        ) : totalFindings > 0 ? (
+                          <button onClick={() => setReportModal({ title, field: gen.field, report })} className="secondary" style={{ fontSize:13, padding:'7px 12px', color:'#15803d', borderColor:'#bbf7d0' }}>
+                            ✓ Alle {totalFindings} Befunde bearbeitet – Bericht ansehen
+                          </button>
+                        ) : (
+                          <span style={{ fontSize:12, color:'#15803d' }}>🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>)}
+
+          <div style={S.divider} />
+
+          {/* ── Auftragsdaten (Stammdaten) — selten gebraucht, daher unten ── */}
+          <div style={{ ...S.card, marginBottom:'1.5rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom: orderEdit ? 16 : 4 }}>
+              <h3 style={{ fontSize:16, fontWeight:600, margin:0 }}>Auftragsdaten</h3>
+              {!orderEdit && (
+                <button className="secondary" onClick={startOrderEdit} style={{ fontSize:13, padding:'8px 14px' }}>✎ Bearbeiten</button>
+              )}
+            </div>
+
+            {!orderEdit ? (
+              <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', columnGap:18, rowGap:8, fontSize:14 }}>
+                {[
+                  [oci.subjectLabel || 'Name', selected.name || dash],
+                  ['Organisator', selected.organizer || dash],
+                  ...(oci.useGender ? [['Geschlecht', selected.gender || dash]] : []),
+                  ...((oci.extra || []).map(f => [f.label, selected.intake?.[f.key] || dash])),
+                  ...(oci.useDate ? [[oci.dateLabel, selected.funeral_date ? new Date(selected.funeral_date).toLocaleDateString('de-DE') : dash]] : []),
+                  ...(oci.useCutoff ? [['Erfassung bis', selected.funeral_date ? `${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : `${cutoffDays(selected)} Tage vorher`]] : []),
+                  ['Sprachen', orderLangLabels],
+                  ['Buch-Variante', orderVariant.title],
+                  ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
+                  ['Bemerkung', selected.note || dash],
+                  ['Sammelbestellungs-Adresse', selected.pickup_address
+                    ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
+                       [selected.pickup_address.zip, selected.pickup_address.city].filter(Boolean).join(' '),
+                       selected.pickup_address.country].filter(Boolean).join(', ')
+                    : dash],
+                ].map(([label, val], i) => (
+                  <Fragment key={i}>
+                    <div style={{ color:'#78716c', whiteSpace:'nowrap' }}>{label}</div>
+                    <div style={{ color:'#44403c', whiteSpace:'pre-wrap' }}>{val}</div>
+                  </Fragment>
+                ))}
+              </div>
+            ) : od && (
+              <div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>{oci.subjectLabel || 'Name'} *</Lbl>
+                  <input value={od.name} onChange={e => setOd({ name: e.target.value })} />
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Organisator *</Lbl>
+                  <input value={od.organizer} onChange={e => setOd({ organizer: e.target.value })} />
+                </div>
+                {oci.useGender && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>{oci.genderLabel}</Lbl>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                      {GENDERS.map(g => (
+                        <div key={g.value} onClick={() => setOd({ gender: g.value })}
+                          style={{ ...S.card, cursor:'pointer', textAlign:'center', padding:'12px 8px',
+                            borderColor: od.gender === g.value ? '#1c1917' : '#e7e5e4', borderWidth: od.gender === g.value ? 2 : 1,
+                            fontSize:14, fontWeight: od.gender === g.value ? 600 : 400 }}>
+                          {g.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(oci.extra || []).map(f => (
+                  <div key={f.key} style={{ marginBottom:14 }}>
+                    <Lbl>{f.label}</Lbl>
+                    <input value={od.intake?.[f.key] || ''} onChange={e => setOd({ intake: { ...od.intake, [f.key]: e.target.value } })} placeholder={f.placeholder || ''} />
+                  </div>
+                ))}
+                {oci.useDate && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>{oci.dateLabel}</Lbl>
+                    <input type="date" value={od.funeralDate} onChange={e => setOd({ funeralDate: e.target.value })} />
+                  </div>
+                )}
+                {oci.useCutoff && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>{oci.cutoffLabel}</Lbl>
+                    <input type="number" min={0} max={90} step={1} value={od.cutoffDays}
+                      onChange={e => { const v = e.target.value; setOd({ cutoffDays: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) }) }} />
+                    <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                      {od.funeralDate && Number.isFinite(parseInt(od.cutoffDays, 10))
+                        ? <>Beiträge fließen bis zum <strong>{cutoffString(od.funeralDate, parseInt(od.cutoffDays, 10))}</strong> ein.</>
+                        : <>Standard sind 7 Tage.</>}
+                    </p>
+                  </div>
+                )}
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Sprachen *</Lbl>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {LANGUAGES.map(l => {
+                      const on = od.languages.includes(l.code)
+                      return (
+                        <label key={l.code} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', ...S.card, padding:'10px 14px',
+                          borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}>
+                          <input type="checkbox" checked={on}
+                            onChange={() => setOrderDraft(o => {
+                              const next = on ? o.languages.filter(c => c !== l.code) : [...o.languages, l.code]
+                              return { ...o, languages: next.length ? next : o.languages }
+                            })}
+                            style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }} />
+                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Buch-Variante *</Lbl>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
+                    {BOOK_VARIANTS.map(v => (
+                      <div key={v.value} onClick={() => setOd({ bookVariant: v.value })}
+                        style={{ ...S.card, cursor:'pointer', padding:'14px 14px',
+                          borderColor: od.bookVariant === v.value ? '#1c1917' : '#e7e5e4', borderWidth: od.bookVariant === v.value ? 2 : 1 }}>
+                        <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
+                        <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Grafikstil der Bilder</Lbl>
+                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gilt für künftig erzeugte Bilder. Bereits generierte Bilder bleiben, bis sie neu erzeugt werden (im Buch über „🖼 Bilder überarbeiten").</p>
+                  <ImageStylePicker value={od.imageStyle} onChange={k => setOd({ imageStyle: k })} />
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
+                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wirkt sofort auf Leseansicht und die nächsten Exporte (DOCX/Druck-PDF); der Buchinhalt bleibt gleich.</p>
+                  <BookLayoutPicker value={od.bookLayout} onChange={k => setOd({ bookLayout: k })} />
+                </div>
+                {selected.product_category === 'memorial' && (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Einführungsvideo</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.showIntroVideo} onChange={e => setOd({ showIntroVideo: e.target.checked })}
+                      style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
+                  </label>
+                </div>
+                )}
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Bemerkung</Lbl>
+                  <textarea value={od.note} onChange={e => setOd({ note: e.target.value })} rows={3}
+                    placeholder="Interne Notiz zu diesem Buch (optional)."
+                    style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14 }} />
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
+                  <input value={od.pickupAddress.name} onChange={e => setOdPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
+                  <input value={od.pickupAddress.addon} onChange={e => setOdPa({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
+                  <input value={od.pickupAddress.street} onChange={e => setOdPa({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+                  <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                    <input value={od.pickupAddress.zip} onChange={e => setOdPa({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
+                    <input value={od.pickupAddress.city} onChange={e => setOdPa({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+                  </div>
+                  <input value={od.pickupAddress.country} onChange={e => setOdPa({ country: e.target.value })} placeholder="Land" />
+                </div>
+                <div style={{ display:'flex', gap:10 }}>
+                  <button onClick={saveOrderData} disabled={orderSaving} style={{ fontSize:14, padding:'10px 20px' }}>
+                    {orderSaving ? 'Wird gespeichert …' : 'Speichern'}
+                  </button>
+                  <button className="secondary" onClick={cancelOrderEdit} disabled={orderSaving} style={{ fontSize:14, padding:'10px 20px' }}>Abbrechen</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={S.divider} />
+          <button
+            onClick={async () => { if (await handleDelete(selected)) setView('list') }}
+            disabled={deletingId === selected.id}
+            className="secondary"
+            style={{ fontSize:13, padding:'10px 18px', color:'#dc2626', borderColor:'#fecaca' }}
+          >
+            {deletingId === selected.id ? 'Wird gelöscht …' : '🗑 Dieses Buch löschen'}
+          </button>
+        </div>
         {eulogyStyleOverlay}
         {genLangOverlay}
         {imgEditOverlay}

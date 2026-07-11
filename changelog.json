@@ -25,7 +25,8 @@
         "Wartung: Weitere Admin-Ansichten (Buch-erstellt, Benutzerverwaltung, Fragenkataloge) aus dem Dashboard ausgelagert. Verhalten unverändert.",
         "Wartung: Die Buch-Übersicht (Liste mit Sortierung/Filter) aus dem Dashboard in ein eigenes Modul ausgelagert. Verhalten unverändert.",
         "Wartung: Buch-Anlage (Kategorie wählen + Anlageformular) aus dem Dashboard ausgelagert. Verhalten unverändert.",
-        "Wartung: Leseansicht + Generierung von Büchern/Reden (inkl. Bearbeiten/Download) aus dem Dashboard ausgelagert. Verhalten unverändert."
+        "Wartung: Leseansicht + Generierung von Büchern/Reden (inkl. Bearbeiten/Download) aus dem Dashboard ausgelagert. Verhalten unverändert.",
+        "Wartung: Die Buch-Detailseite (zentraler Arbeitsbereich) aus dem Dashboard ausgelagert — damit ist die große App-Datei um rund 60 % verschlankt (5.758 → 2.319 Zeilen), aufgeteilt in klar getrennte Module. Verhalten unverändert."
       ]
     },
     {
