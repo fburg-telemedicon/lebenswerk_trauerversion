@@ -125,3 +125,12 @@ const COST_KIND_LABEL = {
   image:      'Bildgenerierung (FLUX)',
 }
 export function costKindLabel(k) { return COST_KIND_LABEL[k] || k || 'Sonstiges' }
+
+export const PASSWORD_RULES_TEXT = 'Mindestens 8 Zeichen, davon mindestens eine Ziffer und ein Sonderzeichen.'
+export function passwordError(p) {
+  const s = String(p ?? '')
+  if (s.length < 8) return 'Passwort muss mindestens 8 Zeichen haben.'
+  if (!/[0-9]/.test(s)) return 'Passwort muss mindestens eine Ziffer enthalten.'
+  if (!/[^A-Za-z0-9]/.test(s)) return 'Passwort muss mindestens ein Sonderzeichen enthalten.'
+  return null
+}

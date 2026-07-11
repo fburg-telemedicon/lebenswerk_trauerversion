@@ -24,11 +24,11 @@ import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
-import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio } from './shared.js'
+import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
 import { GENDERS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
-import { AuditView, ReportsView, CostsView } from './adminViews.jsx'
+import { AuditView, ReportsView, CostsView, SettingsView } from './adminViews.jsx'
 import { formatEur, costKindLabel } from './shared.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -44,14 +44,6 @@ const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding 
 
 // ── Passwortrichtlinie (identisch zu api/_lib/auth.js) ────────────
 // Moderat: mind. 8 Zeichen, mind. 1 Ziffer, mind. 1 Sonderzeichen.
-const PASSWORD_RULES_TEXT = 'Mindestens 8 Zeichen, davon mindestens eine Ziffer und ein Sonderzeichen.'
-function passwordError(p) {
-  const s = String(p ?? '')
-  if (s.length < 8) return 'Passwort muss mindestens 8 Zeichen haben.'
-  if (!/[0-9]/.test(s)) return 'Passwort muss mindestens eine Ziffer enthalten.'
-  if (!/[^A-Za-z0-9]/.test(s)) return 'Passwort muss mindestens ein Sonderzeichen enthalten.'
-  return null
-}
 
 
 
@@ -2644,88 +2636,7 @@ function Dashboard() {
 
   // ── EINSTELLUNGEN (eigenes Firmenlogo) ──
   if (view === 'settings') return (
-    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
-      </div>
-      <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <Back onClick={() => setView('list')} />
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Einstellungen</h2>
-        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
-          Hinterlegen Sie Ihr Firmenlogo. Es wird den Beitragenden Ihrer Bücher oben angezeigt –
-          anstelle des Standard-Logos.
-        </p>
-        <Err msg={err} />
-
-        <div style={{ ...S.card }}>
-          <Lbl>Firmenlogo</Lbl>
-          {logoLoading ? (
-            <p style={S.muted}>Wird geladen …</p>
-          ) : (
-            <>
-              <div style={{
-                marginTop:8, marginBottom:14, padding:'18px',
-                border:'1px dashed #d6d3d1', borderRadius:10, background:'#fff',
-                display:'flex', alignItems:'center', justifyContent:'center', minHeight:90,
-              }}>
-                {logo
-                  ? <img src={logo} alt="Logo-Vorschau" style={{ maxHeight:80, maxWidth:'100%', objectFit:'contain' }} />
-                  : <span style={{ fontSize:13, color:'#a8a29e' }}>Noch kein Logo hinterlegt</span>}
-              </div>
-
-              <div style={{ background:'#f5f5f4', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginBottom:14 }}>
-                <div style={{ fontSize:12, color:'#78716c', marginBottom:6 }}>So sehen es die Beitragenden:</div>
-                <PartnerBanner logoUrl={logo} />
-              </div>
-
-              <p style={{ fontSize:12, color:'#78716c', margin:'0 0 12px' }}>
-                PNG, JPG, SVG, WebP oder GIF · max. 1 MB. Querformat mit transparentem Hintergrund wirkt am besten.
-              </p>
-
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                <label className="secondary" style={{ fontSize:13, padding:'9px 16px', cursor:'pointer', display:'inline-block', borderRadius:8, border:'1px solid #d6d3d1' }}>
-                  📁 Logo auswählen
-                  <input type="file" accept="image/*" onChange={onLogoFile} style={{ display:'none' }} />
-                </label>
-                <button onClick={() => saveLogo(logo)} disabled={busy || !logo} style={{ fontSize:13, padding:'9px 16px' }}>
-                  {busy ? 'Wird gespeichert …' : 'Speichern'}
-                </button>
-                <button onClick={() => saveLogo(null)} disabled={busy || !logo} className="secondary" style={{ fontSize:13, padding:'9px 16px', color:'#dc2626', borderColor:'#fecaca' }}>
-                  Logo entfernen
-                </button>
-              </div>
-              {logoSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>✓ Gespeichert.</p>}
-            </>
-          )}
-        </div>
-
-        <form onSubmit={saveOwnPassword} style={{ ...S.card, marginTop:'1.25rem' }}>
-          <Lbl>Passwort ändern</Lbl>
-          <p style={{ fontSize:12, color:'#78716c', margin:'4px 0 14px' }}>{PASSWORD_RULES_TEXT}</p>
-          <Err msg={pwErr} />
-          <div style={{ marginBottom:12 }}>
-            <Lbl>Aktuelles Passwort</Lbl>
-            <input type="password" autoComplete="current-password" value={pwForm.current}
-              onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} placeholder="••••" />
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <Lbl>Neues Passwort</Lbl>
-            <input type="password" autoComplete="new-password" value={pwForm.next}
-              onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} placeholder="••••" />
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <Lbl>Neues Passwort wiederholen</Lbl>
-            <input type="password" autoComplete="new-password" value={pwForm.next2}
-              onChange={e => setPwForm(f => ({ ...f, next2: e.target.value }))} placeholder="••••" />
-          </div>
-          <button type="submit" disabled={busy || !pwForm.current || !pwForm.next || !pwForm.next2} style={{ fontSize:13, padding:'9px 16px' }}>
-            {busy ? 'Wird geändert …' : 'Passwort ändern'}
-          </button>
-          {pwSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>✓ Passwort geändert.</p>}
-        </form>
-      </div>
-    </div>
+    <SettingsView err={err} logoLoading={logoLoading} logo={logo} busy={busy} logoSaved={logoSaved} pwErr={pwErr} pwForm={pwForm} pwSaved={pwSaved} logout={logout} setView={setView} onLogoFile={onLogoFile} saveLogo={saveLogo} saveOwnPassword={saveOwnPassword} setPwForm={setPwForm} />
   )
 
   // ── BENUTZER (nur Admin) ──
