@@ -13,7 +13,8 @@
         "Datenminimierung: Der Beitrags-Abruf zum Fortsetzen liefert nur noch die dafür nötigen Felder, keine internen Prüffelder mehr.",
         "Performance: Das Dashboard lädt Beitrags-/Antwortzahlen jetzt serverseitig (Postgres) statt alle Transkripte zu übertragen; zwei überflüssige Datenbankabfragen entfallen.",
         "Wartung: Transkript-Textfunktionen stammen jetzt aus einer gemeinsamen Quelle (keine doppelte Pflege von Frontend/Backend mehr).",
-        "Wartung: Export-/Download-Code (TXT/DOCX/Druck-PDF, ~460 Zeilen) aus der großen App-Datei in ein eigenes Modul (bookExport.js) ausgelagert – bessere Übersichtlichkeit, Verhalten unverändert."
+        "Wartung: Export-/Download-Code (TXT/DOCX/Druck-PDF, ~460 Zeilen) aus der großen App-Datei in ein eigenes Modul (bookExport.js) ausgelagert – bessere Übersichtlichkeit, Verhalten unverändert.",
+        "Wartung: Statische Rechtsseiten (Impressum/Datenschutz + Footer) aus der großen App-Datei in ein eigenes Modul ausgelagert (App-Datei weiter verschlankt, Verhalten unverändert)."
       ]
     },
     {
