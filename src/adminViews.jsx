@@ -2,7 +2,7 @@
 // Jede View bekommt State + Handler als GLEICHNAMIGE Props -> Body verbatim,
 // verhaltensneutral. Modul-Helfer (S/Back/Err) werden importiert.
 
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
@@ -835,6 +835,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && !busy
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
+    const [expertMode, setExpertMode] = useState(false)
     return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -956,6 +957,27 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             ))}
           </div>
         </div>
+        {createForm.productCategory === 'memorial' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Einführungsvideo</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input
+              type="checkbox"
+              checked={createForm.showIntroVideo}
+              onChange={e => setCreateForm({ ...createForm, showIntroVideo: e.target.checked })}
+              style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
+            />
+            <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
+          </p>
+        </div>
+        )}
+        <button type="button" onClick={() => setExpertMode(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>
+          {expertMode ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
+        </button>
+        {expertMode && (<>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Grafikstil der Bilder</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
@@ -965,6 +987,20 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gleiches Format, unterschiedliche Typografie. Später im Dashboard änderbar.</p>
           <BookLayoutPicker value={createForm.bookLayout} onChange={k => setCreateForm({ ...createForm, bookLayout: k })} />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
+            Adresse, an die die gedruckten Bücher gesammelt geliefert / wo sie abgeholt werden. Kann leer bleiben.
+          </p>
+          <input value={pa.name} onChange={e => setPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
+          <input value={pa.addon} onChange={e => setPa({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
+          <input value={pa.street} onChange={e => setPa({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <input value={pa.zip} onChange={e => setPa({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
+            <input value={pa.city} onChange={e => setPa({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+          </div>
+          <input value={pa.country} onChange={e => setPa({ country: e.target.value })} placeholder="Land" />
         </div>
         {(() => {
           const avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
@@ -1000,23 +1036,6 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </div>
           )
         })()}
-        {createForm.productCategory === 'memorial' && (
-        <div style={{ marginBottom: 24 }}>
-          <Lbl>Einführungsvideo</Lbl>
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
-            <input
-              type="checkbox"
-              checked={createForm.showIntroVideo}
-              onChange={e => setCreateForm({ ...createForm, showIntroVideo: e.target.checked })}
-              style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
-            />
-            <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
-          </label>
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
-          </p>
-        </div>
-        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Bemerkung</Lbl>
           <textarea
@@ -1030,20 +1049,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             Nur intern sichtbar. Wird bei der Bucherstellung angezeigt – z. B. Hinweise zur Gestaltung oder zum Inhalt.
           </p>
         </div>
-        <div style={{ marginBottom: 24 }}>
-          <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
-          <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
-            Adresse, an die die gedruckten Bücher gesammelt geliefert / wo sie abgeholt werden. Kann leer bleiben.
-          </p>
-          <input value={pa.name} onChange={e => setPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
-          <input value={pa.addon} onChange={e => setPa({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
-          <input value={pa.street} onChange={e => setPa({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
-          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-            <input value={pa.zip} onChange={e => setPa({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
-            <input value={pa.city} onChange={e => setPa({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
-          </div>
-          <input value={pa.country} onChange={e => setPa({ country: e.target.value })} placeholder="Land" />
-        </div>
+        </>)}
         <button
           disabled={!canSubmit}
           onClick={handleCreate}
