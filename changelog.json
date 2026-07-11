@@ -10,7 +10,10 @@
         "Foto-Verwaltung: Bei jedem hochgeladenen Foto steht jetzt unter der Auflösung, von wem es stammt (Name des/der Beitragenden bzw. „Manager“ bei selbst hochgeladenen Fotos).",
         "DSGVO-Härtung: IP-Adressen werden im Rate-Limit und im Zugriffsprotokoll nur noch pseudonymisiert (HMAC-Hash) gespeichert statt im Klartext (Datenminimierung).",
         "Sicherheit: Öffentliche Schnittstellen geben bei Fehlern keine internen Meldungen mehr nach außen, sondern einen allgemeinen Hinweis (Details nur im Server-Log).",
-        "Datenminimierung: Der Beitrags-Abruf zum Fortsetzen liefert nur noch die dafür nötigen Felder, keine internen Prüffelder mehr."
+        "Datenminimierung: Der Beitrags-Abruf zum Fortsetzen liefert nur noch die dafür nötigen Felder, keine internen Prüffelder mehr.",
+        "Performance: Das Dashboard lädt Beitrags-/Antwortzahlen jetzt serverseitig (Postgres) statt alle Transkripte zu übertragen; zwei überflüssige Datenbankabfragen entfallen.",
+        "Wartung: Transkript-Textfunktionen stammen jetzt aus einer gemeinsamen Quelle (keine doppelte Pflege von Frontend/Backend mehr).",
+        "Wartung: Export-/Download-Code (TXT/DOCX/Druck-PDF, ~460 Zeilen) aus der großen App-Datei in ein eigenes Modul (bookExport.js) ausgelagert – bessere Übersichtlichkeit, Verhalten unverändert."
       ]
     },
     {
