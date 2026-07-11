@@ -264,7 +264,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -294,14 +294,29 @@ module.exports = async function handler(req, res) {
         m.cost_total_usd = totalsUsd[m.id] || 0
       }
 
-      // Beiträge und Antworten (User-Nachrichten) pro Memorial aggregieren
-      const { data: contribRows } = await supabase.from('contributions').select('memorial_id, messages')
+      // Beiträge und Antworten (User-Nachrichten) pro Memorial aggregieren.
+      // Bevorzugt serverseitig per RPC (zählt in Postgres, überträgt NICHT alle
+      // Transkripte) – siehe supabase/memorial-stats.sql. Fallback (bis die
+      // Funktion angelegt ist): messages laden und im Node zählen.
       const contribCounts = {}
       const answerCounts  = {}
-      for (const r of contribRows || []) {
-        contribCounts[r.memorial_id] = (contribCounts[r.memorial_id] || 0) + 1
-        const answers = Array.isArray(r.messages) ? r.messages.filter(msg => msg?.role === 'user').length : 0
-        answerCounts[r.memorial_id] = (answerCounts[r.memorial_id] || 0) + answers
+      let statsRows = null
+      try {
+        const { data, error: rpcErr } = await supabase.rpc('memorial_contrib_stats')
+        if (!rpcErr && Array.isArray(data)) statsRows = data
+      } catch { /* Fallback unten */ }
+      if (statsRows) {
+        for (const s of statsRows) {
+          contribCounts[s.memorial_id] = Number(s.contribution_count || 0)
+          answerCounts[s.memorial_id]  = Number(s.answer_count || 0)
+        }
+      } else {
+        const { data: contribRows } = await supabase.from('contributions').select('memorial_id, messages')
+        for (const r of contribRows || []) {
+          contribCounts[r.memorial_id] = (contribCounts[r.memorial_id] || 0) + 1
+          const answers = Array.isArray(r.messages) ? r.messages.filter(msg => msg?.role === 'user').length : 0
+          answerCounts[r.memorial_id] = (answerCounts[r.memorial_id] || 0) + answers
+        }
       }
       for (const m of memorials) {
         m.contribution_count = contribCounts[m.id] || 0
@@ -322,22 +337,12 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Grafikstil + Buchlayout defensiv nachladen (Spalten evtl. noch nicht
-      // migriert → Default), damit der kritische Haupt-Select migrationsunabhängig bleibt.
-      try {
-        const { data: styleRows, error: styleErr } = await supabase.from('memorials').select('id, image_style')
-        if (styleErr) throw styleErr
-        const styleMap = {}
-        for (const r of styleRows || []) styleMap[r.id] = r.image_style
-        for (const m of memorials) m.image_style = styleMap[m.id] || DEFAULT_STYLE
-      } catch { for (const m of memorials) m.image_style = DEFAULT_STYLE }
-      try {
-        const { data: layoutRows, error: layoutErr } = await supabase.from('memorials').select('id, book_layout')
-        if (layoutErr) throw layoutErr
-        const layoutMap = {}
-        for (const r of layoutRows || []) layoutMap[r.id] = r.book_layout
-        for (const m of memorials) m.book_layout = layoutMap[m.id] || DEFAULT_BOOK_LAYOUT
-      } catch { for (const m of memorials) m.book_layout = DEFAULT_BOOK_LAYOUT }
+      // Grafikstil + Buchlayout kommen aus dem Haupt-Select; nur Defaults für
+      // (noch) leere Werte setzen.
+      for (const m of memorials) {
+        m.image_style = m.image_style || DEFAULT_STYLE
+        m.book_layout = m.book_layout || DEFAULT_BOOK_LAYOUT
+      }
 
       return res.json(memorials)
     }
