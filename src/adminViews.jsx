@@ -3,8 +3,9 @@
 // verhaltensneutral. Modul-Helfer (S/Back/Err) werden importiert.
 
 import { S, Back, Err, Lbl, col, th, PartnerBanner } from './ui.jsx'
-import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER } from './categories.js'
+import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString } from './shared.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory } from './categories.js'
+import CategoryIcon from './CategoryIcon.jsx'
 
 export function AuditView({ auditData, auditLoading, err, logout, loadAudit, setView }) {
     const fmtTime = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
@@ -561,4 +562,224 @@ export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView
       </div>
     </div>
   )
+}
+
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, openSettings, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+    // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
+    //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
+    const sortCols = [
+      { key: 'name',      label: 'Name',          val: m => (m.name || '').toLowerCase(), disp: m => m.name || '—' },
+      ...(showCategoryColumn ? [{ key: 'category', label: 'Kategorie', val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
+      ...(auth.admin ? [{ key: 'owner', label: 'Inhaber', val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
+      { key: 'organizer', label: 'Organisator',   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
+      { key: 'variant',   label: 'Variante',      val: m => m.book_variant || 0, disp: m => m.book_variant ? `Variante ${m.book_variant}` : '—' },
+      { key: 'cutoff',    label: 'Erfassung bis', val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
+      { key: 'answers',   label: 'Antworten',     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} Antworten` },
+      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0, disp: m => formatEur(m.cost_total_eur) }] : []),
+    ]
+    const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
+    const distinctVals = col => [...new Set(memorials.map(col.disp))].sort((a, b) => String(a).localeCompare(String(b), 'de', { numeric: true }))
+    // Sichtbarkeit: ein Buch passt, wenn es in JEDER aktiven Filterspalte einen
+    // ausgewählten Wert hat. Fehlt der Filtereintrag, ist die Spalte ungefiltert.
+    const visibleMemorials = memorials.filter(m => sortCols.every(c => {
+      const sel = filters[c.key]
+      return !sel || sel.includes(c.disp(m))
+    }))
+    const activeCol = colByKey(sort.key)
+    const sortedMemorials = [...visibleMemorials].sort((a, b) => {
+      const va = activeCol.val(a), vb = activeCol.val(b)
+      const cmp = (typeof va === 'number' && typeof vb === 'number')
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'de')
+      return sort.dir === 'asc' ? cmp : -cmp
+    })
+    const toggleSort = key => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))
+
+    // Filter-Helfer (filters[key] = Liste erlaubter disp-Werte; fehlt = alle).
+    const filterActive = key => { const sel = filters[key]; return sel && sel.length < distinctVals(colByKey(key)).length }
+    const valChecked = (key, v) => { const sel = filters[key]; return !sel || sel.includes(v) }
+    const allChecked = key => { const sel = filters[key]; return !sel || sel.length === distinctVals(colByKey(key)).length }
+    const toggleVal = (key, v) => setFilters(f => {
+      const all = distinctVals(colByKey(key))
+      const cur = f[key] ? [...f[key]] : [...all]
+      const i = cur.indexOf(v)
+      if (i >= 0) cur.splice(i, 1); else cur.push(v)
+      if (cur.length === all.length) { const n = { ...f }; delete n[key]; return n } // alle = kein Filter
+      return { ...f, [key]: cur }
+    })
+    const toggleAll = key => setFilters(f => {
+      if (allChecked(key)) return { ...f, [key]: [] }        // alle abwählen
+      const n = { ...f }; delete n[key]; return n             // alle anwählen = kein Filter
+    })
+    return (
+    <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+          <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>
+            {visibleMemorials.length < memorials.length ? `${visibleMemorials.length} / ${memorials.length}` : memorials.length} {memorials.length === 1 ? 'Buch' : 'Bücher'}
+          </span>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize: 13, color: '#78716c', marginRight: 4 }}>
+            Angemeldet als <strong style={{ color:'#1c1917', fontWeight:600 }}>{myName}</strong>
+          </span>
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer</button>
+          )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadAudit(); setErr(''); setView('audit') }} style={{ fontSize: 13, padding: '7px 14px' }}>Audit-Log</button>
+          )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>Fragenkataloge</button>
+          )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>Report</button>
+          )}
+          {myUid && (
+            <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
+          )}
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1200, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem', gap:12 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Bücher</h2>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            {Object.keys(filters).length > 0 && (
+              <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:13, padding:'8px 12px' }}>Filter zurücksetzen</button>
+            )}
+            <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
+              + Neues Buch
+            </button>
+          </div>
+        </div>
+        <Err msg={err} />
+        {loading ? (
+          <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
+        ) : memorials.length === 0 ? (
+          <div style={{ ...S.card, textAlign:'center', padding:'2rem' }}>
+            <p style={S.muted}>Noch keine Bücher angelegt. Beginnen Sie mit „+ Neues Buch".</p>
+          </div>
+        ) : (
+          <>
+            {filterCol && <div onClick={() => setFilterCol(null)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />}
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'visible' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {sortCols.map(c => (
+                    <th key={c.key} style={{ ...th, whiteSpace: 'nowrap', position: 'relative', zIndex: filterCol === c.key ? 40 : undefined }}>
+                      <span onClick={() => toggleSort(c.key)} title="Spalte sortieren" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                      </span>
+                      <span onClick={(e) => { e.stopPropagation(); setFilterCol(k => k === c.key ? null : c.key) }}
+                            title="Spalte filtern"
+                            style={{ marginLeft: 6, cursor: 'pointer', color: filterActive(c.key) ? '#1d4ed8' : '#a8a29e' }}>▼</span>
+                      {filterCol === c.key && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.14)', padding: 6, minWidth: 240, maxWidth: 360, maxHeight: 320, overflowY: 'auto', textAlign: 'left', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
+                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', padding: '4px 6px', fontSize: 13, fontWeight: 600, color: '#1c1917', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={allChecked(c.key)}
+                                   ref={el => { if (el) el.indeterminate = !allChecked(c.key) && (filters[c.key]?.length > 0) }}
+                                   onChange={() => toggleAll(c.key)} style={{ flexShrink: 0, margin: 0, width: 15, height: 15 }} />
+                            <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>Alle</span>
+                          </label>
+                          <div style={{ borderTop: '1px solid #f5f5f4', margin: '4px 0' }} />
+                          {distinctVals(c).map(v => (
+                            <label key={v} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', padding: '4px 6px', fontSize: 13, color: '#44403c', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={valChecked(c.key, v)} onChange={() => toggleVal(c.key, v)} style={{ flexShrink: 0, margin: 0, width: 15, height: 15 }} />
+                              <span style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v}>{v}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </th>
+                  ))}
+                  <th style={th}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMemorials.map(m => {
+                  const isHover    = hoveredRow?.id === m.id
+                  const mainHover  = isHover && hoveredRow.zone === 'main'
+                  const costHover  = isHover && hoveredRow.zone === 'cost'
+                  const MAIN_BG    = '#fef3c7' // warm amber
+                  const COST_BG    = '#dbeafe' // cool blue
+                  const mainCellBg = mainHover ? MAIN_BG : ''
+                  const mainCell   = { ...col, cursor:'pointer', background: mainCellBg, transition:'background .1s' }
+                  const enterMain  = () => setHoveredRow({ id: m.id, zone: 'main' })
+                  const leaveRow   = () => setHoveredRow(null)
+                  return (
+                    <tr key={m.id}>
+                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name}</td>
+                      {showCategoryColumn && (
+                        <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}>
+                          <span style={{ color:'#57534e', lineHeight:0 }}><CategoryIcon slug={m.product_category} size={18} /></span>
+                          {getCategory(m.product_category).label}
+                        </span>
+                      </td>
+                      )}
+                      {auth.admin && (
+                        <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }} onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.owner_username || '—'}</td>
+                      )}
+                      <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
+                      <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
+                      <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
+                      <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        {(m.contribution_count || 0)} {(m.contribution_count === 1) ? 'Beitrag' : 'Beiträge'} · {(m.answer_count || 0)} {(m.answer_count === 1) ? 'Antwort' : 'Antworten'}
+                      </td>
+                      {auth.admin && (
+                      <td
+                        style={{ ...col, textAlign:'right', whiteSpace:'nowrap', padding:'6px 14px', background: costHover ? COST_BG : '', transition:'background .1s' }}
+                        onMouseEnter={() => setHoveredRow({ id: m.id, zone: 'cost' })}
+                        onMouseLeave={leaveRow}
+                      >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openCosts(m) }}
+                          title="Aufschlüsselung anzeigen"
+                          style={{
+                            background: costHover ? '#bfdbfe' : '#fff',
+                            border:'1px solid #93c5fd',
+                            borderRadius:8,
+                            padding:'6px 12px',
+                            fontSize:13,
+                            fontWeight:600,
+                            color:'#1d4ed8',
+                            cursor:'pointer',
+                            display:'inline-flex',
+                            alignItems:'center',
+                            gap:6,
+                            transition:'background .1s, border-color .1s',
+                            whiteSpace:'nowrap',
+                          }}
+                        >
+                          <span aria-hidden="true">💶</span>
+                          <span style={{ textDecoration:'underline', textUnderlineOffset:2 }}>{formatEur(m.cost_total_eur)}</span>
+                        </button>
+                      </td>
+                      )}
+                      <td style={{ ...col, textAlign:'right' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(m) }}
+                          disabled={deletingId === m.id}
+                          className="secondary"
+                          style={{ fontSize:12, padding:'6px 12px', color:'#dc2626', borderColor:'#fecaca' }}
+                          title={`${getCategory(m.product_category).nounBook} löschen`}
+                        >
+                          {deletingId === m.id ? '…' : '🗑 Löschen'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          </>
+        )}
+      </div>
+    </div>
+    )
 }
