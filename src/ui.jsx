@@ -54,3 +54,7 @@ export function PartnerBanner({ logoUrl }) {
     </div>
   )
 }
+
+// Tabellen-Zellstile (aus Dashboard ausgelagert; von mehreren Admin-Views genutzt)
+export const col = { padding: '11px 14px', textAlign: 'left', borderBottom: '1px solid #e7e5e4', fontSize: 14 }
+export const th  = { ...col, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: '#78716c', background: '#fafaf9' }

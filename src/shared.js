@@ -108,3 +108,20 @@ export function cutoffString(funeralDate, days = 7) {
   const d = cutoffDate(funeralDate, days)
   return d ? d.toLocaleDateString('de-DE') : '—'
 }
+
+export function formatEur(n) {
+  const v = Number(n || 0)
+  return v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 })
+}
+
+const COST_KIND_LABEL = {
+  interview:  'Interview-Fragen (KI)',
+  reasoning:  'Sonstiges KI-Reasoning',
+  book_v1:    'Buch V1 – Generierung',
+  book_v2:    'Buch V2 – Generierung',
+  eulogy:     'Endtext (Rede) – Generierung',
+  tts:        'Sprachausgabe (TTS)',
+  stt:        'Spracherkennung (STT)',
+  image:      'Bildgenerierung (FLUX)',
+}
+export function costKindLabel(k) { return COST_KIND_LABEL[k] || k || 'Sonstiges' }
