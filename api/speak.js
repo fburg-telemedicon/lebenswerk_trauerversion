@@ -82,7 +82,8 @@ module.exports = async function handler(req, res) {
     try {
       result = await speakAzure(speechText)
     } catch (e) {
-      return res.status(500).json({ error: e.message })
+      console.error('/api/speak TTS error:', e)
+      return res.status(500).json({ error: 'Die Sprachausgabe ist momentan nicht verfügbar. Bitte später erneut versuchen.' })
     }
 
     res.setHeader('Content-Type', 'audio/mpeg')
@@ -103,6 +104,6 @@ module.exports = async function handler(req, res) {
     }
   } catch (e) {
     console.error('/api/speak error:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Die Sprachausgabe ist momentan nicht verfügbar. Bitte später erneut versuchen.' })
   }
 }

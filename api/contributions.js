@@ -33,7 +33,11 @@ module.exports = async function handler(req, res) {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!id) return res.status(400).json({ error: 'Beitrags-ID fehlt.' })
 
-      let q = supabase.from('contributions').select('*').eq('id', id)
+      // Nur die zum Fortsetzen nötigen Felder herausgeben (Datenminimierung) –
+      // interne Prüf-/Verwaltungsfelder (transcript_corrections, Prüfstempel …)
+      // gehören nicht in den öffentlichen Beitragenden-Flow.
+      const RESUME_FIELDS = 'id, contributor_name, relationship, messages, contributor_gender, contributor_address, consent_at, consent_version'
+      let q = supabase.from('contributions').select(RESUME_FIELDS).eq('id', id)
       // Wenn ein Code mitgegeben wird, muss er zum Beitrag passen – sonst
       // wird nichts geliefert (defense in depth; die ID allein genügt schon).
       if (code) q = q.eq('memorial_id', code)
@@ -70,6 +74,6 @@ module.exports = async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' })
   } catch (e) {
     console.error('/api/contributions error:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Der Beitrag konnte nicht geladen oder gespeichert werden. Bitte später erneut versuchen.' })
   }
 }

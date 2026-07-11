@@ -67,6 +67,6 @@ module.exports = async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' })
   } catch (e) {
     console.error('/api/memorial error:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Das Gedenkbuch konnte nicht geladen werden. Bitte später erneut versuchen.' })
   }
 }

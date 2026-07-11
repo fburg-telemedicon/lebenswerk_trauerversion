@@ -69,6 +69,6 @@ module.exports = async function handler(req, res) {
     return res.json({ text: result.text })
   } catch (e) {
     console.error('/api/ask error:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Die KI-Antwort konnte nicht erstellt werden. Bitte später erneut versuchen.' })
   }
 }

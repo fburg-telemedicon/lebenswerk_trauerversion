@@ -80,6 +80,6 @@ module.exports = async function handler(req, res) {
     return res.json({ text: result.text })
   } catch (e) {
     console.error('/api/transcribe error:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Die Spracherkennung ist momentan nicht verfügbar. Bitte später erneut versuchen.' })
   }
 }

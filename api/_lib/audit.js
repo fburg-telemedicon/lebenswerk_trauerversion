@@ -1,12 +1,13 @@
 // api/_lib/audit.js
 // Dauerhaftes Zugriffs-/Audit-Log sicherheitsrelevanter Aktionen
-// (siehe supabase/audit.sql). Bewusst PII-arm: nur Akteur, Aktion, Ziel, IP.
+// (siehe supabase/audit.sql). Bewusst PII-arm: nur Akteur, Aktion, Ziel und die
+// pseudonymisierte (gehashte) IP – keine Klartext-IP (DSGVO-Datenminimierung).
 //
 // Fail-open / non-fatal: Ein Logging-Fehler darf NIE die eigentliche Aktion
 // abbrechen. Es wird nur auf der Server-Konsole vermerkt.
 
 const { createClient } = require('@supabase/supabase-js')
-const { clientIp } = require('./ratelimit')
+const { clientIp, hashId } = require('./ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -24,7 +25,7 @@ async function audit(req, { actor, action, target, detail } = {}) {
       is_admin:   typeof actor?.admin === 'boolean' ? actor.admin : null,
       action,
       target:     target ?? null,
-      ip:         clientIp(req),
+      ip:         hashId(clientIp(req)),   // pseudonymisiert (kein Klartext)
       detail:     detail ?? null,
     })
   } catch (e) {

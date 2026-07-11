@@ -46,6 +46,6 @@ module.exports = async function handler(req, res) {
     return res.json({ image: safe })
   } catch (e) {
     console.error('/api/upload:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Der Upload ist fehlgeschlagen. Bitte später erneut versuchen.' })
   }
 }
