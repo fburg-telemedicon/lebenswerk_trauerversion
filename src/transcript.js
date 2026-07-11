@@ -1,13 +1,16 @@
-// src/transcript.js  (Frontend)
+// src/transcript.js  (Frontend, ESM)
 // Undo/Redo-Helfer für den Transkript-Bericht. Die eigentliche Prüfung läuft
-// serverseitig im Cron (api/cron/transcript-check.js, api/_lib/transcript.js);
-// hier wird nur eine bereits vorgenommene Korrektur rückgängig gemacht bzw.
-// wieder angewandt (jeweils erste Fundstelle im Ziel-Antworttext).
+// serverseitig (api/cron/transcript-check.js).
+//
+// HINWEIS: Diese beiden Funktionen sind eine bewusste, kleine Kopie von
+// api/_lib/transcript-core.js (findNeedle/apply/revert). Ein gemeinsames Modul
+// scheitert an der Laufzeitgrenze (Backend = CommonJS/Node, Frontend = ESM/Vite;
+// Vite bündelt keine CJS-Quelldateien). Bei Änderungen an der Logik BEIDE Stellen
+// gleich halten – die Funktionen sind absichtlich winzig und rein.
 
-// Findet needle im Text: erst wörtlich, dann als Fallback rein Groß-/Klein-
-// schreibungs-tolerant (gleiche Länge). Das rettet Vorschläge, deren 'before' durch
-// eine zuvor angewandte Auto-Korrektur im selben Bereich nur in der Groß-/Klein-
-// schreibung abweicht (z. B. „ähm" → „Ähm"); die zu ersetzende Länge bleibt gleich.
+// Findet needle im Text: erst wörtlich, dann groß-/kleinschreibungs-tolerant
+// (gleiche Länge) – rettet Stellen, deren 'before'/'after' durch eine zuvor
+// angewandte Auto-Korrektur nur in der Groß-/Kleinschreibung abweicht.
 function findNeedle(content, needle) {
   if (!needle) return -1
   const exact = content.indexOf(needle)
@@ -26,7 +29,7 @@ export function revertCorrectionInMessages(messages, corr) {
   return { messages: arr, ok: true }
 }
 
-// before → after (Korrektur wieder anwenden).
+// before → after (Korrektur anwenden).
 export function applyCorrectionToMessages(messages, corr) {
   const arr = Array.isArray(messages) ? messages.map(m => ({ ...m })) : []
   const m = arr[corr.message_index]

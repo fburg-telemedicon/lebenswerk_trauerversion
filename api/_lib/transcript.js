@@ -1,8 +1,11 @@
 // api/_lib/transcript.js  (CommonJS – Serverseite, genutzt vom Cron)
-// Prompt + Anwenden von Transkriptions-Korrekturen. Das Frontend-Pendant
-// (src/transcript.js) enthält nur die Undo/Redo-Helfer für den Bericht.
+// Prompt-Bau + Node-spezifische Helfer. Die reinen Text-Operationen (apply,
+// revert, findNeedle, fixMojibake, anchorInText) leben laufzeit-neutral in
+// ./transcript-core.js und werden von HIER (Backend) und von src/transcript.js
+// (Frontend) aus DERSELBEN Quelle bezogen – so laufen sie nicht auseinander.
 
 const crypto = require('crypto')
+const { applyCorrectionToMessages, fixMojibake, anchorInText } = require('./transcript-core')
 
 function transcriptCheckSystem(memorial, contribution, userAnswers) {
   const names = []
@@ -39,49 +42,8 @@ Antworte AUSSCHLIESSLICH mit rohem JSON (kein Markdown, keine Erklärung):
 "before" MUSS wörtlich und eindeutig im jeweiligen Antworttext vorkommen. Gibt es nichts zu tun: { "corrections": [] }.`
 }
 
-// Wendet eine Korrektur auf messages an (erste Fundstelle im Ziel-Text).
-function applyCorrectionToMessages(messages, corr) {
-  const arr = Array.isArray(messages) ? messages.map(m => ({ ...m })) : []
-  const m = arr[corr.message_index]
-  if (!m || typeof m.content !== 'string' || !corr.before) return { messages: arr, ok: false }
-  const pos = m.content.indexOf(corr.before)
-  if (pos < 0) return { messages: arr, ok: false }
-  m.content = m.content.slice(0, pos) + corr.after + m.content.slice(pos + corr.before.length)
-  return { messages: arr, ok: true }
-}
-
 function newCorrectionId() {
   try { return crypto.randomUUID() } catch { return 'c' + Math.random().toString(36).slice(2, 10) }
-}
-
-// Repariert seltenes „Mojibake" (UTF-8-Bytes, die als Latin-1 gelesen wurden, z. B.
-// „Ã¤" statt „ä"), das das Modell gelegentlich beim wörtlichen Echo von 'before'
-// erzeugt. Nur anwenden, wenn die typische Signatur (Ã/Â + Folgebyte) vorkommt, damit
-// korrekt kodierter Text unangetastet bleibt. Verhindert, dass ein 'before' wegen
-// Kodierung nicht mehr im (sauberen) Text gefunden wird und der Befund verlorengeht.
-function fixMojibake(s) {
-  const str = String(s || '')
-  if (!/[ÂÃ][-¿]/.test(str)) return str
-  try {
-    const repaired = Buffer.from(str, 'latin1').toString('utf8')
-    return repaired.includes('�') ? str : repaired
-  } catch { return str }
-}
-
-// Sucht `needle` in `content` und gibt den EXAKT dort stehenden Ausschnitt zurück
-// (oder null). Toleriert Abweichungen, die das Modell beim Echo erzeugt: reine
-// Groß-/Kleinschreibung und Mojibake. Damit lässt sich ein Vorschlags-'before',
-// das leicht vom tatsächlichen Text abweicht, auf den WÖRTLICH vorhandenen Text
-// verankern – so ist der gespeicherte Vorschlag später garantiert anwendbar.
-function anchorInText(content, needle) {
-  if (typeof content !== 'string') return null
-  for (const cand of [String(needle || ''), fixMojibake(needle || '')]) {
-    if (!cand) continue
-    let pos = content.indexOf(cand)
-    if (pos < 0) pos = content.toLowerCase().indexOf(cand.toLowerCase())
-    if (pos >= 0) return content.slice(pos, pos + cand.length)
-  }
-  return null
 }
 
 // Robustes JSON-Parsen der Modellantwort: Codefences strippen, äußerstes {…}
