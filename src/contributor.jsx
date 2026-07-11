@@ -256,9 +256,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         ))}
         {aiLoading && messages.length === 0 && <div style={{ margin: '1.5rem 0' }}><Dots /></div>}
         {latestQ && (
-          <div style={{ ...S.card, marginBottom: '1rem', background: '#fafaf9', borderColor: '#d6d3d1' }}>
-            <Lbl>{t.questionLabel}</Lbl>
-            <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 1rem', color: '#292524' }}>{latestQ}</p>
+          <div style={{ ...S.card, marginBottom: '1rem', background: '#fafaf9', borderColor: '#d6d3d1', textAlign: showTx ? 'left' : 'center' }}>
+            {showTx && <>
+              <Lbl>{t.questionLabel}</Lbl>
+              <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 1rem', color: '#292524' }}>{latestQ}</p>
+            </>}
             <button onClick={handleSpeak} disabled={ttsLoading || aiLoading} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               {ttsLoading
                 ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
@@ -640,7 +642,10 @@ export function ContributorFlow({ code }) {
   function handlePause() { setPaused(true) }
   function handleResume() { setPaused(false) }
   function handleDone() {
-    clearLocalSession(code)
+    // Lokale Sitzung NICHT löschen: So erkennt der Einladungslink (?code=…) beim
+    // erneuten Öffnen im selben Browser die bestehende Sitzung und bietet
+    // Fortsetzen/Neu beginnen an (60-Tage-TTL). Ein echter Neustart ist über
+    // „Neu beginnen" im Wiederaufnahme-Dialog jederzeit möglich.
     setPaused(false); setView('done')
   }
 
