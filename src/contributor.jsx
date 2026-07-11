@@ -75,6 +75,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
+  // Immer aktuelle Nachrichtenliste (verhindert veraltete Closures beim Auto-Senden
+  // nach einem „Neu einsprechen"/Rückgängig). applyMessages hält Ref + State synchron.
+  const messagesRef     = useRef(initialMessages)
+  const skipAutoPlayRef = useRef(false)
+  function applyMessages(msgs) { messagesRef.current = msgs; setMessages(msgs) }
   const [aiLoading,  setAiLoading]  = useState(false)
   const [ttsLoading, setTtsLoading] = useState(false)
   const [isPlaying,  setIsPlaying]  = useState(false)
@@ -82,6 +87,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   const [micState,   setMicState]   = useState('idle')
   const [micStream,  setMicStream]  = useState(null) // aktiver Aufnahme-Stream → Schallwellen-Animation
   const [transcript, setTranscript] = useState('')
+  // Anzeigemodus: mit Transkript (+ Löschen/Neu einsprechen) oder reines Sprach-
+  // Interview. Startwert aus der Buch-Einstellung; im Interview umschaltbar.
+  const [showTx,     setShowTx]     = useState(memorial?.show_transcript !== false)
   const [err,        setErr]        = useState('')
   const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
@@ -94,7 +102,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   // Auto-Start: neue Frage sofort vorlesen
   useEffect(() => {
     const last = messages[messages.length - 1]
-    if (last?.role === 'assistant' && !aiLoading) playText(last.content)
+    if (last?.role === 'assistant' && !aiLoading) {
+      // Nach Löschen/Neu einsprechen die (wiederhergestellte) Frage nicht erneut
+      // vorlesen – sonst überlagert die TTS eine gerade startende Aufnahme.
+      if (skipAutoPlayRef.current) { skipAutoPlayRef.current = false; return }
+      playText(last.content)
+    }
   }, [messages, aiLoading])
 
   function playText(text) {
@@ -125,7 +138,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const q = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
-      setMessages([{ role: 'assistant', content: q }])
+      applyMessages([{ role: 'assistant', content: q }])
     } catch (e) { setErr(e.message) }
     finally { setAiLoading(false) }
   }
@@ -171,10 +184,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           const text = data.text || ''
           setTranscript(text)
           setMicState('idle')
-          // Ist das Transkript sichtbar, wird NICHT automatisch gesendet – der/die
-          // Beitragende prüft die Antwort und kann sie neu einsprechen. Ist es
-          // ausgeblendet (reines Sprach-Interview), geht die Antwort direkt raus.
-          if (text.trim() && memorial?.show_transcript === false) sendAnswer(text)
+          // Antwort immer automatisch abschicken. Im Transkript-Modus bleibt die
+          // gesendete Antwort sichtbar und kann per „Löschen"/„Neu einsprechen"
+          // korrigiert werden (siehe sendAnswer + undoLast/redoLast).
+          if (text.trim()) sendAnswer(text)
           return
         } catch (e) {
           setErr(`${t.errTranscribe}: ${e.message}`)
@@ -196,20 +209,39 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   async function sendAnswer(explicitText) {
     const text = (explicitText ?? transcript).trim(); if (!text) return
-    setTranscript(''); stopSpeaking(); setIsPlaying(false)
-    const newMsgs = [...messages, { role: 'user', content: text }]
-    setMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
+    stopSpeaking(); setIsPlaying(false)
+    // transcript NICHT leeren: die gesendete Antwort bleibt im Transkript-Modus
+    // sichtbar (Löschen/Neu einsprechen). handleMic/undoLast leeren sie.
+    const newMsgs = [...messagesRef.current, { role: 'user', content: text }]
+    applyMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
     try {
       const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
-      setMessages(finalMsgs)
+      applyMessages(finalMsgs)
       onSave?.(finalMsgs)
     } catch (e) { setErr(e.message) }
     finally { setAiLoading(false) }
   }
+
+  // Letzte Antwort verwerfen: entfernt die Nutzerantwort und die darauf folgende
+  // KI-Frage aus Verlauf + DB, sodass wieder die vorherige Frage aktiv ist.
+  function undoLast() {
+    stopSpeaking(); setIsPlaying(false)
+    const msgs = [...messagesRef.current]
+    if (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
+    if (msgs.length && msgs[msgs.length - 1].role === 'user') msgs.pop()
+    skipAutoPlayRef.current = true
+    applyMessages(msgs)
+    setRound(msgs.filter(m => m.role === 'user').length)
+    setTranscript(''); setErr('')
+    onSave?.(msgs)
+  }
+
+  // Neu einsprechen: letzte Antwort verwerfen und direkt neu aufnehmen.
+  function redoLast() { undoLast(); handleMic() }
 
   function pause() {
     stopSpeaking()
@@ -217,8 +249,19 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     onPause?.()
   }
 
-  const showTx = memorial?.show_transcript !== false
   const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
+
+  // Verlauf für die Chat-Blasen: aktuelle Frage (letzte KI-Nachricht) raus; im
+  // Transkript-Modus zusätzlich die zuletzt gesendete Antwort, weil sie schon im
+  // Transkript-Kasten mit Löschen/Neu-einsprechen steht.
+  let history = messages.slice(0, -1)
+  if (showTx && transcript) {
+    const last = messages[messages.length - 1]
+    if (last && last.role === 'assistant') {
+      const li = history.map(m => m.role).lastIndexOf('user')
+      if (li !== -1) history = history.filter((_, i) => i !== li)
+    }
+  }
 
   const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
@@ -239,6 +282,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
       </div>
       <div style={{ padding: '1.25rem 1.5rem' }}>
+        <label style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8, marginBottom:12, cursor:'pointer', fontSize:12, color:'#78716c' }}>
+          <input type="checkbox" checked={showTx} onChange={e => setShowTx(e.target.checked)} style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />
+          {t.txToggleLabel}
+        </label>
         <Err msg={err} />
         {saveErr && <div style={{ ...S.err }}>⚠ {t.saveLabel}: {saveErr}</div>}
         {memorial.funeral_date && (() => {
@@ -249,7 +296,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             </div>
           ) : null
         })()}
-        {showTx && messages.slice(0, -1).map((m, i) => (
+        {showTx && history.map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
             <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
           </div>
@@ -289,11 +336,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             </div>
             {transcript && showTx && (
               <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginTop:12, fontSize:14, lineHeight:1.6, textAlign:'left' }}>
+                {micState === 'idle' && !aiLoading && (
+                  <div style={{ fontSize:12, color:'#16a34a', fontWeight:600, marginBottom:6 }}>{t.txSentLabel}</div>
+                )}
                 {transcript}
                 {micState === 'idle' && !aiLoading && (
                   <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:12 }}>
-                    <button onClick={() => sendAnswer(transcript)} style={{ fontSize:13, padding:'8px 16px' }}>{t.txSend}</button>
-                    <button className="secondary" onClick={() => setTranscript('')} style={{ fontSize:13, padding:'8px 16px' }}>{t.txRedo}</button>
+                    <button className="secondary" onClick={undoLast} style={{ fontSize:13, padding:'8px 16px' }}>{t.txDelete}</button>
+                    <button className="secondary" onClick={redoLast} style={{ fontSize:13, padding:'8px 16px' }}>{t.txRedo}</button>
                   </div>
                 )}
               </div>

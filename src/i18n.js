@@ -119,8 +119,10 @@ ${url}
   fbSaveErr: 'Das Feedback konnte nicht gespeichert werden.',
   closeBtn: 'Interview beenden',
   closeHint: 'Sie können dieses Fenster nun schließen.',
-  txSend: '✓ Antwort senden',
-  txRedo: '↻ Neu aufnehmen',
+  txSentLabel: '✓ Antwort gesendet',
+  txDelete: '🗑 Löschen',
+  txRedo: '↻ Neu einsprechen',
+  txToggleLabel: 'Transkript & Korrekturmöglichkeit anzeigen',
 }
 
 const PL = {
@@ -206,8 +208,10 @@ ${url}
   fbSaveErr: 'Nie udało się zapisać opinii.',
   closeBtn: 'Zakończ rozmowę',
   closeHint: 'Możesz teraz zamknąć to okno.',
-  txSend: '✓ Wyślij odpowiedź',
+  txSentLabel: '✓ Odpowiedź wysłana',
+  txDelete: '🗑 Usuń',
   txRedo: '↻ Nagraj ponownie',
+  txToggleLabel: 'Pokaż transkrypcję i możliwość korekty',
 }
 
 const EN = {
@@ -293,8 +297,10 @@ ${url}
   fbSaveErr: 'The feedback could not be saved.',
   closeBtn: 'Finish',
   closeHint: 'You can now close this window.',
-  txSend: '✓ Send answer',
+  txSentLabel: '✓ Answer sent',
+  txDelete: '🗑 Delete',
   txRedo: '↻ Record again',
+  txToggleLabel: 'Show transcript & correction options',
 }
 
 const UI = { de: DE, pl: PL, en: EN }
