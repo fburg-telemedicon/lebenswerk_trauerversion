@@ -18,7 +18,8 @@
         "Wartung: Geteilte UI-Bausteine (Basis-Styles + kleine Anzeigekomponenten) in ein eigenes Modul ausgelagert – App-Datei weiter verschlankt, entkoppelt kommende Umbauten. Verhalten unverändert.",
         "Wartung: Auswahl-Komponenten (Grafikstil/Buchlayout) in ein eigenes Modul ausgelagert – App-Datei weiter verschlankt. Verhalten unverändert.",
         "Wartung: Der komplette Beitragenden-Flow (Interview per Stimme/Text inkl. Foto-Upload) in ein eigenes Modul ausgelagert; App-Datei deutlich verschlankt. Verhalten unverändert.",
-        "Wartung: Dashboard-Aufteilung begonnen — die Audit-Log-Ansicht in ein eigenes Modul ausgelagert (Muster für die weiteren Admin-Ansichten). Verhalten unverändert."
+        "Wartung: Dashboard-Aufteilung begonnen — die Audit-Log-Ansicht in ein eigenes Modul ausgelagert (Muster für die weiteren Admin-Ansichten). Verhalten unverändert.",
+        "Wartung: Auch die Tagesreport-Empfänger-Ansicht aus dem Dashboard in ein eigenes Modul ausgelagert. Verhalten unverändert."
       ]
     },
     {
