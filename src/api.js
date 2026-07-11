@@ -110,6 +110,14 @@ export async function adminDeleteUser(token, id) {
 }
 // Audit-Log lesen (admin-only). In users.js eingebettet (?audit=1) wegen
 // des Vercel-12-Funktionen-Limits.
+// Qualitätsmanagement: Beitragenden-Bewertungen (Feedback) aller zugänglichen Bücher.
+export async function adminListFeedback(token) {
+  const res = await fetch('/api/admin/feedback', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // [ { id, memorial_name, contributor_name, rating, text, at, ... } ]
+}
+
 export async function adminListAudit(token, { limit = 100, action } = {}) {
   const qs = new URLSearchParams({ audit: '1', limit: String(limit) })
   if (action) qs.set('action', action)

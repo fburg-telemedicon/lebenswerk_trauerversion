@@ -6,7 +6,7 @@ import {
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload, adminComposeImage,
   adminDeleteContribution, adminUpdateContributionMessages, adminSaveTranscriptCheck,
   getMemorialCosts,
-  adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit,
+  adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
@@ -28,7 +28,7 @@ import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSessi
 import { ContributorFlow } from './contributor.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
-import { AuditView, ReportsView, CostsView, SettingsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView } from './adminViews.jsx'
+import { AuditView, ReportsView, CostsView, SettingsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
 import { formatEur, costKindLabel } from './shared.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -390,6 +390,7 @@ function Dashboard() {
   const [userForm, setUserForm]       = useState({ username: '', cats: [], demo: true })
   const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
   const [auditData, setAuditData]     = useState({ entries: [] })
+  const [qmData, setQmData]           = useState([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [recipients, setRecipients]   = useState([])          // Tagesreport-Empfänger
   const [recipientForm, setRecipientForm] = useState({ email: '', name: '' })
@@ -771,6 +772,11 @@ function Dashboard() {
       const d = await adminListAudit(token, { limit: 200 })
       setAuditData(d)
     } catch (e) { setErr(e.message) } finally { setAuditLoading(false) }
+  }
+  async function loadFeedback() {
+    setErr(''); setLoading(true)
+    try { setQmData(await adminListFeedback(token)) }
+    catch (e) { setErr(e.message) } finally { setLoading(false) }
   }
   function toggleUserFormCat(slug) {
     setUserForm(f => ({
@@ -2141,7 +2147,7 @@ function Dashboard() {
 
   // ── LISTE ──
   if (view === 'list') return (
-    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} openSettings={openSettings} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
+    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} openSettings={openSettings} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
   )
 
   // ── PRODUKTKATEGORIE WÄHLEN (vor der Anlage) ──
@@ -2160,6 +2166,10 @@ function Dashboard() {
   )
 
   // ── BENUTZER (nur Admin) ──
+  if (view === 'quality') return (
+    <QMView qmData={qmData} loading={loading} err={err} setView={setView} logout={logout} />
+  )
+
   if (view === 'audit') return (
     <AuditView auditData={auditData} auditLoading={auditLoading} err={err} logout={logout} loadAudit={loadAudit} setView={setView} />
   )

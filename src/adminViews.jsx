@@ -568,7 +568,7 @@ export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView
   )
 }
 
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, openSettings, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, openSettings, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
@@ -639,6 +639,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           )}
           {auth.admin && (
             <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>Report</button>
+          )}
+          {myUid && (
+            <button className="secondary" onClick={() => { loadFeedback(); setErr(''); setView('quality') }} style={{ fontSize: 13, padding: '7px 14px' }}>Qualität</button>
           )}
           {myUid && (
             <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
@@ -1835,4 +1838,67 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
         {transcriptReportOverlay}
       </div>
     )
+}
+
+// Qualitätsmanagement: Beitragenden-Bewertungen (Smiley 1..5 + Kommentar) aller
+// zugänglichen Bücher, neueste zuerst. Daten aus GET /api/admin/feedback.
+export function QMView({ qmData, loading, err, setView, logout }) {
+  const faces = ['😞', '😕', '😐', '🙂', '😍']
+  const rows = Array.isArray(qmData) ? qmData : []
+  const avg = rows.length ? rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length : 0
+  const fmt = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+          <span style={{ fontWeight:700, fontSize:16 }}>Qualitätsmanagement</span>
+        </div>
+        <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth:1000, margin:'2rem auto', padding:'0 1.5rem' }}>
+        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Feedback der Beitragenden</h2>
+        <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
+          Bewertungen direkt nach dem Interview (Smiley-Skala + optionaler Kommentar), neueste zuerst.
+          {rows.length > 0 && <> · {rows.length} {rows.length === 1 ? 'Bewertung' : 'Bewertungen'} · ⌀ {avg.toFixed(1)} / 5</>}
+        </p>
+        <Err msg={err} />
+        {loading ? (
+          <p style={S.muted}>Wird geladen …</p>
+        ) : rows.length === 0 ? (
+          <div style={{ ...S.card, textAlign:'center', padding:'1.5rem' }}>
+            <p style={S.muted}>Noch keine Bewertungen. Beitragende geben ihr Feedback nach dem Interview ab.</p>
+          </div>
+        ) : (
+          <div style={{ ...S.card, padding:0, overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={th}>Zeitpunkt</th>
+                  <th style={th}>Bewertung</th>
+                  <th style={th}>Beitragende:r</th>
+                  <th style={th}>Buchprojekt</th>
+                  <th style={th}>Kommentar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id}>
+                    <td style={{ ...col, whiteSpace:'nowrap', color:'#78716c', fontSize:13 }}>{fmt(r.at)}</td>
+                    <td style={{ ...col, whiteSpace:'nowrap' }}>
+                      <span style={{ fontSize:20 }} title={`${r.rating} / 5`}>{faces[Math.min(4, Math.max(0, (r.rating || 1) - 1))]}</span>
+                      <span style={{ color:'#a8a29e', fontSize:12, marginLeft:6 }}>{r.rating}/5</span>
+                    </td>
+                    <td style={{ ...col }}>{r.contributor_name || '—'}{r.relationship ? <span style={{ color:'#a8a29e', fontSize:12 }}> · {r.relationship}</span> : null}</td>
+                    <td style={{ ...col, color:'#78716c' }}>{r.memorial_name}</td>
+                    <td style={{ ...col, maxWidth:360, whiteSpace:'pre-wrap', color:'#44403c' }}>{r.text || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
