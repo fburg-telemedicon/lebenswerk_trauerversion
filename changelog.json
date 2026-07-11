@@ -16,7 +16,8 @@
         "Wartung: Export-/Download-Code (TXT/DOCX/Druck-PDF, ~460 Zeilen) aus der großen App-Datei in ein eigenes Modul (bookExport.js) ausgelagert – bessere Übersichtlichkeit, Verhalten unverändert.",
         "Wartung: Statische Rechtsseiten (Impressum/Datenschutz + Footer) aus der großen App-Datei in ein eigenes Modul ausgelagert (App-Datei weiter verschlankt, Verhalten unverändert).",
         "Wartung: Geteilte UI-Bausteine (Basis-Styles + kleine Anzeigekomponenten) in ein eigenes Modul ausgelagert – App-Datei weiter verschlankt, entkoppelt kommende Umbauten. Verhalten unverändert.",
-        "Wartung: Auswahl-Komponenten (Grafikstil/Buchlayout) in ein eigenes Modul ausgelagert – App-Datei weiter verschlankt. Verhalten unverändert."
+        "Wartung: Auswahl-Komponenten (Grafikstil/Buchlayout) in ein eigenes Modul ausgelagert – App-Datei weiter verschlankt. Verhalten unverändert.",
+        "Wartung: Der komplette Beitragenden-Flow (Interview per Stimme/Text inkl. Foto-Upload) in ein eigenes Modul ausgelagert; App-Datei deutlich verschlankt. Verhalten unverändert."
       ]
     },
     {

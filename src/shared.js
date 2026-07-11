@@ -91,3 +91,20 @@ export function unlockAudio() {
   // Bereitet das Audio-Element vor, das speakText() später wiederverwendet
   primeAudio()
 }
+
+export function cutoffDays(memorial) {
+  const n = parseInt(memorial?.cutoff_days, 10)
+  return Number.isFinite(n) && n >= 0 ? n : 7
+}
+
+export function cutoffDate(funeralDate, days) {
+  if (!funeralDate) return null
+  const d = new Date(funeralDate)
+  d.setDate(d.getDate() - (Number.isFinite(days) ? days : 7))
+  return d
+}
+
+export function cutoffString(funeralDate, days = 7) {
+  const d = cutoffDate(funeralDate, days)
+  return d ? d.toLocaleDateString('de-DE') : '—'
+}
