@@ -141,7 +141,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
 // Leeres Anlage-Formular (inkl. Produktkategorie + kategorieabhängige Felder).
 const EMPTY_CREATE = {
   name: '', organizer: '', gender: '', bookVariant: 1,
-  funeralDate: '', cutoffDays: 7, showIntroVideo: false,
+  funeralDate: '', cutoffDays: 7, showIntroVideo: false, showTranscript: true,
   productCategory: DEFAULT_CATEGORY, intake: {},
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },
@@ -589,6 +589,7 @@ function Dashboard() {
       funeralDate: m.funeral_date ? String(m.funeral_date).slice(0, 10) : '',
       cutoffDays: Number.isFinite(parseInt(m.cutoff_days, 10)) ? parseInt(m.cutoff_days, 10) : 7,
       showIntroVideo: m.show_intro_video !== false,
+      showTranscript: m.show_transcript !== false,
       intake: m.intake ? { ...m.intake } : {},
       languages: Array.isArray(m.languages) && m.languages.length ? [...m.languages] : ['de'],
       note: m.note || '',
@@ -610,7 +611,7 @@ function Dashboard() {
       await adminUpdateMemorialMeta(token, selected.id, {
         name: d.name, organizer: d.organizer, gender: d.gender || null,
         bookVariant: d.bookVariant, funeralDate: d.funeralDate || null,
-        cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo,
+        cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo, showTranscript: d.showTranscript,
         intake: d.intake, languages: d.languages, note: d.note,
         pickupAddress: d.pickupAddress,
         imageStyle: d.imageStyle,
@@ -628,6 +629,7 @@ function Dashboard() {
         funeral_date: d.funeralDate || null,
         cutoff_days: Number.isFinite(parseInt(d.cutoffDays, 10)) && parseInt(d.cutoffDays, 10) >= 0 ? parseInt(d.cutoffDays, 10) : 7,
         show_intro_video: d.showIntroVideo !== false,
+        show_transcript: d.showTranscript !== false,
         intake: d.intake && Object.keys(d.intake).length ? d.intake : (d.intake || null),
         languages: (d.languages && d.languages.length) ? d.languages : ['de'],
         note: d.note.trim() || null,
@@ -691,6 +693,7 @@ function Dashboard() {
         funeralDate: cat.intake.useDate ? (createForm.funeralDate || null) : null,
         cutoffDays: createForm.cutoffDays,
         showIntroVideo: createForm.showIntroVideo,
+        showTranscript: createForm.showTranscript,
         productCategory: createForm.productCategory,
         intake: createForm.intake || {},
         languages: createForm.languages?.length ? createForm.languages : [DEFAULT_LANGUAGE],

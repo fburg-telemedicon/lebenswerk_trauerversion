@@ -640,7 +640,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           {auth.admin && (
             <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>Report</button>
           )}
-          {myUid && (
+          {auth.admin && (
             <button className="secondary" onClick={() => { loadFeedback(); setErr(''); setView('quality') }} style={{ fontSize: 13, padding: '7px 14px' }}>Qualität</button>
           )}
           {myUid && (
@@ -935,6 +935,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           {expertMode ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
         </button>
         {expertMode && (<>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Transkript-Anzeige im Sprach-Interview</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.showTranscript !== false} onChange={e => setCreateForm({ ...createForm, showTranscript: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Beitragenden das Transkript ihrer Antworten anzeigen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Die transkribierte Antwort wird angezeigt; Beitragende können sie vor dem Senden prüfen und bei Bedarf neu einsprechen. Deaktiviert: reines Sprach-Interview (Antwort wird direkt gesendet).
+          </p>
+        </div>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Grafikstil der Bilder</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
@@ -1678,6 +1688,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   ['Sprachen', orderLangLabels],
                   ['Buch-Variante', orderVariant.title],
                   ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
+                  ['Transkript-Anzeige', selected.show_transcript !== false ? 'Ja' : 'Nein'],
                   ['Bemerkung', selected.note || dash],
                   ['Sammelbestellungs-Adresse', selected.pickup_address
                     ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
@@ -1794,6 +1805,14 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 </div>
                 )}
                 <div style={{ marginBottom:14 }}>
+                  <Lbl>Transkript-Anzeige im Sprach-Interview</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.showTranscript !== false} onChange={e => setOd({ showTranscript: e.target.checked })}
+                      style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Transkript anzeigen (Beitragende können Antworten prüfen & neu einsprechen)</span>
+                  </label>
+                </div>
+                <div style={{ marginBottom:14 }}>
                   <Lbl>Bemerkung</Lbl>
                   <textarea value={od.note} onChange={e => setOd({ note: e.target.value })} rows={3}
                     placeholder="Interne Notiz zu diesem Buch (optional)."
@@ -1878,6 +1897,7 @@ export function QMView({ qmData, loading, err, setView, logout }) {
                   <th style={th}>Bewertung</th>
                   <th style={th}>Beitragende:r</th>
                   <th style={th}>Buchprojekt</th>
+                  <th style={th}>Manager</th>
                   <th style={th}>Kommentar</th>
                 </tr>
               </thead>
@@ -1891,6 +1911,7 @@ export function QMView({ qmData, loading, err, setView, logout }) {
                     </td>
                     <td style={{ ...col }}>{r.contributor_name || '—'}{r.relationship ? <span style={{ color:'#a8a29e', fontSize:12 }}> · {r.relationship}</span> : null}</td>
                     <td style={{ ...col, color:'#78716c' }}>{r.memorial_name}</td>
+                    <td style={{ ...col, color:'#78716c', fontSize:13 }}>{r.owner_username || '—'}</td>
                     <td style={{ ...col, maxWidth:360, whiteSpace:'pre-wrap', color:'#44403c' }}>{r.text || '—'}</td>
                   </tr>
                 ))}

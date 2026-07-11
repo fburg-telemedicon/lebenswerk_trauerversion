@@ -119,6 +119,8 @@ ${url}
   fbSaveErr: 'Das Feedback konnte nicht gespeichert werden.',
   closeBtn: 'Interview beenden',
   closeHint: 'Sie können dieses Fenster nun schließen.',
+  txSend: '✓ Antwort senden',
+  txRedo: '↻ Neu aufnehmen',
 }
 
 const PL = {
@@ -204,6 +206,8 @@ ${url}
   fbSaveErr: 'Nie udało się zapisać opinii.',
   closeBtn: 'Zakończ rozmowę',
   closeHint: 'Możesz teraz zamknąć to okno.',
+  txSend: '✓ Wyślij odpowiedź',
+  txRedo: '↻ Nagraj ponownie',
 }
 
 const EN = {
@@ -289,6 +293,8 @@ ${url}
   fbSaveErr: 'The feedback could not be saved.',
   closeBtn: 'Finish',
   closeHint: 'You can now close this window.',
+  txSend: '✓ Send answer',
+  txRedo: '↻ Record again',
 }
 
 const UI = { de: DE, pl: PL, en: EN }

@@ -171,7 +171,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           const text = data.text || ''
           setTranscript(text)
           setMicState('idle')
-          if (text.trim()) sendAnswer(text)
+          // Ist das Transkript sichtbar, wird NICHT automatisch gesendet – der/die
+          // Beitragende prüft die Antwort und kann sie neu einsprechen. Ist es
+          // ausgeblendet (reines Sprach-Interview), geht die Antwort direkt raus.
+          if (text.trim() && memorial?.show_transcript === false) sendAnswer(text)
           return
         } catch (e) {
           setErr(`${t.errTranscribe}: ${e.message}`)
@@ -214,6 +217,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     onPause?.()
   }
 
+  const showTx = memorial?.show_transcript !== false
   const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
 
   const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
@@ -230,7 +234,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
       <div style={{ borderBottom: '1px solid #e7e5e4', padding: '12px 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
-          <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship} · {t.modeVoice}</div>
+          <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
         </div>
         <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
       </div>
@@ -245,7 +249,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             </div>
           ) : null
         })()}
-        {messages.slice(0, -1).map((m, i) => (
+        {showTx && messages.slice(0, -1).map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
             <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
           </div>
@@ -281,9 +285,15 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
-            {transcript && (
+            {transcript && showTx && (
               <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginTop:12, fontSize:14, lineHeight:1.6, textAlign:'left' }}>
                 {transcript}
+                {micState === 'idle' && !aiLoading && (
+                  <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:12 }}>
+                    <button onClick={() => sendAnswer(transcript)} style={{ fontSize:13, padding:'8px 16px' }}>{t.txSend}</button>
+                    <button className="secondary" onClick={() => setTranscript('')} style={{ fontSize:13, padding:'8px 16px' }}>{t.txRedo}</button>
+                  </div>
+                )}
               </div>
             )}
             {memorial.catalog && micState === 'idle' && (

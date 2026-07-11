@@ -23,9 +23,24 @@ module.exports = async function handler(req, res) {
     const { data: mems, error: mErr } = await memQuery
     if (mErr) throw mErr
     const memName = {}
+    const memOwner = {}
     const ids = []
-    for (const m of mems || []) { memName[m.id] = m.name; ids.push(m.id) }
+    const ownerIds = new Set()
+    for (const m of mems || []) {
+      memName[m.id] = m.name
+      memOwner[m.id] = m.owner_user || null
+      if (m.owner_user) ownerIds.add(m.owner_user)
+      ids.push(m.id)
+    }
     if (ids.length === 0) return res.json([])
+
+    // Manager-Namen (app_users) zu den Besitzer:innen der Bücher auflösen.
+    const ownerName = {}
+    if (ownerIds.size > 0) {
+      const { data: users } = await supabase
+        .from('app_users').select('id, username').in('id', [...ownerIds])
+      for (const u of users || []) ownerName[u.id] = u.username
+    }
 
     const { data: rows, error } = await supabase
       .from('contributions')
@@ -43,6 +58,7 @@ module.exports = async function handler(req, res) {
       id: r.id,
       memorial_id: r.memorial_id,
       memorial_name: memName[r.memorial_id] || r.memorial_id,
+      owner_username: ownerName[memOwner[r.memorial_id]] || (memOwner[r.memorial_id] ? '—' : 'Admin'),
       contributor_name: r.contributor_name,
       relationship: r.relationship,
       rating: r.feedback_rating,
