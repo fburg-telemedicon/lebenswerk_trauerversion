@@ -1403,8 +1403,16 @@ function BookLayoutPicker({ value, onChange, disabled }) {
 // hochgeladene Fotos ansehen, Bildunterschrift/Beschreibung bearbeiten, löschen
 // und eigene Fotos hinzufügen. `uploads` = selected.uploaded_images (mit
 // signierten image_url/image_thumb_url); `onChange` aktualisiert selected.
-function ManagerPhotos({ code, token, uploads, onChange }) {
+function ManagerPhotos({ code, token, uploads, contributions, onChange }) {
   const list = Array.isArray(uploads) ? uploads : []
+  const contribs = Array.isArray(contributions) ? contributions : []
+  // Wer hat das Foto hochgeladen? Beitragende-Uploads tragen eine contribution_id
+  // (Name über den Beitrag auflösen); Manager-Uploads sind als solche markiert.
+  const uploaderLabel = u => {
+    if (u.source === 'manager') return 'Manager (selbst hochgeladen)'
+    const c = u.contribution_id ? contribs.find(x => x.id === u.contribution_id) : null
+    return c?.contributor_name || 'Beitragende:r'
+  }
   const [busy, setBusy]     = useState(false)
   const [err, setErr]       = useState('')
   const [editId, setEditId] = useState(null)
@@ -1472,6 +1480,9 @@ function ManagerPhotos({ code, token, uploads, onChange }) {
                     <div style={{ marginBottom:6 }}>
                       <div style={{ fontSize:11, color:'#a8a29e', marginBottom:4 }}>
                         {u.orientation === 'portrait' ? '↕ Hochkant' : u.orientation === 'landscape' ? '↔ Quer' : '□ Quadrat'} · {pi.res}
+                      </div>
+                      <div style={{ fontSize:11, color:'#78716c', marginBottom:4 }} title="Hochgeladen von">
+                        👤 {uploaderLabel(u)}
                       </div>
                       <div style={{ display:'inline-block', fontSize:10.5, fontWeight:600, color:pi.color, background:pi.bg, borderRadius:6, padding:'2px 7px', lineHeight:1.3 }}>
                         {pi.label}
@@ -4790,6 +4801,7 @@ function Dashboard() {
               code={selected.id}
               token={token}
               uploads={selected.uploaded_images}
+              contributions={contributions}
               onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
             />
 

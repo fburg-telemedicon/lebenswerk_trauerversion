@@ -6,7 +6,8 @@
       "items": [
         "Transkript-Bericht: Störeinschub-Vorschläge (z. B. „Moment, das Telefon klingelt“) werden jetzt zuverlässig erkannt und lassen sich per „Anwenden“ übernehmen – vorher passierte beim Klick nichts.",
         "Ursachen behoben: Vorschläge werden gegen den tatsächlichen Text verankert und vor überlappenden Auto-Korrekturen geschützt; seltener Zeichensalat (Mojibake) im Prüfergebnis wird repariert; Fehlermeldungen erscheinen jetzt im Bericht.",
-        "Tagesreport: Der Abschnitt „Gestern umgesetzt“ blieb leer, weil changelog.json ein defektes Anführungszeichen enthielt (ungültiges JSON) – repariert; die Vortagseinträge erscheinen wieder."
+        "Tagesreport: Der Abschnitt „Gestern umgesetzt“ blieb leer, weil changelog.json ein defektes Anführungszeichen enthielt (ungültiges JSON) – repariert; die Vortagseinträge erscheinen wieder.",
+        "Foto-Verwaltung: Bei jedem hochgeladenen Foto steht jetzt unter der Auflösung, von wem es stammt (Name des/der Beitragenden bzw. „Manager“ bei selbst hochgeladenen Fotos)."
       ]
     },
     {
