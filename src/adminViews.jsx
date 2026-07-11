@@ -1016,7 +1016,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
+            Standard: nicht aktiv. Wenn aktiviert, wird den Beitragenden vor dem Sprach-Interview ein kurzes Einführungsvideo gezeigt.
           </p>
         </div>
         )}
