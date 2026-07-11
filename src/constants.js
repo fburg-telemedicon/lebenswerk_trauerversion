@@ -5,6 +5,7 @@ export const GENDERS = [
   { value: 'männlich', label: 'Männlich' },
   { value: 'weiblich', label: 'Weiblich' },
   { value: 'divers',   label: 'Divers'   },
+  { value: 'keine Angabe', label: 'Keine Angabe' },
 ]
 
 export const BOOK_VARIANTS = [

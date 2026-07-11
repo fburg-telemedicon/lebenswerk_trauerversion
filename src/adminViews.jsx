@@ -22,7 +22,7 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
       : a === 'login.success' ? '#15803d' : '#1c1917'
     return (
       <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-        <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
           <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
         </div>
@@ -65,7 +65,7 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
 export function ReportsView({ err, reportMsg, recipients, recipientForm, busy, logout, setView, toggleRecipient, removeRecipient, submitRecipient, sendReportNow, setRecipientForm }) {
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
@@ -126,7 +126,7 @@ export function CostsView({ selected, costData, costsLoading, err, setView, logo
     const kinds = costData?.byKind ? Object.entries(costData.byKind).sort((a, b) => b[1].cost_eur - a[1].cost_eur) : []
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
-        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:16 }}>
             <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
             <div>
@@ -231,7 +231,7 @@ export function CostsView({ selected, costData, costsLoading, err, setView, logo
 export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, pwForm, pwSaved, logout, setView, onLogoFile, saveLogo, saveOwnPassword, setPwForm }) {
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
@@ -319,7 +319,7 @@ export function CreatedView({ createdCode, copied, token, logout, copyInvite, co
     const inviteUrl = `${window.location.origin}/?code=${createdCode}`
     return (
       <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-        <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
           <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
         </div>
@@ -360,7 +360,7 @@ export function CreatedView({ createdCode, copied, token, logout, copyInvite, co
 export function UsersView({ err, usersData, createdInvite, userForm, busy, logout, setView, resetUserPassword, copyInviteLink, regenerateInvite, removeUser, saveUserCats, setCreatedInvite, setUserForm, toggleUserFormCat, submitUser }) {
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
@@ -471,7 +471,7 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
 export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView, setCatalogForm, saveCatalog, setErr, newCatalog, editCatalog, removeCatalog }) {
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
@@ -619,7 +619,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
     })
     return (
     <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
           <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>
@@ -682,7 +682,11 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                       </span>
                       <span onClick={(e) => { e.stopPropagation(); setFilterCol(k => k === c.key ? null : c.key) }}
                             title="Spalte filtern"
-                            style={{ marginLeft: 6, cursor: 'pointer', color: filterActive(c.key) ? '#1d4ed8' : '#a8a29e' }}>▼</span>
+                            style={{ marginLeft: 6, cursor: 'pointer', display: 'inline-flex', verticalAlign: 'middle' }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 4h18v2.2l-7 7v6.3l-4-2.2v-4.1l-7-7z" fill={filterActive(c.key) ? '#1d4ed8' : '#a8a29e'} />
+                        </svg>
+                      </span>
                       {filterCol === c.key && (
                         <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.14)', padding: 6, minWidth: 240, maxWidth: 360, maxHeight: 320, overflowY: 'auto', textAlign: 'left', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
                           <label style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', padding: '4px 6px', fontSize: 13, fontWeight: 600, color: '#1c1917', cursor: 'pointer' }}>
@@ -793,7 +797,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
 export function CreateCategoryView({ err, allowedSlugs, logout, setView, chooseCategory }) {
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
@@ -836,7 +840,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
         <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
       </div>
@@ -1074,7 +1078,7 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
     }
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
-        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:16 }}>
             <button className="ghost" onClick={() => setView('detail')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
             <div>
@@ -1161,7 +1165,9 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
     const bodyFont = { fontFamily: bookLayout.body.css }
     return (
       <div style={{ maxWidth:720, margin:'0 auto', padding:'1.5rem', paddingBottom:'4rem' }}>
-        <Back onClick={() => { setEditMode(false); setEditDraft(null); setView('detail') }} />
+        <div style={{ position:'sticky', top:0, zIndex:40, background:'#fff', margin:'-1.5rem -1.5rem 1rem', padding:'0.75rem 1.5rem 0', borderBottom:'1px solid #f0ede8' }}>
+          <Back onClick={() => { setEditMode(false); setEditDraft(null); setView('detail') }} />
+        </div>
         <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
           <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}{editMode ? ' · Bearbeiten' : ''}</p>
           <h1 style={{ fontSize:24, fontWeight:600, ...headFont, color:'#78716c' }}>{selected.name}</h1>
@@ -1220,7 +1226,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 <textarea value={typeof editDraft === 'string' ? editDraft : ''} onChange={e => setEditDraft(e.target.value)} rows={24} style={{ width:'100%', fontFamily:'inherit', fontSize:15, lineHeight:1.7, resize:'vertical' }} />
               </>
             )}
-            <div style={{ display:'flex', gap:10, marginTop:16 }}>
+            <div style={{ display:'flex', gap:10, marginTop:16, position:'sticky', bottom:0, background:'#fff', padding:'12px 0', borderTop:'1px solid #f0ede8', zIndex:20 }}>
               <button onClick={() => saveEdit(gen.field, editDraft)} disabled={savingEdit} style={{ fontSize:14, padding:'9px 18px' }}>{savingEdit ? 'Speichert …' : '✓ Speichern'}</button>
               <button onClick={() => { setEditMode(false); setEditDraft(null) }} disabled={savingEdit} className="ghost" style={{ fontSize:14 }}>Abbrechen</button>
             </div>
@@ -1352,7 +1358,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
     const orderLangLabels = (selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
-        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
             <div>
