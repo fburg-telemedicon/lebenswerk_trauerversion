@@ -134,3 +134,7 @@ export function passwordError(p) {
   if (!/[^A-Za-z0-9]/.test(s)) return 'Passwort muss mindestens ein Sonderzeichen enthalten.'
   return null
 }
+
+export function qrCodeUrl(text, size = 240) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
+}
