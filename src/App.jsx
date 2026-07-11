@@ -3517,6 +3517,7 @@ function Dashboard() {
             </div>
             <button className="ghost" onClick={() => setTranscriptReport(false)} style={{ fontSize:22, lineHeight:1 }}>×</button>
           </div>
+          {err && <div style={{ fontSize:13, color:'#991b1b', background:'#fee2e2', border:'1px solid #fecaca', borderRadius:8, padding:'8px 10px', margin:'0 0 10px' }}>{err}</div>}
           <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:10, padding:'4px 2px' }}>
             {items.length === 0 ? (
               <p style={S.muted}>Noch keine Korrekturen gefunden. Neue Beiträge werden im Hintergrund geprüft.</p>

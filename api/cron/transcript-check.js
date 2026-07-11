@@ -16,7 +16,7 @@ const { createClient } = require('@supabase/supabase-js')
 const { callAzure } = require('../_lib/llm')
 const { costLLM, recordCost } = require('../_lib/cost')
 const { recordHeartbeat } = require('../_lib/heartbeat')
-const { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parseCorrectionsJSON } = require('../_lib/transcript')
+const { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parseCorrectionsJSON, fixMojibake, anchorInText } = require('../_lib/transcript')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -65,33 +65,65 @@ async function processOne(c, memName, dry) {
   if (r.inT || r.outT) {
     await recordCost({ memorial_id: c.memorial_id, contribution_id: c.id, kind: 'transcript_check', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) })
   }
-  let msgs = c.messages
-  const corrs = []
+  // Rohbefunde normalisieren + Mojibake reparieren. Grundvalidierung: Index gültig,
+  // Korrektur muss tatsächlich etwas ändern.
+  const raw = []
   for (const rc of parseCorrectionsJSON(r.text)) {
     const kind = rc.kind === 'suggestion' ? 'suggestion' : 'correction'
-    const corr = {
+    const item = {
       id: newCorrectionId(),
       kind,
       message_index: Number(rc.message_index),
-      before: String(rc.before || ''),
-      after: String(rc.after || ''),
-      reason: String(rc.reason || '').slice(0, 300),
+      before: fixMojibake(rc.before || ''),
+      after: fixMojibake(rc.after || ''),
+      reason: fixMojibake(rc.reason || '').slice(0, 300),
       applied: false,
     }
-    if (!corr.before || !Number.isInteger(corr.message_index)) continue
-    const target = msgs[corr.message_index]
-    if (!target || typeof target.content !== 'string' || target.content.indexOf(corr.before) < 0) continue
-    if (kind === 'correction') {
-      // Klarer Fehler → automatisch anwenden.
-      if (corr.after === corr.before) continue
-      const out = applyCorrectionToMessages(msgs, corr)
-      if (out.ok) { msgs = out.messages; corr.applied = true; corrs.push(corr) }
-    } else {
-      // Vorschlag (z. B. Störeinschub) → NICHT anwenden, nur flaggen. Der Manager
-      // wendet ihn per Knopfdruck an; 'before' ist auffindbar, also anwendbar.
-      corrs.push(corr)
-    }
+    if (!item.before || !Number.isInteger(item.message_index)) continue
+    if (kind === 'correction' && item.after === item.before) continue
+    raw.push(item)
   }
+
+  const originals = c.messages.map(m => (typeof m?.content === 'string' ? m.content : ''))
+  const corrs = []
+
+  // 1) Vorschläge (z. B. Störeinschübe) → NICHT anwenden, nur flaggen. Gegen den
+  // ORIGINALtext verankern (tolerant ggü. Groß-/Kleinschreibung + Mojibake) und
+  // 'before' auf den WÖRTLICH vorhandenen Ausschnitt umschreiben. Zeichen-Span merken,
+  // damit überlappende Korrekturen den Ausschnitt nicht verändern. Nicht verankerbare
+  // Vorschläge werden verworfen.
+  const suggestions = []
+  const spans = {}   // message_index -> [ [start, end], ... ]
+  for (const sg of raw.filter(x => x.kind === 'suggestion')) {
+    const content = originals[sg.message_index]
+    const exact = anchorInText(content, sg.before)
+    if (!exact) continue
+    const pos = content.indexOf(exact)
+    if (pos < 0) continue
+    ;(spans[sg.message_index] || (spans[sg.message_index] = [])).push([pos, pos + exact.length])
+    suggestions.push({ ...sg, before: exact })
+  }
+
+  // 2) Klare Fehler → automatisch anwenden, ABER Korrekturen überspringen, die einen
+  // Vorschlags-Span (Rand oder Innen) berühren – sonst würde das gespeicherte 'before'
+  // des Vorschlags unauffindbar (kein „Anwenden passiert nichts"). Überlappung wird in
+  // Original-Koordinaten geprüft (unabhängig von der laufenden Textmutation).
+  let msgs = c.messages
+  for (const corr of raw.filter(x => x.kind === 'correction')) {
+    const content = originals[corr.message_index]
+    const pos = content.indexOf(corr.before)
+    const overlaps = pos >= 0 && (spans[corr.message_index] || []).some(([s, e]) => pos < e && pos + corr.before.length > s)
+    if (overlaps) continue
+    const cur = msgs[corr.message_index]
+    if (!cur || typeof cur.content !== 'string' || cur.content.indexOf(corr.before) < 0) continue
+    const out = applyCorrectionToMessages(msgs, corr)
+    if (out.ok) { msgs = out.messages; corr.applied = true; corrs.push(corr) }
+  }
+
+  // 3) Vorschläge anhängen: ihr 'before' ist ein Original-Ausschnitt, der von keiner
+  // angewandten Korrektur berührt wurde → in msgs weiterhin wörtlich vorhanden.
+  for (const sg of suggestions) corrs.push(sg)
+
   if (!dry) {
     const { error: upErr } = await supabase.from('contributions')
       .update({ messages: msgs, transcript_checked_at: new Date().toISOString(), transcript_corrections: corrs })

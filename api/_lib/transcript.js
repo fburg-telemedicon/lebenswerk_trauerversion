@@ -54,6 +54,36 @@ function newCorrectionId() {
   try { return crypto.randomUUID() } catch { return 'c' + Math.random().toString(36).slice(2, 10) }
 }
 
+// Repariert seltenes „Mojibake" (UTF-8-Bytes, die als Latin-1 gelesen wurden, z. B.
+// „Ã¤" statt „ä"), das das Modell gelegentlich beim wörtlichen Echo von 'before'
+// erzeugt. Nur anwenden, wenn die typische Signatur (Ã/Â + Folgebyte) vorkommt, damit
+// korrekt kodierter Text unangetastet bleibt. Verhindert, dass ein 'before' wegen
+// Kodierung nicht mehr im (sauberen) Text gefunden wird und der Befund verlorengeht.
+function fixMojibake(s) {
+  const str = String(s || '')
+  if (!/[ÂÃ][-¿]/.test(str)) return str
+  try {
+    const repaired = Buffer.from(str, 'latin1').toString('utf8')
+    return repaired.includes('�') ? str : repaired
+  } catch { return str }
+}
+
+// Sucht `needle` in `content` und gibt den EXAKT dort stehenden Ausschnitt zurück
+// (oder null). Toleriert Abweichungen, die das Modell beim Echo erzeugt: reine
+// Groß-/Kleinschreibung und Mojibake. Damit lässt sich ein Vorschlags-'before',
+// das leicht vom tatsächlichen Text abweicht, auf den WÖRTLICH vorhandenen Text
+// verankern – so ist der gespeicherte Vorschlag später garantiert anwendbar.
+function anchorInText(content, needle) {
+  if (typeof content !== 'string') return null
+  for (const cand of [String(needle || ''), fixMojibake(needle || '')]) {
+    if (!cand) continue
+    let pos = content.indexOf(cand)
+    if (pos < 0) pos = content.toLowerCase().indexOf(cand.toLowerCase())
+    if (pos >= 0) return content.slice(pos, pos + cand.length)
+  }
+  return null
+}
+
 // Robustes JSON-Parsen der Modellantwort: Codefences strippen, äußerstes {…}
 // isolieren. Gibt das corrections-Array zurück (leer bei Fehlern).
 function parseCorrectionsJSON(raw) {
@@ -67,4 +97,4 @@ function parseCorrectionsJSON(raw) {
   return Array.isArray(obj?.corrections) ? obj.corrections : []
 }
 
-module.exports = { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parseCorrectionsJSON }
+module.exports = { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parseCorrectionsJSON, fixMojibake, anchorInText }

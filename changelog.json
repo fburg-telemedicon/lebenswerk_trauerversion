@@ -2,6 +2,14 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-11",
+      "items": [
+        "Transkript-Bericht: Störeinschub-Vorschläge (z. B. „Moment, das Telefon klingelt“) werden jetzt zuverlässig erkannt und lassen sich per „Anwenden“ übernehmen – vorher passierte beim Klick nichts.",
+        "Ursachen behoben: Vorschläge werden gegen den tatsächlichen Text verankert und vor überlappenden Auto-Korrekturen geschützt; seltener Zeichensalat (Mojibake) im Prüfergebnis wird repariert; Fehlermeldungen erscheinen jetzt im Bericht.",
+        "Tagesreport: Der Abschnitt „Gestern umgesetzt“ blieb leer, weil changelog.json ein defektes Anführungszeichen enthielt (ungültiges JSON) – repariert; die Vortagseinträge erscheinen wieder."
+      ]
+    },
+    {
       "date": "2026-07-10",
       "items": [
         "Fotoseiten falz-sicher: Bei mehreren Fotos auf einer Doppelseite liegt keines mehr über der Mittelfalz (Aufteilung 1|1, 2|1 bzw. 2|2).",
@@ -14,7 +22,7 @@
         "Grafikstile für die Bildgenerierung: 5 Stile (Fotorealistisch, Aquarell, Bleistiftzeichnung, Ölgemälde, Vintage-Foto) – wählbar bei der Buchanlage (mit vergrößerbarem Beispielbild) und änderbar im Dashboard; alle Buch-Bilder entstehen konsistent im gewählten Stil.",
         "Buchlayouts (Typografie): 3 Designs (Klassisch, Modern, Elegant) mit Live-Schriftvorschau – wählbar bei der Anlage und im Dashboard; wirkt konsistent auf Leseansicht, DOCX-Export und Druck-PDF (gleiches Format).",
         "KI-Bilder: Referenzfoto für die Personen-Ähnlichkeit wird jetzt pro Kapitel per KI anhand von Bildtitel/Beschreibung gewählt (statt global) – image-to-image live verifiziert (starke Ähnlichkeit).",
-        "Transkriptions-Prüfung: Ein Hintergrund-Cron bereinigt neue Beiträge automatisch von Transkriptions-Rauschen (STT-Fehler, Fremdgeräusche, Eigennamen); im Buch-Detail gibt es einen Bericht mit „Rückgängig" je Änderung."
+        "Transkriptions-Prüfung: Ein Hintergrund-Cron bereinigt neue Beiträge automatisch von Transkriptions-Rauschen (STT-Fehler, Fremdgeräusche, Eigennamen); im Buch-Detail gibt es einen Bericht mit „Rückgängig“ je Änderung."
       ]
     }
   ]
