@@ -23,7 +23,8 @@
         "Wartung: Kosten-Ansicht aus dem Dashboard ausgelagert; geteilte Tabellen-Stile und Kosten-Helfer in gemeinsame Module gezogen.",
         "Wartung: Einstellungen-Ansicht (Logo/Passwort) aus dem Dashboard ausgelagert.",
         "Wartung: Weitere Admin-Ansichten (Buch-erstellt, Benutzerverwaltung, Fragenkataloge) aus dem Dashboard ausgelagert. Verhalten unverändert.",
-        "Wartung: Die Buch-Übersicht (Liste mit Sortierung/Filter) aus dem Dashboard in ein eigenes Modul ausgelagert. Verhalten unverändert."
+        "Wartung: Die Buch-Übersicht (Liste mit Sortierung/Filter) aus dem Dashboard in ein eigenes Modul ausgelagert. Verhalten unverändert.",
+        "Wartung: Buch-Anlage (Kategorie wählen + Anlageformular) aus dem Dashboard ausgelagert. Verhalten unverändert."
       ]
     },
     {

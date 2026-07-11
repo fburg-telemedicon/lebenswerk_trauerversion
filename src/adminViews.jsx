@@ -4,8 +4,11 @@
 
 import { S, Back, Err, Lbl, col, th, PartnerBanner } from './ui.jsx'
 import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
+import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
+import { LANGUAGES } from './i18n.js'
+import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 
 export function AuditView({ auditData, auditLoading, err, logout, loadAudit, setView }) {
     const fmtTime = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
@@ -779,6 +782,272 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           </div>
           </>
         )}
+      </div>
+    </div>
+    )
+}
+
+export function CreateCategoryView({ err, allowedSlugs, logout, setView, chooseCategory }) {
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView('list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Produktkategorie wählen</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Für welchen Anlass soll das Buch entstehen?</p>
+        <Err msg={err} />
+        <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10 }}>
+          {allowedSlugs.map(slug => {
+            const c = categoryColor(slug)
+            return (
+            <div
+              key={slug}
+              onClick={() => chooseCategory(slug)}
+              style={{ ...S.card, cursor:'pointer', padding:'16px 16px', borderLeft:`4px solid ${c}`, transition:'border-color .15s, background .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = c; e.currentTarget.style.background = `${c}0d` }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.borderLeftColor = c; e.currentTarget.style.background = '#fff' }}
+            >
+              <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                <span style={{ color:c, flexShrink:0, lineHeight:0, marginTop:1 }}><CategoryIcon slug={slug} size={28} /></span>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:15, marginBottom:4, color:c }}>{CATEGORIES[slug].label}</div>
+                  <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{CATEGORIES[slug].description}</div>
+                </div>
+              </div>
+            </div>
+          )})}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logout, setView, setCreateForm, handleCreate }) {
+    const cat = getCategory(createForm.productCategory)
+    const ci  = cat.intake
+    const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && !busy
+    const pa = createForm.pickupAddress || EMPTY_PICKUP
+    const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
+    return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+      </div>
+      <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <Back onClick={() => setView(allowedSlugs.length > 1 ? 'create-category' : 'list')} />
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{ci.createHeading}</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>{ci.createIntro}</p>
+        <Err msg={err} />
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>{ci.subjectLabel}</Lbl>
+          <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder={ci.subjectPlaceholder} />
+        </div>
+        {ci.useGender && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>{ci.genderLabel}</Lbl>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+              {GENDERS.map(g => (
+                <div
+                  key={g.value}
+                  onClick={() => setCreateForm({ ...createForm, gender: g.value })}
+                  style={{
+                    ...S.card, cursor:'pointer', textAlign:'center', padding:'12px 8px',
+                    borderColor: createForm.gender === g.value ? '#1c1917' : '#e7e5e4',
+                    borderWidth: createForm.gender === g.value ? 2 : 1,
+                    fontSize: 14, fontWeight: createForm.gender === g.value ? 600 : 400,
+                  }}
+                >
+                  {g.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {(ci.extra || []).map(f => (
+          <div key={f.key} style={{ marginBottom: 14 }}>
+            <Lbl>{f.label}</Lbl>
+            <input
+              value={createForm.intake?.[f.key] || ''}
+              onChange={e => setCreateForm({ ...createForm, intake: { ...createForm.intake, [f.key]: e.target.value } })}
+              placeholder={f.placeholder || ''}
+            />
+          </div>
+        ))}
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Ihr Name (Organisator) *</Lbl>
+          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
+        </div>
+        {ci.useDate && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>{ci.dateLabel}</Lbl>
+            <input type="date" value={createForm.funeralDate} onChange={e => setCreateForm({ ...createForm, funeralDate: e.target.value })} />
+          </div>
+        )}
+        {ci.useCutoff && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>{ci.cutoffLabel}</Lbl>
+            <input
+              type="number" min={0} max={90} step={1}
+              value={createForm.cutoffDays}
+              onChange={e => {
+                const v = e.target.value
+                setCreateForm({ ...createForm, cutoffDays: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) })
+              }}
+            />
+            <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+              {createForm.funeralDate && Number.isFinite(parseInt(createForm.cutoffDays, 10))
+                ? <>Beiträge fließen bis zum <strong>{cutoffString(createForm.funeralDate, parseInt(createForm.cutoffDays, 10))}</strong> ein.</>
+                : <>Standard sind 7 Tage.</>}
+            </p>
+          </div>
+        )}
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Sprachen *</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
+            In welchen Sprachen sollen Beitragende den Prozess durchführen können? Bei mehreren Sprachen wählt der Beitragende zu Beginn seine Sprache.
+          </p>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {LANGUAGES.map(l => {
+              const on = createForm.languages.includes(l.code)
+              return (
+                <label key={l.code} style={{
+                  display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                  ...S.card, padding:'10px 14px',
+                  borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => setCreateForm(f => {
+                      const next = on ? f.languages.filter(c => c !== l.code) : [...f.languages, l.code]
+                      return { ...f, languages: next.length ? next : f.languages }
+                    })}
+                    style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
+                  />
+                  <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Buch-Variante *</Lbl>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
+            {BOOK_VARIANTS.map(v => (
+              <div
+                key={v.value}
+                onClick={() => setCreateForm({ ...createForm, bookVariant: v.value })}
+                style={{
+                  ...S.card, cursor:'pointer', padding:'14px 14px',
+                  borderColor: createForm.bookVariant === v.value ? '#1c1917' : '#e7e5e4',
+                  borderWidth: createForm.bookVariant === v.value ? 2 : 1,
+                }}
+              >
+                <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
+                <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Grafikstil der Bilder</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
+          <ImageStylePicker value={createForm.imageStyle} onChange={k => setCreateForm({ ...createForm, imageStyle: k })} />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gleiches Format, unterschiedliche Typografie. Später im Dashboard änderbar.</p>
+          <BookLayoutPicker value={createForm.bookLayout} onChange={k => setCreateForm({ ...createForm, bookLayout: k })} />
+        </div>
+        {(() => {
+          const avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
+          if (avail.length === 0) return null
+          return (
+            <div style={{ marginBottom: 24 }}>
+              <Lbl>Fragenkatalog</Lbl>
+              <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
+                Standard: die KI überlegt sich die Interviewfragen selbst. Alternativ führt sie das Interview entlang eines vordefinierten Katalogs.
+              </p>
+              <select
+                value={createForm.catalogId}
+                onChange={e => setCreateForm({ ...createForm, catalogId: e.target.value })}
+                style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
+              >
+                <option value="">KI überlegt selbst (Standard)</option>
+                {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {createForm.catalogId && (
+                <div style={{ marginTop:12 }}>
+                  <Lbl>Nachfragen pro Frage (max.)</Lbl>
+                  <input
+                    type="number" min={0} max={30} step={1}
+                    value={createForm.followups}
+                    onChange={e => { const v = e.target.value; setCreateForm({ ...createForm, followups: v === '' ? '' : Math.max(0, Math.min(30, parseInt(v, 10) || 0)) }) }}
+                    style={{ width:120 }}
+                  />
+                  <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                    Wie viele vertiefende Nachfragen die KI höchstens zu jeder Katalogfrage stellt. Der Beitragende kann jederzeit „weiter" sagen. Standard: 7.
+                  </p>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+        {createForm.productCategory === 'memorial' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Einführungsvideo</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input
+              type="checkbox"
+              checked={createForm.showIntroVideo}
+              onChange={e => setCreateForm({ ...createForm, showIntroVideo: e.target.checked })}
+              style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
+            />
+            <span style={{ fontSize:14 }}>Einführungsvideo vor dem Sprach-Interview anzeigen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Wenn deaktiviert, startet das Interview direkt ohne Video.
+          </p>
+        </div>
+        )}
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Bemerkung</Lbl>
+          <textarea
+            value={createForm.note}
+            onChange={e => setCreateForm({ ...createForm, note: e.target.value })}
+            placeholder="Interne Notiz zu diesem Buch (optional) – wird bei der Bucherstellung angezeigt."
+            rows={3}
+            style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14 }}
+          />
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+            Nur intern sichtbar. Wird bei der Bucherstellung angezeigt – z. B. Hinweise zur Gestaltung oder zum Inhalt.
+          </p>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
+          <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
+            Adresse, an die die gedruckten Bücher gesammelt geliefert / wo sie abgeholt werden. Kann leer bleiben.
+          </p>
+          <input value={pa.name} onChange={e => setPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
+          <input value={pa.addon} onChange={e => setPa({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
+          <input value={pa.street} onChange={e => setPa({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <input value={pa.zip} onChange={e => setPa({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
+            <input value={pa.city} onChange={e => setPa({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+          </div>
+          <input value={pa.country} onChange={e => setPa({ country: e.target.value })} placeholder="Land" />
+        </div>
+        <button
+          disabled={!canSubmit}
+          onClick={handleCreate}
+          style={{ width: '100%', padding: 13, fontSize: 15 }}
+        >
+          {busy ? 'Wird erstellt …' : ci.createButton}
+        </button>
       </div>
     </div>
     )
