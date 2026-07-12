@@ -163,7 +163,9 @@ async function processBook(job, deadline) {
   const result = job.result && typeof job.result === 'object' ? job.result : {}
   if (!Array.isArray(result.chapters)) result.chapters = []
   if (!Array.isArray(result.errors)) result.errors = []
-  let phase = job.progress?.phase || 'chapters'
+  // Initial ist progress.phase 'queued' → als Kapitelphase behandeln. Nur ein
+  // ausdrückliches 'images' (Wiederaufnahme nach den Kapiteln) überspringt sie.
+  let phase = job.progress?.phase === 'images' ? 'images' : 'chapters'
 
   // ── Phase 1: Kapitel schreiben (Cursor = Anzahl bereits geschriebener Kapitel) ──
   if (phase === 'chapters') {
