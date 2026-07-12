@@ -390,12 +390,21 @@ export function primeAudio() {
   _primedAudio.play().catch(() => {})
 }
 
+// Monoton steigende Sequenz: jeder stopSpeaking()/speakText()-Start erhöht sie.
+// Ein laufender speakText, dessen erfasste Sequenz nicht mehr aktuell ist, wurde
+// zwischenzeitlich abgebrochen (z. B. durch Löschen eines Beitrags) und darf weder
+// abspielen noch Callbacks feuern – sonst bleibt „Lädt" hängen oder es spielt die
+// bereits verworfene Frage.
+let speakSeq = 0
+
 export function stopSpeaking() {
+  speakSeq++
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 }
 
 export async function speakText(text, { onStart, onPlay, onEnd, onError, memorialCode, contributionId } = {}) {
   stopSpeaking()
+  const mySeq = speakSeq
   onStart?.()
   try {
     const res = await fetch('/api/speak', {
@@ -408,6 +417,7 @@ export async function speakText(text, { onStart, onPlay, onEnd, onError, memoria
       throw new Error(d.error || `HTTP ${res.status}`)
     }
     const blob = await res.blob()
+    if (mySeq !== speakSeq) return null // während des Ladens abgebrochen → still verwerfen
     const url = URL.createObjectURL(blob)
     // Primed element wiederverwenden (iOS: bereits im aktivierten Zustand)
     const audio = _primedAudio ?? new Audio()
@@ -419,6 +429,7 @@ export async function speakText(text, { onStart, onPlay, onEnd, onError, memoria
     audio.onerror = () => { URL.revokeObjectURL(url); currentAudio = null; onError?.('Audiowiedergabe fehlgeschlagen.'); }
     try {
       await audio.play()
+      if (mySeq !== speakSeq) { audio.pause(); URL.revokeObjectURL(url); if (currentAudio === audio) currentAudio = null; return null }
       onPlay?.() // Wiedergabe läuft jetzt tatsächlich (Ladephase vorbei)
       return audio
     } catch (playErr) {

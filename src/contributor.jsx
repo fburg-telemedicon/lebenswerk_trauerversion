@@ -154,6 +154,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
       return
     }
 
+    // Laufende Sprachausgabe stoppen, bevor das Mikrofon öffnet (kein Überlappen,
+    // Button-Status sauber).
+    stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const rec    = new MediaRecorder(stream)
@@ -231,21 +235,26 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   // Eine Antwort (und alles danach) verwerfen: `index` zeigt auf die user-Nachricht
   // in `messages`; die davorstehende KI-Frage wird wieder aktiv. Aus Verlauf + DB.
-  function undoFrom(index) {
-    stopSpeaking(); setIsPlaying(false)
+  function undoFrom(index, andRecord = false) {
+    // Laufende/ladende Sprachausgabe sauber abbrechen und den Button-Status
+    // zurücksetzen (sonst bleibt „Lädt" hängen, wenn mitten im TTS gelöscht wird).
+    stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
     const msgs = messagesRef.current.slice(0, index)
-    skipAutoPlayRef.current = true
+    // Nur beim Neu-einsprechen die wiederhergestellte Frage NICHT vorlesen (es folgt
+    // sofort die Aufnahme); beim reinen Löschen wird sie normal wieder vorgelesen.
+    skipAutoPlayRef.current = andRecord
     applyMessages(msgs)
     setRound(msgs.filter(m => m.role === 'user').length)
     setTranscript(''); setErr('')
     onSave?.(msgs)
+    if (andRecord) handleMic()
   }
 
   // Neu einsprechen: Antwort ab `index` verwerfen und direkt neu aufnehmen.
-  function redoFrom(index) { undoFrom(index); handleMic() }
+  function redoFrom(index) { undoFrom(index, true) }
 
   function pause() {
-    stopSpeaking()
+    stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
     if (mediaRecRef.current?.state === 'recording') mediaRecRef.current.stop()
     onPause?.()
   }
