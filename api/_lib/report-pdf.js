@@ -75,8 +75,49 @@ function table(x, y, w, rows, { rowH = 40, headL, headR } = {}) {
   return s
 }
 
+// ── Changelog-Paginierung ─────────────────────────────────────────
+// Der Changelog ("Gestern umgesetzt") ist beliebig lang. Damit durch den festen
+// Seitenraster NICHTS verloren geht, wird er zeilengenau umgebrochen und über so
+// viele (Fortsetzungs-)Seiten verteilt, wie nötig.
+const CL_MAXCH = 96          // Zeichen pro Zeile (grobe Umbruchheuristik)
+const CL_LINE_H = 30         // Zeilenhöhe
+const CL_ITEM_GAP = 8        // Abstand nach einem Eintrag
+const PAGE_BOTTOM = H - 95   // unterste Baseline für Inhalt (über dem Footer bei H-70)
+
+// Wandelt Changelog-Einträge in eine flache Liste umgebrochener Zeilen. `first`
+// markiert die erste Zeile eines Eintrags (bekommt Aufzählungspunkt + INK-Farbe),
+// `gapAfter` die letzte (danach kleiner Abstand).
+function changelogLines(items) {
+  const out = []
+  for (const it of items) {
+    const words = String(it).split(/\s+/); let ln = ''; const wrapped = []
+    for (const w of words) { if ((ln + ' ' + w).trim().length > CL_MAXCH) { wrapped.push(ln.trim()); ln = w } else ln += ' ' + w }
+    if (ln.trim()) wrapped.push(ln.trim())
+    const ws = wrapped.length ? wrapped : ['']
+    ws.forEach((l, k) => out.push({ text: l, first: k === 0, gapAfter: k === ws.length - 1 }))
+  }
+  return out
+}
+
+// Rendert Zeilen ab `startY`, bis die Seite voll ist. Gibt { svg, rest } zurück;
+// `rest` sind die noch nicht gerenderten Zeilen (→ nächste Seite).
+function renderChangelog(lines, startY) {
+  let s = ''; let ry = startY; let i = 0
+  for (; i < lines.length; i++) {
+    if (ry + CL_LINE_H > PAGE_BOTTOM) break
+    const l = lines[i]
+    if (l.first) s += `<circle cx="${MARGIN + 6}" cy="${ry - 6}" r="4" fill="#8a7a5e"/>`
+    s += txt(MARGIN + 26, ry, l.text, { size: 20, fill: l.first ? INK : MUTED })
+    ry += CL_LINE_H
+    if (l.gapAfter) ry += CL_ITEM_GAP
+  }
+  return { svg: s, rest: lines.slice(i) }
+}
+
 // ── Seiten ────────────────────────────────────────────────────────
-function page1(d) {
+// Oberer Teil der ersten Seite (KPIs + Kennzahlen + Changelog-Überschrift).
+// Gibt zusätzlich die Start-Y-Position für die Changelog-Liste zurück.
+function page1Top(d) {
   const y = d.yesterday
   let s = header('Tagesreport', d.dateLabel)
   // KPI-Kacheln (3×2)
@@ -102,23 +143,11 @@ function page1(d) {
     { label: 'Kosten Monat bisher', value: eur(d.mtd.costEur) },
     { label: 'Kosten Vormonat (gesamt)', value: eur(d.mtd.prevMonthCostEur) },
   ], { rowH: 44 })
-  // Changelog
+  // Changelog-Überschrift (die Liste selbst wird paginiert angehängt)
   ry += 44 * 4 + 40
   s += sectionTitle(MARGIN, ry, 'Gestern umgesetzt (Entwicklung)')
   ry += 34
-  const items = d.changelog.length ? d.changelog : ['— keine Einträge —']
-  for (const it of items) {
-    // grobe Umbruchheuristik
-    const maxCh = 96
-    const words = String(it).split(/\s+/); let ln = ''
-    const lines = []
-    for (const w of words) { if ((ln + ' ' + w).trim().length > maxCh) { lines.push(ln.trim()); ln = w } else ln += ' ' + w }
-    if (ln.trim()) lines.push(ln.trim())
-    s += `<circle cx="${MARGIN + 6}" cy="${ry - 6}" r="4" fill="#8a7a5e"/>`
-    lines.forEach((l, i) => { s += txt(MARGIN + 26, ry, l, { size: 20, fill: i ? MUTED : INK }); ry += 30 })
-    ry += 8
-  }
-  return s
+  return { svg: s, startY: ry }
 }
 
 function page2(d) {
@@ -224,15 +253,33 @@ async function svgToPng(sharp, svg) {
   return await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${svg}</svg>`)).png().toBuffer()
 }
 
+// Baut die Liste der Seiten-Bodies (ohne Footer). Seite 1 = KPIs + Changelog-Anfang;
+// je nach Changelog-Länge folgen 0..n Fortsetzungsseiten; danach Aktivität/Kosten/
+// Bestand. So gehen durch Seitenumbrüche keine Changelog-Einträge verloren.
+function assemblePages(d) {
+  const lines = changelogLines(d.changelog && d.changelog.length ? d.changelog : ['— keine Einträge —'])
+  const top = page1Top(d)
+  const first = renderChangelog(lines, top.startY)
+  const pages = [top.svg + first.svg]
+  let rest = first.rest
+  while (rest.length) {
+    const chunk = renderChangelog(rest, 240)
+    pages.push(header('Gestern umgesetzt (Fortsetzung)', d.dateLabel) + chunk.svg)
+    rest = chunk.rest
+  }
+  pages.push(page2(d), page3(d), page4(d))
+  return pages
+}
+
 async function buildReportPdf(d) {
   const sharp = require('sharp')
   const { jsPDF } = require('jspdf')
-  const builders = [page1, page2, page3, page4]
-  const total = builders.length
+  const pages = assemblePages(d)
+  const total = pages.length
   const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
   const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight()
-  for (let i = 0; i < builders.length; i++) {
-    const svg = builders[i](d) + footer(i + 1, total)
+  for (let i = 0; i < pages.length; i++) {
+    const svg = pages[i] + footer(i + 1, total)
     const png = await svgToPng(sharp, svg)
     const dataUrl = 'data:image/png;base64,' + png.toString('base64')
     if (i > 0) doc.addPage()
@@ -245,8 +292,8 @@ async function buildReportPdf(d) {
 
 // Nur für lokale Layout-Prüfung: liefert die ganzseitigen SVG-Strings.
 function _debugPageSvgs(d) {
-  const builders = [page1, page2, page3, page4]
-  return builders.map((b, i) => `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${b(d) + footer(i + 1, builders.length)}</svg>`)
+  const pages = assemblePages(d)
+  return pages.map((body, i) => `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body + footer(i + 1, pages.length)}</svg>`)
 }
 
 module.exports = { buildReportPdf, _debugPageSvgs }
