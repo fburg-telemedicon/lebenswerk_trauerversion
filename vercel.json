@@ -17,7 +17,7 @@
     "api/cron/report.js":          { "maxDuration": 60, "includeFiles": "api/_fonts/**" },
     "api/admin/reports.js":        { "maxDuration": 60, "includeFiles": "api/_fonts/**" },
     "api/cron/transcript-check.js": { "maxDuration": 60 },
-    "api/cron/generate.js":        { "maxDuration": 60 },
+    "api/cron/generate.js":        { "maxDuration": 300 },
     "api/admin/generate-job.js":   { "maxDuration": 15 }
   },
   "crons": [

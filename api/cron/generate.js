@@ -1,30 +1,30 @@
 // api/cron/generate.js
-// Worker für serverseitige Generierung (Rede/Buch/Bilder). Arbeitet Jobs aus
-// generation_jobs schrittweise ab (ein LLM-Schritt = ein Abschnitt/Kapitel),
-// speichert nach JEDEM Schritt den Fortschritt und setzt sich selbst fort, bis
-// alle Jobs erledigt sind ODER das ~50s-Zeitbudget erreicht ist. So läuft die
-// Erstellung weiter, auch wenn der Browser die Verbindung verliert.
+// Worker für serverseitige Generierung (Rede + Buch inkl. Bilder). Arbeitet Jobs
+// aus generation_jobs schrittweise ab, speichert nach JEDEM Schritt den Fortschritt
+// und setzt sich selbst fort, bis fertig ODER das Zeitbudget erreicht ist. So läuft
+// die Erstellung weiter, auch wenn der Browser die Verbindung verliert.
 //
 // Auslösung: on-demand via genjobs.triggerWorker() beim Enqueue + Cron als Backstop.
-// Schutz wie die anderen Crons: Header Authorization: Bearer <CRON_SECRET>.
+// Schutz: Header Authorization: Bearer <CRON_SECRET>.
 //
-// Job-Plan (params, vom Client gebaut – bewusst port-frei, nutzt categories.js):
-//   { field, resultType:'text-join', combine, kind, memorialCode, steps:[{system,user,label}] }
+// Job-Pläne (params, vom Client mit categories.js gebaut – Outline/Kapitel port-frei):
+//   Rede:  { resultType:'text-join', field, combine, kind, memorialCode, steps:[{system,user,label}] }
+//   Buch:  { resultType:'book', field, variant, kind, memorialCode, language, title, subtitle,
+//            dir, skipImages, imageStyle, uploads:[…], oldChapters:[…],
+//            chapterSteps:[{system,user,meta:{number,heading?,contribution_id?,contributor_name?,relationship?}}] }
 
 const { callAzure } = require('../_lib/llm')
 const { costLLM, recordCost } = require('../_lib/cost')
 const { recordHeartbeat } = require('../_lib/heartbeat')
+const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
+const genprompts = require('../_lib/genprompts')
 
-const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '50000', 10))
+const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '240000', 10))
 const MAX_CHAIN = 60
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const isRateLimit = msg => /rate limit|exceeded|429|too many requests|throttl/i.test(String(msg || ''))
-// Azure-Inhaltsfilter (Content-Policy): identischer Prompt → identisches Ergebnis,
-// blindes Wiederholen ist zwecklos. Bei einem Treffer wird stattdessen EINMAL ein
-// entschärfter Prompt nachgeschoben (SOFTEN), der zurückhaltendere Formulierungen
-// verlangt – das umgeht viele Fehlalarme bei Trauer-/Segenstexten.
 const isContentFilter = msg => /content management policy|content[_ ]?filter|responsibleai|filtered due to/i.test(String(msg || ''))
 const SOFTEN = '\n\nWICHTIG (Formulierung): Schreibe bewusst zurückhaltend, sanft und pietätvoll. Vermeide drastische, explizite oder belastende Formulierungen sowie detaillierte Schilderungen von Tod, Sterben, Krankheit, Gewalt, Suizid oder körperlichem Leid. Halte den Text ruhig, würdevoll, tröstlich und wertschätzend.'
 
@@ -32,10 +32,10 @@ function authorized(req) {
   const secret = process.env.CRON_SECRET
   return Boolean(secret) && req.headers.authorization === `Bearer ${secret}`
 }
+const canceled = async id => (await genjobs.jobStatus(id)) === 'canceled'
 
-// Azure-Aufruf mit Backoff. Wiederholt bei JEDEM transienten Fehler (nicht nur
-// Rate-Limit) bis zu 3× – sporadische Modell-/Netz-Ausrutscher sollen einen
-// Abschnitt/ein Kapitel nicht gleich scheitern lassen. Rate-Limit → länger warten.
+// Azure-Aufruf mit Backoff. Wiederholt bei JEDEM transienten Fehler bis 3× (Rate-
+// Limit länger); leere Antwort gilt als Fehler. Content-Policy → sofort abbrechen.
 async function callWithBackoff(args) {
   let lastErr
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -45,16 +45,43 @@ async function callWithBackoff(args) {
       return r
     } catch (e) {
       lastErr = e
-      if (isContentFilter(e.message)) break // Retry zwecklos bei Content-Policy
+      if (isContentFilter(e.message)) break
       if (attempt < 3) { await sleep((isRateLimit(e.message) ? 6000 : 2000) * attempt); continue }
     }
   }
   throw lastErr
 }
 
-// Verarbeitet EINEN Job bis zum Zeit-Deadline oder bis fertig.
-// Rückgabe: 'done' | 'paused' | 'error'.
-async function processJob(job, deadline) {
+// Ein LLM-Schritt inkl. Kostenerfassung; bei Content-Filter EINMAL entschärften
+// Prompt nachschieben. Gibt den Text zurück (oder wirft).
+async function runLLMStep(job, kind, system, user) {
+  const call = async sys => {
+    const r = await callWithBackoff({ system: sys, messages: [{ role: 'user', content: user }] })
+    if (r.inT || r.outT) {
+      await recordCost({ memorial_id: job.memorial_id, kind: kind || 'generate', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
+    }
+    return String(r.text || '').trim()
+  }
+  try { return await call(system) }
+  catch (e) { if (!isContentFilter(e.message)) throw e; return await call(system + SOFTEN) }
+}
+
+// ── Interne Aufrufe der (erprobten) Bild-Endpunkte mit frisch geminteten Admin-Token ──
+function selfBase() { return (process.env.CRON_SELF_BASE_URL || 'https://lebensgeschichten.ai').replace(/\/+$/, '') }
+async function adminPost(path, body) {
+  const token = issueToken({ admin: true })
+  const r = await fetch(`${selfBase()}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
+  return j
+}
+
+// ─────────────────────────── Rede / Endtext ────────────────────────────
+async function processTextJoin(job, deadline) {
   const p = job.params || {}
   const steps = Array.isArray(p.steps) ? p.steps : []
   const result = job.result && typeof job.result === 'object' ? job.result : {}
@@ -62,70 +89,170 @@ async function processJob(job, deadline) {
   if (!Array.isArray(result.errors)) result.errors = []
   let cursor = Number(job.progress?.cursor) || 0
 
-  if (p.resultType !== 'text-join') {
-    await genjobs.failJob(job.id, `Unbekannter resultType: ${p.resultType}`)
-    return 'error'
-  }
-
   while (cursor < steps.length) {
-    if (Date.now() > deadline) {
-      await genjobs.releaseJob(job.id, { progress: { phase: 'llm', cursor, total: steps.length }, result })
-      return 'paused'
-    }
-    // Abbruch respektieren (Nutzer hat den Job storniert).
-    if ((await genjobs.jobStatus(job.id)) === 'canceled') return 'canceled'
+    if (Date.now() > deadline) { await genjobs.releaseJob(job.id, { progress: { phase: 'llm', cursor, total: steps.length }, result }); return 'paused' }
+    if (await canceled(job.id)) return 'canceled'
     const step = steps[cursor]
-    // Ein Aufruf inkl. Kostenerfassung; `system` variabel (für den entschärften Retry).
-    const callOnce = async (system) => {
-      const r = await callWithBackoff({ system, messages: [{ role: 'user', content: step.user }] })
-      if (r.inT || r.outT) {
-        await recordCost({ memorial_id: job.memorial_id, kind: p.kind || 'generate', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
-      }
-      return String(r.text || '').trim()
-    }
     try {
-      let text
-      try {
-        text = await callOnce(step.system)
-      } catch (e) {
-        if (!isContentFilter(e.message)) throw e
-        // Content-Policy-Treffer → einmal mit entschärftem Prompt nachschieben.
-        text = await callOnce(step.system + SOFTEN)
-      }
+      const text = await runLLMStep(job, p.kind, step.system, step.user)
       if (!text) throw new Error('leere Antwort')
       result.parts.push(text)
     } catch (e) {
-      const msg = isContentFilter(e.message)
-        ? 'auch nach entschärftem Prompt vom KI-Inhaltsfilter blockiert (Azure Content-Policy) – Filter in Azure lockern'
-        : e.message
-      result.errors.push(`${step.label || `Schritt ${cursor + 1}`}: ${msg}`)
+      result.errors.push(`${step.label || `Schritt ${cursor + 1}`}: ${isContentFilter(e.message) ? 'auch nach entschärftem Prompt vom KI-Inhaltsfilter blockiert (Azure Content-Policy)' : e.message}`)
     }
     cursor++
-    await genjobs.saveProgress(job.id, {
-      progress: { phase: 'llm', cursor, total: steps.length, message: step.label || '' },
-      result,
-    })
+    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor, total: steps.length, message: step.label || '' }, result })
   }
-
-  // Alle Schritte durch → zusammensetzen und speichern.
   if (result.parts.length === 0) {
-    await genjobs.failJob(job.id, `Kein Abschnitt konnte generiert werden.${result.errors[0] ? ' ' + result.errors[0] : ''}`, {
-      progress: { phase: 'error', cursor, total: steps.length },
-    })
+    await genjobs.failJob(job.id, `Kein Abschnitt konnte generiert werden.${result.errors[0] ? ' ' + result.errors[0] : ''}`, { progress: { phase: 'error' } })
     return 'error'
   }
   const value = result.parts.join(p.combine ?? '\n\n')
-  try {
-    await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value)
-  } catch (e) {
-    await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`)
-    return 'error'
-  }
-  await genjobs.finishJob(job.id, {
-    progress: { phase: 'done', cursor, total: steps.length, errors: result.errors.length, firstError: result.errors[0] || null },
-    result: { ...result, saved: true },
-  })
+  try { await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value) }
+  catch (e) { await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`); return 'error' }
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor, total: steps.length, errors: result.errors.length, firstError: result.errors[0] || null }, result: { ...result, saved: true } })
   return 'done'
+}
+
+// ─────────────────────────────── Buch ──────────────────────────────────
+const normH = s => String(s || '').trim().toLowerCase()
+
+// Nach den Kapiteln: Fotos den Kapiteln zuordnen (deterministisch + KI) und je
+// Kapitel ein Referenzfoto wählen. Ergebnisse in result ablegen (crash-sicher).
+async function computeAssignments(job, p, result) {
+  const uploads = Array.isArray(p.uploads) ? p.uploads : []
+  const chapters = result.chapters
+  const assignById = {}; for (const u of uploads) assignById[u.id] = u
+  const chapterAssign = {}; const assignedIds = new Set()
+  const take = (num, id) => { (chapterAssign[num] = chapterAssign[num] || []).push(id); assignedIds.add(id) }
+  if (p.variant === 'book_v1') {
+    for (const ch of chapters) {
+      if (!ch.contribution_id) continue
+      for (const u of uploads) if (u.contribution_id && u.contribution_id === ch.contribution_id && !assignedIds.has(u.id)) take(ch.number, u.id)
+    }
+  }
+  const remaining = uploads.filter(u => !assignedIds.has(u.id))
+  if (remaining.length > 0) {
+    try {
+      const raw = await runLLMStep(job, `${p.kind}_image_assign`, genprompts.imageAssignSystem(chapters, remaining) + (p.dir || ''), 'Ordne die Fotos jetzt zu (JSON).')
+      const parsed = genprompts.tryParseJSON(raw)
+      for (const a of (Array.isArray(parsed?.assignments) ? parsed.assignments : [])) {
+        for (const id of (Array.isArray(a.image_ids) ? a.image_ids : [])) if (assignById[id] && !assignedIds.has(id)) take(Number(a.chapter), id)
+      }
+    } catch (e) { console.warn('[generate] imageAssign', e.message) }
+  }
+  // Referenzfotos (image-to-image Personen-Ähnlichkeit)
+  const faceRef = uploads.find(u => u.orientation === 'portrait') || uploads[0]
+  const faceRefGlobal = faceRef?.path || null
+  const faceRefByChapter = {}
+  if (uploads.length > 0 && chapters.length > 0) {
+    try {
+      const raw = await runLLMStep(job, `${p.kind}_face_ref`, genprompts.faceRefSystem(chapters, uploads) + (p.dir || ''), 'Wähle die Referenzfotos jetzt (JSON).')
+      const parsed = genprompts.tryParseJSON(raw)
+      for (const r of (Array.isArray(parsed?.refs) ? parsed.refs : [])) { const u = assignById[r.image_id]; if (u?.path) faceRefByChapter[Number(r.chapter)] = u.path }
+    } catch (e) { console.warn('[generate] faceRef', e.message) }
+  }
+  result.chapterAssign = chapterAssign
+  result.faceRefByChapter = faceRefByChapter
+  result.faceRefGlobal = faceRefGlobal
+}
+
+async function processBook(job, deadline) {
+  const p = job.params || {}
+  const steps = Array.isArray(p.chapterSteps) ? p.chapterSteps : []
+  const result = job.result && typeof job.result === 'object' ? job.result : {}
+  if (!Array.isArray(result.chapters)) result.chapters = []
+  if (!Array.isArray(result.errors)) result.errors = []
+  let phase = job.progress?.phase || 'chapters'
+
+  // ── Phase 1: Kapitel schreiben (Cursor = Anzahl bereits geschriebener Kapitel) ──
+  if (phase === 'chapters') {
+    while (result.chapters.length < steps.length) {
+      if (Date.now() > deadline) { await genjobs.releaseJob(job.id, { progress: { phase: 'chapters', cursor: result.chapters.length, total: steps.length }, result }); return 'paused' }
+      if (await canceled(job.id)) return 'canceled'
+      const step = steps[result.chapters.length]
+      const meta = step.meta || {}
+      let ch = null
+      for (let attempt = 1; attempt <= 3 && !ch; attempt++) {
+        try {
+          const text = await runLLMStep(job, `${p.kind}_chapter`, step.system, step.user)
+          const parsed = genprompts.tryParseJSON(text)
+          if (parsed && (parsed.body || parsed.heading)) ch = parsed
+        } catch (e) {
+          if (attempt === 3) result.errors.push(`Kapitel ${meta.number}: ${isContentFilter(e.message) ? 'vom KI-Inhaltsfilter blockiert' : e.message}`)
+        }
+        if (!ch && attempt < 3) await sleep(1500 * attempt)
+      }
+      const extra = meta.contribution_id ? { contribution_id: meta.contribution_id, contributor_name: meta.contributor_name, relationship: meta.relationship } : {}
+      result.chapters.push(ch
+        ? { number: ch.number || meta.number, heading: ch.heading || meta.heading || `Kapitel ${meta.number}`, body: ch.body || '', image_prompt: ch.image_prompt || '', ...extra }
+        : { number: meta.number, heading: meta.heading || `Kapitel ${meta.number}`, body: '', image_prompt: '', generate_error: 'Kapitel konnte nicht erzeugt werden', ...extra })
+      await genjobs.saveProgress(job.id, { progress: { phase: 'chapters', cursor: result.chapters.length, total: steps.length, message: `Kapitel ${result.chapters.length}/${steps.length}` }, result })
+    }
+    // Kapitel fertig → Bildzuordnung + Referenzfotos (einmalig), dann Bildphase.
+    await computeAssignments(job, p, result)
+    phase = 'images'
+    await genjobs.saveProgress(job.id, { progress: { phase: 'images', cursor: 0, total: result.chapters.length }, result })
+  }
+
+  // ── Phase 2: Bilder je Kapitel (Cursor = Kapitel mit image_done) ──
+  if (phase === 'images' && !p.skipImages) {
+    const uploads = Array.isArray(p.uploads) ? p.uploads : []
+    const upById = {}; for (const u of uploads) upById[u.id] = u
+    const oldChapters = Array.isArray(p.oldChapters) ? p.oldChapters : []
+    const oldByContrib = new Map(); const oldByHeading = new Map()
+    for (const oc of oldChapters) { if (!oc?.image_path) continue; if (oc.contribution_id) oldByContrib.set(oc.contribution_id, oc.image_path); if (oc.heading) oldByHeading.set(normH(oc.heading), oc.image_path) }
+    const code = (p.memorialCode || job.memorial_id)
+
+    let idx = result.chapters.findIndex(c => !c.image_done)
+    while (idx !== -1) {
+      if (Date.now() > deadline) { await genjobs.releaseJob(job.id, { progress: { phase: 'images', cursor: result.chapters.filter(c => c.image_done).length, total: result.chapters.length }, result }); return 'paused' }
+      if (await canceled(job.id)) return 'canceled'
+      const ch = result.chapters[idx]
+      const assignedIds = result.chapterAssign?.[ch.number] || []
+      const assigned = assignedIds.map(id => upById[id]).filter(Boolean).slice(0, 4)
+      try {
+        if (assigned.length > 0) {
+          const { storagePath } = await adminPost('/api/admin/compose-image', { memorialCode: code, images: assigned.map(u => ({ path: u.path, caption: u.caption, orientation: u.orientation })), variant: p.variant, chapterNumber: ch.number, chapterHeading: ch.heading })
+          ch.image_path = storagePath; ch.image_error = null; ch.from_upload = true
+        } else {
+          let reused = null
+          if (ch.contribution_id && oldByContrib.has(ch.contribution_id)) reused = oldByContrib.get(ch.contribution_id)
+          else if (oldByHeading.has(normH(ch.heading))) reused = oldByHeading.get(normH(ch.heading))
+          else if (oldChapters[idx]?.image_path) reused = oldChapters[idx].image_path
+          if (reused) { ch.image_path = reused; ch.image_error = null }
+          else if (!ch.image_prompt) { ch.image_error = 'kein image_prompt im Kapitel' }
+          else {
+            const refPath = result.faceRefByChapter?.[ch.number] || result.faceRefGlobal
+            const { storagePath } = await adminPost('/api/admin/generate-image', { memorialCode: code, prompt: ch.image_prompt, imageStyle: p.imageStyle, variant: p.variant, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPath ? { referencePaths: [refPath] } : {}) })
+            ch.image_path = storagePath; ch.image_error = null
+          }
+        }
+      } catch (e) {
+        ch.image_error = e.message || String(e)
+        result.errors.push(`Bild Kapitel ${ch.number}: ${e.message}`)
+      }
+      ch.image_done = true
+      await genjobs.saveProgress(job.id, { progress: { phase: 'images', cursor: result.chapters.filter(c => c.image_done).length, total: result.chapters.length, message: `Bild ${result.chapters.filter(c => c.image_done).length}/${result.chapters.length}` }, result })
+      idx = result.chapters.findIndex(c => !c.image_done)
+    }
+  }
+
+  // ── Phase 3: Speichern ──
+  const chapters = result.chapters.map(c => { const { image_done, ...rest } = c; return rest })
+  const value = { title: p.title, subtitle: p.subtitle || '', language: p.language, chapters }
+  try { await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value) }
+  catch (e) { await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`); return 'error' }
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', total: result.chapters.length, errors: result.errors.length, firstError: result.errors[0] || null }, result: { saved: true, errors: result.errors } })
+  return 'done'
+}
+
+async function processJob(job, deadline) {
+  const rt = job.params?.resultType
+  if (rt === 'text-join') return processTextJoin(job, deadline)
+  if (rt === 'book') return processBook(job, deadline)
+  await genjobs.failJob(job.id, `Unbekannter resultType: ${rt}`)
+  return 'error'
 }
 
 module.exports = async function handler(req, res) {
@@ -139,16 +266,10 @@ module.exports = async function handler(req, res) {
       if (chain === 0) await recordHeartbeat(genjobs.supabase, 'generate', 'ok', { idle: true }).catch(() => {})
       return res.json({ ok: true, idle: true })
     }
-
     let outcome
     try { outcome = await processJob(job, deadline) }
-    catch (e) {
-      console.error('[cron/generate] processJob', job.id, e.message)
-      try { await genjobs.failJob(job.id, e.message) } catch {}
-      outcome = 'error'
-    }
+    catch (e) { console.error('[cron/generate] processJob', job.id, e.message); try { await genjobs.failJob(job.id, e.message) } catch {} outcome = 'error' }
 
-    // Weiter, solange Jobs offen sind und Kette nicht gekappt.
     let remaining = 0
     try { remaining = await genjobs.countPending() } catch {}
     let chained = false
