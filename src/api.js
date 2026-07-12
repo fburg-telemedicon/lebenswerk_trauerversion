@@ -235,6 +235,29 @@ export async function adminSaveMemorialText(token, code, field, text) {
   return parseResponse(res)
 }
 
+// ── Serverseitige Generierung (Job-Queue, robust gegen Verbindungsabbruch) ──
+// Job anlegen (Worker startet sofort). params = { field, resultType, combine, steps:[{system,user,label}] }.
+export async function enqueueGeneration(token, memorialCode, kind, params) {
+  const res = await fetch('/api/admin/generate-job', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ memorialCode, kind, params }),
+  })
+  return parseResponse(res) // { jobId }
+}
+// Job-Status pollen (per id) bzw. offene Jobs eines Buchs holen (per memorialCode).
+export async function getGenerationJob(token, { id, memorialCode } = {}) {
+  const qs = id ? `id=${encodeURIComponent(id)}` : `memorialCode=${encodeURIComponent(memorialCode)}`
+  const res = await fetch(`/api/admin/generate-job?${qs}`, { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { job } | { jobs }
+}
+export async function cancelGenerationJob(token, id) {
+  const res = await fetch(`/api/admin/generate-job?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res)
+}
+
 // Auftragsdaten (Stammdaten) eines Buchs bearbeiten. `meta` enthält nur die
 // zu ändernden Felder (name, organizer, gender, bookVariant, funeralDate,
 // cutoffDays, showIntroVideo, intake, languages, note, pickupAddress).

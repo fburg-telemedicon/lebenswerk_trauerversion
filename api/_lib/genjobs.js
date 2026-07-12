@@ -67,6 +67,11 @@ async function claimNext() {
   return locked || null
 }
 
+async function jobStatus(id) {
+  const { data } = await supabase.from('generation_jobs').select('status').eq('id', id).maybeSingle()
+  return data?.status || null
+}
+
 async function patchJob(id, fields) {
   const { error } = await supabase.from('generation_jobs')
     .update({ ...fields, updated_at: new Date().toISOString() }).eq('id', id)
@@ -127,5 +132,5 @@ async function triggerWorker() {
 
 module.exports = {
   supabase, enqueue, getJob, publicJob, claimNext, patchJob, saveProgress,
-  finishJob, failJob, releaseJob, saveMemorialField, countPending, triggerWorker,
+  finishJob, failJob, releaseJob, saveMemorialField, countPending, triggerWorker, jobStatus,
 }

@@ -58,6 +58,8 @@ async function processJob(job, deadline) {
       await genjobs.releaseJob(job.id, { progress: { phase: 'llm', cursor, total: steps.length }, result })
       return 'paused'
     }
+    // Abbruch respektieren (Nutzer hat den Job storniert).
+    if ((await genjobs.jobStatus(job.id)) === 'canceled') return 'canceled'
     const step = steps[cursor]
     try {
       const r = await callWithBackoff({ system: step.system, messages: [{ role: 'user', content: step.user }] })

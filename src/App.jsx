@@ -4,6 +4,7 @@ import {
   createMemorial, getMemorial, getContribution, addContribution,
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload, adminComposeImage,
+  enqueueGeneration, getGenerationJob, cancelGenerationJob,
   adminDeleteContribution, adminUpdateContributionMessages, adminSaveTranscriptCheck,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback, adminSetFeedbackDone, adminDeleteFeedback,
@@ -1301,9 +1302,32 @@ function Dashboard() {
   // aktuellen Wert sieht). Greift zwischen den Schritten: der gerade laufende
   // Einzel-Call (z. B. ein Kapitel) wird noch zu Ende geführt, danach Stopp.
   const cancelGenRef = useRef({})
+  // Aktive serverseitige Job-IDs je Generator-Key (für Cancel + Wiederaufnahme).
+  const genJobRef = useRef({})
   function cancelGenerate(key) {
     cancelGenRef.current[key] = true
     setGenProgress(p => ({ ...p, [key]: 'Wird abgebrochen …' }))
+    const jid = genJobRef.current[key]
+    if (jid) cancelGenerationJob(token, jid).catch(() => {})
+  }
+
+  // Pollt einen serverseitigen Generierungs-Job bis done/error/canceled und
+  // spiegelt den Fortschritt ins UI. Abbruch via cancelGenRef → __CANCELLED__.
+  async function pollGeneration(key, jobId) {
+    while (true) {
+      if (cancelGenRef.current[key]) { try { await cancelGenerationJob(token, jobId) } catch {} throw new Error('__CANCELLED__') }
+      let job = null
+      try { job = (await getGenerationJob(token, { id: jobId })).job } catch { /* transient, weiter pollen */ }
+      if (job) {
+        const pr = job.progress || {}
+        if (pr.total) setGenPct(p => ({ ...p, [key]: Math.min(99, Math.round(((pr.cursor || 0) / pr.total) * 100)) }))
+        if (pr.message) setGenProgress(p => ({ ...p, [key]: `${pr.message} …` }))
+        if (job.status === 'done') return
+        if (job.status === 'canceled') throw new Error('__CANCELLED__')
+        if (job.status === 'error') throw new Error(job.error || 'Generierung fehlgeschlagen.')
+      }
+      await new Promise(r => setTimeout(r, 2500))
+    }
   }
 
   // Manuelles Bearbeiten des Korrekturtexts einer bereits umformulierten Stelle.
@@ -1393,6 +1417,7 @@ function Dashboard() {
     const checkCancel = () => { if (cancelGenRef.current[key]) throw new Error('__CANCELLED__') }
     try {
       let value
+      let serverSaved = false // true, wenn der serverseitige Worker bereits gespeichert hat
 
       if (gen.kind === 'book') {
         // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
@@ -1627,34 +1652,30 @@ function Dashboard() {
           : 'Wird gespeichert …'
         setGenProgress(p => ({ ...p, [key]: saveMsg }))
       } else if (gen.kind === 'eulogy') {
-        // Endtext (z. B. Rede) in mehrere Abschnitte aufgeteilt — jeder ein
-        // eigener KI-Call, damit niemand am 60s-Limit von api/ask.js stirbt.
+        // Serverseitig erzeugen: Die Abschnitts-Prompts werden hier (mit
+        // categories.js) gebaut und als Job-Plan an den Worker übergeben. Der
+        // arbeitet sie robust ab und speichert selbst — bricht die Browser-
+        // Verbindung ab, läuft der Job weiter; das UI pollt nur den Status.
         const sections = gen.sections || []
-        const parts = []
-        const sectionErrors = []
-        stepsTotal = sections.length + 1 // Abschnitte + Prüfung
-        for (let i = 0; i < sections.length; i++) {
-          const section = sections[i]
-          setGenProgress(p => ({ ...p, [key]: `Abschnitt ${i + 1}/${sections.length}: ${section.label} …` }))
-          checkCancel()
-          try {
-            const raw = await askLLM(
-              gen.sectionSystem(selected, contributions, section, extraArg) + dir,
-              [{ role: 'user', content: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.` }],
-              { memorialCode: selected.id, kind: key, token }
-            )
-            const text = String(raw || '').trim()
-            if (!text) throw new Error('leere Antwort')
-            parts.push(text)
-          } catch (e) {
-            sectionErrors.push(`${section.label}: ${e.message}`)
-          }
-          bumpPct() // Abschnitt fertig
-        }
-        if (parts.length === 0) throw new Error(`Kein Abschnitt der ${gen.noun} konnte generiert werden.`)
-        value = parts.join('\n\n')
-        if (sectionErrors.length > 0) setGenErr(p => ({ ...p, [key]: `${sectionErrors.length}/${sections.length} Abschnitt-Fehler. Erster: ${sectionErrors[0]}` }))
-        setGenProgress(p => ({ ...p, [key]: 'Wird gespeichert …' }))
+        const steps = sections.map(section => ({
+          system: gen.sectionSystem(selected, contributions, section, extraArg) + dir,
+          user: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.`,
+          label: `Abschnitt: ${section.label}`,
+        }))
+        stepsTotal = steps.length
+        setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
+        const { jobId } = await enqueueGeneration(token, selected.id, key, {
+          field: gen.field, resultType: 'text-join', combine: '\n\n', steps,
+        })
+        genJobRef.current[key] = jobId
+        await pollGeneration(key, jobId) // wartet bis done/error/canceled
+        // Der Worker hat gespeichert → aktuellen Text laden (für Inhaltsprüfung).
+        try {
+          const rr = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+          if (rr.ok) { const fresh = await rr.json(); const u = fresh.find(m => m.id === selected.id); value = (u && u[gen.field]) || '' }
+        } catch {}
+        serverSaved = true
+        stepsDone = stepsTotal // Prozent bleibt bei ~99 %, bis der Reload 100 % setzt
       } else {
         // Sonstige Plain-Text-Generatoren (derzeit keiner)
         const raw = await askLLM(
@@ -1665,13 +1686,14 @@ function Dashboard() {
         value = raw
       }
 
-      await adminSaveMemorialText(token, selected.id, gen.field, value)
+      // Nur speichern, wenn NICHT bereits serverseitig geschrieben (Job-Weg).
+      if (!serverSaved) await adminSaveMemorialText(token, selected.id, gen.field, value)
 
       // Inhalts-/Datenschutzprüfung des generierten Textes (separater KI-
       // Call). Fehler hier dürfen die Generierung NICHT scheitern lassen –
       // der Text ist bereits gespeichert.
       setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
-      try { await runContentReview(gen.field, value) }
+      try { if (value) await runContentReview(gen.field, value) }
       catch (e) { console.warn('Inhaltsprüfung fehlgeschlagen:', e.message) }
       bumpPct() // Prüfung fertig
 

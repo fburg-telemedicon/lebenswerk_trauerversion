@@ -72,6 +72,18 @@ module.exports = async function handler(req, res) {
       return res.json({ jobId })
     }
 
+    if (req.method === 'DELETE') {
+      const id = (req.query.id || '').trim()
+      if (!id) return res.status(400).json({ error: 'id fehlt.' })
+      const job = await genjobs.getJob(id)
+      if (!job) return res.json({ ok: true })
+      if (!(await accessibleMemorial(req, job.memorial_id))) return res.status(403).json({ error: 'Kein Zugriff.' })
+      if (job.status === 'queued' || job.status === 'running') {
+        await genjobs.patchJob(id, { status: 'canceled', locked_at: null })
+      }
+      return res.json({ ok: true })
+    }
+
     return res.status(405).end()
   } catch (e) {
     console.error('/api/admin/generate-job:', e)
