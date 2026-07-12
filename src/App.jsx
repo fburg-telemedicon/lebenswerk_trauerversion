@@ -6,7 +6,7 @@ import {
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload, adminComposeImage,
   adminDeleteContribution, adminUpdateContributionMessages, adminSaveTranscriptCheck,
   getMemorialCosts,
-  adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback,
+  adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback, adminSetFeedbackDone, adminDeleteFeedback,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
@@ -799,6 +799,20 @@ function Dashboard() {
     setErr(''); setLoading(true)
     try { setQmData(await adminListFeedback(token)) }
     catch (e) { setErr(e.message) } finally { setLoading(false) }
+  }
+  // Bewertung als „erledigt" markieren (optimistisch, dann Server).
+  async function toggleFeedbackDone(id, done) {
+    setQmData(rows => rows.map(r => r.id === id ? { ...r, done } : r))
+    try { await adminSetFeedbackDone(token, id, done) }
+    catch (e) { setErr(e.message); setQmData(rows => rows.map(r => r.id === id ? { ...r, done: !done } : r)) }
+  }
+  // Bewertung entfernen (nach Rückfrage). Contribution bleibt bestehen.
+  async function deleteFeedback(id) {
+    if (!window.confirm('Diese Bewertung wirklich löschen? Der zugehörige Beitrag bleibt erhalten.')) return
+    const prev = qmData
+    setQmData(rows => rows.filter(r => r.id !== id))
+    try { await adminDeleteFeedback(token, id) }
+    catch (e) { setErr(e.message); setQmData(prev) }
   }
   function toggleUserFormCat(slug) {
     setUserForm(f => ({
@@ -2215,7 +2229,7 @@ function Dashboard() {
 
   // ── BENUTZER (nur Admin) ──
   if (view === 'quality') return (
-    <QMView qmData={qmData} loading={loading} err={err} setView={setView} logout={logout} />
+    <QMView qmData={qmData} loading={loading} err={err} setView={setView} logout={logout} toggleFeedbackDone={toggleFeedbackDone} deleteFeedback={deleteFeedback} />
   )
 
   if (view === 'audit') return (

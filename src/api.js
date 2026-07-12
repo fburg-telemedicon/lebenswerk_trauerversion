@@ -125,7 +125,24 @@ export async function adminListFeedback(token) {
   const res = await fetch('/api/admin/feedback', {
     headers: { Authorization: `Bearer ${token}` },
   })
-  return parseResponse(res) // [ { id, memorial_name, contributor_name, rating, text, at, ... } ]
+  return parseResponse(res) // [ { id, memorial_name, contributor_name, rating, text, at, done, ... } ]
+}
+// Bewertung als „erledigt" markieren/zurücksetzen.
+export async function adminSetFeedbackDone(token, id, done) {
+  const res = await fetch(`/api/admin/feedback?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ done }),
+  })
+  return parseResponse(res) // { ok, done }
+}
+// Bewertung entfernen (Contribution bleibt bestehen).
+export async function adminDeleteFeedback(token, id) {
+  const res = await fetch(`/api/admin/feedback?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { ok }
 }
 
 export async function adminListAudit(token, { limit = 100, action } = {}) {

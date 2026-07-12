@@ -1893,7 +1893,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
 
 // Qualitätsmanagement: Beitragenden-Bewertungen (Smiley 1..5 + Kommentar) aller
 // zugänglichen Bücher, neueste zuerst. Daten aus GET /api/admin/feedback.
-export function QMView({ qmData, loading, err, setView, logout }) {
+export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDone, deleteFeedback }) {
   const faces = ['😞', '😕', '😐', '🙂', '😍']
   const rows = Array.isArray(qmData) ? qmData : []
   const avg = rows.length ? rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length : 0
@@ -1925,17 +1925,23 @@ export function QMView({ qmData, loading, err, setView, logout }) {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ ...th, textAlign:'center' }}>Erledigt</th>
                   <th style={th}>Zeitpunkt</th>
                   <th style={th}>Bewertung</th>
                   <th style={th}>Beitragende:r</th>
                   <th style={th}>Buchprojekt</th>
                   <th style={th}>Manager</th>
                   <th style={th}>Kommentar</th>
+                  <th style={{ ...th, textAlign:'right' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.id}>
+                  <tr key={r.id} style={{ opacity: r.done ? 0.5 : 1 }}>
+                    <td style={{ ...col, textAlign:'center' }}>
+                      <input type="checkbox" checked={!!r.done} onChange={e => toggleFeedbackDone?.(r.id, e.target.checked)}
+                        title="Als erledigt markieren" style={{ width:17, height:17, cursor:'pointer', accentColor:'#1c1917' }} />
+                    </td>
                     <td style={{ ...col, whiteSpace:'nowrap', color:'#78716c', fontSize:13 }}>{fmt(r.at)}</td>
                     <td style={{ ...col, whiteSpace:'nowrap' }}>
                       <span style={{ fontSize:20 }} title={`${r.rating} / 5`}>{faces[Math.min(4, Math.max(0, (r.rating || 1) - 1))]}</span>
@@ -1945,6 +1951,10 @@ export function QMView({ qmData, loading, err, setView, logout }) {
                     <td style={{ ...col, color:'#78716c' }}>{r.memorial_name}</td>
                     <td style={{ ...col, color:'#78716c', fontSize:13 }}>{r.owner_username || '—'}</td>
                     <td style={{ ...col, maxWidth:360, whiteSpace:'pre-wrap', color:'#44403c' }}>{r.text || '—'}</td>
+                    <td style={{ ...col, textAlign:'right', whiteSpace:'nowrap' }}>
+                      <button className="secondary" onClick={() => deleteFeedback?.(r.id)}
+                        style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
