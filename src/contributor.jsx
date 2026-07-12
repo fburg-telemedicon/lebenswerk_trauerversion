@@ -659,6 +659,9 @@ export function ContributorFlow({ code }) {
 
   async function resumeLocal() {
     if (!resumePrompt) return
+    // In dieser Nutzer-Geste (Tap auf „Fortsetzen") das TTS-Element freischalten,
+    // damit auf iOS auch die erste Frage nach dem Fortsetzen hörbar ist.
+    unlockAudio()
     const local = resumePrompt
     setResumePrompt(null); setView('loading')
     const contrib = await fetchContribution(code, local.contribId)
