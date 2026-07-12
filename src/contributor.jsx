@@ -155,8 +155,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     }
 
     // Laufende Sprachausgabe stoppen, bevor das Mikrofon öffnet (kein Überlappen,
-    // Button-Status sauber).
+    // Button-Status sauber). Zugleich das TTS-Element in dieser Nutzer-Geste erneut
+    // freischalten (iOS: die Aufnahme kann die Wiedergabe sonst „sperren", sodass
+    // die nächste Frage nicht mehr abgespielt wird).
     stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
+    unlockAudio()
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })

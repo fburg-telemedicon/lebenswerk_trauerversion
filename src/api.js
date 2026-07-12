@@ -378,16 +378,25 @@ export async function getMemorialCosts(token, code) {
 
 // ── Sprachausgabe (OpenAI TTS) ────────────────────────────────────
 let currentAudio = null
-// iOS-Workaround: Audio-Element wird während der User-Geste vorbelegt,
-// damit play() nach dem async fetch noch im aktivierten Kontext läuft.
-let _primedAudio = null
+// iOS-Workaround: EIN persistentes Audio-Element, das während einer Nutzer-Geste
+// freigeschaltet wird (stummes WAV abspielen). iOS erlaubt spätere programmatische
+// play()-Aufrufe (nach dem async fetch) nur auf DEMSELBEN, bereits freigeschalteten
+// Element – deshalb wird es dauerhaft wiederverwendet. (Früher wurde das vorbelegte
+// Element nur einmal genutzt, danach `new Audio()` → ab der 2. Frage scheiterte die
+// Wiedergabe auf iOS Safari mit „Audiowiedergabe fehlgeschlagen".)
+let ttsAudio = null
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
 
+function getTtsAudio() {
+  if (!ttsAudio) ttsAudio = new Audio()
+  return ttsAudio
+}
+
 export function primeAudio() {
-  _primedAudio = new Audio()
-  _primedAudio.src = SILENT_WAV
-  _primedAudio.volume = 0
-  _primedAudio.play().catch(() => {})
+  // Innerhalb einer Nutzer-Geste aufrufen (Button-Tap): schaltet das persistente
+  // Element frei. Muss dasselbe Element sein, das speakText() später abspielt.
+  const a = getTtsAudio()
+  try { a.src = SILENT_WAV; a.volume = 0; a.play().catch(() => {}) } catch {}
 }
 
 // Monoton steigende Sequenz: jeder stopSpeaking()/speakText()-Start erhöht sie.
@@ -419,9 +428,9 @@ export async function speakText(text, { onStart, onPlay, onEnd, onError, memoria
     const blob = await res.blob()
     if (mySeq !== speakSeq) return null // während des Ladens abgebrochen → still verwerfen
     const url = URL.createObjectURL(blob)
-    // Primed element wiederverwenden (iOS: bereits im aktivierten Zustand)
-    const audio = _primedAudio ?? new Audio()
-    _primedAudio = null
+    // Immer das persistente, per Nutzer-Geste freigeschaltete Element wiederverwenden
+    // (iOS Safari erlaubt programmatisches play() nur auf diesem Element).
+    const audio = getTtsAudio()
     currentAudio = audio
     audio.volume = 1
     audio.src = url
