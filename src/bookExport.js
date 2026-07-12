@@ -321,9 +321,29 @@ const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
 
 export async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout()) {
   const bt = uiText(book.language)
-  const HF = layout.heading.pdf, BF = layout.body.pdf
+  let HF = layout.heading.pdf, BF = layout.body.pdf
   const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
   const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H] })
+
+  // jsPDF-Standardfonts (times/helvetica) können nur Latin-1 – polnische u. a.
+  // Sonderzeichen (ł, ż, ś, ć, ą, ę, ź) fehlen → falsche Breite/Umbruch (Text läuft
+  // über den Rand) und falsche Glyphen. Enthält der Buchtext solche Zeichen, laden
+  // wir lazy einen eingebetteten Unicode-Serif (DejaVu) und nutzen ihn durchgängig.
+  const allText = [book.title, book.subtitle,
+    ...((book.chapters || []).flatMap(c => [c?.heading, c?.body])),
+    ...((contributors || []).flatMap(c => [c?.contributor_name, c?.relationship]))].join(' ')
+  // Latin Extended-A/B (u. a. polnische Sonderzeichen) -> jsPDF-Standardfonts
+  // koennen sie nicht. Deutsch (Umlaute/ss) und Typo-Zeichen sind in WinAnsi.
+  if (/[Ā-ɏ]/.test(allText)) {
+    const f = await import('./fonts/dejavuSerif.js')
+    doc.addFileToVFS('DejaVuSerif.ttf', f.DEJAVU_SERIF)
+    doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'normal')
+    doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'italic')
+    doc.addFileToVFS('DejaVuSerif-Bold.ttf', f.DEJAVU_SERIF_BOLD)
+    doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bold')
+    doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bolditalic')
+    HF = 'DejaVuSerif'; BF = 'DejaVuSerif'
+  }
   let page = 1 // jsPDF hat Seite 1 bereits angelegt; recto = ungerade
   // Seitenklassifizierung für die Seitenzahlen: Bild- und Leerseiten bekommen
   // KEINE Nummer; alle übrigen (Text-)Seiten schon. Nummern werden am Ende gesetzt.
@@ -357,13 +377,30 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
   const maxW = PDF_PAGE_W - ML - MR
   const lh = pt => pt * 0.3528 * 1.5
   let y = MT
-  const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0 } = {}) => {
+  const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0, justify = false } = {}) => {
     doc.setFont(BF, style); doc.setFontSize(size); doc.setTextColor(...color)
     const lineH = lh(size)
-    for (const line of doc.splitTextToSize(String(chunk ?? ''), maxW - indent)) {
+    const width = maxW - indent
+    const lines = doc.splitTextToSize(String(chunk ?? ''), width)
+    lines.forEach((line, i) => {
       if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
-      doc.text(line, ML + indent, y); y += lineH
-    }
+      const words = line.split(' ').filter(Boolean)
+      // Blocksatz: alle Zeilen außer der letzten eines Absatzes strecken; der
+      // Zusatzabstand wird gleichmäßig auf die Wortlücken verteilt (nicht bei
+      // sehr kurzen/letzten Zeilen, um klaffende Lücken zu vermeiden).
+      if (justify && i < lines.length - 1 && words.length > 1) {
+        const extra = width - doc.getTextWidth(line)
+        if (extra > 0 && extra < width * 0.28) {
+          const gap = extra / (words.length - 1)
+          const spaceW = doc.getTextWidth(' ')
+          let x = ML + indent
+          for (const w of words) { doc.text(w, x, y); x += doc.getTextWidth(w) + spaceW + gap }
+        } else { doc.text(line, ML + indent, y) }
+      } else {
+        doc.text(line, ML + indent, y)
+      }
+      y += lineH
+    })
     y += gapAfter * lineH
   }
 
@@ -407,7 +444,7 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
     // einer neuen Seite (Überschriftenseite bleibt für sich).
     newPage(); y = MT
     for (const para of String(ch.body || '').split('\n\n').map(s => s.trim()).filter(Boolean)) {
-      flow(para, { size: 12, gapAfter: 0.6 })
+      flow(para, { size: 12, gapAfter: 0.6, justify: true })
     }
   }
 
