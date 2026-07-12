@@ -75,4 +75,22 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
 }`
 }
 
-module.exports = { tryParseJSON, imageAssignSystem, faceRefSystem }
+// Baut aus einem generierten Wert (Buch-Objekt oder String) den zu prüfenden
+// Fließtext mit Abschnitts-Markern. Wörtliche Kopie aus src/review.js – bei
+// Änderungen dort HIER mitziehen.
+function extractReviewText(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  const parts = []
+  if (value.title) parts.push(`[Titel] ${value.title}`)
+  if (value.subtitle) parts.push(`[Untertitel] ${value.subtitle}`)
+  ;(value.chapters || []).forEach((ch, i) => {
+    const num = ch?.number || i + 1
+    const head = ch?.heading ? `: ${ch.heading}` : ''
+    parts.push(`[Kapitel ${num}${head}]`)
+    if (ch?.body) parts.push(ch.body)
+  })
+  return parts.join('\n\n')
+}
+
+module.exports = { tryParseJSON, imageAssignSystem, faceRefSystem, extractReviewText }

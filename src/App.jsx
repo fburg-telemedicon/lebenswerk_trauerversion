@@ -576,6 +576,7 @@ function Dashboard() {
       if (!contribsRes.ok) throw new Error(d.error)
       setContribs(d)
       setView('detail')
+      resumeActiveJobs(memorial.id) // laufende serverseitige Jobs weiter anzeigen
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -1330,6 +1331,41 @@ function Dashboard() {
     }
   }
 
+  // Beim Öffnen eines Buchprojekts noch laufende serverseitige Jobs erkennen und
+  // die Fortschrittsanzeige wieder aufnehmen (falls die Erstellung in einem
+  // anderen Tab/nach Reload weiterläuft). Rein additiv, voll fehlertolerant.
+  async function resumeActiveJobs(memId) {
+    try {
+      const { jobs } = await getGenerationJob(token, { memorialCode: memId })
+      for (const job of (jobs || [])) {
+        if (job.status !== 'queued' && job.status !== 'running') continue
+        const key = job.kind
+        if (!key || genJobRef.current[key] === job.id) continue // schon dran
+        genJobRef.current[key] = job.id
+        cancelGenRef.current[key] = false
+        setGenOwner(o => ({ ...o, [key]: memId }))
+        setGenErr(p => ({ ...p, [key]: '' }))
+        setGenerating(g => ({ ...g, [key]: true }))
+        setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
+        ;(async () => {
+          try {
+            await pollGeneration(key, job.id)
+            const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+            if (r.ok) { const fresh = await r.json(); setMemorials(fresh); const u = fresh.find(m => m.id === memId); if (u) setSelected(s => (s && s.id === memId ? u : s)) }
+            setGenPct(p => ({ ...p, [key]: 100 }))
+          } catch (e) {
+            if (e.message !== '__CANCELLED__') setGenErr(p => ({ ...p, [key]: `Generieren fehlgeschlagen: ${e.message}` }))
+          } finally {
+            setGenerating(g => ({ ...g, [key]: false }))
+            setGenProgress(p => ({ ...p, [key]: '' }))
+            setGenPct(p => ({ ...p, [key]: undefined }))
+            genJobRef.current[key] = null
+          }
+        })()
+      }
+    } catch { /* egal – nur Komfort */ }
+  }
+
   // Manuelles Bearbeiten des Korrekturtexts einer bereits umformulierten Stelle.
   // Ersetzt die aktuelle Formulierung im Buch durch die vom Nutzer editierte und
   // dokumentiert das als eigenen Historien-Eintrag ('edit').
@@ -1463,6 +1499,7 @@ function Dashboard() {
           title: outline.title, subtitle: outline.subtitle || '',
           dir, skipImages, imageStyle: selected.image_style || DEFAULT_IMAGE_STYLE,
           uploads, oldChapters, chapterSteps,
+          reviewSystem: reviewSystemPrompt(selected), reviewContribContext: contributionsContext(contributions),
         })
         genJobRef.current[key] = jobId
         const finalJob = await pollGeneration(key, jobId)
@@ -1490,6 +1527,7 @@ function Dashboard() {
         setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
         const { jobId } = await enqueueGeneration(token, selected.id, key, {
           field: gen.field, resultType: 'text-join', combine: '\n\n', steps,
+          reviewSystem: reviewSystemPrompt(selected), reviewContribContext: contributionsContext(contributions),
         })
         genJobRef.current[key] = jobId
         const finalJob = await pollGeneration(key, jobId) // wartet bis done/error/canceled
@@ -1519,9 +1557,14 @@ function Dashboard() {
       // Inhalts-/Datenschutzprüfung des generierten Textes (separater KI-
       // Call). Fehler hier dürfen die Generierung NICHT scheitern lassen –
       // der Text ist bereits gespeichert.
-      setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
-      try { if (value) await runContentReview(gen.field, value) }
-      catch (e) { console.warn('Inhaltsprüfung fehlgeschlagen:', e.message) }
+      // Inhaltsprüfung: bei serverseitigen Jobs erledigt sie der Worker (läuft
+      // IMMER, auch bei Verbindungsabbruch). Nur beim (derzeit ungenutzten)
+      // Client-Pfad hier prüfen.
+      if (!serverSaved) {
+        setGenProgress(p => ({ ...p, [key]: 'Inhaltsprüfung läuft …' }))
+        try { if (value) await runContentReview(gen.field, value) }
+        catch (e) { console.warn('Inhaltsprüfung fehlgeschlagen:', e.message) }
+      }
       bumpPct() // Prüfung fertig
 
       // Neu laden, damit die signierten Bild-URLs ins selected/memorials kommen

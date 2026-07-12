@@ -109,6 +109,16 @@ async function saveMemorialField(memorialCode, field, value) {
   if (error) throw error
 }
 
+// Inhaltsprüfungs-Bericht je Feld in memorials.content_reports einmischen
+// (read-merge-write, damit andere Felder erhalten bleiben).
+async function mergeContentReport(code, field, report) {
+  const { data } = await supabase.from('memorials').select('content_reports').eq('id', code).maybeSingle()
+  const cr = (data?.content_reports && typeof data.content_reports === 'object') ? data.content_reports : {}
+  cr[field] = report
+  const { error } = await supabase.from('memorials').update({ content_reports: cr }).eq('id', code)
+  if (error) throw error
+}
+
 // Wie viele Jobs warten noch (queued/running)? Für Selbst-Fortsetzung.
 async function countPending() {
   const { count } = await supabase.from('generation_jobs')
@@ -132,5 +142,5 @@ async function triggerWorker() {
 
 module.exports = {
   supabase, enqueue, getJob, publicJob, claimNext, patchJob, saveProgress,
-  finishJob, failJob, releaseJob, saveMemorialField, countPending, triggerWorker, jobStatus,
+  finishJob, failJob, releaseJob, saveMemorialField, countPending, triggerWorker, jobStatus, mergeContentReport,
 }

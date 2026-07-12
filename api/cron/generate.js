@@ -66,6 +66,28 @@ async function runLLMStep(job, kind, system, user) {
   catch (e) { if (!isContentFilter(e.message)) throw e; return await call(system + SOFTEN) }
 }
 
+// Inhalts-/Datenschutzprüfung des fertigen Textes (letzter Schritt jedes Jobs).
+// System-Prompt + Beitrags-Kontext kommen aus dem Job (Browser hat sie mit
+// review.js gebaut); den Buchtext baut der Worker aus dem Ergebnis. Läuft IMMER,
+// unabhängig davon, ob der Browser noch verbunden ist. Fehler sind nicht fatal.
+async function runReview(job, p, value) {
+  if (!p.reviewSystem) return
+  const code = p.memorialCode || job.memorial_id
+  try {
+    const user = `BUCHTEXT:\n${genprompts.extractReviewText(value)}\n\n${p.reviewContribContext || ''}`
+    const raw = await runLLMStep(job, 'review', p.reviewSystem, user)
+    const parsed = genprompts.tryParseJSON(raw) || {}
+    await genjobs.mergeContentReport(code, p.field, {
+      checked_at: new Date().toISOString(), model: 'KI (serverseitig)',
+      summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+    })
+  } catch (e) {
+    console.warn('[generate] review', e.message)
+    try { await genjobs.mergeContentReport(code, p.field, { checked_at: new Date().toISOString(), error: e.message }) } catch {}
+  }
+}
+
 // ── Interne Aufrufe der (erprobten) Bild-Endpunkte mit frisch geminteten Admin-Token ──
 function selfBase() { return (process.env.CRON_SELF_BASE_URL || 'https://lebensgeschichten.ai').replace(/\/+$/, '') }
 async function adminPost(path, body) {
@@ -110,7 +132,9 @@ async function processTextJoin(job, deadline) {
   const value = result.parts.join(p.combine ?? '\n\n')
   try { await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value) }
   catch (e) { await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`); return 'error' }
-  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor, total: steps.length, errors: result.errors.length, firstError: result.errors[0] || null }, result: { ...result, saved: true } })
+  await genjobs.saveProgress(job.id, { progress: { phase: 'review', cursor: steps.length, total: steps.length, message: 'Inhaltsprüfung' }, result })
+  await runReview(job, p, value)
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: steps.length, total: steps.length, errors: result.errors.length, firstError: result.errors[0] || null }, result: { ...result, saved: true } })
   return 'done'
 }
 
@@ -245,6 +269,8 @@ async function processBook(job, deadline) {
   const value = { title: p.title, subtitle: p.subtitle || '', language: p.language, chapters }
   try { await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value) }
   catch (e) { await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`); return 'error' }
+  await genjobs.saveProgress(job.id, { progress: { phase: 'review', total: result.chapters.length, message: 'Inhaltsprüfung' }, result })
+  await runReview(job, p, value)
   await genjobs.finishJob(job.id, { progress: { phase: 'done', total: result.chapters.length, errors: result.errors.length, firstError: result.errors[0] || null }, result: { saved: true, errors: result.errors } })
   return 'done'
 }
