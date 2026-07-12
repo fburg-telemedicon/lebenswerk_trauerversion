@@ -253,6 +253,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   // sie steht schon in der Frage-Karte. Indizes bleiben deckungsgleich mit
   // `messages` (nur das letzte Element entfällt) → undoFrom/redoFrom nutzen `i`.
   const history = messages.slice(0, -1)
+  // Löschen/Neu einsprechen nur bei der zuletzt gesendeten Antwort: sobald die
+  // nächste Antwort da ist, wandern die Buttons mit; ältere Einträge bleiben fix
+  // (sonst würde der ganze nachfolgende Gesprächsbaum verworfen).
+  const lastUserIdx = history.map(m => m.role).lastIndexOf('user')
 
   const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
@@ -287,7 +291,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
             <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
-              {m.role === 'user' && (
+              {m.role === 'user' && i === lastUserIdx && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                   <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => undoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txDelete}</button>
                   <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => redoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txRedo}</button>
