@@ -1420,237 +1420,61 @@ function Dashboard() {
       let serverSaved = false // true, wenn der serverseitige Worker bereits gespeichert hat
 
       if (gen.kind === 'book') {
-        // Phase 1: Buch-Gerüst (Titel/Untertitel und ggf. Kapitelliste) ─
+        // Phase 1: Buch-Gerüst (Outline) – client-seitig, damit die Kapitel-
+        // Prompts gebaut werden können (kurzer Call). Die lange Kapitel- und
+        // Bildphase läuft danach serverseitig robust (Job + Worker), unabhängig
+        // von der Browser-Verbindung.
         setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
-        // Das Gerüst kann – wie einzelne Kapitel – gelegentlich als ungültiges
-        // JSON zurückkommen (sporadischer Modell-Ausrutscher / Zeitüberschreitung).
-        // Deshalb bis zu 3 Versuche mit Backoff, bevor wir aufgeben.
         const outlineSys = gen.outlineSystem(selected, contributions) + dir
         let outline = null, lastOutlineRaw = ''
         for (let attempt = 1; attempt <= 3; attempt++) {
           checkCancel()
-          lastOutlineRaw = await askLLM(
-            outlineSys,
-            [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }],
-            { memorialCode: selected.id, kind: `${key}_outline`, token }
-          )
+          lastOutlineRaw = await askLLM(outlineSys, [{ role: 'user', content: 'Erzeuge jetzt das Gerüst als JSON.' }], { memorialCode: selected.id, kind: `${key}_outline`, token })
           const parsed = tryParseJSON(lastOutlineRaw)
           if (parsed && parsed.title) { outline = parsed; break }
           if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt))
         }
         if (!outline) {
           const snip = String(lastOutlineRaw || '').replace(/\s+/g, ' ').trim().slice(0, 200)
-          throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden (auch nach mehreren Versuchen).' +
-            (snip ? ` Antwort des KI-Dienstes begann mit: „${snip}…"` : ' Der KI-Dienst lieferte eine leere Antwort (evtl. nicht erreichbar oder Zeitüberschreitung).'))
+          throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden (auch nach mehreren Versuchen).' + (snip ? ` Antwort des KI-Dienstes begann mit: „${snip}…"` : ' Der KI-Dienst lieferte eine leere Antwort.'))
         }
-
-        // Kapitel-Plan: V1 = aus Beiträgen abgeleitet, V2 = aus Outline
         const chapterPlans = key === 'book_v1'
           ? contributions.map((c, i) => ({ number: i + 1, contribution: c }))
           : (Array.isArray(outline.chapters) ? outline.chapters : [])
         if (chapterPlans.length === 0) throw new Error('Keine Kapitel im Buch-Gerüst gefunden.')
-
-        // Gesamtschritte jetzt bekannt: Gerüst(1) + Kapitel + Bilder + Prüfung(1)
-        stepsTotal = 1 + chapterPlans.length + (skipImages ? 0 : chapterPlans.length) + 1
-        bumpPct() // Gerüst fertig
-        checkCancel()
-
-        // Phase 2: jedes Kapitel einzeln schreiben ──────────────────────
-        const chapters = []
-        const writeErrors = []
-        for (let i = 0; i < chapterPlans.length; i++) {
-          const plan = chapterPlans[i]
-          setGenProgress(p => ({ ...p, [key]: `Kapitel ${i + 1}/${chapterPlans.length} wird geschrieben …` }))
-          checkCancel()
-          try {
-            const sys = (key === 'book_v1'
-              ? gen.chapterSystem(selected, plan.contribution, plan.number)
-              : gen.chapterSystem(selected, contributions, plan)) + dir
-            const ch = await generateChapterWithRetry(sys, selected.id, `${key}_chapter`)
-            chapters.push({
-              number: ch.number || plan.number,
-              heading: ch.heading || plan.heading || `Kapitel ${plan.number}`,
-              body: ch.body,
-              image_prompt: ch.image_prompt || '',
-              // Stabiler Schlüssel für die spätere Bild-Wiederverwendung (V1).
-              ...(key === 'book_v1' && plan.contribution?.id ? {
-                contribution_id: plan.contribution.id,
-                contributor_name: plan.contribution.contributor_name,
-                relationship: plan.contribution.relationship,
-              } : {}),
-            })
-          } catch (e) {
-            writeErrors.push(`Kapitel ${plan.number}: ${e.message}`)
-            chapters.push({
-              number: plan.number,
-              heading: plan.heading || `Kapitel ${plan.number}`,
-              body: '',
-              image_prompt: '',
-              generate_error: e.message || String(e),
-              ...(key === 'book_v1' && plan.contribution?.id ? {
-                contribution_id: plan.contribution.id,
-                contributor_name: plan.contribution.contributor_name,
-                relationship: plan.contribution.relationship,
-              } : {}),
-            })
-          }
-          bumpPct() // Kapitel fertig
-        }
-
-        value = {
-          title: outline.title,
-          subtitle: outline.subtitle || '',
-          language: genLang,
-          chapters,
-        }
-
-        // Phase 2b: hochgeladene Fotos den Kapiteln zuordnen ────────────
-        // Erst deterministisch (Contributor-Fotos mit contribution_id → Kapitel
-        // dieses Beitrags, nur V1), dann per KI für den Rest. Ergebnis:
-        // chapterAssign[Kapitelnummer] = [uploadObj, …].
+        // Kapitel-Prompts als Job-Plan – der Worker schreibt die Kapitel, ordnet
+        // Fotos zu und erzeugt die Bilder serverseitig.
+        const chapterSteps = chapterPlans.map(plan => ({
+          system: (key === 'book_v1'
+            ? gen.chapterSystem(selected, plan.contribution, plan.number)
+            : gen.chapterSystem(selected, contributions, plan)) + dir,
+          user: 'Erzeuge jetzt dieses eine Kapitel als JSON.',
+          meta: {
+            number: plan.number,
+            ...(plan.heading ? { heading: plan.heading } : {}),
+            ...(key === 'book_v1' && plan.contribution?.id ? { contribution_id: plan.contribution.id, contributor_name: plan.contribution.contributor_name, relationship: plan.contribution.relationship } : {}),
+          },
+        }))
         const uploads = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
-        const chapterAssign = {}
-        const assignById = {}
-        for (const u of uploads) assignById[u.id] = u
-        const assignedIds = new Set()
-        const takeFor = (num, u) => { (chapterAssign[num] = chapterAssign[num] || []).push(u) }
-        if (key === 'book_v1') {
-          for (const ch of value.chapters) {
-            if (!ch.contribution_id) continue
-            for (const u of uploads) {
-              if (u.contribution_id && u.contribution_id === ch.contribution_id && !assignedIds.has(u.id)) {
-                takeFor(ch.number, u); assignedIds.add(u.id)
-              }
-            }
-          }
-        }
-        const remainingUploads = uploads.filter(u => !assignedIds.has(u.id))
-        if (remainingUploads.length > 0) {
-          try {
-            setGenProgress(p => ({ ...p, [key]: 'Fotos werden Kapiteln zugeordnet …' }))
-            const sysAssign = imageAssignSystem(value.chapters, remainingUploads) + dir
-            let parsed = null
-            for (let attempt = 1; attempt <= 2 && !parsed; attempt++) {
-              checkCancel()
-              const raw = await askLLM(sysAssign, [{ role: 'user', content: 'Ordne die Fotos jetzt zu (JSON).' }],
-                { memorialCode: selected.id, kind: `${key}_image_assign`, token })
-              parsed = tryParseJSON(raw)
-              if (!parsed && attempt < 2) await new Promise(r => setTimeout(r, 1500))
-            }
-            for (const a of (Array.isArray(parsed?.assignments) ? parsed.assignments : [])) {
-              const num = Number(a.chapter)
-              for (const id of (Array.isArray(a.image_ids) ? a.image_ids : [])) {
-                const u = assignById[id]
-                if (u && !assignedIds.has(u.id)) { takeFor(num, u); assignedIds.add(u.id) }
-              }
-            }
-          } catch (e) { console.warn('Bildzuordnung fehlgeschlagen (nicht kritisch):', e.message) }
-        }
-        // Referenzfoto PRO Kapitel per KI wählen (Personen-Ähnlichkeit, image-to-
-        // image): das Foto der jeweils im Kapitel behandelten Person – anhand
-        // Bildtitel/Beschreibung. Fallback: erstes Hochkant/erstes Foto. Server
-        // nutzt die Referenz nur, wenn AZURE_FLUX_IMG2IMG gesetzt ist.
-        if (uploads.length > 0) setGenProgress(p => ({ ...p, [key]: 'Referenzfotos werden Kapiteln zugeordnet …' }))
-        const { byChapter: faceRefByChapter, globalPath: faceRefGlobal } = await selectFaceRefs(value.chapters, uploads, key, dir)
-
-        // Phase 3: Bilder pro Kapitel (sequenziell, mit Auto-Retry) ─────
-        // Per Checkbox überspringbar (Debug: spart die langsame Bildphase).
-        const total = value.chapters.length
-        const imageErrors = []
-        // Bild-Wiederverwendung: vorhandene Bilder des alten Buchs den neuen
-        // Kapiteln zuordnen (V1 über contribution_id/Überschrift, V2 über
-        // Überschrift/Position). Neue/zusätzliche Kapitel ohne Treffer bekommen
-        // ein frisches Bild. `selected[gen.field]` ist hier noch die alte Version.
-        // Bilder bleiben bei der Neu-Generierung immer erhalten; gezielt einzelne
-        // Bilder neu erzeugen geht über „Bilder überarbeiten".
         const oldChapters = Array.isArray(selected[gen.field]?.chapters) ? selected[gen.field].chapters : []
-        const normH = s => String(s || '').trim().toLowerCase()
-        const oldByContrib = new Map()
-        const oldByHeading = new Map()
-        for (const oc of oldChapters) {
-          if (!oc?.image_path) continue
-          if (oc.contribution_id) oldByContrib.set(oc.contribution_id, oc.image_path)
-          if (oc.heading) oldByHeading.set(normH(oc.heading), oc.image_path)
-        }
-        let reusedCount = 0
-        let freshCount = 0 // Zähler echter FLUX-Calls (für sanftes Pacing)
-        if (skipImages) {
-          setGenProgress(p => ({ ...p, [key]: 'Bilder werden übersprungen …' }))
-        } else {
-          for (let i = 0; i < total; i++) {
-            const ch = value.chapters[i]
-            setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total} wird erstellt …` }))
-            checkCancel()
-            // Zugeordnete Uploads → EIN komponiertes Landscape-Doppelseiten-Bild
-            // (Hochkant/mehrere/geringe Qualität werden serverseitig sinnvoll
-            // gruppiert, Bildunterschriften eingebrannt). Hat Vorrang vor FLUX.
-            const assigned = (chapterAssign[ch.number] || []).slice(0, 4)
-            if (assigned.length > 0) {
-              setGenProgress(p => ({ ...p, [key]: `Bild ${i + 1}/${total}: Fotos werden gesetzt …` }))
-              try {
-                const { storagePath } = await adminComposeImage(token, selected.id,
-                  assigned.map(u => ({ path: u.path, caption: u.caption, orientation: u.orientation })),
-                  { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading })
-                value.chapters[i] = { ...ch, image_path: storagePath, image_error: null, from_upload: true }
-              } catch (e) {
-                console.warn(`Kompositor für Kapitel ${ch.number}:`, e.message)
-                value.chapters[i] = { ...ch, image_error: e.message || String(e) }
-                imageErrors.push(`Kapitel ${ch.number}: ${imageErrorDe(e.message)}`)
-              }
-              bumpPct()
-              continue
-            }
-            // Wenn möglich vorhandenes Bild wiederverwenden (kein neuer Call).
-            {
-              let reusedPath = null
-              if (ch.contribution_id && oldByContrib.has(ch.contribution_id)) reusedPath = oldByContrib.get(ch.contribution_id)
-              else if (oldByHeading.has(normH(ch.heading))) reusedPath = oldByHeading.get(normH(ch.heading))
-              else if (oldChapters[i]?.image_path) reusedPath = oldChapters[i].image_path
-              if (reusedPath) {
-                value.chapters[i] = { ...ch, image_path: reusedPath, image_error: null }
-                reusedCount++
-                bumpPct() // wiederverwendet – Schritt erledigt
-                continue
-              }
-            }
-            if (!ch.image_prompt) {
-              value.chapters[i] = { ...ch, image_error: 'kein image_prompt im Kapitel' }
-              imageErrors.push(`Kapitel ${ch.number}: ${imageErrorDe('kein image_prompt')}`)
-              bumpPct() // Bild-Schritt erledigt
-              continue
-            }
-            // Sanftes Pacing: vor jedem weiteren FLUX-Call kurz warten, damit
-            // das pro-Minute-Rate-Limit gar nicht erst gerissen wird.
-            if (freshCount > 0) await new Promise(r => setTimeout(r, 1500))
-            freshCount++
-            try {
-              const refPath = faceRefByChapter[ch.number] || faceRefGlobal
-              const refPaths = refPath ? [refPath] : []
-              const { storagePath } = await generateImageWithRetry(selected.id, ch.image_prompt, {
-                meta: { variant: key, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPaths.length ? { referencePaths: refPaths } : {}) },
-                onWait: (s, rl) => setGenProgress(p => ({ ...p, [key]: rl
-                  ? `Bild ${i + 1}/${total}: Rate-Limit erreicht – warte ${s}s und versuche es erneut …`
-                  : `Bild ${i + 1}/${total}: erneuter Versuch in ${s}s …` })),
-              })
-              value.chapters[i] = { ...ch, image_path: storagePath, image_error: null }
-            } catch (e) {
-              console.warn(`Bild für Kapitel ${ch.number}:`, e.message)
-              value.chapters[i] = { ...ch, image_error: e.message || String(e) }
-              imageErrors.push(`Kapitel ${ch.number}: ${imageErrorDe(e.message)}`)
-            }
-            bumpPct() // Bild fertig
-          }
-        }
-
-        const errLines = []
-        if (writeErrors.length > 0) errLines.push(`${writeErrors.length}/${chapterPlans.length} Kapitel-Fehler. Erster: ${writeErrors[0]}`)
-        if (imageErrors.length > 0) errLines.push(`${imageErrors.length}/${total} Bildgenerierungen fehlgeschlagen. Erster Fehler: ${imageErrors[0]}`)
-        if (errLines.length > 0) setGenErr(p => ({ ...p, [key]: errLines.join(' · ') }))
-
-        const saveMsg = reusedCount > 0
-          ? `${reusedCount} Bild${reusedCount > 1 ? 'er' : ''} übernommen · wird gespeichert …`
-          : 'Wird gespeichert …'
-        setGenProgress(p => ({ ...p, [key]: saveMsg }))
+        setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
+        const { jobId } = await enqueueGeneration(token, selected.id, key, {
+          resultType: 'book', field: gen.field, variant: key, language: genLang,
+          title: outline.title, subtitle: outline.subtitle || '',
+          dir, skipImages, imageStyle: selected.image_style || DEFAULT_IMAGE_STYLE,
+          uploads, oldChapters, chapterSteps,
+        })
+        genJobRef.current[key] = jobId
+        const finalJob = await pollGeneration(key, jobId)
+        const pe = finalJob?.progress || {}
+        if (pe.errors > 0) setGenErr(p => ({ ...p, [key]: `${pe.errors} Teil-Fehler bei der Erstellung.${pe.firstError ? ' Erster: ' + pe.firstError : ''}` }))
+        // Gespeichertes Buch laden (für die Inhaltsprüfung im geteilten Tail).
+        try {
+          const rr = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+          if (rr.ok) { const fresh = await rr.json(); const u = fresh.find(m => m.id === selected.id); value = (u && u[gen.field]) || null }
+        } catch {}
+        serverSaved = true
+        stepsDone = stepsTotal
       } else if (gen.kind === 'eulogy') {
         // Serverseitig erzeugen: Die Abschnitts-Prompts werden hier (mit
         // categories.js) gebaut und als Job-Plan an den Worker übergeben. Der
