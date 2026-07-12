@@ -929,8 +929,6 @@ export function ContributorFlow({ code }) {
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>{t.doneTitle}</h2>
           <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>{t.doneBody(ct.nounBook)}</p>
           <FeedbackBlock code={code} contribId={contribId} t={t} />
-          {/* Foto-Upload nur hier, wenn er NICHT schon als Tab im Interview läuft. */}
-          {!memorial?.photo_upload_tab && <ContributorPhotoUpload code={code} contribId={contribId} t={t} />}
           <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', maxWidth:420, margin:'2.5rem auto 0' }}>
             <button onClick={() => window.close()} className="secondary" style={{ fontSize:14, padding:'10px 22px' }}>{t.closeBtn}</button>
             <p style={{ ...S.muted, fontSize:12, marginTop:10 }}>{t.closeHint}</p>

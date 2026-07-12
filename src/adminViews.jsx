@@ -952,7 +952,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             <span style={{ fontSize:14 }}>Foto-Upload schon während des Interviews als Tab anbieten</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: nicht aktiv. Wenn aktiviert, sehen Beitragende unten eine Tab-Leiste („Interview" / „Foto-Upload"), und der Foto-Upload erscheint dort statt erst nach dem Interview.
+            Standard: nicht aktiv. Wenn aktiviert, sehen Beitragende unten eine Tab-Leiste („Interview" / „Foto-Upload") und können Fotos hochladen. Ohne diese Option gibt es keine Möglichkeit, Fotos hochzuladen.
           </p>
         </div>
         <div style={{ marginBottom: 24 }}>
@@ -1373,6 +1373,8 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
 
 export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages }) {
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
+    // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
+    const [odExpert, setOdExpert] = useState(false)
     // Auftragsdaten-Bearbeitung: Feldkonfiguration der Kategorie + Draft-Helfer.
     const oci = getCategory(selected.product_category).intake
     const od = orderDraft
@@ -1763,6 +1765,23 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   </div>
                 )}
                 <div style={{ marginBottom:14 }}>
+                  <Lbl>Buch-Variante *</Lbl>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
+                    {BOOK_VARIANTS.map(v => (
+                      <div key={v.value} onClick={() => setOd({ bookVariant: v.value })}
+                        style={{ ...S.card, cursor:'pointer', padding:'14px 14px',
+                          borderColor: od.bookVariant === v.value ? '#1c1917' : '#e7e5e4', borderWidth: od.bookVariant === v.value ? 2 : 1 }}>
+                        <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
+                        <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setOdExpert(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>
+                  {odExpert ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
+                </button>
+                {odExpert && (<>
+                <div style={{ marginBottom:14 }}>
                   <Lbl>Sprachen *</Lbl>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                     {LANGUAGES.map(l => {
@@ -1780,19 +1799,6 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         </label>
                       )
                     })}
-                  </div>
-                </div>
-                <div style={{ marginBottom:14 }}>
-                  <Lbl>Buch-Variante *</Lbl>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
-                    {BOOK_VARIANTS.map(v => (
-                      <div key={v.value} onClick={() => setOd({ bookVariant: v.value })}
-                        style={{ ...S.card, cursor:'pointer', padding:'14px 14px',
-                          borderColor: od.bookVariant === v.value ? '#1c1917' : '#e7e5e4', borderWidth: od.bookVariant === v.value ? 2 : 1 }}>
-                        <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
-                        <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
-                      </div>
-                    ))}
                   </div>
                 </div>
                 <div style={{ marginBottom:14 }}>
@@ -1828,7 +1834,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
                     <input type="checkbox" checked={od.photoUploadTab === true} onChange={e => setOd({ photoUploadTab: e.target.checked })}
                       style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-                    <span style={{ fontSize:14 }}>Foto-Upload während des Interviews als Tab (statt nach dem Interview)</span>
+                    <span style={{ fontSize:14 }}>Foto-Upload als Tab im Interview (ohne diese Option kein Foto-Upload)</span>
                   </label>
                 </div>
                 <div style={{ marginBottom:14 }}>
@@ -1848,6 +1854,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   </div>
                   <input value={od.pickupAddress.country} onChange={e => setOdPa({ country: e.target.value })} placeholder="Land" />
                 </div>
+                </>)}
                 <div style={{ display:'flex', gap:10 }}>
                   <button onClick={saveOrderData} disabled={orderSaving} style={{ fontSize:14, padding:'10px 20px' }}>
                     {orderSaving ? 'Wird gespeichert …' : 'Speichern'}
