@@ -115,6 +115,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     setIsPlaying(true); setTtsLoading(true); setErr('')
     speakText(text, {
       memorialCode: memorial?.id,
+      language: lang, // Stimme passend zur gewählten Sprache (de/pl/en)
       // Sobald die Wiedergabe startet, ist die Ladephase vorbei: „Lädt …" weg,
       // Button zeigt „⏹ Stoppen" (App spricht gerade, kann abgebrochen werden).
       onPlay:  () => setTtsLoading(false),

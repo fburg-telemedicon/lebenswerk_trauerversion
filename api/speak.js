@@ -31,14 +31,22 @@ function stripForSpeech(s) {
     .trim()
 }
 
+// Neural-Stimme je Sprache (der/die Beitragende wählt die Sprache im Interview).
+// Per Env feinjustierbar; ohne Sprache/unbekannt → Deutsch.
+const TTS_VOICES = {
+  de: process.env.AZURE_SPEECH_TTS_VOICE    || 'de-DE-KatjaNeural',
+  pl: process.env.AZURE_SPEECH_TTS_VOICE_PL || 'pl-PL-ZofiaNeural',
+  en: process.env.AZURE_SPEECH_TTS_VOICE_EN || 'en-US-JennyNeural',
+}
+
 // ── Azure AI Speech (Neural TTS) ──────────────────────────────────
-async function speakAzure(text) {
+async function speakAzure(text, language) {
   const region = process.env.AZURE_SPEECH_REGION
   const key    = process.env.AZURE_SPEECH_KEY
   if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
-  const voice = process.env.AZURE_SPEECH_TTS_VOICE || 'de-DE-KatjaNeural'
+  const voice = TTS_VOICES[String(language || 'de').slice(0, 2)] || TTS_VOICES.de
   const rate  = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
-  const lang  = voice.slice(0, 5) || 'de-DE' // z. B. "de-DE"
+  const lang  = voice.slice(0, 5) || 'de-DE' // z. B. "de-DE" / "pl-PL"
   const ssml  = `<speak version='1.0' xml:lang='${lang}'><voice name='${voice}'>`
               + `<prosody rate='${rate}'>${xmlEscape(text)}</prosody></voice></speak>`
 
@@ -64,7 +72,7 @@ module.exports = async function handler(req, res) {
   try {
     if (!(await enforce(req, res, { name: 'speak', limit: 30, windowSeconds: 60 }))) return
 
-    const { text, memorialCode, contributionId } = req.body
+    const { text, memorialCode, contributionId, language } = req.body
     if (!text) return res.status(400).json({ error: 'text fehlt.' })
     // Emojis aus dem Vorlese-Text entfernen.
     const speechText = stripForSpeech(text)
@@ -80,7 +88,7 @@ module.exports = async function handler(req, res) {
 
     let result
     try {
-      result = await speakAzure(speechText)
+      result = await speakAzure(speechText, language)
     } catch (e) {
       console.error('/api/speak TTS error:', e)
       return res.status(500).json({ error: 'Die Sprachausgabe ist momentan nicht verfügbar. Bitte später erneut versuchen.' })

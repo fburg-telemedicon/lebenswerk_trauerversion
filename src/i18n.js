@@ -93,6 +93,8 @@ ${url}
   // Buch-Überschriften
   chapterLabel: 'Kapitel',
   contributorsHeading: 'An diesem Buch haben mitgewirkt:',
+  aiDisclaimerTitle: 'Hinweis zur Entstehung dieses Buches',
+  aiDisclaimer: 'Dieses Buch wurde auf Grundlage von Interviews mit nahestehenden Personen mithilfe von künstlicher Intelligenz erstellt. Es gibt persönliche Erinnerungen und Schilderungen der Beitragenden wieder. Ihre inhaltliche Richtigkeit, Vollständigkeit und Aktualität können wir nicht überprüfen; eine Haftung hierfür ist – soweit gesetzlich zulässig – ausgeschlossen.',
   // Foto-Upload (am Ende des Interviews)
   uploadStepTitle: 'Möchten Sie Fotos beitragen?',
   uploadStepIntro: 'Sie können persönliche Fotos hochladen, die bei der Gestaltung des Buches berücksichtigt werden. Zu jedem Bild können Sie optional eine Bildunterschrift und eine kurze Beschreibung angeben.',
@@ -184,6 +186,8 @@ ${url}
   langPickTitle: 'W jakim języku chcesz kontynuować?',
   chapterLabel: 'Rozdział',
   contributorsHeading: 'W tej księdze wzięli udział:',
+  aiDisclaimerTitle: 'Informacja o powstaniu tej księgi',
+  aiDisclaimer: 'Ta księga powstała z pomocą sztucznej inteligencji, na podstawie rozmów z osobami bliskimi. Oddaje osobiste wspomnienia i relacje osób, które wzięły udział. Nie możemy zweryfikować ich poprawności, kompletności ani aktualności; odpowiedzialność za nie jest – w zakresie dozwolonym przez prawo – wyłączona.',
   // Przesyłanie zdjęć (na końcu wywiadu)
   uploadStepTitle: 'Czy chcesz dodać zdjęcia?',
   uploadStepIntro: 'Możesz przesłać osobiste zdjęcia, które zostaną uwzględnione przy tworzeniu księgi. Do każdego zdjęcia możesz opcjonalnie dodać podpis i krótki opis.',
@@ -275,6 +279,8 @@ ${url}
   langPickTitle: 'Which language would you like to continue in?',
   chapterLabel: 'Chapter',
   contributorsHeading: 'Contributors to this book:',
+  aiDisclaimerTitle: 'About the creation of this book',
+  aiDisclaimer: 'This book was created with the help of artificial intelligence, based on interviews with people close to the person. It reflects the personal memories and accounts of the contributors. We cannot verify their accuracy, completeness or timeliness; liability for these is excluded to the extent permitted by law.',
   // Photo upload (at the end of the interview)
   uploadStepTitle: 'Would you like to add photos?',
   uploadStepIntro: 'You can upload personal photos to be considered when the book is designed. For each image you can optionally add a caption and a short description.',

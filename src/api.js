@@ -461,7 +461,7 @@ export function stopSpeaking() {
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 }
 
-export async function speakText(text, { onStart, onPlay, onEnd, onError, memorialCode, contributionId } = {}) {
+export async function speakText(text, { onStart, onPlay, onEnd, onError, memorialCode, contributionId, language } = {}) {
   stopSpeaking()
   const mySeq = speakSeq
   onStart?.()
@@ -469,7 +469,7 @@ export async function speakText(text, { onStart, onPlay, onEnd, onError, memoria
     const res = await fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, memorialCode, contributionId }),
+      body: JSON.stringify({ text, memorialCode, contributionId, language }),
     })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))

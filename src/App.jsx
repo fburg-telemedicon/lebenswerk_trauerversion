@@ -1549,7 +1549,7 @@ function Dashboard() {
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
       if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
-      else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data)
+      else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de')
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
   }
 

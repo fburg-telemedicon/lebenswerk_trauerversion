@@ -16,13 +16,14 @@ export const BOOK_DISCLAIMER =
 
 export function formatContribution(memorial, c) {
   const noun = getCategory(memorial?.product_category).nounBook
+  const loc = uiText(memorial?.languages?.[0] || 'de').locale
   const lines = [
     `${noun.toUpperCase()}: ${memorial.name}`,
     `Organisator: ${memorial.organizer}`,
     '',
     `Beitrag von: ${c.contributor_name}`,
     `Beziehung:   ${c.relationship}`,
-    `Datum:       ${new Date(c.created_at).toLocaleDateString('de-DE')}`,
+    `Datum:       ${new Date(c.created_at).toLocaleDateString(loc)}`,
     '',
     '─'.repeat(50),
     '',
@@ -78,6 +79,7 @@ export function buildContributionPdf(c, memorial) {
 
   const lineHeight = size => size * 0.3528 * 1.32 // pt → mm, mit Zeilenabstand
 
+  const loc = uiText(memorial?.languages?.[0] || 'de').locale
   const ensure = h => { if (y + h > pageH - margin) { doc.addPage(); y = margin } }
 
   function write(text, { size = 11, style = 'normal', color = [40, 40, 40], indent = 0, gapAfter = 2 } = {}) {
@@ -94,7 +96,7 @@ export function buildContributionPdf(c, memorial) {
   write('Datenauskunft', { size: 20, style: 'bold', color: [30, 30, 30], gapAfter: 1 })
   write('gemäß DSGVO Art. 15 (Auskunft) und Art. 20 (Datenübertragbarkeit)', { size: 10, color: [120, 120, 120], gapAfter: 3 })
   write(`${getCategory(memorial?.product_category).nounBook}: ${memorial.name}  (Code ${memorial.id})`, { size: 10, color: [90, 90, 90], gapAfter: 1 })
-  write(`Erstellt am: ${new Date().toLocaleString('de-DE')}`, { size: 10, color: [90, 90, 90], gapAfter: 3 })
+  write(`Erstellt am: ${new Date().toLocaleString(loc)}`, { size: 10, color: [90, 90, 90], gapAfter: 3 })
   rule()
 
   write('Angaben zur Person', { size: 14, style: 'bold', gapAfter: 2.5 })
@@ -103,7 +105,7 @@ export function buildContributionPdf(c, memorial) {
     ['Beziehung zur Person', c.relationship],
     ['Geschlecht', c.contributor_gender],
     ['Anrede', c.contributor_address],
-    ['Beitrag erstellt am', c.created_at ? new Date(c.created_at).toLocaleString('de-DE') : null],
+    ['Beitrag erstellt am', c.created_at ? new Date(c.created_at).toLocaleString(loc) : null],
   ]
   for (const [label, value] of fields) {
     if (!value) continue
@@ -256,7 +258,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
     }
   }
   endChildren.push(new Paragraph({ spacing: { before: tw(2), after: 120 },
-    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, font: BF, size: 20, bold: true, color: '78716c' })] }))
+    children: [new TextRun({ text: bt.aiDisclaimerTitle, font: BF, size: 20, bold: true, color: '78716c' })] }))
   // Logo des Buch-Inhabers zwischen Hinweis-Titel und Hinweis-Text. Nur Raster-
   // formate (docx ImageRun kann kein SVG/WebP) – sonst still überspringen.
   const docxLogo = await prepareLogoForExport(logoDataUrl)
@@ -269,7 +271,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
   endChildren.push(new Paragraph({ spacing: { after: 200 },
-    children: [new TextRun({ text: BOOK_DISCLAIMER, font: BF, size: 18, italics: true, color: '78716c' })] }))
+    children: [new TextRun({ text: bt.aiDisclaimer, font: BF, size: 18, italics: true, color: '78716c' })] }))
   sections.push(docxSection(endChildren, SectionType.NEXT_PAGE))
 
   const doc = new Document({
@@ -429,7 +431,7 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
     }
     y += 8
   }
-  flow(BOOK_DISCLAIMER_TITLE, { size: 11, style: 'bold', color: [120, 113, 108], gapAfter: 0.5 })
+  flow(bt.aiDisclaimerTitle, { size: 11, style: 'bold', color: [120, 113, 108], gapAfter: 0.5 })
   // Logo des Buch-Inhabers zwischen Hinweis-Titel und Hinweis-Text (zentriert).
   // jsPDF kann nur PNG/JPEG – andere Formate still überspringen.
   const pdfLogo = await prepareLogoForExport(logoDataUrl)
@@ -442,7 +444,7 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
       y += hmm + 4
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
-  flow(BOOK_DISCLAIMER, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
+  flow(bt.aiDisclaimer, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
 
   // ── Auf ein Vielfaches von 4 auffüllen (Druckbogen/Signaturen) ──
   // Buchbindung setzt Seiten in 4er-Bögen; die Gesamtseitenzahl muss durch 4
@@ -463,7 +465,8 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
   downloadBlob(filename, doc.output('blob'))
 }
 
-export async function downloadAsDocx(filename, title, text) {
+export async function downloadAsDocx(filename, title, text, lang = 'de') {
+  const bt = uiText(lang)
   const children = [
     new Paragraph({
       text: title,
@@ -484,11 +487,11 @@ export async function downloadAsDocx(filename, title, text) {
     }
   }
   children.push(new Paragraph({
-    children: [new TextRun({ text: BOOK_DISCLAIMER_TITLE, size: 20, bold: true, color: '78716c' })],
+    children: [new TextRun({ text: bt.aiDisclaimerTitle, size: 20, bold: true, color: '78716c' })],
     spacing: { before: 500, after: 120 },
   }))
   children.push(new Paragraph({
-    children: [new TextRun({ text: BOOK_DISCLAIMER, size: 18, italics: true, color: '78716c' })],
+    children: [new TextRun({ text: bt.aiDisclaimer, size: 18, italics: true, color: '78716c' })],
     spacing: { after: 200 },
   }))
   const doc = new Document({
