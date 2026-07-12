@@ -16,10 +16,13 @@
     "api/cron/purge.js":           { "maxDuration": 60 },
     "api/cron/report.js":          { "maxDuration": 60, "includeFiles": "api/_fonts/**" },
     "api/admin/reports.js":        { "maxDuration": 60, "includeFiles": "api/_fonts/**" },
-    "api/cron/transcript-check.js": { "maxDuration": 60 }
+    "api/cron/transcript-check.js": { "maxDuration": 60 },
+    "api/cron/generate.js":        { "maxDuration": 60 },
+    "api/admin/generate-job.js":   { "maxDuration": 15 }
   },
   "crons": [
     { "path": "/api/cron/transcript-check", "schedule": "0 22 * * *" },
-    { "path": "/api/cron/report", "schedule": "0 23 * * *" }
+    { "path": "/api/cron/report", "schedule": "0 23 * * *" },
+    { "path": "/api/cron/generate", "schedule": "*/10 * * * *" }
   ]
 }
