@@ -12,7 +12,7 @@
 //
 // Test ohne zu löschen:  GET /api/cron/purge?dry=1  (mit Bearer-Secret)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { purgeMemorialContributions } = require('../_lib/delete-memorial')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 

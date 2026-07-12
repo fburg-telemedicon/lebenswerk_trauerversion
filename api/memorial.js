@@ -6,7 +6,7 @@
 // serverseitig aus dem Token gesetzt). Ein öffentlicher Anlage-Endpoint
 // wäre ein ungeschützter Schreibzugriff und existiert deshalb hier nicht.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(

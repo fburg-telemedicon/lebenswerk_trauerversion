@@ -7,7 +7,7 @@
 // Auth + Eigentumsprüfung wie alle Admin-Endpunkte. Der Manager verantwortet
 // bei eigenen Uploads die Rechte selbst (source='manager').
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { appendUpload, removeUpload } = require('../_lib/upload-asset')

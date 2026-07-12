@@ -3,7 +3,7 @@
 // PATCH  /api/admin/contributions?id=YYY    →  messages eines Beitrags ersetzen (auth required)
 // DELETE /api/admin/contributions?id=YYY    →  einen Beitrag löschen (auth required)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial, loadAccessibleContribution } = require('../_lib/access')
 const { audit } = require('../_lib/audit')

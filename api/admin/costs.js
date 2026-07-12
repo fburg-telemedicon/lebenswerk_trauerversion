@@ -1,7 +1,7 @@
 // api/admin/costs.js
 // GET /api/admin/costs?code=ABC123 → { events: [...], byKind: { ... }, total_eur, total_usd }
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 

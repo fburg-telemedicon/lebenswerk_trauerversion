@@ -15,7 +15,7 @@
 //   PATCH  /api/admin/users?id=…  { username?, allowed_categories?, is_admin?, password?, regenerate_invite? }
 //   DELETE /api/admin/users?id=…
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth, hashPassword, validatePasswordPolicy, verifyPassword, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { isValidCategory } = require('../_lib/categories')
 const { audit } = require('../_lib/audit')

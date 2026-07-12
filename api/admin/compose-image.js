@@ -18,7 +18,7 @@
 // Ergebnis wird wie ein generiertes Bild abgelegt (<CODE>/<uuid>.png + _thumb.jpg),
 // läuft danach unverändert durch Signierung, DOCX, Druck-PDF und Löschung.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const crypto = require('crypto')
 const os = require('os')
 const path = require('path')

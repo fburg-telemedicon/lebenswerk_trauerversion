@@ -4,7 +4,7 @@
 // auf dem eigenen Beitrag. Die Beitrags-ID ist ein geheimes Zufallstoken und
 // wirkt als Capability; zusätzlich muss der Gedenkbuch-Code passen.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./_lib/store')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 

@@ -9,7 +9,7 @@
 // 6-stelligen Gedenkbuch-Code fremde Beiträge auslesen. Die vollständige
 // Liste gibt es nur authentifiziert über /api/admin/contributions.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./_lib/store')
 const { genCode } = require('./_lib/codes')
 const { enforce } = require('./_lib/ratelimit')
 

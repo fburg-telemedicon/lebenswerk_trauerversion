@@ -7,7 +7,7 @@
 //      (allowed_categories).
 // Zugangsdaten-/Token-Logik liegt zentral in ../_lib/auth.js.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { verifyCredentials, issueToken, isConfigured, verifyPassword, hashPassword, validatePasswordPolicy, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { enforce } = require('../_lib/ratelimit')
 const { audit } = require('../_lib/audit')

@@ -9,7 +9,7 @@
 //                                                      (to = String/Array override; sonst aktive Empfänger)
 //   GET    /api/admin/reports?preview=1              → Kennzahlen sammeln, NICHT senden (Kontrolle)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { buildAndSendReport } = require('../_lib/report-send')
 

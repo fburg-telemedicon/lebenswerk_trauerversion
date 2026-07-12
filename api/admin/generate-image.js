@@ -14,7 +14,7 @@
 //   AZURE_FLUX_MODEL_PATH  optional, Endpunkt-Pfad   (Default flux-2-pro)
 //   AZURE_FLUX_API_VERSION optional (Default 'preview')
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const crypto = require('crypto')
 const { costImage, recordCost } = require('../_lib/cost')
 const { checkAuth } = require('../_lib/auth')

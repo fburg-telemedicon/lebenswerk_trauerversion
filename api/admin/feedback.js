@@ -4,7 +4,7 @@
 // angemeldete Benutzer:in Zugriff hat (Admin = alle; sonst eigene + erlaubte
 // Kategorien) – inkl. Zeitpunkt, Name des/der Beitragenden und Buchprojekt.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)

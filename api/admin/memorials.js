@@ -2,7 +2,7 @@
 // GET    /api/admin/memorials              →  alle Gedenkbücher (auth required)
 // DELETE /api/admin/memorials?code=ABC123  →  Gedenkbuch + Beiträge löschen (auth required)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { audit } = require('../_lib/audit')

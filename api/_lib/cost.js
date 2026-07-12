@@ -2,7 +2,7 @@
 // Gemeinsame Pricing-Konstanten + recordCost-Helper für alle Serverless-Endpoints.
 // Wird von ask.js, speak.js, transcribe.js und admin/generate-image.js benutzt.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./store')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 

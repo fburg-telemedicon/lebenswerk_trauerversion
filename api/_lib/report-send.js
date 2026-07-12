@@ -2,7 +2,7 @@
 // Orchestriert den Tagesreport: Kennzahlen sammeln → PDF bauen → E-Mail rendern →
 // an die aktiven Empfänger schicken. Von cron/report.js und admin/reports.js genutzt.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./store')
 const { gatherReport } = require('./report-data')
 const { buildReportPdf } = require('./report-pdf')
 const render = require('./report-render')

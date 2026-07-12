@@ -8,7 +8,7 @@
 //   AZURE_SPEECH_KEY, AZURE_SPEECH_REGION (z. B. westeurope)
 //   AZURE_SPEECH_TTS_VOICE  optional (Default de-DE-KatjaNeural)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./_lib/store')
 const { costTTS, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')

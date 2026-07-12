@@ -15,7 +15,7 @@
 //   AZURE_OPENAI_API_VERSION  optional, Default "preview" (die v1-API kennt nur
 //                             "preview" bzw. keine; KEINE Datums-Version wie 2024-…)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./_lib/store')
 const { costLLM, recordCost } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')

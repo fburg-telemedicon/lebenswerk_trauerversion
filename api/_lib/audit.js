@@ -6,7 +6,7 @@
 // Fail-open / non-fatal: Ein Logging-Fehler darf NIE die eigentliche Aktion
 // abbrechen. Es wird nur auf der Server-Konsole vermerkt.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./store')
 const { clientIp, hashId } = require('./ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)

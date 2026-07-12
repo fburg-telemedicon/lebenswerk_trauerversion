@@ -10,7 +10,7 @@
 // (trauernde!) Nutzer aussperren – Verfügbarkeit geht vor.
 
 const crypto = require('crypto')
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./store')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 

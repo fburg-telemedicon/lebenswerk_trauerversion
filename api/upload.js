@@ -8,7 +8,7 @@
 // Rate-Limit, und ZWINGEND das Einverständnis (Recht am Bild + KI-Verarbeitung
 // aller abgebildeten Personen). Ohne consent → 400.
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 const { memorialExists } = require('./_lib/access')
 const { appendUpload } = require('./_lib/upload-asset')

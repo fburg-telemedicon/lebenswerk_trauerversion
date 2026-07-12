@@ -12,7 +12,7 @@
 // Schutz wie die anderen Crons: Header Authorization: Bearer <CRON_SECRET>.
 // Test ohne Speichern:  GET /api/cron/transcript-check?dry=1  (mit Bearer-Secret)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { callAzure } = require('../_lib/llm')
 const { costLLM, recordCost } = require('../_lib/cost')
 const { recordHeartbeat } = require('../_lib/heartbeat')

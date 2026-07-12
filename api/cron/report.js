@@ -7,7 +7,7 @@
 //
 // Test ohne Versand:  GET /api/cron/report?dry=1   (mit Bearer-Secret)
 
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('../_lib/store')
 const { buildAndSendReport } = require('../_lib/report-send')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 
