@@ -20,6 +20,7 @@ const { checkAuth, hashPassword, validatePasswordPolicy, verifyPassword, generat
 const { isValidCategory } = require('../_lib/categories')
 const { audit } = require('../_lib/audit')
 const { seedDemoData } = require('../_lib/demo-seed')
+const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -27,6 +28,9 @@ function sanitizeCategories(input) {
   if (!Array.isArray(input)) return []
   return [...new Set(input.filter(isValidCategory))]
 }
+
+// Benutzername = E-Mail-Adresse (Login-Kennung). Einfache, bewusst tolerante Prüfung.
+function isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim()) }
 
 // Erlaubte Bildtypen + Größenobergrenze für das als Data-URL gespeicherte Logo.
 const ALLOWED_LOGO_MIME = ['png', 'jpeg', 'jpg', 'gif', 'webp', 'svg+xml']
@@ -143,7 +147,10 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'POST') {
       const { username, allowed_categories, is_admin, demo } = req.body || {}
-      if (!username || !String(username).trim()) return res.status(400).json({ error: 'Benutzername fehlt.' })
+      const email = String(username || '').trim()
+      if (!email) return res.status(400).json({ error: 'E-Mail-Adresse fehlt.' })
+      // Benutzername = E-Mail: als gültige Adresse verlangen (Login + Einladung/Reset).
+      if (!isEmail(email)) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' })
       // Kein Passwort bei der Anlage: Es wird ein Einladungs-Token erzeugt, über
       // den sich der Benutzer beim ersten Aufruf selbst ein Passwort vergibt.
       const invite_token = generateInviteToken()
@@ -151,7 +158,7 @@ module.exports = async function handler(req, res) {
       const cats = sanitizeCategories(allowed_categories)
       const { data, error } = await supabase.from('app_users')
         .insert({
-          username: String(username).trim(),
+          username: email,
           pw_hash: null, pw_salt: null,
           invite_token, invite_expires,
           allowed_categories: cats,
@@ -178,7 +185,19 @@ module.exports = async function handler(req, res) {
           result.demo_error = e.message
         }
       }
-      return res.json(result) // enthält invite_token + ggf. demo-Ergebnis
+
+      // Einladungs-E-Mail an den neuen Benutzer (best effort; Fehler soll die
+      // Anlage NICHT scheitern lassen – der Admin kann den Link zusätzlich kopieren).
+      try {
+        await sendAccessMail({ to: data.username, url: inviteLink(req, invite_token), kind: 'invite' })
+        result.email_sent = true
+        await audit(req, { actor: req.auth, action: 'user.invite_sent', target: data.id, detail: { to: data.username } })
+      } catch (e) {
+        console.error('/api/admin/users invite mail:', e)
+        result.email_sent = false
+        result.email_error = e.message
+      }
+      return res.json(result) // enthält invite_token + email_sent + ggf. demo-Ergebnis
     }
 
     if (req.method === 'PATCH') {
@@ -213,9 +232,24 @@ module.exports = async function handler(req, res) {
       if (patch.pw_hash) changed.push('password')
       if (req.body.regenerate_invite) changed.push('invite')
       await audit(req, { actor: req.auth, action: 'user.update', target: id, detail: { changed } })
-      // Bei neu erzeugter Einladung den Token zurückgeben, damit der Admin den
-      // Link sofort kopieren kann.
-      return res.json(req.body.regenerate_invite ? { ok: true, invite_token: patch.invite_token, invite_expires: patch.invite_expires } : { ok: true })
+      // Bei neu erzeugter Einladung den Token zurückgeben (Admin kann den Link
+      // zusätzlich kopieren) UND die Einladungs-E-Mail erneut versenden.
+      if (req.body.regenerate_invite) {
+        const out = { ok: true, invite_token: patch.invite_token, invite_expires: patch.invite_expires }
+        try {
+          const { data: u } = await supabase.from('app_users').select('username').eq('id', id).single()
+          if (u?.username) {
+            await sendAccessMail({ to: u.username, url: inviteLink(req, patch.invite_token), kind: 'invite' })
+            out.email_sent = true
+            await audit(req, { actor: req.auth, action: 'user.invite_sent', target: id, detail: { to: u.username } })
+          }
+        } catch (e) {
+          console.error('/api/admin/users regenerate mail:', e)
+          out.email_sent = false; out.email_error = e.message
+        }
+        return res.json(out)
+      }
+      return res.json({ ok: true })
     }
 
     if (req.method === 'DELETE') {

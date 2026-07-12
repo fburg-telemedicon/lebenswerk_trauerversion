@@ -8,11 +8,44 @@
 // Zugangsdaten-/Token-Logik liegt zentral in ../_lib/auth.js.
 
 const { createClient } = require('@supabase/supabase-js')
-const { verifyCredentials, issueToken, isConfigured, verifyPassword, hashPassword, validatePasswordPolicy } = require('../_lib/auth')
+const { verifyCredentials, issueToken, isConfigured, verifyPassword, hashPassword, validatePasswordPolicy, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { enforce } = require('../_lib/ratelimit')
 const { audit } = require('../_lib/audit')
+const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+
+// Passwort-Reset anfordern (öffentlich): POST /api/admin/login { reset: "<email>" }.
+// Aus Datenschutz-/Sicherheitsgründen IMMER generische Erfolgsmeldung – egal ob die
+// Adresse existiert (kein Rückschluss auf vorhandene Konten). Existiert das Konto,
+// wird ein frischer Einladungs-/Reset-Token erzeugt und der Link per Mail geschickt
+// (derselbe ?invite=-Flow setzt dann das neue Passwort).
+async function handleResetRequest(req, res, rawEmail) {
+  const email = String(rawEmail || '').trim()
+  if (!(await enforce(req, res, { name: 'reset-ip', limit: 5, windowSeconds: 600 }))) return
+  const generic = { ok: true }
+  if (!email) return res.json(generic)
+  try {
+    const { data: user } = await supabase
+      .from('app_users').select('id, username').ilike('username', email).maybeSingle()
+    if (user) {
+      const tok = generateInviteToken()
+      const exp = new Date(Date.now() + INVITE_TTL_MS).toISOString()
+      // Reset entwertet ein evtl. vorhandenes Passwort erst beim Einlösen NICHT –
+      // das Konto bleibt bis zum Setzen des neuen Passworts nutzbar. Token genügt.
+      await supabase.from('app_users').update({ invite_token: tok, invite_expires: exp }).eq('id', user.id)
+      try {
+        await sendAccessMail({ to: user.username, url: inviteLink(req, tok), kind: 'reset' })
+        await audit(req, { actor: { name: user.username }, action: 'user.reset_requested', target: user.id })
+      } catch (e) {
+        console.error('/api/admin/login reset mail:', e)
+      }
+    }
+  } catch (e) {
+    console.error('/api/admin/login reset lookup:', e)
+  }
+  return res.json(generic)
+}
 
 // Einladungslink einlösen (Self-Onboarding). Bewusst hier im öffentlichen
 // Login-Endpunkt eingebettet (kein checkAuth, da der Benutzer noch kein Passwort
@@ -67,6 +100,11 @@ module.exports = async function handler(req, res) {
   // dieser Pfad braucht keine Admin-Zugangsdaten im Request.
   const inviteTok = (req.query.invite || (req.body && req.body.invite) || '').toString().trim()
   if (inviteTok) return handleInvite(req, res, inviteTok)
+
+  // Passwort-Reset anfordern (öffentlich): { reset: "<email>" }.
+  if (req.method === 'POST' && req.body && typeof req.body.reset === 'string') {
+    return handleResetRequest(req, res, req.body.reset)
+  }
 
   if (req.method !== 'POST') return res.status(405).end()
   if (!isConfigured()) {

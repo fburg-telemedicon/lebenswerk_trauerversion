@@ -385,7 +385,7 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
                   ) : (
                     <>
                       <button className="secondary" onClick={() => copyInviteLink(u)} style={{ fontSize:12, padding:'5px 10px' }}>Link kopieren</button>
-                      <button className="secondary" onClick={() => regenerateInvite(u)} style={{ fontSize:12, padding:'5px 10px' }}>Neuer Link</button>
+                      <button className="secondary" onClick={() => regenerateInvite(u)} style={{ fontSize:12, padding:'5px 10px' }}>Neu senden</button>
                     </>
                   )}
                   <button className="secondary" onClick={() => removeUser(u)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
@@ -415,9 +415,15 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
         {/* Einladungslink des zuletzt angelegten / neu erzeugten Benutzers */}
         {createdInvite && (
           <div style={{ ...S.card, marginBottom:24, borderColor:'#bbf7d0', background:'#f0fdf4' }}>
-            <Lbl>Einladungslink für „{createdInvite.username}"</Lbl>
+            <Lbl>Einladung für „{createdInvite.username}"</Lbl>
+            {createdInvite.emailSent === true && (
+              <p style={{ fontSize:13, color:'#3f6212', margin:'4px 0 6px', fontWeight:600 }}>✓ Einladungs-E-Mail an {createdInvite.username} gesendet (BCC an den Betreiber).</p>
+            )}
+            {createdInvite.emailSent === false && (
+              <p style={{ fontSize:13, color:'#b45309', margin:'4px 0 6px' }}>⚠ Die E-Mail konnte nicht gesendet werden{createdInvite.emailError ? ` (${createdInvite.emailError})` : ''}. Bitte den Link unten manuell senden.</p>
+            )}
             <p style={{ fontSize:13, color:'#3f6212', margin:'4px 0 10px' }}>
-              Schicken Sie diesen Link an den Benutzer. Beim ersten Aufruf vergibt er sich selbst ein Passwort. (Der Link ist 14 Tage gültig und wurde in die Zwischenablage kopiert.)
+              Alternativ diesen Link an den Benutzer schicken. Beim ersten Aufruf vergibt er sich selbst ein Passwort. (14 Tage gültig, wurde in die Zwischenablage kopiert.)
             </p>
             {createdInvite.demo && (
               <p style={{ fontSize:12, color:'#3f6212', margin:'0 0 10px' }}>✓ {createdInvite.demo.memorials} Demo-Bücher mit {createdInvite.demo.contributions} Beiträgen angelegt.</p>
@@ -435,10 +441,10 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
 
         {/* Neuer Benutzer */}
         <div style={{ ...S.card }}>
-          <Lbl>Neuer Benutzer</Lbl>
-          <input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="Benutzername" style={{ marginBottom:6 }} />
+          <Lbl>Neuer Benutzer – E-Mail-Adresse</Lbl>
+          <input type="email" value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="name@beispiel.de" style={{ marginBottom:6 }} />
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 12px' }}>
-            Kein Passwort nötig: Nach dem Anlegen erhalten Sie einen Einladungslink, über den der Benutzer sich selbst ein Passwort vergibt.
+            Die E-Mail-Adresse ist zugleich der Login. Nach dem Anlegen wird automatisch eine Einladungs-E-Mail versendet, über die sich der Benutzer selbst ein Passwort vergibt (kein Passwort nötig). Den Link können Sie zusätzlich kopieren.
           </p>
           <Lbl>Erlaubte Produktkategorien</Lbl>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8, margin:'6px 0 14px' }}>

@@ -94,6 +94,16 @@ export async function redeemInvite(inviteToken, password) {
   })
   return parseResponse(res) // { token, admin, cats, uid, username }
 }
+// Passwort-Reset anfordern: schickt (falls die Adresse existiert) einen Reset-Link
+// per E-Mail. Antwort ist bewusst immer generisch { ok:true }.
+export async function requestPasswordReset(email) {
+  const res = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset: email }),
+  })
+  return parseResponse(res) // { ok:true }
+}
 export async function adminUpdateUser(token, id, patch) {
   const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',

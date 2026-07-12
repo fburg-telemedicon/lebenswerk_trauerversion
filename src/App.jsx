@@ -10,7 +10,7 @@ import {
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
-  getInvite, redeemInvite,
+  getInvite, redeemInvite, requestPasswordReset,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
@@ -380,6 +380,11 @@ function Dashboard() {
   })
   const [username, setUsername]       = useState('')
   const [password, setPassword]       = useState('')
+  // Passwort-Reset am Login (Self-Service)
+  const [showReset, setShowReset]     = useState(false)
+  const [resetEmail, setResetEmail]   = useState('')
+  const [resetMsg, setResetMsg]       = useState('')
+  const [resetBusy, setResetBusy]     = useState(false)
   const [memorials, setMemorials]     = useState([])
   const [selected, setSelected]       = useState(null)
   const [contributions, setContribs]  = useState([])
@@ -487,6 +492,17 @@ function Dashboard() {
       await loadMemorials(d.token)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
+  }
+
+  async function submitReset(e) {
+    e.preventDefault()
+    setResetBusy(true); setResetMsg('')
+    try {
+      await requestPasswordReset(resetEmail.trim())
+    } catch { /* generisch bleiben */ }
+    // Immer dieselbe Meldung – kein Rückschluss, ob die Adresse existiert.
+    setResetMsg('Falls ein Konto zu dieser E-Mail existiert, haben wir einen Link zum Zurücksetzen des Passworts gesendet.')
+    setResetBusy(false)
   }
 
   async function loadMemorials(t) {
@@ -801,7 +817,7 @@ function Dashboard() {
         demo: userForm.demo,
       })
       setUserForm({ username: '', cats: [], demo: true })
-      if (u.invite_token) setCreatedInvite({ username: u.username, url: inviteLink(u.invite_token), demo: u.demo, demoError: u.demo_error })
+      if (u.invite_token) setCreatedInvite({ username: u.username, url: inviteLink(u.invite_token), demo: u.demo, demoError: u.demo_error, emailSent: u.email_sent, emailError: u.email_error })
       await loadUsers()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -816,7 +832,7 @@ function Dashboard() {
       const d = await adminUpdateUser(token, user.id, { regenerate_invite: true })
       if (d.invite_token) {
         navigator.clipboard?.writeText(inviteLink(d.invite_token))
-        setCreatedInvite({ username: user.username, url: inviteLink(d.invite_token) })
+        setCreatedInvite({ username: user.username, url: inviteLink(d.invite_token), emailSent: d.email_sent, emailError: d.email_error })
       }
       await loadUsers()
     } catch (e) { setErr(e.message) }
@@ -2132,13 +2148,14 @@ function Dashboard() {
   // ── LOGIN ──
   if (view === 'login') return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
+      {!showReset ? (
       <form onSubmit={login} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Lebenswerk Admin</h1>
         <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Bitte melden Sie sich an.</p>
         <Err msg={err} />
         <div style={{ marginBottom: 12 }}>
-          <Lbl>Benutzername</Lbl>
-          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" autoFocus />
+          <Lbl>E-Mail-Adresse</Lbl>
+          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="name@beispiel.de" autoFocus />
         </div>
         <div style={{ marginBottom: 20 }}>
           <Lbl>Passwort</Lbl>
@@ -2147,7 +2164,32 @@ function Dashboard() {
         <button type="submit" disabled={loading || !username || !password} style={{ width: '100%', padding: 12, fontSize: 15 }}>
           {loading ? 'Wird überprüft …' : 'Anmelden'}
         </button>
+        <button type="button" onClick={() => { setShowReset(true); setResetEmail(username); setResetMsg(''); setErr('') }}
+          style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+          Passwort vergessen?
+        </button>
       </form>
+      ) : (
+      <form onSubmit={submitReset} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Passwort zurücksetzen</h1>
+        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Geben Sie Ihre E-Mail-Adresse ein. Wir senden Ihnen einen Link zum Festlegen eines neuen Passworts.</p>
+        {resetMsg
+          ? <p style={{ fontSize: 14, color: '#3f6212', background: '#f7fee7', border: '1px solid #d9f99d', borderRadius: 8, padding: '10px 12px', lineHeight: 1.5 }}>{resetMsg}</p>
+          : (<>
+              <div style={{ marginBottom: 20 }}>
+                <Lbl>E-Mail-Adresse</Lbl>
+                <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="name@beispiel.de" autoFocus />
+              </div>
+              <button type="submit" disabled={resetBusy || !resetEmail.trim()} style={{ width: '100%', padding: 12, fontSize: 15 }}>
+                {resetBusy ? 'Wird gesendet …' : 'Reset-Link senden'}
+              </button>
+            </>)}
+        <button type="button" onClick={() => { setShowReset(false); setResetMsg(''); setErr('') }}
+          style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+          ← Zurück zum Login
+        </button>
+      </form>
+      )}
     </div>
   )
 
