@@ -1091,8 +1091,18 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     )
 }
 
-export function ContributionView({ selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages, saveContribMeta }) {
+export function ContributionView({ selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages, saveContribMeta, saveAnswerText }) {
     const c = selectedContrib
+    const [ansEdit, setAnsEdit] = useState(null)   // Index der Nachricht, die gerade editiert wird
+    const [ansDraft, setAnsDraft] = useState('')
+    const [ansSaving, setAnsSaving] = useState(false)
+    const startAnsEdit = (idx, text) => { setAnsEdit(idx); setAnsDraft(text || '') }
+    const submitAns = async (idx) => {
+      setAnsSaving(true)
+      const ok = await saveAnswerText?.(c, idx, ansDraft)
+      setAnsSaving(false)
+      if (ok) setAnsEdit(null)
+    }
     const [editMeta, setEditMeta] = useState(false)
     const [nameDraft, setNameDraft] = useState('')
     const [relDraft, setRelDraft] = useState('')
@@ -1190,12 +1200,28 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
                       <p style={{ fontSize:15, lineHeight:1.65, fontStyle:'italic', color:'#44403c', margin:'4px 0 0' }}>{p.q}</p>
                     </div>
                   )}
-                  {p.a && (
-                    <div>
-                      <Lbl>Antwort</Lbl>
-                      <p style={{ fontSize:15, lineHeight:1.7, color:'#1c1917', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{p.a}</p>
-                    </div>
-                  )}
+                  {p.a && (() => {
+                    const ansIdx = p.indices[p.indices.length - 1]
+                    return ansEdit === ansIdx ? (
+                      <div>
+                        <Lbl>Antwort</Lbl>
+                        <textarea value={ansDraft} onChange={e => setAnsDraft(e.target.value)} rows={4}
+                          style={{ width:'100%', fontSize:15, lineHeight:1.6, padding:'8px 10px', fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
+                        <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                          <button onClick={() => submitAns(ansIdx)} disabled={ansSaving} style={{ fontSize:12, padding:'6px 12px' }}>{ansSaving ? 'Speichert …' : 'Speichern'}</button>
+                          <button className="secondary" onClick={() => setAnsEdit(null)} disabled={ansSaving} style={{ fontSize:12, padding:'6px 12px' }}>Abbrechen</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <Lbl>Antwort</Lbl>
+                          <button className="ghost" onClick={() => startAnsEdit(ansIdx, p.a)} title="Antwort bearbeiten" style={{ fontSize:11, color:'#78716c', padding:'2px 6px' }}>✏ bearbeiten</button>
+                        </div>
+                        <p style={{ fontSize:15, lineHeight:1.7, color:'#1c1917', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{p.a}</p>
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>

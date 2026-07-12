@@ -950,6 +950,18 @@ function Dashboard() {
     } catch (e) { setErr(e.message) }
   }
 
+  // Den Text einer einzelnen Antwort (Nachricht an Index idx) korrigieren.
+  async function saveAnswerText(c, idx, text) {
+    setErr('')
+    const newMessages = c.messages.map((m, i) => i === idx ? { ...m, content: text } : m)
+    try {
+      const updated = await adminUpdateContributionMessages(token, c.id, newMessages)
+      setContribs(cs => cs.map(x => x.id === c.id ? updated : x))
+      if (selectedContrib?.id === c.id) setSelectedContrib(updated)
+      return true
+    } catch (e) { setErr(e.message); return false }
+  }
+
   // Stammdaten eines Beitrags ändern (Name des/der Beitragenden, Beziehung).
   async function saveContribMeta(id, patch) {
     setErr('')
@@ -2117,7 +2129,7 @@ function Dashboard() {
 
   // ── EINZELNER BEITRAG ──
   if (view === 'contribution' && selectedContrib) return (
-    <ContributionView selectedContrib={selectedContrib} selected={selected} setView={setView} dlOne={dlOne} exportContribution={exportContribution} deleteContribution={deleteContribution} logout={logout} deleteMessages={deleteMessages} saveContribMeta={saveContribMeta} />
+    <ContributionView selectedContrib={selectedContrib} selected={selected} setView={setView} dlOne={dlOne} exportContribution={exportContribution} deleteContribution={deleteContribution} logout={logout} deleteMessages={deleteMessages} saveContribMeta={saveContribMeta} saveAnswerText={saveAnswerText} />
   )
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──

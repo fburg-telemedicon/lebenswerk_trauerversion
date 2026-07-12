@@ -126,8 +126,14 @@ ${cb.text}`
 // Gespräch abläuft (frei sprechen, „nächste Frage" sagen, eigene Themen einbringen,
 // pausieren …). Die KI formuliert das in der Gesprächssprache (siehe langDirective).
 function interviewGreetingRule(name) {
-  return `- Eröffne das Gespräch mit einer kurzen, warmen Begrüßung und erkläre ${name} dabei knapp, wie das Gespräch abläuft: Man kann ganz natürlich und frei sprechen und einfach erzählen, was einem einfällt. Fällt zu einer Frage nichts ein, genügt ein „nächste Frage" oder „weiter". Man darf jederzeit selbst eine Erinnerung oder ein Thema einbringen, um eine andere Frage bitten oder darum, eine Frage zu wiederholen bzw. anders zu formulieren. Es gibt keine richtigen oder falschen Antworten, man kann sich Zeit lassen und jederzeit pausieren. Halte diese Einführung kurz (2–4 Sätze), warm und stelle im selben Zug die erste Frage. Wiederhole diese Erklärung NICHT in späteren Nachrichten.
-- Beachte das durchgehend: Sagt ${name} „weiter"/„nächste Frage", gehe sofort und ohne Nachbohren weiter; bringt ${name} ein eigenes Thema oder eine Bitte ein, greife es auf.`
+  return `- Eröffne das Gespräch mit einer warmen Begrüßung und erkläre ${name} dabei, wie das Gespräch abläuft. Sprich ALLE der folgenden Punkte ausdrücklich an – freundlich und natürlich in Fließtext verwoben, NICHT als Aufzählung oder Stichpunkte:
+  1. Man kann ganz natürlich und locker erzählen, was einem einfällt – wie in einem Gespräch.
+  2. Man darf jederzeit selbst eine Erinnerung oder ein eigenes Thema einbringen.
+  3. Fällt zu einer Frage nichts ein, genügt ein „nächste Frage" oder „weiter".
+  4. Man kann jederzeit darum bitten, eine Frage zu wiederholen oder anders/verständlicher zu formulieren.
+  5. Es gibt keine richtigen oder falschen Antworten – man kann sich ruhig Zeit lassen und auch jederzeit pausieren.
+  Formuliere das lebendig und einladend (etwa 4–6 Sätze, KEINE Nummerierung im Text) und stelle im selben Zug direkt die erste Frage. Wiederhole diese Erklärung NICHT in späteren Nachrichten.
+- Beachte das durchgehend: Sagt ${name} „weiter"/„nächste Frage", gehe sofort und ohne Nachbohren weiter; bringt ${name} ein eigenes Thema oder eine Bitte (z. B. um Wiederholung) ein, greife es auf.`
 }
 
 // Leitplanken: Themenrahmen strikt auf das Interview begrenzen, aber Freiheit
