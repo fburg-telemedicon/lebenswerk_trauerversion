@@ -21,6 +21,9 @@ const MAX_CHAIN = 60
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const isRateLimit = msg => /rate limit|exceeded|429|too many requests|throttl/i.test(String(msg || ''))
+// Azure-Inhaltsfilter (Content-Policy): Wiederholen ist zwecklos – gleicher Prompt,
+// gleiches Ergebnis. Erkennen, um Retries zu sparen und klar zu melden.
+const isContentFilter = msg => /content management policy|content[_ ]?filter|responsibleai|filtered due to/i.test(String(msg || ''))
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET
@@ -39,6 +42,7 @@ async function callWithBackoff(args) {
       return r
     } catch (e) {
       lastErr = e
+      if (isContentFilter(e.message)) break // Retry zwecklos bei Content-Policy
       if (attempt < 3) { await sleep((isRateLimit(e.message) ? 6000 : 2000) * attempt); continue }
     }
   }
@@ -77,7 +81,10 @@ async function processJob(job, deadline) {
       if (!text) throw new Error('leere Antwort')
       result.parts.push(text)
     } catch (e) {
-      result.errors.push(`${step.label || `Schritt ${cursor + 1}`}: ${e.message}`)
+      const msg = isContentFilter(e.message)
+        ? 'vom KI-Inhaltsfilter blockiert (Azure Content-Policy) – Formulierung anpassen oder Filter in Azure lockern'
+        : e.message
+      result.errors.push(`${step.label || `Schritt ${cursor + 1}`}: ${msg}`)
     }
     cursor++
     await genjobs.saveProgress(job.id, {
