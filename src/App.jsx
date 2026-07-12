@@ -1322,7 +1322,7 @@ function Dashboard() {
         const pr = job.progress || {}
         if (pr.total) setGenPct(p => ({ ...p, [key]: Math.min(99, Math.round(((pr.cursor || 0) / pr.total) * 100)) }))
         if (pr.message) setGenProgress(p => ({ ...p, [key]: `${pr.message} …` }))
-        if (job.status === 'done') return
+        if (job.status === 'done') return job
         if (job.status === 'canceled') throw new Error('__CANCELLED__')
         if (job.status === 'error') throw new Error(job.error || 'Generierung fehlgeschlagen.')
       }
@@ -1668,7 +1668,10 @@ function Dashboard() {
           field: gen.field, resultType: 'text-join', combine: '\n\n', steps,
         })
         genJobRef.current[key] = jobId
-        await pollGeneration(key, jobId) // wartet bis done/error/canceled
+        const finalJob = await pollGeneration(key, jobId) // wartet bis done/error/canceled
+        // Teil-Fehler (einzelne Abschnitte) als nicht-fatalen Hinweis zeigen.
+        const pe = finalJob?.progress || {}
+        if (pe.errors > 0) setGenErr(p => ({ ...p, [key]: `${pe.errors}/${stepsTotal} Abschnitt-Fehler.${pe.firstError ? ' Erster: ' + pe.firstError : ''}` }))
         // Der Worker hat gespeichert → aktuellen Text laden (für Inhaltsprüfung).
         try {
           const rr = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })

@@ -27,15 +27,22 @@ function authorized(req) {
   return Boolean(secret) && req.headers.authorization === `Bearer ${secret}`
 }
 
-// Azure-Aufruf mit Backoff bei Rate-Limit (pausiert und wiederholt).
+// Azure-Aufruf mit Backoff. Wiederholt bei JEDEM transienten Fehler (nicht nur
+// Rate-Limit) bis zu 3× – sporadische Modell-/Netz-Ausrutscher sollen einen
+// Abschnitt/ein Kapitel nicht gleich scheitern lassen. Rate-Limit → länger warten.
 async function callWithBackoff(args) {
+  let lastErr
   for (let attempt = 1; attempt <= 3; attempt++) {
-    try { return await callAzure(args) }
-    catch (e) {
-      if (attempt < 3 && isRateLimit(e.message)) { await sleep(6000 * attempt); continue }
-      throw e
+    try {
+      const r = await callAzure(args)
+      if (!String(r.text || '').trim()) throw new Error('leere Antwort')
+      return r
+    } catch (e) {
+      lastErr = e
+      if (attempt < 3) { await sleep((isRateLimit(e.message) ? 6000 : 2000) * attempt); continue }
     }
   }
+  throw lastErr
 }
 
 // Verarbeitet EINEN Job bis zum Zeit-Deadline oder bis fertig.
@@ -94,7 +101,7 @@ async function processJob(job, deadline) {
     return 'error'
   }
   await genjobs.finishJob(job.id, {
-    progress: { phase: 'done', cursor, total: steps.length, errors: result.errors.length },
+    progress: { phase: 'done', cursor, total: steps.length, errors: result.errors.length, firstError: result.errors[0] || null },
     result: { ...result, saved: true },
   })
   return 'done'
