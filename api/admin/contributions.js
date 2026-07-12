@@ -31,13 +31,20 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const id = (req.query.id || '').trim()
       if (!id) return res.status(400).json({ error: 'id fehlt.' })
-      const { messages, transcriptCheckedAt, transcriptCorrections } = req.body || {}
-      if (!Array.isArray(messages)) return res.status(400).json({ error: 'messages muss ein Array sein.' })
+      const { messages, transcriptCheckedAt, transcriptCorrections, contributorName, relationship } = req.body || {}
+      // Es darf entweder messages (Inhalte) ODER Stammdaten (Name/Beziehung) –
+      // oder beides – geändert werden. Mindestens eines muss vorliegen.
+      const hasStammdaten = contributorName !== undefined || relationship !== undefined
+      if (messages !== undefined && !Array.isArray(messages)) return res.status(400).json({ error: 'messages muss ein Array sein.' })
+      if (messages === undefined && !hasStammdaten) return res.status(400).json({ error: 'Nichts zu ändern.' })
       // Nur Beiträge eigener Gedenkbücher (bzw. Admin) ändern.
       const access = await loadAccessibleContribution(supabase, req.auth, id)
       if (access.error) return res.status(access.status).json({ error: access.error })
       // Transkript-Prüffelder optional mitschreiben (Migration transcript-check.sql).
-      const update = { messages }
+      const update = {}
+      if (Array.isArray(messages)) update.messages = messages
+      if (contributorName !== undefined) update.contributor_name = String(contributorName || '').trim() || null
+      if (relationship !== undefined) update.relationship = String(relationship || '').trim() || null
       if (transcriptCheckedAt !== undefined) update.transcript_checked_at = transcriptCheckedAt || null
       if (Array.isArray(transcriptCorrections)) update.transcript_corrections = transcriptCorrections
       let { data, error } = await supabase.from('contributions').update(update).eq('id', id).select().single()

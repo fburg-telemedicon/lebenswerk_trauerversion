@@ -1091,8 +1091,20 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     )
 }
 
-export function ContributionView({ selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages }) {
+export function ContributionView({ selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages, saveContribMeta }) {
     const c = selectedContrib
+    const [editMeta, setEditMeta] = useState(false)
+    const [nameDraft, setNameDraft] = useState('')
+    const [relDraft, setRelDraft] = useState('')
+    const [savingMeta, setSavingMeta] = useState(false)
+    const startEditMeta = () => { setNameDraft(c.contributor_name || ''); setRelDraft(c.relationship || ''); setEditMeta(true) }
+    const submitMeta = async () => {
+      if (!nameDraft.trim()) return
+      setSavingMeta(true)
+      const ok = await saveContribMeta?.(c.id, { contributorName: nameDraft.trim(), relationship: relDraft.trim() })
+      setSavingMeta(false)
+      if (ok) setEditMeta(false)
+    }
     const pairs = []
     for (let j = 0; j < c.messages.length; j++) {
       if (c.messages[j].role === 'assistant') {
@@ -1131,10 +1143,24 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
               <div style={{ width:48, height:48, borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:18, color:'#1d4ed8' }}>
                 {c.contributor_name.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <div style={{ fontWeight:700, fontSize:18 }}>{c.contributor_name}</div>
-                <div style={{ fontSize:13, color:'#78716c' }}>{c.relationship}</div>
-              </div>
+              {editMeta ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:6, flex:1 }}>
+                  <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder="Name" style={{ fontSize:15, padding:'6px 9px' }} />
+                  <input value={relDraft} onChange={e => setRelDraft(e.target.value)} placeholder="Beziehung zur Hauptperson (z. B. Tochter)" style={{ fontSize:13, padding:'6px 9px' }} />
+                  <div style={{ display:'flex', gap:8, marginTop:2 }}>
+                    <button onClick={submitMeta} disabled={savingMeta || !nameDraft.trim()} style={{ fontSize:12, padding:'6px 12px' }}>{savingMeta ? 'Speichert …' : 'Speichern'}</button>
+                    <button className="secondary" onClick={() => setEditMeta(false)} disabled={savingMeta} style={{ fontSize:12, padding:'6px 12px' }}>Abbrechen</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontWeight:700, fontSize:18, display:'flex', alignItems:'center', gap:8 }}>
+                    {c.contributor_name}
+                    <button className="secondary" onClick={startEditMeta} title="Name & Beziehung ändern" style={{ fontSize:11, padding:'3px 8px' }}>✏ ändern</button>
+                  </div>
+                  <div style={{ fontSize:13, color:'#78716c' }}>{c.relationship}</div>
+                </div>
+              )}
             </div>
             <div style={{ fontSize:13, color:'#57534e', lineHeight:1.8 }}>
               {c.contributor_gender && <div><span style={{ color:'#a8a29e' }}>Geschlecht:</span> {c.contributor_gender}</div>}
@@ -1179,7 +1205,7 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
     )
 }
 
-export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, downloadGeneratedPdf, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText }) {
+export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, downloadGeneratedPdf, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText, dlBusy }) {
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
     const data = selected[gen.field]
@@ -1360,9 +1386,9 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
 
         {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
-            <button onClick={() => downloadGenerated(key)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Download .docx</button>
+            <button onClick={() => downloadGenerated(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}</button>
             {gen.kind === 'book' && (
-              <button className="secondary" onClick={() => downloadGeneratedPdf(key)} style={{ fontSize:13, padding:'8px 16px' }}>🖨 Druck-PDF</button>
+              <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}</button>
             )}
             <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
           </div>
@@ -1377,7 +1403,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
     )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy }) {
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
@@ -1609,12 +1635,12 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       <button onClick={() => { setEditMode(false); setEditDraft(null); setView(gen.view) }} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         👁 Ansehen/Bearbeiten
                       </button>
-                      <button onClick={() => downloadGenerated(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                        ⬇ Download .docx
+                      <button onClick={() => downloadGenerated(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        {dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}
                       </button>
                       {gen.kind === 'book' && (
-                        <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                          🖨 Druck-PDF
+                        <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}
                         </button>
                       )}
                       {gen.kind === 'book' && (

@@ -286,6 +286,15 @@ export async function adminUpdateContributionMessages(token, id, messages) {
   })
   return parseResponse(res) // updated contribution row
 }
+// Stammdaten eines Beitrags ändern (Name des/der Beitragenden, Beziehung).
+export async function adminUpdateContributionMeta(token, id, { contributorName, relationship }) {
+  const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ contributorName, relationship }),
+  })
+  return parseResponse(res) // updated contribution row
+}
 
 // Transkript-Prüfung speichern: korrigierte messages + optional Prüf-Zeitstempel
 // und Korrekturliste (für Bericht/Undo). Für Undo/Redo nur messages+corrections

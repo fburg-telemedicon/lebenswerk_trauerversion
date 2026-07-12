@@ -5,7 +5,7 @@ import {
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload,
   enqueueGeneration, getGenerationJob, cancelGenerationJob,
-  adminDeleteContribution, adminUpdateContributionMessages, adminSaveTranscriptCheck,
+  adminDeleteContribution, adminUpdateContributionMessages, adminUpdateContributionMeta, adminSaveTranscriptCheck,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback, adminSetFeedbackDone, adminDeleteFeedback,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
@@ -383,6 +383,7 @@ function Dashboard() {
   const [genErr, setGenErr]           = useState({}) // { book_v1: 'Fehler …' } – Fehler PRO Variante (nicht global)
   const [genOwner, setGenOwner]       = useState({}) // { book_v1: <memorialId> } – welches Buchprojekt diese Variante generiert; Fortschritt/Fehler NUR dort anzeigen
   const [skipImages, setSkipImages]   = useState(false) // Debug: Bildgenerierung überspringen
+  const [dlBusy, setDlBusy]           = useState('') // läuft ein Export? z. B. 'book_v1:docx'
   const [reviewingKey, setReviewingKey] = useState(null) // Feld, dessen Prüfung gerade läuft
   const [reviewPct, setReviewPct]       = useState(0)     // simulierter %-Fortschritt der Prüfung
   const [applyingFinding, setApplyingFinding] = useState(null) // "field:index" während Maßnahme läuft
@@ -947,6 +948,17 @@ function Dashboard() {
       setContribs(cs => cs.map(x => x.id === c.id ? updated : x))
       if (selectedContrib?.id === c.id) setSelectedContrib(updated)
     } catch (e) { setErr(e.message) }
+  }
+
+  // Stammdaten eines Beitrags ändern (Name des/der Beitragenden, Beziehung).
+  async function saveContribMeta(id, patch) {
+    setErr('')
+    try {
+      const updated = await adminUpdateContributionMeta(token, id, patch)
+      setContribs(cs => cs.map(x => x.id === id ? updated : x))
+      if (selectedContrib?.id === id) setSelectedContrib(updated)
+      return true
+    } catch (e) { setErr(e.message); return false }
   }
 
   // Transkript-Korrektur rückgängig machen bzw. wieder anwenden (Bericht). Ändert
@@ -1545,24 +1557,27 @@ function Dashboard() {
   async function downloadGenerated(key) {
     const gen = GENERATORS[key]
     const data = selected?.[gen.field]
-    if (!data) return
+    if (!data || dlBusy) return
+    setDlBusy(`${key}:docx`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
       if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de')
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
+    finally { setDlBusy('') }
   }
 
   // Druckfertiges PDF (nur Bücher): doppelseitiges Bild, Kapitel beginnen rechts.
   async function downloadGeneratedPdf(key) {
     const gen = GENERATORS[key]
     const data = selected?.[gen.field]
-    if (!data || gen.kind !== 'book') return
-    setErr('')
+    if (!data || gen.kind !== 'book' || dlBusy) return
+    setDlBusy(`${key}:pdf`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
       await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
     } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
+    finally { setDlBusy('') }
   }
 
   function pickEulogyStyle(style) {
@@ -2092,7 +2107,7 @@ function Dashboard() {
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
@@ -2102,12 +2117,12 @@ function Dashboard() {
 
   // ── EINZELNER BEITRAG ──
   if (view === 'contribution' && selectedContrib) return (
-    <ContributionView selectedContrib={selectedContrib} selected={selected} setView={setView} dlOne={dlOne} exportContribution={exportContribution} deleteContribution={deleteContribution} logout={logout} deleteMessages={deleteMessages} />
+    <ContributionView selectedContrib={selectedContrib} selected={selected} setView={setView} dlOne={dlOne} exportContribution={exportContribution} deleteContribution={deleteContribution} logout={logout} deleteMessages={deleteMessages} saveContribMeta={saveContribMeta} />
   )
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') return (
-    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
+    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
   )
 
   return null
