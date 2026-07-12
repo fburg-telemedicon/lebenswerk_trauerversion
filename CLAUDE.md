@@ -2,12 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **⚠️ Azure-Migration im Gange (Stand 2026-07-12).** Der Stack wird von **Supabase + Vercel** auf **Azure** umgestellt: Backend läuft künftig als **Azure Container Apps** (Express-`server.js` bündelt die `/api`-Handler), DB = **Azure Database for PostgreSQL** über `api/_lib/store.js` (ersetzt `@supabase/supabase-js`), Storage = **Azure Blob**, Crons = **Container Apps Jobs** (`scripts/cron-run.js`). Azure OpenAI/Speech/FLUX bleiben. Der Code auf `main` ist bereits umgestellt; die Produktion ist bis zum **DNS-Cutover** noch nicht auf Azure. **Vollständiges Runbook: `infra/MIGRATION.md`.** Teile dieses Dokuments unten beschreiben noch den alten Vercel/Supabase-Zustand — im Zweifel gilt `infra/MIGRATION.md` + `api/_lib/store.js`.
+
 ## Commands
 
-- `npm run dev` — starts `vercel dev`, which runs both the Vite dev server and the `/api/*` serverless functions locally (default http://localhost:3000). Requires env vars to be present (see below). `vite` alone will not start the API.
 - `npm run build` — Vite production build to `dist/`.
-- `npm run preview` — preview the built bundle (static only, no API).
-- Deploy: production runs on Vercel and is wired to the `main` branch (production URL: **lebensgeschichten.ai** — custom apex domain since 2026-07-06; `www.` and the old `lebensgeschichten.vercel.app` 308-redirect there). `vercel --prod` from the project root deploys manually.
+- `node server.js` — startet den Express-Server (API + statisches `dist/`), Port `8080` (bzw. `$PORT`). Braucht die Env-Variablen unten (v. a. `DATABASE_URL`, `AZURE_STORAGE_*`).
+- `node scripts/cron-run.js <purge|report|transcript-check|generate>` — führt einen Cron-Job lokal/im Container aus (Autorisierung via `CRON_SECRET`).
+- Container-Build/-Deploy: `Dockerfile` + `infra/provision.sh` (einmalig) + `infra/deploy.sh` (App + Cron-Jobs). Details: `infra/MIGRATION.md`.
+- **Alt (bis Cutover):** `npm run dev` (=`vercel dev`) und `vercel --prod` existieren noch; Produktion läuft bis zum DNS-Umzug auf Vercel (URL **lebensgeschichten.ai**).
 
 There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail.
 
@@ -21,8 +24,11 @@ Set in Vercel (production) and in a local `.env` for `vercel dev`:
 |---|---|
 | `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | **Required — sole interview + book/eulogy LLM (EU), no fallback.** Azure OpenAI gpt-4.1. The deployment lives on a **Microsoft Foundry** resource, so `callAzure` uses the **v1 API**: `POST {endpoint}/openai/v1/chat/completions?api-version=preview` with `model`=deployment in the body. Endpoint = `https://<resource>.services.ai.azure.com` (NOT the classic `…openai.azure.com`). `AZURE_OPENAI_API_VERSION` optional, **must be `preview`** (date versions like `2024-10-21` → "DeploymentNotFound"). Deployment name (e.g. `gpt-4.1`) is also the pricing key in `cost.js`. If unset/unreachable, `/api/ask` errors — the Anthropic/Claude fallback was removed 2026-06-22. |
 | `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | **Required — sole TTS + STT (EU), no fallback.** Azure AI Speech (Neural TTS in `speak.js`, Fast Transcription in `transcribe.js`); region e.g. `westeurope`. Optional: `AZURE_SPEECH_TTS_VOICE` (default `de-DE-KatjaNeural`), `AZURE_SPEECH_TTS_RATE` (default `+6%`), `AZURE_SPEECH_ENDPOINT`. If unset/unreachable, `/api/speak` and `/api/transcribe` error — the OpenAI `tts-1-hd`/`whisper-1` fallback was removed 2026-06-22. |
-| `SUPABASE_URL` | Project URL |
-| `SUPABASE_SERVICE_KEY` | **service_role** key — never the anon key. The whole backend uses service_role (which bypasses RLS). |
+| `DATABASE_URL` | **(Azure)** Postgres-Verbindung zu Azure Database for PostgreSQL Flexible Server, `…?sslmode=require`. Von `api/_lib/store.js` (pg-Pool) genutzt. Ersetzt `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`. |
+| `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY` | **(Azure)** Blob-Storage-Account + Key. `store.js` legt Buch-/Upload-Bilder im privaten Container `memorial-images` ab und signiert Lese-URLs per **SAS** (ersetzt Supabase Signed URLs). Öffentliche Container: `demo-books`, `memorial-videos`. |
+| `DEMO_BOOK_URL` | **(Azure)** Volle Blob-URL des Demo-Buch-PDFs; `server.js` leitet `/demobuch` dorthin weiter (ersetzt den vercel.json-Rewrite). |
+| `VITE_PUBLIC_ASSET_BASE` | **(Azure, Build-Zeit)** Basis-URL des Blob-Storage (`https://<acct>.blob.core.windows.net`) — wird beim Vite-Build in die SPA gebacken (Intro-Video). Als Docker-`--build-arg` übergeben. |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | **Entfällt nach dem Azure-Cutover.** Wird nur noch für den einmaligen Daten-Export aus Supabase gebraucht (siehe `infra/MIGRATION.md`). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`) |
 | `CRON_SECRET` | Secret for the daily retention purge cron (`/api/cron/purge`). Vercel auto-sends it as `Authorization: Bearer <CRON_SECRET>` on cron calls; the endpoint refuses everything if unset. |

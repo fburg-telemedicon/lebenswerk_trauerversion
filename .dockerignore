@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+.env
+.env.*
+*.log
+supabase
+tools
+*.xlsx
+*.docx
+Aufwandsschaetzung_*
