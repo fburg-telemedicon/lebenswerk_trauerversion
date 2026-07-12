@@ -184,9 +184,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           const text = data.text || ''
           setTranscript(text)
           setMicState('idle')
-          // Antwort immer automatisch abschicken. Im Transkript-Modus bleibt die
-          // gesendete Antwort sichtbar und kann per „Löschen"/„Neu einsprechen"
-          // korrigiert werden (siehe sendAnswer + undoLast/redoLast).
+          // Antwort immer automatisch abschicken. Im Transkript-Modus erscheint sie
+          // als Chat-Blase und trägt dort dauerhaft „Löschen"/„Neu einsprechen"
+          // (siehe sendAnswer + undoFrom/redoFrom).
           if (text.trim()) sendAnswer(text)
           return
         } catch (e) {
@@ -209,9 +209,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   async function sendAnswer(explicitText) {
     const text = (explicitText ?? transcript).trim(); if (!text) return
-    stopSpeaking(); setIsPlaying(false)
-    // transcript NICHT leeren: die gesendete Antwort bleibt im Transkript-Modus
-    // sichtbar (Löschen/Neu einsprechen). handleMic/undoLast leeren sie.
+    setTranscript(''); stopSpeaking(); setIsPlaying(false)
+    // Antwort landet sofort als Chat-Blase im Verlauf; dort trägt sie dauerhaft
+    // die Buttons Löschen/Neu einsprechen (undoFrom/redoFrom).
     const newMsgs = [...messagesRef.current, { role: 'user', content: text }]
     applyMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
@@ -226,13 +226,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     finally { setAiLoading(false) }
   }
 
-  // Letzte Antwort verwerfen: entfernt die Nutzerantwort und die darauf folgende
-  // KI-Frage aus Verlauf + DB, sodass wieder die vorherige Frage aktiv ist.
-  function undoLast() {
+  // Eine Antwort (und alles danach) verwerfen: `index` zeigt auf die user-Nachricht
+  // in `messages`; die davorstehende KI-Frage wird wieder aktiv. Aus Verlauf + DB.
+  function undoFrom(index) {
     stopSpeaking(); setIsPlaying(false)
-    const msgs = [...messagesRef.current]
-    if (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
-    if (msgs.length && msgs[msgs.length - 1].role === 'user') msgs.pop()
+    const msgs = messagesRef.current.slice(0, index)
     skipAutoPlayRef.current = true
     applyMessages(msgs)
     setRound(msgs.filter(m => m.role === 'user').length)
@@ -240,8 +238,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     onSave?.(msgs)
   }
 
-  // Neu einsprechen: letzte Antwort verwerfen und direkt neu aufnehmen.
-  function redoLast() { undoLast(); handleMic() }
+  // Neu einsprechen: Antwort ab `index` verwerfen und direkt neu aufnehmen.
+  function redoFrom(index) { undoFrom(index); handleMic() }
 
   function pause() {
     stopSpeaking()
@@ -251,17 +249,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
 
-  // Verlauf für die Chat-Blasen: aktuelle Frage (letzte KI-Nachricht) raus; im
-  // Transkript-Modus zusätzlich die zuletzt gesendete Antwort, weil sie schon im
-  // Transkript-Kasten mit Löschen/Neu-einsprechen steht.
-  let history = messages.slice(0, -1)
-  if (showTx && transcript) {
-    const last = messages[messages.length - 1]
-    if (last && last.role === 'assistant') {
-      const li = history.map(m => m.role).lastIndexOf('user')
-      if (li !== -1) history = history.filter((_, i) => i !== li)
-    }
-  }
+  // Verlauf für die Chat-Blasen: aktuelle Frage (letzte KI-Nachricht) ausblenden –
+  // sie steht schon in der Frage-Karte. Indizes bleiben deckungsgleich mit
+  // `messages` (nur das letzte Element entfällt) → undoFrom/redoFrom nutzen `i`.
+  const history = messages.slice(0, -1)
 
   const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
@@ -282,10 +273,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
       </div>
       <div style={{ padding: '1.25rem 1.5rem' }}>
-        <label style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8, marginBottom:12, cursor:'pointer', fontSize:12, color:'#78716c' }}>
-          <input type="checkbox" checked={showTx} onChange={e => setShowTx(e.target.checked)} style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />
-          {t.txToggleLabel}
-        </label>
         <Err msg={err} />
         {saveErr && <div style={{ ...S.err }}>⚠ {t.saveLabel}: {saveErr}</div>}
         {memorial.funeral_date && (() => {
@@ -298,7 +285,15 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         })()}
         {showTx && history.map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
-            <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
+            <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
+              {m.role === 'user' && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => undoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txDelete}</button>
+                  <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => redoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txRedo}</button>
+                </div>
+              )}
+            </div>
           </div>
         ))}
         {aiLoading && messages.length === 0 && <div style={{ margin: '1.5rem 0' }}><Dots /></div>}
@@ -334,20 +329,17 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
-            {transcript && showTx && (
-              <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginTop:12, fontSize:14, lineHeight:1.6, textAlign:'left' }}>
-                {micState === 'idle' && !aiLoading && (
-                  <div style={{ fontSize:12, color:'#16a34a', fontWeight:600, marginBottom:6 }}>{t.txSentLabel}</div>
-                )}
-                {transcript}
-                {micState === 'idle' && !aiLoading && (
-                  <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:12 }}>
-                    <button className="secondary" onClick={undoLast} style={{ fontSize:13, padding:'8px 16px' }}>{t.txDelete}</button>
-                    <button className="secondary" onClick={redoLast} style={{ fontSize:13, padding:'8px 16px' }}>{t.txRedo}</button>
-                  </div>
-                )}
-              </div>
-            )}
+            <div
+              onClick={() => setShowTx(v => !v)}
+              role="switch"
+              aria-checked={showTx}
+              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, marginTop:18, cursor:'pointer', fontSize:12, color:'#78716c', userSelect:'none' }}
+            >
+              <span style={{ position:'relative', width:38, height:22, borderRadius:11, background: showTx ? '#1c1917' : '#d6d3d1', transition:'background .2s', flexShrink:0, display:'inline-block' }}>
+                <span style={{ position:'absolute', top:2, left: showTx ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 2px rgba(0,0,0,.25)' }} />
+              </span>
+              {t.txToggleLabel}
+            </div>
             {memorial.catalog && micState === 'idle' && (
               <button
                 onClick={() => sendAnswer(({ de:'Weiter zur nächsten Frage, bitte.', en:'Please move on to the next question.', pl:'Przejdźmy do następnego pytania.' })[lang] || 'Weiter zur nächsten Frage, bitte.')}

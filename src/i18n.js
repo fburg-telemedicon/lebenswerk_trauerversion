@@ -122,7 +122,7 @@ ${url}
   txSentLabel: '✓ Antwort gesendet',
   txDelete: '🗑 Löschen',
   txRedo: '↻ Neu einsprechen',
-  txToggleLabel: 'Transkript & Korrekturmöglichkeit anzeigen',
+  txToggleLabel: 'Transkript & Korrekturmöglichkeiten anzeigen',
 }
 
 const PL = {
