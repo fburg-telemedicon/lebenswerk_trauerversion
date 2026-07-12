@@ -11,7 +11,7 @@ import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { LANGUAGES, uiText } from './i18n.js'
 import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
-import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, dedupeContributors } from './bookExport.js'
+import { dedupeContributors } from './bookExport.js'
 
 export function AuditView({ auditData, auditLoading, err, logout, loadAudit, setView }) {
     const fmtTime = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
@@ -1350,11 +1350,11 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
 
         {!busy && data && !editMode && (
           <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4' }}>
-            <p style={{ fontSize:12, fontWeight:700, color:'#78716c', margin:'0 0 6px' }}>{BOOK_DISCLAIMER_TITLE}</p>
+            <p style={{ fontSize:12, fontWeight:700, color:'#78716c', margin:'0 0 6px' }}>{bt.aiDisclaimerTitle}</p>
             {selected?.owner_logo && (
               <img src={selected.owner_logo} alt="Logo" style={{ maxHeight:64, maxWidth:'60%', objectFit:'contain', display:'block', margin:'8px 0 10px' }} />
             )}
-            <p style={{ fontSize:12, color:'#a8a29e', fontStyle:'italic', lineHeight:1.6, margin:0 }}>{BOOK_DISCLAIMER}</p>
+            <p style={{ fontSize:12, color:'#a8a29e', fontStyle:'italic', lineHeight:1.6, margin:0 }}>{bt.aiDisclaimer}</p>
           </div>
         )}
 

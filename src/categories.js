@@ -122,6 +122,14 @@ FRAGENKATALOG${cb.name ? ` „${cb.name}"` : ''}:
 ${cb.text}`
 }
 
+// Eröffnungs-/Gesprächsregel: Die KI erklärt zu Gesprächsbeginn kurz, wie das
+// Gespräch abläuft (frei sprechen, „nächste Frage" sagen, eigene Themen einbringen,
+// pausieren …). Die KI formuliert das in der Gesprächssprache (siehe langDirective).
+function interviewGreetingRule(name) {
+  return `- Eröffne das Gespräch mit einer kurzen, warmen Begrüßung und erkläre ${name} dabei knapp, wie das Gespräch abläuft: Man kann ganz natürlich und frei sprechen und einfach erzählen, was einem einfällt. Fällt zu einer Frage nichts ein, genügt ein „nächste Frage" oder „weiter". Man darf jederzeit selbst eine Erinnerung oder ein Thema einbringen, um eine andere Frage bitten oder darum, eine Frage zu wiederholen bzw. anders zu formulieren. Es gibt keine richtigen oder falschen Antworten, man kann sich Zeit lassen und jederzeit pausieren. Halte diese Einführung kurz (2–4 Sätze), warm und stelle im selben Zug die erste Frage. Wiederhole diese Erklärung NICHT in späteren Nachrichten.
+- Beachte das durchgehend: Sagt ${name} „weiter"/„nächste Frage", gehe sofort und ohne Nachbohren weiter; bringt ${name} ein eigenes Thema oder eine Bitte ein, greife es auf.`
+}
+
 function memorialInterview(memorial, name, rel, address, contributorGender) {
   const g = genderNote(memorial)
   const addr = addressRule(address)
@@ -142,6 +150,7 @@ Regeln:
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - Sei einfühlsam, respektiere die Trauer
 - ${THIRD_PARTY_RULE}
+${interviewGreetingRule(name)}
 ${flow}
 - Schreibe auf Deutsch`
 }
@@ -331,6 +340,7 @@ Regeln:
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - ${p.empathyRule}
 - ${THIRD_PARTY_RULE}
+${interviewGreetingRule(name)}
 ${flow}
 - Schreibe auf Deutsch`
   }

@@ -239,7 +239,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
       ...(chName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
         children: [new TextRun({ text: chRel ? `${chName} – ${chRel}` : chName, font: BF, size: 24, italics: true, color: '78716c' })] })] : []),
       ...String(ch.body || '').split('\n\n').map(r => r.trim()).filter(Boolean).map(chunk =>
-        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: BF, size: 24 })] })),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: BF, size: 24 })] })),
     ]
     sections.push(docxSection(content, SectionType.EVEN_PAGE))
   }
