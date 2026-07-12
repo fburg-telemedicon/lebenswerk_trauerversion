@@ -394,7 +394,7 @@ export function stopSpeaking() {
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 }
 
-export async function speakText(text, { onStart, onEnd, onError, memorialCode, contributionId } = {}) {
+export async function speakText(text, { onStart, onPlay, onEnd, onError, memorialCode, contributionId } = {}) {
   stopSpeaking()
   onStart?.()
   try {
@@ -419,6 +419,7 @@ export async function speakText(text, { onStart, onEnd, onError, memorialCode, c
     audio.onerror = () => { URL.revokeObjectURL(url); currentAudio = null; onError?.('Audiowiedergabe fehlgeschlagen.'); }
     try {
       await audio.play()
+      onPlay?.() // Wiedergabe läuft jetzt tatsächlich (Ladephase vorbei)
       return audio
     } catch (playErr) {
       URL.revokeObjectURL(url)
