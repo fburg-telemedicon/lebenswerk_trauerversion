@@ -21,9 +21,12 @@ const MAX_CHAIN = 60
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const isRateLimit = msg => /rate limit|exceeded|429|too many requests|throttl/i.test(String(msg || ''))
-// Azure-Inhaltsfilter (Content-Policy): Wiederholen ist zwecklos – gleicher Prompt,
-// gleiches Ergebnis. Erkennen, um Retries zu sparen und klar zu melden.
+// Azure-Inhaltsfilter (Content-Policy): identischer Prompt → identisches Ergebnis,
+// blindes Wiederholen ist zwecklos. Bei einem Treffer wird stattdessen EINMAL ein
+// entschärfter Prompt nachgeschoben (SOFTEN), der zurückhaltendere Formulierungen
+// verlangt – das umgeht viele Fehlalarme bei Trauer-/Segenstexten.
 const isContentFilter = msg => /content management policy|content[_ ]?filter|responsibleai|filtered due to/i.test(String(msg || ''))
+const SOFTEN = '\n\nWICHTIG (Formulierung): Schreibe bewusst zurückhaltend, sanft und pietätvoll. Vermeide drastische, explizite oder belastende Formulierungen sowie detaillierte Schilderungen von Tod, Sterben, Krankheit, Gewalt, Suizid oder körperlichem Leid. Halte den Text ruhig, würdevoll, tröstlich und wertschätzend.'
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET
@@ -72,17 +75,28 @@ async function processJob(job, deadline) {
     // Abbruch respektieren (Nutzer hat den Job storniert).
     if ((await genjobs.jobStatus(job.id)) === 'canceled') return 'canceled'
     const step = steps[cursor]
-    try {
-      const r = await callWithBackoff({ system: step.system, messages: [{ role: 'user', content: step.user }] })
+    // Ein Aufruf inkl. Kostenerfassung; `system` variabel (für den entschärften Retry).
+    const callOnce = async (system) => {
+      const r = await callWithBackoff({ system, messages: [{ role: 'user', content: step.user }] })
       if (r.inT || r.outT) {
         await recordCost({ memorial_id: job.memorial_id, kind: p.kind || 'generate', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
       }
-      const text = String(r.text || '').trim()
+      return String(r.text || '').trim()
+    }
+    try {
+      let text
+      try {
+        text = await callOnce(step.system)
+      } catch (e) {
+        if (!isContentFilter(e.message)) throw e
+        // Content-Policy-Treffer → einmal mit entschärftem Prompt nachschieben.
+        text = await callOnce(step.system + SOFTEN)
+      }
       if (!text) throw new Error('leere Antwort')
       result.parts.push(text)
     } catch (e) {
       const msg = isContentFilter(e.message)
-        ? 'vom KI-Inhaltsfilter blockiert (Azure Content-Policy) – Formulierung anpassen oder Filter in Azure lockern'
+        ? 'auch nach entschärftem Prompt vom KI-Inhaltsfilter blockiert (Azure Content-Policy) – Filter in Azure lockern'
         : e.message
       result.errors.push(`${step.label || `Schritt ${cursor + 1}`}: ${msg}`)
     }
