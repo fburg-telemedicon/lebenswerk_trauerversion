@@ -946,6 +946,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         <div style={{ marginBottom: 24 }}>
+          <Lbl>Foto-Upload als Tab im Interview</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.photoUploadTab === true} onChange={e => setCreateForm({ ...createForm, photoUploadTab: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Foto-Upload schon während des Interviews als Tab anbieten</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: nicht aktiv. Wenn aktiviert, sehen Beitragende unten eine Tab-Leiste („Interview" / „Foto-Upload"), und der Foto-Upload erscheint dort statt erst nach dem Interview.
+          </p>
+        </div>
+        <div style={{ marginBottom: 24 }}>
           <Lbl>Grafikstil der Bilder</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
           <ImageStylePicker value={createForm.imageStyle} onChange={k => setCreateForm({ ...createForm, imageStyle: k })} />
@@ -1689,6 +1699,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   ['Buch-Variante', orderVariant.title],
                   ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
                   ['Transkript-Anzeige', selected.show_transcript !== false ? 'Ja' : 'Nein'],
+                  ['Foto-Upload als Tab', selected.photo_upload_tab === true ? 'Ja' : 'Nein'],
                   ['Bemerkung', selected.note || dash],
                   ['Sammelbestellungs-Adresse', selected.pickup_address
                     ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
@@ -1810,6 +1821,14 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                     <input type="checkbox" checked={od.showTranscript !== false} onChange={e => setOd({ showTranscript: e.target.checked })}
                       style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
                     <span style={{ fontSize:14 }}>Transkript anzeigen (Beitragende können Antworten prüfen & neu einsprechen)</span>
+                  </label>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Foto-Upload als Tab im Interview</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.photoUploadTab === true} onChange={e => setOd({ photoUploadTab: e.target.checked })}
+                      style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Foto-Upload während des Interviews als Tab (statt nach dem Interview)</span>
                   </label>
                 </div>
                 <div style={{ marginBottom:14 }}>

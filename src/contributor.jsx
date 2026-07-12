@@ -574,6 +574,29 @@ function ContributorPhotoUpload({ code, contribId, t }) {
   )
 }
 
+// Untere Tab-Leiste im Interview (nur wenn Buch-Option photo_upload_tab gesetzt):
+// wechselt zwischen Interview und Foto-Upload. Ohne die Option keine Icons.
+function ContribTabBar({ tab, setTab, t }) {
+  const items = [
+    { id: 'interview', icon: '🎙️', label: t.tabInterview },
+    { id: 'photo',     icon: '📷', label: t.tabPhoto },
+  ]
+  return (
+    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #e7e5e4', display:'flex', zIndex:30, boxShadow:'0 -1px 4px rgba(0,0,0,.05)' }}>
+      {items.map(it => {
+        const active = tab === it.id
+        return (
+          <button key={it.id} onClick={() => setTab(it.id)} aria-current={active}
+            style={{ flex:1, background:'none', border:'none', borderTop: active ? '2px solid #1c1917' : '2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3, color: active ? '#1c1917' : '#a8a29e' }}>
+            <span style={{ fontSize:22, lineHeight:1 }}>{it.icon}</span>
+            <span style={{ fontSize:11, fontWeight: active ? 700 : 500 }}>{it.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function ContributorFlow({ code }) {
   const [view, setView]                       = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]               = useState(null)
@@ -588,6 +611,7 @@ export function ContributorFlow({ code }) {
   const [copied, setCopied]                   = useState('')
   const [saveErr, setSaveErr]                 = useState('')
   const [lang, setLang]                       = useState(null) // vom Beitragenden gewählte Sprache
+  const [tab, setTab]                         = useState('interview') // interview | photo (nur wenn photo_upload_tab)
   const saveQueueRef                          = useRef(Promise.resolve())
 
   useEffect(() => {
@@ -870,17 +894,34 @@ export function ContributorFlow({ code }) {
         </div>
       )}
 
-      {!needLang && view === 'interview' && memorial && (
-        <VoiceInterview
-          memorial={memorial}
-          contribForm={contribForm}
-          lang={L}
-          onSave={saveProgress}
-          onPause={handlePause}
-          saveErr={saveErr}
-          initialMessages={initialMessages}
-        />
-      )}
+      {!needLang && view === 'interview' && memorial && (() => {
+        const vi = (
+          <VoiceInterview
+            memorial={memorial}
+            contribForm={contribForm}
+            lang={L}
+            onSave={saveProgress}
+            onPause={handlePause}
+            saveErr={saveErr}
+            initialMessages={initialMessages}
+          />
+        )
+        // Ohne die Option kein Tab-Umschalter – Interview wie gehabt.
+        if (!memorial.photo_upload_tab) return vi
+        // Mit Option: beide Panels bleiben gemountet (Interview-Fortschritt bleibt
+        // erhalten), nur Sichtbarkeit per Tab. Untere Tab-Leiste schaltet um.
+        return (
+          <div style={{ paddingBottom: 64 }}>
+            <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
+            <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
+              <div style={{ ...S.page, paddingTop:'2rem' }}>
+                <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
+              </div>
+            </div>
+            <ContribTabBar tab={tab} setTab={setTab} t={t} />
+          </div>
+        )
+      })()}
 
       {!needLang && view === 'done' && (
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
@@ -888,7 +929,8 @@ export function ContributorFlow({ code }) {
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>{t.doneTitle}</h2>
           <p style={{ ...S.muted, maxWidth:360, margin:'0 auto 2rem' }}>{t.doneBody(ct.nounBook)}</p>
           <FeedbackBlock code={code} contribId={contribId} t={t} />
-          <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
+          {/* Foto-Upload nur hier, wenn er NICHT schon als Tab im Interview läuft. */}
+          {!memorial?.photo_upload_tab && <ContributorPhotoUpload code={code} contribId={contribId} t={t} />}
           <div style={{ marginTop:'2.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', maxWidth:420, margin:'2.5rem auto 0' }}>
             <button onClick={() => window.close()} className="secondary" style={{ fontSize:14, padding:'10px 22px' }}>{t.closeBtn}</button>
             <p style={{ ...S.muted, fontSize:12, marginTop:10 }}>{t.closeHint}</p>

@@ -123,6 +123,8 @@ ${url}
   txDelete: '🗑 Löschen',
   txRedo: '↻ Neu einsprechen',
   txToggleLabel: 'Transkript & Korrekturmöglichkeiten anzeigen',
+  tabInterview: 'Interview',
+  tabPhoto: 'Foto-Upload',
 }
 
 const PL = {
@@ -212,6 +214,8 @@ ${url}
   txDelete: '🗑 Usuń',
   txRedo: '↻ Nagraj ponownie',
   txToggleLabel: 'Pokaż transkrypcję i możliwość korekty',
+  tabInterview: 'Wywiad',
+  tabPhoto: 'Zdjęcia',
 }
 
 const EN = {
@@ -301,6 +305,8 @@ ${url}
   txDelete: '🗑 Delete',
   txRedo: '↻ Record again',
   txToggleLabel: 'Show transcript & correction options',
+  tabInterview: 'Interview',
+  tabPhoto: 'Photos',
 }
 
 const UI = { de: DE, pl: PL, en: EN }

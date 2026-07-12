@@ -264,7 +264,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       let query = supabase
         .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout')
+        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout')
         .order('created_at', { ascending: false })
 
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
@@ -348,7 +348,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -370,6 +370,7 @@ module.exports = async function handler(req, res) {
         cutoff_days: days,
         show_intro_video: showIntroVideo !== false,
         show_transcript: showTranscript !== false,
+        photo_upload_tab: photoUploadTab === true,
         product_category: category,
         owner_user: req.auth.admin ? null : (req.auth.uid || null),
         intake: intake && typeof intake === 'object' ? intake : null,
@@ -457,6 +458,7 @@ module.exports = async function handler(req, res) {
         }
         if ('showIntroVideo' in meta) update.show_intro_video = meta.showIntroVideo !== false
         if ('showTranscript' in meta) update.show_transcript = meta.showTranscript !== false
+        if ('photoUploadTab' in meta) update.photo_upload_tab = meta.photoUploadTab === true
         if ('intake' in meta)        update.intake = (meta.intake && typeof meta.intake === 'object') ? meta.intake : null
         if ('languages' in meta) {
           const ALLOWED_LANGS = ['de', 'pl', 'en']

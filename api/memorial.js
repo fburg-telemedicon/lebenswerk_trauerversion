@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
       // 6-stelligem Code geschützten Endpunkt nach außen gelangen. Auch
       // intake (kategorie-spezifische Notizen) und owner_user bleiben intern.
       const PUBLIC_FIELDS =
-        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, owner_user, catalog_id, followups, created_at'
+        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, created_at'
       const { data, error } = await supabase
         .from('memorials').select(PUBLIC_FIELDS).eq('id', code).single()
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
