@@ -3,7 +3,7 @@ import JSZip from 'jszip'
 import {
   createMemorial, getMemorial, getContribution, addContribution,
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
-  uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload, adminComposeImage,
+  uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload,
   enqueueGeneration, getGenerationJob, cancelGenerationJob,
   adminDeleteContribution, adminUpdateContributionMessages, adminSaveTranscriptCheck,
   getMemorialCosts,
@@ -72,39 +72,6 @@ function tryParseJSON(raw) {
   try { return JSON.parse(s) } catch {}
   // Zweiter Versuch: häufigen LLM-Ausrutscher „trailing comma" (Komma vor } oder ]) entfernen.
   try { return JSON.parse(s.replace(/,(\s*[}\]])/g, '$1')) } catch { return null }
-}
-
-// Prompt für die KI-Bildzuordnung: welche hochgeladenen Fotos passen in welches
-// Kapitel? Liefert JSON { assignments: [{ chapter, image_ids:[…] }] }.
-function imageAssignSystem(chapters, uploads) {
-  const chapLines = chapters.map(c => `${c.number}. ${c.heading || ''}`).join('\n')
-  // Auflösung/Format je Foto mitgeben: davon hängt ab, ob EIN Foto eine ganze
-  // Doppelseite füllen kann (hochauflösendes Querformat) oder ob mehrere
-  // (kleinere/gering aufgelöste) Fotos gemeinsam eine Seite tragen müssen.
-  const upLines = uploads.map(u => {
-    const res = (u.width && u.height) ? `${u.width}×${u.height}px` : 'Auflösung unbekannt'
-    const solo = (u.orientation === 'landscape' && u.quality_flag !== 'low' && (u.width || 0) >= 1819 && (u.height || 0) >= 1276)
-    const fit = solo ? 'füllt allein eine Doppelseite' : 'besser mit weiteren Fotos gruppieren'
-    return `- id ${u.id}: ${u.caption ? '„' + u.caption + '" – ' : ''}${u.description || '(keine Beschreibung)'} [${u.orientation}, ${res}${u.quality_flag === 'low' ? ', geringe Qualität' : ''} → ${fit}]`
-  }).join('\n')
-  return `Du ordnest hochgeladene Fotos den Kapiteln eines Buches zu. Jedes Kapitel füllt im Druck EINE Doppelseite.
-
-Kapitel:
-${chapLines}
-
-Fotos:
-${upLines}
-
-Ordne jedes Foto dem inhaltlich und zeitlich am besten passenden Kapitel zu (nutze Bildunterschrift und Beschreibung). Ein Kapitel darf mehrere Fotos bekommen (max. 4 – sie werden dann gemeinsam auf der Doppelseite angeordnet); nicht jedes Kapitel braucht eines. Lässt sich ein Foto nicht sinnvoll zuordnen, lass es weg.
-
-Berücksichtige dabei die Auflösung: Ein hochauflösendes Querformat-Foto („füllt allein eine Doppelseite") darf ruhig als einziges Foto ein Kapitel bekommen. Mehrere kleine oder gering aufgelöste Fotos, die inhaltlich zusammenpassen, ordne bevorzugt GEMEINSAM einem Kapitel zu, damit sie zusammen eine volle, ansehnliche Seite ergeben, statt einzeln aufgeblasen zu werden.
-
-Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
-{
-  "assignments": [
-    { "chapter": <Kapitelnummer als Zahl>, "image_ids": ["id1", "id2"] }
-  ]
-}`
 }
 
 // Prompt: pro Kapitel das am besten passende REFERENZFOTO einer Person wählen
@@ -1121,30 +1088,6 @@ function Dashboard() {
         const waitMs = rateLimited ? 20000 * attempt : 3000 * attempt
         try { onWait?.(Math.round(waitMs / 1000), rateLimited) } catch {}
         await new Promise(r => setTimeout(r, waitMs))
-      }
-    }
-    throw lastErr
-  }
-
-  // Kapitel-Generierung mit Auto-Retry: die KI liefert gelegentlich
-  // ungültiges JSON oder läuft ins 60s-Timeout — beides ist transient,
-  // ein zweiter/dritter Versuch klappt meistens.
-  async function generateChapterWithRetry(sys, memorialCode, kind, { maxAttempts = 3 } = {}) {
-    let lastErr
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const chRaw = await askLLM(
-          sys,
-          [{ role: 'user', content: 'Erzeuge jetzt dieses eine Kapitel als JSON.' }],
-          { memorialCode, kind, token }
-        )
-        const ch = tryParseJSON(chRaw)
-        if (!ch || !ch.body) throw new Error('Kapitel-JSON ungültig oder leer.')
-        return ch
-      } catch (e) {
-        lastErr = e
-        if (attempt === maxAttempts) throw e
-        await new Promise(r => setTimeout(r, 2000 * attempt))
       }
     }
     throw lastErr
