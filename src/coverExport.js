@@ -43,9 +43,10 @@ export const COVER = {
 }
 
 // ── Rückenstärke B nach Seitenzahl ──────────────────────────────────
-// Vom Nutzer vorgegebene Tabelle. Zwischen den Bereichen liegen Lücken
-// (z. B. 65–67); dort wird auf den nächsthöheren Bereich aufgerundet, weil
-// die Rückenstärke sonst zu knapp wäre.
+// Gedruckt werden nur Bücher mit einer durch 4 teilbaren Seitenzahl (Druckbogen);
+// downloadPrintPdf füllt dafür am Schluss mit Leerseiten auf. Die Tabelle deckt
+// damit LÜCKENLOS jede druckbare Seitenzahl ab: die scheinbaren Lücken (65, 66,
+// 67 …) sind keine gültigen Seitenzahlen und können nie auftreten.
 export const SPINE_TABLE = [
   { min: 48,  max: 64,  b: 5 },
   { min: 68,  max: 84,  b: 6 },
@@ -72,11 +73,15 @@ export const MAX_PAGES = 400
 export function spineWidthMm(pages) {
   const p = Number(pages)
   if (!Number.isFinite(p) || p <= 0) throw new Error('Seitenzahl unbekannt — bitte zuerst das Druck-PDF erzeugen.')
+  if (p % 4 !== 0) {
+    // Kann bei einem aus downloadPrintPdf stammenden Wert nicht passieren – wenn
+    // doch, ist das Buch nicht druckbar und die Rückenstärke waere geraten.
+    throw new Error(`Das Buch hat ${p} Seiten. Druckbar sind nur Seitenzahlen, die durch 4 teilbar sind.`)
+  }
   if (p > MAX_PAGES) {
     throw new Error(`Das Buch hat ${p} Seiten. Für Bücher über ${MAX_PAGES} Seiten gibt es keine Rückenstärke — bitte den Umfang reduzieren.`)
   }
-  // Erster Bereich, dessen Obergrenze die Seitenzahl abdeckt (deckt auch die
-  // Lücken zwischen den Bereichen ab und Bücher unter 48 Seiten → 5 mm).
+  // Bücher unter 48 Seiten sind in der Tabelle nicht vorgesehen → kleinste Stärke.
   const row = SPINE_TABLE.find(r => p <= r.max)
   return row.b
 }
