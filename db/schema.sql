@@ -76,6 +76,7 @@ create table if not exists memorials (
   photo_upload_tab boolean     not null default false,
   show_intro_video boolean     not null default true,
   show_transcript  boolean     not null default true,
+  show_contributors boolean    not null default true,  -- Namensliste der Beitragenden am Buchende drucken
   pickup_address   jsonb,
   purge_info       jsonb,
   book_v1_at       timestamptz,
@@ -91,7 +92,7 @@ create index if not exists memorials_catalog_id_idx on memorials(catalog_id);
 -- contributions (Interview-Beiträge)
 -- ----------------------------------------------------------------------------
 create table if not exists contributions (
-  id                     varchar(6)  primary key,
+  id                     text        primary key,   -- „geheime" Beitrags-ID, 6–14 Zeichen (NICHT varchar(6))
   memorial_id            varchar(6)  not null references memorials(id) on delete cascade,
   contributor_name       text        not null,
   relationship           text        not null,

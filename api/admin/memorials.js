@@ -16,6 +16,11 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 const SIGNED_URL_TTL = 3600 // 1 h
 
+// Spalten der Buch-Liste. LEGACY = ohne show_contributors, falls
+// db/show-contributors.sql noch nicht gelaufen ist (siehe GET-Handler).
+const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors`
+
 // Optionale Sammelbestellungs-/Abholadresse säubern. Nur bekannte Felder,
 // getrimmt, max. Länge je Feld. Sind alle Felder leer -> null (Adresse ist
 // optional). Land standardmäßig "Deutschland", falls leer aber sonst befüllt.
@@ -262,19 +267,27 @@ module.exports = async function handler(req, res) {
     if (req.query.catalogs !== undefined) return await handleCatalogs(req, res)
 
     if (req.method === 'GET') {
-      let query = supabase
-        .from('memorials')
-        .select('id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout')
-        .order('created_at', { ascending: false })
-
       // Nicht-Admins sehen nur ihre eigenen Bücher und nur erlaubte Kategorien.
+      let scope = null
       if (!req.auth.admin) {
         const cats = Array.isArray(req.auth.cats) ? req.auth.cats : []
         if (!req.auth.uid || cats.length === 0) return res.json([])
-        query = query.eq('owner_user', req.auth.uid).in('product_category', cats)
+        scope = { uid: req.auth.uid, cats }
       }
 
-      const { data, error } = await query
+      const listQuery = (cols) => {
+        let q = supabase.from('memorials').select(cols).order('created_at', { ascending: false })
+        if (scope) q = q.eq('owner_user', scope.uid).in('product_category', scope.cats)
+        return q
+      }
+
+      let { data, error } = await listQuery(SELECT_COLS)
+      // show_contributors evtl. noch nicht migriert (db/show-contributors.sql) →
+      // ohne die Spalte erneut lesen. Eine fehlende Migration darf niemals das
+      // gesamte Dashboard lahmlegen; der Default (an) greift dann im Frontend.
+      if (error && /show_contributors|column/i.test(error.message || '')) {
+        ;({ data, error } = await listQuery(SELECT_COLS_LEGACY))
+      }
       if (error) throw error
       const memorials = data || []
       await signMemorialImages(memorials)
@@ -348,7 +361,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -370,6 +383,7 @@ module.exports = async function handler(req, res) {
         cutoff_days: days,
         show_intro_video: showIntroVideo !== false,
         show_transcript: showTranscript !== false,
+        show_contributors: showContributors !== false,
         photo_upload_tab: photoUploadTab === true,
         product_category: category,
         owner_user: req.auth.admin ? null : (req.auth.uid || null),
@@ -385,9 +399,10 @@ module.exports = async function handler(req, res) {
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
+        delete insertRow.show_contributors
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }
       if (error) throw error
@@ -458,6 +473,7 @@ module.exports = async function handler(req, res) {
         }
         if ('showIntroVideo' in meta) update.show_intro_video = meta.showIntroVideo !== false
         if ('showTranscript' in meta) update.show_transcript = meta.showTranscript !== false
+        if ('showContributors' in meta) update.show_contributors = meta.showContributors !== false
         if ('photoUploadTab' in meta) update.photo_upload_tab = meta.photoUploadTab === true
         if ('intake' in meta)        update.intake = (meta.intake && typeof meta.intake === 'object') ? meta.intake : null
         if ('languages' in meta) {
@@ -476,10 +492,11 @@ module.exports = async function handler(req, res) {
         if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
-        // image_style/book_layout-Spalten evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && ('image_style' in update || 'book_layout' in update) && /image_style|book_layout|column/i.test(error.message || '')) {
+        // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
+        if (error && ('image_style' in update || 'book_layout' in update || 'show_contributors' in update) && /image_style|book_layout|show_contributors|column/i.test(error.message || '')) {
           delete update.image_style
           delete update.book_layout
+          delete update.show_contributors
           if (Object.keys(update).length) { ({ error } = await supabase.from('memorials').update(update).eq('id', code)) }
           else error = null
         }

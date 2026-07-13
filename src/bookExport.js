@@ -198,7 +198,11 @@ async function prepareLogoForExport(dataUrl) {
   return { dataUrl, kind: imageKindOf(dataUrl), w: dim.w, h: dim.h }
 }
 
-export async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout()) {
+// opts.showContributors: Namensliste der Beitragenden am Buchende drucken (Default an).
+// Die contributors-Liste wird unabhängig davon weiter gebraucht — aus ihr stammt
+// auch der Name unter der Kapitelüberschrift (Buch V1).
+export async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+  const showContributors = opts.showContributors !== false
   const bt = uiText(book.language)
   const HF = layout.heading.docx, BF = layout.body.docx
   const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
@@ -246,7 +250,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
 
   // Mitwirkende + Disclaimer (eigene Seite am Ende)
   const endChildren = []
-  if (contributors && contributors.length) {
+  if (showContributors && contributors && contributors.length) {
     endChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
       children: [new TextRun({ text: up(bt.contributorsHeading), font: HF, size: 36, bold: true })] }))
     for (const c of dedupeContributors(contributors)) {
@@ -319,7 +323,8 @@ const PDF_PAGE_W = 154   // mm – Einzelseite inkl. Beschnitt
 const PDF_PAGE_H = 216   // mm
 const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
 
-export async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout()) {
+export async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+  const showContributors = opts.showContributors !== false
   const bt = uiText(book.language)
   let HF = layout.heading.pdf, BF = layout.body.pdf
   const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
@@ -450,7 +455,7 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
 
   // ── Mitwirkende + Disclaimer (neue Seite) ──
   newPage(); y = MT
-  if (contributors && contributors.length) {
+  if (showContributors && contributors && contributors.length) {
     doc.setFont(HF, 'bold'); doc.setFontSize(20); doc.setTextColor(30, 30, 30)
     doc.text(up(bt.contributorsHeading), PDF_PAGE_W / 2, y, { align: 'center' }); y += 14
     doc.setFontSize(12)

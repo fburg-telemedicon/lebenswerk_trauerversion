@@ -4,6 +4,9 @@
     {
       "date": "2026-07-13",
       "items": [
+        "Neue Experteneinstellung „Namensliste der Beitragenden im Buch\": Die Seite „Mitwirkende\" am Buchende lässt sich jetzt pro Buch ein- und ausschalten – bei der Anlage und jederzeit später in den Buch-Details. Standard ist eingeschaltet; die Änderung wirkt sofort auf jeden neuen Word- und Druck-PDF-Export, das Buch muss dafür nicht neu erzeugt werden.",
+        "Fehler behoben: Bei der Buch-Anlage hatten die Einstellungen „Transkript-Anzeige\" und „Foto-Upload als Tab\" keine Wirkung – sie wurden beim Speichern verworfen und fielen auf die Standardwerte zurück. Beide werden jetzt korrekt übernommen.",
+        "Automatischer Deploy wiederhergestellt: Seit dem Azure-Umzug musste jede Änderung von Hand ausgerollt werden. Jetzt geht jede Änderung wieder automatisch live, sobald sie freigegeben ist.",
         "Einheitlicher Bildstil in den Büchern: Bisher konnten die Kapitelbilder eines Buchs stilistisch auseinanderdriften (mal Foto, mal Gemälde, mal 3D-Grafik), obwohl ein Stil gewählt war. Der gewählte Grafikstil wird der Bild-KI jetzt verbindlich vorgegeben und konkurrierende Stilangaben werden herausgefiltert – neu erzeugte Bücher sind durchgehend im selben Stil.",
         "Fehler nach dem Azure-Umzug behoben: Die Kapitelbilder erschienen zwar in der Buchansicht, fehlten aber im Word- und im Druck-PDF-Export. Ursache war eine fehlende Freigabe am neuen Bild-Speicher; sie ist gesetzt, Exporte enthalten die Bilder wieder.",
         "Plattform vollständig auf Microsoft Azure (EU) umgezogen: lebensgeschichten.ai und www.lebensgeschichten.ai laufen jetzt auf Azure – App, Datenbank, Bild-Speicher und geplante Aufgaben, inklusive automatischem HTTPS-Zertifikat.",

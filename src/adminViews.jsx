@@ -952,6 +952,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         <div style={{ marginBottom: 24 }}>
+          <Lbl>Namensliste der Beitragenden im Buch</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.showContributors !== false} onChange={e => setCreateForm({ ...createForm, showContributors: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Namen der Beitragenden am Ende des Buches drucken</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Am Buchende erscheint eine Seite „Mitwirkende" mit Namen und Beziehung. Deaktiviert: Die Seite entfällt (der KI-Hinweis am Buchende bleibt). Wirkt auf DOCX- und Druck-PDF-Export; später im Dashboard änderbar.
+          </p>
+        </div>
+        <div style={{ marginBottom: 24 }}>
           <Lbl>Foto-Upload als Tab im Interview</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
             <input type="checkbox" checked={createForm.photoUploadTab === true} onChange={e => setCreateForm({ ...createForm, photoUploadTab: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
@@ -1759,6 +1769,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   ['Buch-Variante', orderVariant.title],
                   ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
                   ['Transkript-Anzeige', selected.show_transcript !== false ? 'Ja' : 'Nein'],
+                  ['Namensliste im Buch', selected.show_contributors !== false ? 'Ja' : 'Nein'],
                   ['Foto-Upload als Tab', selected.photo_upload_tab === true ? 'Ja' : 'Nein'],
                   ['Bemerkung', selected.note || dash],
                   ['Sammelbestellungs-Adresse', selected.pickup_address
@@ -1886,6 +1897,17 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
                     <span style={{ fontSize:14 }}>Transkript anzeigen (Beitragende können Antworten prüfen & neu einsprechen)</span>
                   </label>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Namensliste der Beitragenden im Buch</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.showContributors !== false} onChange={e => setOd({ showContributors: e.target.checked })}
+                      style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Namen der Beitragenden am Ende des Buches drucken („Mitwirkende")</span>
+                  </label>
+                  <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+                    Wirkt sofort auf jeden neuen DOCX- und Druck-PDF-Export — das Buch muss dafür nicht neu erzeugt werden.
+                  </p>
                 </div>
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Foto-Upload als Tab im Interview</Lbl>

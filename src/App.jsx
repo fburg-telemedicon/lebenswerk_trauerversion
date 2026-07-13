@@ -109,7 +109,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
 // Leeres Anlage-Formular (inkl. Produktkategorie + kategorieabhängige Felder).
 const EMPTY_CREATE = {
   name: '', organizer: '', gender: '', bookVariant: 1,
-  funeralDate: '', cutoffDays: 7, showIntroVideo: false, showTranscript: true, photoUploadTab: false,
+  funeralDate: '', cutoffDays: 7, showIntroVideo: false, showTranscript: true, showContributors: true, photoUploadTab: false,
   productCategory: DEFAULT_CATEGORY, intake: {},
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },
@@ -576,6 +576,7 @@ function Dashboard() {
       cutoffDays: Number.isFinite(parseInt(m.cutoff_days, 10)) ? parseInt(m.cutoff_days, 10) : 7,
       showIntroVideo: m.show_intro_video !== false,
       showTranscript: m.show_transcript !== false,
+      showContributors: m.show_contributors !== false,
       photoUploadTab: m.photo_upload_tab === true,
       intake: m.intake ? { ...m.intake } : {},
       languages: Array.isArray(m.languages) && m.languages.length ? [...m.languages] : ['de'],
@@ -598,7 +599,8 @@ function Dashboard() {
       await adminUpdateMemorialMeta(token, selected.id, {
         name: d.name, organizer: d.organizer, gender: d.gender || null,
         bookVariant: d.bookVariant, funeralDate: d.funeralDate || null,
-        cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo, showTranscript: d.showTranscript, photoUploadTab: d.photoUploadTab,
+        cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo, showTranscript: d.showTranscript,
+        showContributors: d.showContributors, photoUploadTab: d.photoUploadTab,
         intake: d.intake, languages: d.languages, note: d.note,
         pickupAddress: d.pickupAddress,
         imageStyle: d.imageStyle,
@@ -617,6 +619,7 @@ function Dashboard() {
         cutoff_days: Number.isFinite(parseInt(d.cutoffDays, 10)) && parseInt(d.cutoffDays, 10) >= 0 ? parseInt(d.cutoffDays, 10) : 7,
         show_intro_video: d.showIntroVideo !== false,
         show_transcript: d.showTranscript !== false,
+        show_contributors: d.showContributors !== false,
         photo_upload_tab: d.photoUploadTab === true,
         intake: d.intake && Object.keys(d.intake).length ? d.intake : (d.intake || null),
         languages: (d.languages && d.languages.length) ? d.languages : ['de'],
@@ -682,6 +685,7 @@ function Dashboard() {
         cutoffDays: createForm.cutoffDays,
         showIntroVideo: createForm.showIntroVideo,
         showTranscript: createForm.showTranscript,
+        showContributors: createForm.showContributors,
         photoUploadTab: createForm.photoUploadTab,
         productCategory: createForm.productCategory,
         intake: createForm.intake || {},
@@ -1573,7 +1577,7 @@ function Dashboard() {
     setDlBusy(`${key}:docx`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
-      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
+      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false })
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de')
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
@@ -1587,7 +1591,7 @@ function Dashboard() {
     setDlBusy(`${key}:pdf`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout))
+      await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false })
     } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
   }
