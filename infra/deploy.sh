@@ -13,13 +13,25 @@
 # ============================================================================
 set -euo pipefail
 
+# az streamt die ACR-Build-Logs; auf Windows (cp1252) crasht das an Unicode-
+# Zeichen wie Vites „✓". UTF-8 erzwingen behebt das.
+export PYTHONIOENCODING=utf-8
+
 : "${RG:?}" "${ACR:?}" "${ACA_ENV:?}" "${APP:?}" "${STORAGE:?}" "${STORAGE_KEY:?}" "${DATABASE_URL:?}" "${CRON_SECRET:?}"
 TAG="${TAG:-$(date +%Y%m%d%H%M%S)}"
 IMAGE="${ACR}.azurecr.io/lebenswerk:${TAG}"
 
-echo ">> Build & Push Image ($IMAGE)"
-az acr build -r "$ACR" -t "$IMAGE" -f Dockerfile \
-  --build-arg VITE_PUBLIC_ASSET_BASE="${VITE_PUBLIC_ASSET_BASE:-}" . -o none
+if [ "${SKIP_BUILD:-}" = "1" ]; then
+  echo ">> Build übersprungen (SKIP_BUILD=1) — nutze vorhandenes Image $IMAGE"
+else
+  echo ">> Build & Push Image ($IMAGE)"
+  # BUILD_CONTEXT erlaubt einen sauberen, kurzen Build-Kontext (z. B. via
+  # `git archive` nach C:/azbuild) — nötig auf Windows, weil `az acr build` beim
+  # Packen den ganzen Ordner inkl. node_modules durchläuft und die tiefen
+  # @azure/*-Pfade sonst das 260-Zeichen-Limit sprengen. Default = aktuelles Verz.
+  az acr build -r "$ACR" -t "$IMAGE" -f Dockerfile \
+    --build-arg VITE_PUBLIC_ASSET_BASE="${VITE_PUBLIC_ASSET_BASE:-}" "${BUILD_CONTEXT:-.}" -o none
+fi
 
 # Gemeinsame Env/Secrets. Secrets als --secrets, Env referenziert sie via secretref.
 SECRETS=(
@@ -79,9 +91,13 @@ echo "   Ingress-URL: $(az containerapp show -g "$RG" -n "$APP" --query properti
 #   generate         */10 * * * * (Backstop-Worker; On-demand-Trigger bleibt HTTP)
 # --------------------------------------------------------------------------
 create_job () {
-  local name="$1" schedule="$2" cmd="$3"
+  local name="$1" schedule="$2" sub="$3"
   echo ">> Cron-Job $name ($schedule)"
   az containerapp job delete -g "$RG" -n "$name" --yes -o none 2>/dev/null || true
+  # WICHTIG: Command als getrennte Tokens OHNE führenden Bindestrich (argparse
+  # würde z. B. "-c" für eine Option halten) und OHNE Leerzeichen je Token
+  # (sonst zerlegt die az.cmd-Kette unter Git-Bash das Argument). Daher direkt
+  # `node scripts/cron-run.js <sub>` statt `/bin/sh -c "…"`.
   az containerapp job create -g "$RG" -n "$name" --environment "$ACA_ENV" \
     --trigger-type Schedule --cron-expression "$schedule" \
     --replica-timeout 1800 --replica-retry-limit 1 --parallelism 1 --replica-completion-count 1 \
@@ -89,13 +105,13 @@ create_job () {
     --registry-server "${ACR}.azurecr.io" --registry-username "$ACR_USER" --registry-password "$ACR_PASS" \
     --secrets "${SECRETS[@]}" --env-vars "${ENVVARS[@]}" \
     --cpu 1 --memory 2Gi \
-    --command "/bin/sh" "-c" "$cmd" -o none
+    --command "node" "scripts/cron-run.js" "$sub" -o none
 }
 
-create_job "${APP}-cron-purge"      "0 3 * * *"    "node scripts/cron-run.js purge"
-create_job "${APP}-cron-transcript" "0 22 * * *"   "node scripts/cron-run.js transcript-check"
-create_job "${APP}-cron-report"     "0 23 * * *"   "node scripts/cron-run.js report"
-create_job "${APP}-cron-generate"   "*/10 * * * *" "node scripts/cron-run.js generate"
+create_job "${APP}-cron-purge"      "0 3 * * *"    "purge"
+create_job "${APP}-cron-transcript" "0 22 * * *"   "transcript-check"
+create_job "${APP}-cron-report"     "0 23 * * *"   "report"
+create_job "${APP}-cron-generate"   "*/10 * * * *" "generate"
 
 echo ">> Fertig. Manueller Job-Testlauf z. B.:"
 echo "   az containerapp job start -g $RG -n ${APP}-cron-purge --command '/bin/sh' '-c' 'node scripts/cron-run.js purge dry=1'"

@@ -74,6 +74,7 @@ create table if not exists memorials (
   book_layout      text        default 'classic',
   image_style      text        default 'realistic',
   photo_upload_tab boolean     not null default false,
+  show_intro_video boolean     not null default true,
   show_transcript  boolean     not null default true,
   pickup_address   jsonb,
   purge_info       jsonb,
