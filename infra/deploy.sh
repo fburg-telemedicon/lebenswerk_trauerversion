@@ -64,6 +64,12 @@ ENVVARS=(
   "RETENTION_DAYS=${RETENTION_DAYS:-90}"
   "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}"
   "DEMO_BOOK_URL=${DEMO_BOOK_URL:-}"
+  # WICHTIG: interne Selbst-Aufrufe des Generierungs-Workers (triggerWorker +
+  # Bild-Endpunkte). Muss auf die EIGENE App-URL zeigen (Ingress-FQDN oder nach
+  # Cutover lebensgeschichten.ai) — sonst ruft der Worker die alte Produktion mit
+  # nicht passendem ADMIN_TOKEN_SECRET auf → „Nicht autorisiert". Leer ⇒ Code-
+  # Default https://lebensgeschichten.ai (erst nach dem DNS-Cutover korrekt).
+  "CRON_SELF_BASE_URL=${CRON_SELF_BASE_URL:-}"
 )
 
 ACR_USER="$(az acr credential show -n "$ACR" --query username -o tsv)"
