@@ -291,148 +291,223 @@ async function toDataUrl(src) {
   })
 }
 
-// ── Cover bauen ─────────────────────────────────────────────────────
-// bgUrl    : URL des generierten Hintergrundbilds (Blob-SAS-URL)
-// pages    : Seitenzahl des Druck-PDFs → bestimmt B
-// title/subtitle : Buchtitel + Untertitel
-export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle, layout }) {
+
+// ── Cover: Vorbereiten → Zeichnen → Speichern ───────────────────────
+//
+// Vorschau und PDF müssen ZWINGEND dieselbe Geometrie und denselben Zeilenumbruch
+// zeigen — sonst wählt der Admin eine Variante und bekommt eine andere. Deshalb
+// wird alles EINMAL in prepareCover() gerechnet (inkl. Umbruch über jsPDF, das
+// bricht anders um als Canvas) und danach nur noch stumpf gezeichnet: einmal auf
+// die PDF-Seite, einmal auf ein Canvas für die Vorschau.
+
+export const BOX_POSITIONS = [
+  { key: 'auto',   label: 'Automatisch', hint: 'ruhigste Stelle im Bild' },
+  { key: 'top',    label: 'Oben',        hint: '' },
+  { key: 'middle', label: 'Mitte',       hint: '' },
+  { key: 'bottom', label: 'Unten',       hint: '' },
+]
+
+const TITLE_SIZE = 26, SUB_SIZE = 13, TITLE_LH = 10, SUB_LH = 6, BOX_PAD_Y = 7
+const PT_TO_MM = 0.3528
+const ASC = 0.75, DESC = 0.25   // Ober-/Unterlänge der Standardfonts, in em
+
+// Alles, was Vorschau und PDF gemeinsam brauchen. Lädt die Bilder, rechnet Farben,
+// Geometrie und Textumbruch — einmal.
+export async function prepareCover({ bgUrl, pages, title, subtitle, layout }) {
   const B = spineWidthMm(pages)
   const W = 2 * COVER.bleed + 2 * COVER.panelW + B   // 338 + B
   const H = COVER.height                              // 245
-
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [W, H] })
   const HF = layout?.heading?.pdf || 'times'
   const BF = layout?.body?.pdf || 'times'
 
-  // 1) Hintergrund über die GESAMTE Brutto-Fläche (full bleed)
-  const [bgData, bgImg] = await Promise.all([toDataUrl(bgUrl), loadImage(bgUrl)])
-  const fit = coverFit(bgImg.naturalWidth, bgImg.naturalHeight, W, H)
-  doc.addImage(bgData, 'PNG', fit.x, fit.y, fit.w, fit.h, undefined, 'FAST')
+  const [bgData, bgImg, logoData, logoImg, spineData, spineImg] = await Promise.all([
+    toDataUrl(bgUrl), loadImage(bgUrl),
+    toDataUrl('/cover-logo.png'), loadImage('/cover-logo.png'),
+    toDataUrl('/cover-logo-spine.png'), loadImage('/cover-logo-spine.png'),
+  ])
 
-  // 2) Akzentfarbe aus dem Hintergrund ziehen + Analyse-Canvas aufbauen
-  //    (zeigt den Hintergrund exakt so, wie er auf dem Cover landet)
   const { bg, fg } = pickAccentColor(bgImg)
-  const canvas = renderCoverCanvas(bgImg, W, H)
+  const analysis = renderCoverCanvas(bgImg, W, H)
 
-  // 3) Buchrücken: exakt MITTIG auf der Bruttoseite und B + 2 mm breit
-  //    (je 1 mm Wickel-Toleranz nach beiden Seiten). Die Seitenmitte ist
-  //    (338 + B) / 2 = 169 + B/2 — der Rücken beginnt also immer bei 168.
-  const spineMidX = W / 2                       // = 169 + B/2
-  const spineBandW = B + COVER.spineExtra       // B + 2
-  const spineBandX = spineMidX - spineBandW / 2 // = 168
-  doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(spineBandX, 0, spineBandW, H, 'F')
+  // Buchrücken: exakt mittig, B + 2 mm breit → beginnt immer bei 168.
+  const spineMidX = W / 2
+  const spineBandW = B + COVER.spineExtra
+  const spineBandX = spineMidX - spineBandW / 2
+  const frontX = spineBandX + spineBandW
 
-  // 3a) Rücken-Logo: exakt B breit, mittig im Rücken, Mitte 30 mm über der
-  //     unteren Brutto-Kante. Ohne Schutzfläche — die zeichnete sich als heller
-  //     Rahmen ab; das Logo steht direkt auf der Rückenfarbe.
-  const spineLogoW = B
-  const spineLogoData = await toDataUrl('/cover-logo-spine.png')
-  const spineLogoImg = await loadImage('/cover-logo-spine.png')
-  const spineLogoH = spineLogoW * (spineLogoImg.naturalHeight / spineLogoImg.naturalWidth)
-  const spineLogoCY = H - COVER.spineLogoFromBottom
-  doc.addImage(spineLogoData, 'PNG', spineMidX - spineLogoW / 2, spineLogoCY - spineLogoH / 2,
-    spineLogoW, spineLogoH, undefined, 'FAST')
-
-  // 3b) Buchtitel um 90° gedreht im Rücken, von UNTEN nach OBEN laufend.
-  //     Die Zeile ist genau B breit (Schriftgrad danach gewählt) und sitzt mittig
-  //     im Rücken. Passt der Titel der Länge nach nicht, wird er gekürzt.
-  const spineTextTop = COVER.bleed + COVER.safety                       // 20
-  const spineTextBottom = spineLogoCY - spineLogoH / 2 - 4              // 4 mm Luft über dem Logo
-  const spineTextLen = spineTextBottom - spineTextTop
-  if (spineTextLen > 12 && title) {
-    const PT_TO_MM = 0.3528
-    // Ober-/Unterlänge der Standardfonts (Times/Helvetica), in em.
-    const ASC = 0.75, DESC = 0.25          // zusammen 1 em = Zeilenhöhe
-    const line = String(title)
-    doc.setFont(HF, 'bold')
-    doc.setTextColor(fg[0], fg[1], fg[2])
-
-    // Größter Grad, bei dem die Zeilenhöhe genau die Rückenbreite B füllt …
-    let size = B / PT_TO_MM / (ASC + DESC)
-    doc.setFontSize(size)
-    // … und dann so weit verkleinern, bis der Titel der LÄNGE nach in den Rücken
-    // passt. Gekürzt wird nicht mehr — ein abgeschnittener Buchtitel auf dem
-    // Rücken ist schlimmer als eine kleinere Schrift.
-    while (doc.getTextWidth(line) > spineTextLen && size > 3) {
-      size -= 0.25
-      doc.setFontSize(size)
-    }
-
-    // Bei angle:90 kippt die Schrift so, dass die OBERLÄNGEN nach links und die
-    // UNTERLÄNGEN nach rechts der Grundlinie zeigen. Die Zeile belegt also
-    // [x − Oberlänge, x + Unterlänge]; damit sie mittig im Rücken sitzt, muss die
-    // Grundlinie um (Oberlänge − Unterlänge)/2 nach rechts versetzt werden.
-    const emMm = size * PT_TO_MM
-    const baselineX = spineMidX + (ASC - DESC) / 2 * emMm
-    // Startpunkt ist der ZEILENANFANG unten; die Zeile wächst nach oben.
-    const startY = spineTextBottom - (spineTextLen - doc.getTextWidth(line)) / 2
-    doc.text(line, baselineX, startY, { angle: 90 })
-  }
-
-  // 4) Rückseite: farbiger Streifen von der linken Brutto-Kante bis EXAKT an den
-  //    Buchrücken (er wird nicht überlagert), darauf das Logo.
-  const logoData = await toDataUrl('/cover-logo.png')
-  const logoImg = await loadImage('/cover-logo.png')
+  // Rückseiten-Logo (quadratisch), Unterkante 30 mm über der Brutto-Kante.
   const lw = COVER.logoWidth
   const lh = lw * (logoImg.naturalHeight / logoImg.naturalWidth)
   const lx = COVER.logoCenterX - lw / 2
-  const netTop = COVER.bleed + COVER.safety
-  const netBottom = COVER.bleed + COVER.netH - COVER.safety
-  // UNTERKANTE des Logos liegt 30 mm über der unteren Brutto-Kante.
   const ly = H - COVER.logoFromBottom - lh
 
-  // Der Streifen ist GENAU so hoch wie das (quadratische) Logo: über und unter dem
-  // Logo ist von ihm nichts zu sehen, nur links und rechts davon.
-  doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(0, ly, spineBandX, lh, 'F')
-  // Keine Schutzfläche: Das Logo bringt seinen eigenen hellen Hintergrund mit
-  // (die Datei ist deckend). Eine zusätzliche Platte zeichnete sich als rosa
-  // Rahmen ab.
-  doc.addImage(logoData, 'PNG', lx, ly, lw, lh, undefined, 'FAST')
+  const netTop = COVER.bleed + COVER.safety
+  const netBottom = COVER.bleed + COVER.netH - COVER.safety
 
-  // 5) Titelkasten auf der Vorderseite: farbiger Streifen über die VOLLE Breite
-  //    (Buchrücken bis rechte Brutto-Kante); der Text sitzt darin eingerückt
-  //    zwischen 182+B und 318+B.
+  // Rücken-Logo + gedrehter Titel
+  const spineLogoW = B
+  const spineLogoH = spineLogoW * (spineImg.naturalHeight / spineImg.naturalWidth)
+  const spineLogoCY = H - COVER.spineLogoFromBottom
+  const spineTextTop = netTop
+  const spineTextBottom = spineLogoCY - spineLogoH / 2 - 4
+  const spineTextLen = spineTextBottom - spineTextTop
+
+  // Textumbruch + Schriftgrade über eine jsPDF-Instanz messen (identisch zum PDF).
+  const m = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [W, H] })
   const textX = COVER.textStartX + B
-  const textMaxX = COVER.textEndX + B
-  const textW = textMaxX - textX          // 136 mm
-  const padY = 7
+  const textW = (COVER.textEndX + B) - textX
+  m.setFont(HF, 'bold'); m.setFontSize(TITLE_SIZE)
+  const titleLines = m.splitTextToSize(String(title || ''), textW)
+  m.setFont(BF, 'italic'); m.setFontSize(SUB_SIZE)
+  const subLines = subtitle ? m.splitTextToSize(String(subtitle), textW) : []
+  const blockH = titleLines.length * TITLE_LH + (subLines.length ? 4 + subLines.length * SUB_LH : 0)
+  const boxH = blockH + 2 * BOX_PAD_Y
 
-  doc.setFont(HF, 'bold'); doc.setFontSize(26)
-  const titleLines = doc.splitTextToSize(String(title || ''), textW)
-  doc.setFont(BF, 'italic'); doc.setFontSize(13)
-  const subLines = subtitle ? doc.splitTextToSize(String(subtitle), textW) : []
+  // Rückentitel: größter Grad, der in die Rückenbreite B passt, dann so weit
+  // verkleinern, bis der Titel der LÄNGE nach hineinpasst (nie kürzen).
+  let spineSize = B / PT_TO_MM / (ASC + DESC)
+  let spineLine = String(title || '')
+  m.setFont(HF, 'bold'); m.setFontSize(spineSize)
+  while (spineLine && m.getTextWidth(spineLine) > spineTextLen && spineSize > 3) {
+    spineSize -= 0.25
+    m.setFontSize(spineSize)
+  }
+  const spineTextW = spineLine ? m.getTextWidth(spineLine) : 0
 
-  const titleLH = 10, subLH = 6
-  const blockH = titleLines.length * titleLH + (subLines.length ? 4 + subLines.length * subLH : 0)
-  const boxH = blockH + 2 * padY
-
-  // Vertikale Lage NICHT fest, sondern motivabhängig: Der Streifen wandert in das
-  // ruhigste horizontale Band der Vorderseite, damit er keine Gesichter, Kanten
-  // oder Hauptmotive überdeckt. Der Bereich des Rückseiten-Logos (unten) wird
-  // ausgespart, damit beide Streifen nicht auf gleicher Höhe kleben.
-  const frontX = spineBandX + spineBandW   // grenzt exakt an den Rücken an
-  const boxY = quietestBandY(canvas, {
-    xMm: frontX,
-    widthMm: W - frontX,
-    topMm: netTop,
-    bottomMm: Math.min(netBottom, ly - 6),   // 6 mm Luft über dem Logo-Streifen
-    boxHMm: boxH,
-  })
-  doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(frontX, boxY, W - frontX, boxH, 'F')
-
-  doc.setTextColor(fg[0], fg[1], fg[2])
-  let ty = boxY + padY + titleLH * 0.72
-  doc.setFont(HF, 'bold'); doc.setFontSize(26)
-  for (const ln of titleLines) { doc.text(ln, textX, ty); ty += titleLH }
-  if (subLines.length) {
-    ty += 4
-    doc.setFont(BF, 'italic'); doc.setFontSize(13)
-    for (const ln of subLines) { doc.text(ln, textX, ty); ty += subLH }
+  // Die vier Lagen des Titelkastens. „auto" = ruhigstes Band (siehe quietestBandY).
+  const bandTop = netTop
+  const bandBottom = Math.min(netBottom, ly - 6)     // 6 mm Luft über dem Logo-Streifen
+  const clamp = y => Math.max(bandTop, Math.min(bandBottom - boxH, y))
+  const boxYByPos = {
+    top: clamp(bandTop),
+    middle: clamp((bandTop + bandBottom) / 2 - boxH / 2),
+    bottom: clamp(bandBottom - boxH),
+    auto: clamp(quietestBandY(analysis, {
+      xMm: frontX, widthMm: W - frontX, topMm: bandTop, bottomMm: bandBottom, boxHMm: boxH,
+    })),
   }
 
+  return {
+    B, W, H, HF, BF, bg, fg,
+    images: { bgData, bgImg, logoData, logoImg, spineData, spineImg },
+    spineMidX, spineBandX, spineBandW, frontX,
+    lx, ly, lw, lh,
+    spineLogoW, spineLogoH, spineLogoCY,
+    spineLine, spineSize, spineTextW, spineTextBottom, spineTextLen,
+    textX, textW, titleLines, subLines, boxH,
+    boxYByPos,
+  }
+}
+
+// ── Zeichnen: PDF ───────────────────────────────────────────────────
+function drawCoverPdf(doc, p, boxY) {
+  const { W, H, bg, fg, HF, BF, images } = p
+
+  // 1) Hintergrund full-bleed
+  const fit = coverFit(images.bgImg.naturalWidth, images.bgImg.naturalHeight, W, H)
+  doc.addImage(images.bgData, 'PNG', fit.x, fit.y, fit.w, fit.h, undefined, 'FAST')
+
+  // 2) Buchrücken
+  doc.setFillColor(bg[0], bg[1], bg[2])
+  doc.rect(p.spineBandX, 0, p.spineBandW, H, 'F')
+  doc.addImage(images.spineData, 'PNG', p.spineMidX - p.spineLogoW / 2,
+    p.spineLogoCY - p.spineLogoH / 2, p.spineLogoW, p.spineLogoH, undefined, 'FAST')
+
+  // 3) Rückentitel, 90° gedreht, von unten nach oben.
+  //    Bei angle:90 zeigen die Oberlängen nach links, die Unterlängen nach rechts
+  //    der Grundlinie → Grundlinie um (ASC−DESC)/2 versetzen, damit die Zeile
+  //    mittig im Rücken sitzt.
+  if (p.spineLine && p.spineTextLen > 12) {
+    doc.setFont(HF, 'bold'); doc.setFontSize(p.spineSize)
+    doc.setTextColor(fg[0], fg[1], fg[2])
+    const emMm = p.spineSize * PT_TO_MM
+    const baselineX = p.spineMidX + (ASC - DESC) / 2 * emMm
+    const startY = p.spineTextBottom - (p.spineTextLen - p.spineTextW) / 2
+    doc.text(p.spineLine, baselineX, startY, { angle: 90 })
+  }
+
+  // 4) Rückseite: Streifen exakt auf Logohöhe + Logo
+  doc.setFillColor(bg[0], bg[1], bg[2])
+  doc.rect(0, p.ly, p.spineBandX, p.lh, 'F')
+  doc.addImage(images.logoData, 'PNG', p.lx, p.ly, p.lw, p.lh, undefined, 'FAST')
+
+  // 5) Vorderseite: Titelstreifen + Text
+  doc.setFillColor(bg[0], bg[1], bg[2])
+  doc.rect(p.frontX, boxY, W - p.frontX, p.boxH, 'F')
+  doc.setTextColor(fg[0], fg[1], fg[2])
+  let ty = boxY + BOX_PAD_Y + TITLE_LH * 0.72
+  doc.setFont(HF, 'bold'); doc.setFontSize(TITLE_SIZE)
+  for (const ln of p.titleLines) { doc.text(ln, p.textX, ty); ty += TITLE_LH }
+  if (p.subLines.length) {
+    ty += 4
+    doc.setFont(BF, 'italic'); doc.setFontSize(SUB_SIZE)
+    for (const ln of p.subLines) { doc.text(ln, p.textX, ty); ty += SUB_LH }
+  }
+}
+
+// ── Zeichnen: Vorschau auf ein Canvas ───────────────────────────────
+// Dieselbe Geometrie, nur skaliert. Der Zeilenumbruch kommt aus prepareCover,
+// wird hier also NICHT neu berechnet — die Vorschau zeigt exakt das PDF.
+export function drawCoverPreview(canvasEl, p, boxYKey) {
+  const boxY = p.boxYByPos[boxYKey] ?? p.boxYByPos.auto
+  const s = canvasEl.width / p.W                     // px pro mm
+  const ctx = canvasEl.getContext('2d')
+  const { bg, fg, images } = p
+  const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`
+  const cssFont = (which, style) => {
+    const fam = (which === 'H' ? p.HF : p.BF) === 'helvetica' ? 'Helvetica, Arial, sans-serif' : 'Georgia, "Times New Roman", serif'
+    return { fam, style }
+  }
+
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height)
+
+  // Hintergrund
+  const fit = coverFit(images.bgImg.naturalWidth, images.bgImg.naturalHeight, p.W, p.H)
+  ctx.drawImage(images.bgImg, fit.x * s, fit.y * s, fit.w * s, fit.h * s)
+
+  ctx.fillStyle = rgb(bg)
+  ctx.fillRect(p.spineBandX * s, 0, p.spineBandW * s, p.H * s)                 // Rücken
+  ctx.fillRect(0, p.ly * s, p.spineBandX * s, p.lh * s)                        // Streifen links
+  ctx.fillRect(p.frontX * s, boxY * s, (p.W - p.frontX) * s, p.boxH * s)       // Titelstreifen
+
+  ctx.drawImage(images.spineImg, (p.spineMidX - p.spineLogoW / 2) * s,
+    (p.spineLogoCY - p.spineLogoH / 2) * s, p.spineLogoW * s, p.spineLogoH * s)
+  ctx.drawImage(images.logoImg, p.lx * s, p.ly * s, p.lw * s, p.lh * s)
+
+  // Rückentitel (gedreht)
+  if (p.spineLine && p.spineTextLen > 12) {
+    const f = cssFont('H', 'bold')
+    ctx.save()
+    ctx.fillStyle = rgb(fg)
+    ctx.font = `bold ${p.spineSize * PT_TO_MM * s}px ${f.fam}`
+    const emMm = p.spineSize * PT_TO_MM
+    const baselineX = (p.spineMidX + (ASC - DESC) / 2 * emMm) * s
+    const startY = (p.spineTextBottom - (p.spineTextLen - p.spineTextW) / 2) * s
+    ctx.translate(baselineX, startY)
+    ctx.rotate(-Math.PI / 2)
+    ctx.fillText(p.spineLine, 0, 0)
+    ctx.restore()
+  }
+
+  // Titel + Untertitel
+  ctx.fillStyle = rgb(fg)
+  let ty = boxY + BOX_PAD_Y + TITLE_LH * 0.72
+  const fh = cssFont('H', 'bold')
+  ctx.font = `bold ${TITLE_SIZE * PT_TO_MM * s}px ${fh.fam}`
+  for (const ln of p.titleLines) { ctx.fillText(ln, p.textX * s, ty * s); ty += TITLE_LH }
+  if (p.subLines.length) {
+    ty += 4
+    const fb = cssFont('B', 'italic')
+    ctx.font = `italic ${SUB_SIZE * PT_TO_MM * s}px ${fb.fam}`
+    for (const ln of p.subLines) { ctx.fillText(ln, p.textX * s, ty * s); ty += SUB_LH }
+  }
+}
+
+// ── Speichern ───────────────────────────────────────────────────────
+export function downloadCoverPdf(filename, p, boxYKey) {
+  const boxY = p.boxYByPos[boxYKey] ?? p.boxYByPos.auto
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [p.W, p.H] })
+  drawCoverPdf(doc, p, boxY)
   doc.save(filename)
-  return { spineMm: B, widthMm: W, heightMm: H }
+  return { spineMm: p.B, widthMm: p.W, heightMm: p.H }
 }

@@ -21,7 +21,7 @@ import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadAsDocx } from './bookExport.js'
-import { downloadCoverPdf, spineWidthMm } from './coverExport.js'
+import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
 // hochzählen — dann werden bereits gespeicherte Cover-Hintergründe beim nächsten
@@ -31,6 +31,23 @@ import { downloadCoverPdf, spineWidthMm } from './coverExport.js'
 // v3: Bildaufteilung vorgegeben — rechts (Vorderseite) das Hauptmotiv, links
 //     (Rückseite) ruhiger; jede Hälfte muss für sich allein funktionieren.
 const COVER_PROMPT_VERSION = 3
+
+// Eine Cover-Variante als Bild. Zeichnet exakt das, was auch ins PDF geht
+// (gleiche Geometrie, gleicher Zeilenumbruch – beides kommt aus prepareCover).
+function CoverPreview({ prep, posKey, width = 420 }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const cv = ref.current
+    if (!cv || !prep) return
+    const dpr = Math.min(2, window.devicePixelRatio || 1)
+    cv.width = Math.round(width * dpr)
+    cv.height = Math.round(width * (prep.H / prep.W) * dpr)
+    cv.style.width = `${width}px`
+    cv.style.height = `${Math.round(width * (prep.H / prep.W))}px`
+    drawCoverPreview(cv, prep, posKey)
+  }, [prep, posKey, width])
+  return <canvas ref={ref} style={{ display:'block', borderRadius:6, border:'1px solid #e7e5e4' }} />
+}
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
@@ -414,6 +431,7 @@ function Dashboard() {
   const [imgEditMsg, setImgEditMsg]     = useState('') // Erfolgsmeldung im Bilder-Modal (bleibt offen)
   const [promptEdit, setPromptEdit]     = useState(null) // { i, text } – Bild-Prompt eines Kapitels bearbeiten
   const [promptSaving, setPromptSaving] = useState(false)
+  const [coverModal, setCoverModal]     = useState(null) // { key, prep, filename } – Cover-Vorschau/Auswahl
   const [imgZoom, setImgZoom]           = useState(null) // { url, heading } | null – Bild groß ansehen (Lightbox)
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
   const [costData, setCostData]       = useState(null)
@@ -1692,16 +1710,26 @@ function Dashboard() {
       }
 
       setDlBusy(`${key}:cover`)
-      const filename = `${gen.filename}_${safeName(selected.name)}_Cover.pdf`
-      await downloadCoverPdf(filename, {
+      // Nicht direkt herunterladen: erst die Lagen des Titelstreifens zeigen und
+      // den Admin wählen lassen. Die automatische Wahl trifft nicht jedes Motiv.
+      const prep = await prepareCover({
         bgUrl,
         pages,
         title: book.title || selected.name,
         subtitle: book.subtitle || '',
         layout: getBookLayout(selected.book_layout),
       })
+      setCoverModal({ key, prep, filename: `${gen.filename}_${safeName(selected.name)}_Cover.pdf` })
     } catch (e) { setErr(`Druck-Cover fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
+  }
+
+  function saveCover(posKey) {
+    if (!coverModal) return
+    try {
+      downloadCoverPdf(coverModal.filename, coverModal.prep, posKey)
+      setCoverModal(null)
+    } catch (e) { setErr(`Druck-Cover fehlgeschlagen: ${e.message}`) }
   }
 
   function pickEulogyStyle(style) {
@@ -1902,6 +1930,33 @@ function Dashboard() {
 
   // Prompt-Fenster: liegt ÜBER dem Bilder-Modal (höherer z-index), damit die
   // Auswahl dahinter erhalten bleibt.
+  // Cover-Auswahl: vier Lagen des Titelstreifens als Vorschau. Der Admin wählt,
+  // erst dann entsteht das PDF — die automatische Wahl passt nicht zu jedem Motiv.
+  const coverOverlay = coverModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:120, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 960, width:'100%', maxHeight:'92vh', display:'flex', flexDirection:'column' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, margin:'0 0 4px' }}>Druck-Cover · Titelstreifen platzieren</h2>
+        <p style={{ ...S.muted, margin:'0 0 14px' }}>
+          Rückenstärke {coverModal.prep.B} mm · Format {coverModal.prep.W} × {coverModal.prep.H} mm.
+          Wähle die Lage des Titelstreifens — die Vorschau zeigt exakt das spätere PDF.
+        </p>
+        <div style={{ overflowY:'auto', display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:16, padding:'2px' }}>
+          {BOX_POSITIONS.map(pos => (
+            <div key={pos.key} style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <CoverPreview prep={coverModal.prep} posKey={pos.key} width={420} />
+              <button onClick={() => saveCover(pos.key)} style={{ fontSize:14, padding:'9px 14px' }}>
+                ⬇ {pos.label}{pos.hint ? ` (${pos.hint})` : ''}
+              </button>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-start', borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:12 }}>
+          <button className="ghost" onClick={() => setCoverModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   const promptEditOverlay = (promptEdit && imgEditModal) ? (() => {
     const gen = GENERATORS[imgEditModal.key]
     const ch = selected?.[gen.field]?.chapters?.[promptEdit.i]
@@ -2323,7 +2378,7 @@ function Dashboard() {
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
@@ -2338,7 +2393,7 @@ function Dashboard() {
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') return (
-    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
+    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
   )
 
   return null
