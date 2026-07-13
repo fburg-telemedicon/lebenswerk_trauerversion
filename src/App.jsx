@@ -402,6 +402,8 @@ function Dashboard() {
   const [imgEditBusy, setImgEditBusy]   = useState(false)
   const [imgEditProgress, setImgEditProgress] = useState('')
   const [imgEditMsg, setImgEditMsg]     = useState('') // Erfolgsmeldung im Bilder-Modal (bleibt offen)
+  const [promptEdit, setPromptEdit]     = useState(null) // { i, text } – Bild-Prompt eines Kapitels bearbeiten
+  const [promptSaving, setPromptSaving] = useState(false)
   const [imgZoom, setImgZoom]           = useState(null) // { url, heading } | null – Bild groß ansehen (Lightbox)
   const [reportModal, setReportModal] = useState(null)   // { title, field, report } | null
   const [costData, setCostData]       = useState(null)
@@ -1631,12 +1633,53 @@ function Dashboard() {
   function toggleImgSel(i) {
     setImgEditSel(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n })
   }
-  async function regenerateSelectedImages() {
+
+  // ── Bild-Prompt eines Kapitels von Hand ändern ──
+  // Der Prompt wird im Buch gespeichert (chapters[i].image_prompt) und ist damit
+  // genau der Text, den regenerateSelectedImages an FLUX schickt. Grafikstil und
+  // Doppelseiten-Komposition kommen weiterhin serverseitig dazu (image-styles.js /
+  // SPREAD_DIRECTIVE) – die muss (und soll) man hier nicht mitschreiben.
+  function openPromptEdit(i) {
+    const gen = GENERATORS[imgEditModal.key]
+    const ch = selected?.[gen.field]?.chapters?.[i]
+    setPromptEdit({ i, text: ch?.image_prompt || '' })
+  }
+
+  async function savePromptEdit({ regenerate = false } = {}) {
+    if (!promptEdit || !imgEditModal) return
+    const { i, text } = promptEdit
+    const gen = GENERATORS[imgEditModal.key]
+    const book = selected?.[gen.field]
+    if (!book?.chapters?.[i]) return
+    const clean = String(text || '').trim()
+    if (!clean) { setErr('Der Bild-Prompt darf nicht leer sein.'); return }
+    setPromptSaving(true); setErr('')
+    try {
+      const newChapters = book.chapters.map((c, idx) => idx === i ? { ...c, image_prompt: clean } : c)
+      await adminSaveMemorialText(token, selected.id, gen.field, { ...book, chapters: newChapters })
+      const updatedBook = { ...book, chapters: newChapters }
+      setSelected(s => ({ ...s, [gen.field]: updatedBook }))
+      setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, [gen.field]: updatedBook } : x))
+      setPromptEdit(null)
+      setPromptSaving(false)
+      if (regenerate) {
+        setImgEditMsg('')
+        setImgEditSel(new Set([i]))
+        // Buch + Index explizit übergeben: setSelected greift erst im nächsten Render.
+        await regenerateSelectedImages({ book: updatedBook, indices: [i] })
+      } else {
+        setImgEditMsg('✓ Prompt gespeichert. Er wird beim nächsten Neu-Generieren dieses Bildes verwendet.')
+      }
+    } catch (e) { setErr(e.message); setPromptSaving(false) }
+  }
+  // opts.book/opts.indices: explizit übergeben, wenn der Aufrufer den frischen
+  // Stand schon kennt (React-State ist im selben Tick noch der alte).
+  async function regenerateSelectedImages(opts = {}) {
     const m = imgEditModal
     if (!m) return
     const gen = GENERATORS[m.key]
-    const book = selected?.[gen.field]
-    const indices = [...imgEditSel].sort((a, b) => a - b)
+    const book = opts.book || selected?.[gen.field]
+    const indices = [...(opts.indices || imgEditSel)].sort((a, b) => a - b)
     if (!book?.chapters || indices.length === 0) return
     setImgEditBusy(true); setErr(''); setImgEditMsg('')
     try {
@@ -1751,6 +1794,47 @@ function Dashboard() {
     </div>
   ) : null
 
+  // Prompt-Fenster: liegt ÜBER dem Bilder-Modal (höherer z-index), damit die
+  // Auswahl dahinter erhalten bleibt.
+  const promptEditOverlay = (promptEdit && imgEditModal) ? (() => {
+    const gen = GENERATORS[imgEditModal.key]
+    const ch = selected?.[gen.field]?.chapters?.[promptEdit.i]
+    return (
+      <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:110, padding:'1rem', overflowY:'auto' }}>
+        <div style={{ ...S.card, maxWidth: 640, width:'100%' }}>
+          <h2 style={{ fontSize:18, fontWeight:700, margin:'0 0 4px' }}>Bild-Prompt bearbeiten</h2>
+          <p style={{ ...S.muted, margin:'0 0 12px' }}>
+            Kapitel {ch?.number} · {ch?.heading || '—'}
+          </p>
+          <textarea
+            value={promptEdit.text}
+            onChange={e => setPromptEdit(p => ({ ...p, text: e.target.value }))}
+            disabled={promptSaving}
+            rows={6}
+            autoFocus
+            style={{ width:'100%', fontSize:14, lineHeight:1.5, padding:'10px 12px', borderRadius:8, border:'1px solid #d6d3d1', fontFamily:'inherit', resize:'vertical' }}
+          />
+          <p style={{ fontSize:12, color:'#78716c', margin:'8px 0 0' }}>
+            Beschreibe nur das <strong>Motiv</strong> (Szene, Personen, Epoche) — am besten auf Englisch, das versteht die Bild-KI am zuverlässigsten.
+            Grafikstil und das Doppelseiten-Format kommen automatisch dazu; Angaben wie „oil painting" oder „photo" werden deshalb ignoriert
+            und würden den einheitlichen Stil des Buchs nur stören.
+          </p>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:14 }}>
+            <button className="ghost" onClick={() => setPromptEdit(null)} disabled={promptSaving} style={{ fontSize:14 }}>Abbrechen</button>
+            <div style={{ display:'flex', gap:8 }}>
+              <button className="secondary" onClick={() => savePromptEdit()} disabled={promptSaving} style={{ fontSize:14, padding:'10px 16px' }}>
+                {promptSaving ? 'Speichert …' : 'Speichern'}
+              </button>
+              <button onClick={() => savePromptEdit({ regenerate: true })} disabled={promptSaving} style={{ fontSize:14, padding:'10px 16px' }}>
+                ✨ Speichern &amp; Bild neu generieren
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  })() : null
+
   const imgEditOverlay = imgEditModal ? (() => {
     const gen = GENERATORS[imgEditModal.key]
     const book = selected?.[gen.field]
@@ -1758,6 +1842,7 @@ function Dashboard() {
     const selCount = imgEditSel.size
     const allSel = chapters.length > 0 && selCount === chapters.length
     return (
+      <>
       <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
         <div style={{ ...S.card, maxWidth: 720, width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:8 }}>
@@ -1819,6 +1904,13 @@ function Dashboard() {
                     <div style={{ fontSize:11, color:'#a8a29e', marginBottom:2 }}>Kapitel {ch.number}</div>
                     {/* Volltext-Umbruch statt Zeilen-Clamp: die Überschrift wird nie abgeschnitten. */}
                     <div style={{ fontSize:13, fontWeight:600, lineHeight:1.35, wordBreak:'break-word' }}>{ch.heading || '—'}</div>
+                    <button
+                      className="ghost"
+                      disabled={imgEditBusy}
+                      onClick={(e) => { e.stopPropagation(); openPromptEdit(i) }}
+                      title="Bild-Prompt bearbeiten"
+                      style={{ fontSize:11, padding:'4px 8px', marginTop:7, width:'100%' }}
+                    >✏️ Prompt</button>
                   </div>
                 </div>
               )
@@ -1834,12 +1926,14 @@ function Dashboard() {
 
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, borderTop:'1px solid #e7e5e4', paddingTop:12, marginTop:12 }}>
             <button className="ghost" onClick={() => setImgEditModal(null)} disabled={imgEditBusy} style={{ fontSize:14 }}>Schließen</button>
-            <button onClick={regenerateSelectedImages} disabled={imgEditBusy || selCount === 0} style={{ fontSize:14, padding:'10px 18px' }}>
+            <button onClick={() => regenerateSelectedImages()} disabled={imgEditBusy || selCount === 0} style={{ fontSize:14, padding:'10px 18px' }}>
               {imgEditBusy ? 'Wird generiert …' : `✨ Auswahl neu generieren${selCount ? ` (${selCount})` : ''}`}
             </button>
           </div>
         </div>
       </div>
+      {promptEditOverlay}
+      </>
     )
   })() : null
 

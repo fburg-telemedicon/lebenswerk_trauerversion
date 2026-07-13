@@ -4,6 +4,7 @@
     {
       "date": "2026-07-13",
       "items": [
+        "Bild-Prompts sind jetzt selbst editierbar: Im Fenster „Bilder überarbeiten\" hat jedes Kapitelbild einen Button „✏️ Prompt\". Dahinter lässt sich der Text, mit dem die Bild-KI arbeitet, frei ändern und direkt neu generieren – so kann ein einzelnes Motiv gezielt korrigiert werden, ohne das Buch neu zu erzeugen. Der Prompt wird im Buch gespeichert.",
         "Neue Experteneinstellung „Namensliste der Beitragenden im Buch\": Die Seite „Mitwirkende\" am Buchende lässt sich jetzt pro Buch ein- und ausschalten – bei der Anlage und jederzeit später in den Buch-Details. Standard ist eingeschaltet; die Änderung wirkt sofort auf jeden neuen Word- und Druck-PDF-Export, das Buch muss dafür nicht neu erzeugt werden.",
         "Fehler behoben: Bei der Buch-Anlage hatten die Einstellungen „Transkript-Anzeige\" und „Foto-Upload als Tab\" keine Wirkung – sie wurden beim Speichern verworfen und fielen auf die Standardwerte zurück. Beide werden jetzt korrekt übernommen.",
         "Automatischer Deploy wiederhergestellt: Seit dem Azure-Umzug musste jede Änderung von Hand ausgerollt werden. Jetzt geht jede Änderung wieder automatisch live, sobald sie freigegeben ist.",
