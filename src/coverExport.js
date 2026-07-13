@@ -68,6 +68,7 @@ export const SPINE_TABLE = [
   { min: 388, max: 400, b: 22 },
 ]
 
+export const MIN_PAGES = 48
 export const MAX_PAGES = 400
 
 export function spineWidthMm(pages) {
@@ -78,10 +79,12 @@ export function spineWidthMm(pages) {
     // doch, ist das Buch nicht druckbar und die Rückenstärke waere geraten.
     throw new Error(`Das Buch hat ${p} Seiten. Druckbar sind nur Seitenzahlen, die durch 4 teilbar sind.`)
   }
+  if (p < MIN_PAGES) {
+    throw new Error(`Das Buch hat nur ${p} Seiten. Gedruckt werden können erst Bücher ab ${MIN_PAGES} Seiten — bitte den Umfang erhöhen.`)
+  }
   if (p > MAX_PAGES) {
     throw new Error(`Das Buch hat ${p} Seiten. Für Bücher über ${MAX_PAGES} Seiten gibt es keine Rückenstärke — bitte den Umfang reduzieren.`)
   }
-  // Bücher unter 48 Seiten sind in der Tabelle nicht vorgesehen → kleinste Stärke.
   const row = SPINE_TABLE.find(r => p <= r.max)
   return row.b
 }
