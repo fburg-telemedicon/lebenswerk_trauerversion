@@ -2,6 +2,23 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-13",
+      "items": [
+        "Plattform vollständig auf Microsoft Azure (EU) umgezogen: lebensgeschichten.ai und www.lebensgeschichten.ai laufen jetzt auf Azure – App, Datenbank, Bild-Speicher und geplante Aufgaben, inklusive automatischem HTTPS-Zertifikat.",
+        "Alle Bestandsdaten migriert: 49 Gedenkbücher, 335 Beiträge und die Kostenerfassung sowie 276 Buch-Bilder (486 MB, unversehrt geprüft) und die öffentlichen Medien (Einführungsvideo, Demo-Buch).",
+        "Nach dem Umzug verifiziert: Login, Buch- und Bilderzeugung sowie die Bildanzeige funktionieren; die Datenbank-Firewall wurde gehärtet (nur interner Zugriff, verschlüsselte Verbindungen erzwungen).",
+        "Hinweis: Der nächtliche Tagesreport des Vortags entfiel migrationsbedingt und wurde manuell nachversendet."
+      ]
+    },
+    {
+      "date": "2026-07-12",
+      "items": [
+        "Vorbereitung des kompletten Plattform-Umzugs auf Microsoft Azure (EU-Region): Die gesamte Datenzugriffsschicht wurde von Supabase auf eine Azure-Datenbank umgestellt – ein neues internes Modul ersetzt den bisherigen Supabase-Zugriff 1:1 und ist mit automatisierten Tests abgesichert.",
+        "Anwendungs-Server für den Betrieb auf Azure erstellt (bündelt alle Programmierschnittstellen und liefert die Weboberfläche aus), dazu ein konsolidiertes Datenbankschema und Skripte zur Bereitstellung der Azure-Infrastruktur.",
+        "Vollständiges Migrations-Runbook erstellt (Bereitstellung, Datenübernahme, Umschaltung) und die geplanten täglichen Aufgaben (Aufbewahrungs-Löschung, Transkript-Prüfung, Tagesreport, Generierung) für Azure vorbereitet."
+      ]
+    },
+    {
       "date": "2026-07-11",
       "items": [
         "Transkript-Bericht: Störeinschub-Vorschläge (z. B. „Moment, das Telefon klingelt“) werden jetzt zuverlässig erkannt und lassen sich per „Anwenden“ übernehmen – vorher passierte beim Klick nichts.",

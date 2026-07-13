@@ -30,6 +30,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY api ./api
 COPY scripts ./scripts
 COPY server.js ./server.js
+# changelog.json wird vom Tagesreport gelesen (api/_lib/changelog.js) → muss
+# ins Laufzeit-Image, sonst bleibt der Abschnitt „Gestern umgesetzt" leer.
+COPY changelog.json ./changelog.json
 COPY --from=build /app/dist ./dist
 
 EXPOSE 8080
