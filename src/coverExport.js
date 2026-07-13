@@ -382,12 +382,13 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
   // UNTERKANTE des Logos liegt 30 mm über der unteren Brutto-Kante.
   const ly = H - COVER.logoFromBottom - lh
 
-  const logoPad = 6
+  // Der Streifen ist GENAU so hoch wie das (quadratische) Logo: über und unter dem
+  // Logo ist von ihm nichts zu sehen, nur links und rechts davon.
   doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(0, ly - logoPad, spineBandX, lh + 2 * logoPad, 'F')
-  // Keine Schutzfläche mehr: Das Logo bringt seinen eigenen hellen Hintergrund
-  // mit (die Datei ist deckend). Eine zusätzliche Platte zeichnete sich als
-  // rosa Rahmen um das Logo ab.
+  doc.rect(0, ly, spineBandX, lh, 'F')
+  // Keine Schutzfläche: Das Logo bringt seinen eigenen hellen Hintergrund mit
+  // (die Datei ist deckend). Eine zusätzliche Platte zeichnete sich als rosa
+  // Rahmen ab.
   doc.addImage(logoData, 'PNG', lx, ly, lw, lh, undefined, 'FAST')
 
   // 5) Titelkasten auf der Vorderseite: farbiger Streifen über die VOLLE Breite
@@ -416,7 +417,7 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
     xMm: frontX,
     widthMm: W - frontX,
     topMm: netTop,
-    bottomMm: Math.min(netBottom, ly - logoPad - 6),
+    bottomMm: Math.min(netBottom, ly - 6),   // 6 mm Luft über dem Logo-Streifen
     boxHMm: boxH,
   })
   doc.setFillColor(bg[0], bg[1], bg[2])
