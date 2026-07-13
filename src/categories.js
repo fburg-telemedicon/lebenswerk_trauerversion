@@ -212,7 +212,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - "body": ${band.min}–${band.max} Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
-- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und fotografische Anmutung dieser Zeit; warm und würdevoll; passt zum Inhalt des Kapitels
+- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 
@@ -270,7 +270,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - "body": ${sc.min}–${sc.max} Wörter, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen ausführlich aus, OHNE etwas zu erfinden; keine "X sagte …"-Zitate, keine Quellenangaben
-- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Lebensabschnitts bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Abschnitts — periodengerechte Kleidung, Umgebung und fotografische Anmutung dieser Zeit; warm und würdevoll; passt zum jeweiligen Lebensabschnitt
+- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Lebensabschnitts bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Abschnitts — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Lebensabschnitt
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 
@@ -407,7 +407,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - "body": ${band.min}–${band.max} Wörter, ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
-- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und fotografische Anmutung dieser Zeit; warm und würdevoll; passt zum Inhalt des Kapitels
+- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 
@@ -472,7 +472,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - "body": ${sc.min}–${sc.max} Wörter, ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen ausführlich aus, OHNE etwas zu erfinden; keine "X sagte …"-Zitate, keine Quellenangaben
-- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und fotografische Anmutung dieser Zeit; warm und würdevoll; passt zum jeweiligen Kapitel
+- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 

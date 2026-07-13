@@ -20,7 +20,7 @@ const { costImage, recordCost } = require('../_lib/cost')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
-const { normalizeStyle, styleDirective, DEFAULT_STYLE } = require('../_lib/image-styles')
+const { normalizeStyle, styleDirective, styleAnchor, DEFAULT_STYLE } = require('../_lib/image-styles')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -40,9 +40,12 @@ const FLUX_MODEL = `flux-2-pro-${IMAGE_W}x${IMAGE_H}`
 // echtes aufgeschlagenes Buch (auf einem Tisch, mit Bild darin). Wir beschreiben
 // nur Seitenverhältnis und Sicherheitszonen und verbieten jede Rahmung/Requisite
 // explizit. Das Motiv IST das Bild, nicht ein abfotografiertes Objekt.
+// MEDIEN-NEUTRAL: Wörter wie "illustration" oder "artwork" haben hier früher das
+// Medium mitbestimmt und die Stil-Direktive überstimmt (die Bilder eines Buchs
+// sahen dann unterschiedlich aus). Nur noch "image"/"picture" verwenden.
 const SPREAD_DIRECTIVE =
-  'Render this as ONE single continuous panoramic landscape illustration in a wide format (roughly 1.43:1). ' +
-  'The artwork itself must fill the entire frame edge to edge (full-bleed). ' +
+  'Composition: ONE single continuous panoramic landscape image in a wide format (roughly 1.43:1). ' +
+  'The picture itself must fill the entire frame edge to edge (full-bleed). ' +
   'It is the scene itself — NOT a photo of a printed image. ' +
   // Personen sind ausdrücklich erwünscht: das Bild soll die Person(en) des
   // Kapitels in ihrer Handlung und im Zeitkolorit der jeweiligen Epoche zeigen
@@ -52,7 +55,44 @@ const SPREAD_DIRECTIVE =
   'People are welcome and preferred when the chapter is about a person: depict them warmly and authentically, dressed and set in the correct historical period of the chapter, evoking the mood and atmosphere of that era. ' +
   'Do NOT depict a book, an open book, pages, a page spread, a printed photograph, a poster, a postcard, a screen, a frame, a border, a mat, a passe-partout, a tabletop, a desk, a wall, or any object that contains or displays the picture. No mockup, no product shot. ' +
   'Keep the main focal elements — especially faces — away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
-  'Balanced, warm, atmospheric, edge-to-edge artwork that spans the full width; no text, no lettering, no captions.'
+  'Balanced, warm, atmospheric, edge-to-edge and spanning the full width; no text, no lettering, no captions.'
+
+// Das LLM schreibt in image_prompt gern selbst ein Medium hinein ("vintage
+// photograph", "oil painting", "cinematic still"). Steht so ein Wort im Motiv,
+// kaempft es gegen die Stil-Direktive – und jedes Kapitel gewinnt anders. Wir
+// schneiden diese Wortgruppen deshalb aus dem Motiv heraus; das Medium kommt
+// AUSSCHLIESSLICH aus image-styles.js. Wirkt auch fuer bereits gespeicherte
+// Buecher, weil beim Neu-Erzeugen der alte image_prompt gefiltert wird.
+const MEDIUM_SRC =
+  '\\b(?:hyper-?realistic|photo-?realistic|photorealism|cinematic|filmic|movie still|film still|' +
+  '(?:vintage|sepia|black[- ]and[- ]white|b&w|analog|polaroid|old|archival|documentary|candid|studio|dslr|35mm|film)?\\s*' +
+  '(?:photograph|photography|photo|snapshot)|' +
+  'oil painting|watercolou?r(?:\\s+painting)?|gouache|acrylic|pastel|charcoal|ink drawing|pencil (?:drawing|sketch)|sketch|' +
+  'etching|engraving|woodcut|lithograph|painting|painterly|illustration|illustrated|drawing|artwork|' +
+  'digital art|concept art|matte painting|3-?d render|3-?d|render(?:ed|ing)?|cgi|unreal engine|octane|' +
+  'anime|manga|comic|cartoon|storybook|pixar|disney|impressionist|expressionist|art nouveau|art deco)\\b'
+
+const MEDIUM_WORDS = new RegExp(MEDIUM_SRC, 'gi')
+// Typischer Satzanfang "A nostalgic vintage photograph of …" / "Oil painting of …":
+// hier muss die ganze Einleitung inkl. "of" weg, sonst bleibt ein Fragment stehen.
+const MEDIUM_LEAD = new RegExp(
+  '^[^,.]{0,40}?(?:(?:' + MEDIUM_SRC + ')[\\s,:;-]*){1,3}(?:of|showing|depicting|featuring|capturing)?[\\s,:;-]*', 'i')
+
+function stripMedium(text) {
+  const cleaned = String(text || '')
+    .replace(MEDIUM_LEAD, '')
+    .replace(MEDIUM_WORDS, ' ')
+    // durch das Ausschneiden entstandene Fuellwoerter/Satzzeichen aufraeumen
+    .replace(/\b(?:in|as|a|an|the|of|with|style|styled|look|aesthetic|vibe|quality)\b(?=[\s,;.]*(?:$|[,;.]))/gi, ' ')
+    .replace(/,\s*(?=,)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,;.])/g, '$1')
+    .replace(/^[\s,;.\-]+|[\s,;.\-]+$/g, '')
+    .trim()
+  // Falls der Prompt fast nur aus Medien-Woertern bestand, lieber das Original
+  // lassen als ein leeres Motiv an FLUX zu schicken.
+  return cleaned.length >= 15 ? cleaned : String(text || '').trim()
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -211,8 +251,13 @@ module.exports = async function handler(req, res) {
     }
     style = style || DEFAULT_STYLE
     const styleDir = styleDirective(style)
-    const fullPrompt = `${prompt}\n\n${styleDir}\n\n${SPREAD_DIRECTIVE}`
-    const fallbackPrompt = `${SAFE_FALLBACK_PROMPT}\n\n${styleDir}\n\n${SPREAD_DIRECTIVE}`
+    const anchor = styleAnchor(style)
+    // Reihenfolge zaehlt: Stil rahmt den Prompt (vorne) UND schliesst ihn ab
+    // (hinten, staerkste Gewichtung). Das Motiv selbst wird von Medien-Woertern
+    // befreit, damit ein "vintage photo"-Motiv nicht den Aquarell-Stil kippt.
+    const build = (motif) => `${styleDir}\n\nSubject: ${stripMedium(motif)}\n\n${SPREAD_DIRECTIVE}\n\n${anchor}`
+    const fullPrompt = build(prompt)
+    const fallbackPrompt = build(SAFE_FALLBACK_PROMPT)
 
     // image-to-image (echte Personen-Ähnlichkeit, in die Kapitelzeit versetzt):
     // NUR wenn AZURE_FLUX_IMG2IMG gesetzt ist UND ein Referenzbild vorliegt.
