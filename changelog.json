@@ -4,6 +4,7 @@
     {
       "date": "2026-07-13",
       "items": [
+        "Fehler nach dem Azure-Umzug behoben: Die Kapitelbilder erschienen zwar in der Buchansicht, fehlten aber im Word- und im Druck-PDF-Export. Ursache war eine fehlende Freigabe am neuen Bild-Speicher; sie ist gesetzt, Exporte enthalten die Bilder wieder.",
         "Plattform vollständig auf Microsoft Azure (EU) umgezogen: lebensgeschichten.ai und www.lebensgeschichten.ai laufen jetzt auf Azure – App, Datenbank, Bild-Speicher und geplante Aufgaben, inklusive automatischem HTTPS-Zertifikat.",
         "Alle Bestandsdaten migriert: 49 Gedenkbücher, 335 Beiträge und die Kostenerfassung sowie 276 Buch-Bilder (486 MB, unversehrt geprüft) und die öffentlichen Medien (Einführungsvideo, Demo-Buch).",
         "Nach dem Umzug verifiziert: Login, Buch- und Bilderzeugung sowie die Bildanzeige funktionieren; die Datenbank-Firewall wurde gehärtet (nur interner Zugriff, verschlüsselte Verbindungen erzwungen).",
