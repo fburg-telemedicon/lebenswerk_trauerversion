@@ -12,7 +12,10 @@
 -- Idempotent: kann gefahrlos mehrfach ausgeführt werden.
 -- ============================================================================
 
-create extension if not exists pgcrypto;  -- gen_random_uuid()
+-- Hinweis: KEINE Extension nötig — gen_random_uuid() ist ab PostgreSQL 13 im
+-- Core enthalten (Azure Flexible Server läuft auf PG 16). pgcrypto müsste auf
+-- Azure erst per azure.extensions-Allowlist freigeschaltet werden; wird hier
+-- bewusst vermieden.
 
 -- ----------------------------------------------------------------------------
 -- app_users (Login-Benutzer / „Manager")
