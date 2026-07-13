@@ -138,8 +138,10 @@ function contrast(a, b) {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
 
-// Helle Schutzfläche unter den Logos (siehe unten) – ein warmes Off-White.
-const PLATE = [250, 249, 246]
+// Helle Schutzfläche unter den Logos (siehe unten). Exakt die Hintergrundfarbe
+// des Rückseiten-Logos (public/cover-logo.png ist deckend, nicht freigestellt) —
+// so entsteht zwischen Logo und Platte keine sichtbare Kante.
+const PLATE = [244, 232, 231]
 
 // Das Hintergrundbild GENAU so, wie es auf dem Cover erscheint (cover-fit auf die
 // Bruttofläche), in ein Canvas rendern. Damit stimmen Farbanalyse und
