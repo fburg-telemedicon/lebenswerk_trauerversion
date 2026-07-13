@@ -34,12 +34,13 @@ export const COVER = {
   height: 245,        // Bruttohöhe
   logoCenterX: 98,    // Horizontale Mitte des Rückseiten-Logos (von der Brutto-Kante)
   logoWidth: 40,      // Breite des Rückseiten-Logos
+  logoFromBottom: 30, // UNTERKANTE des Rückseiten-Logos über der unteren Brutto-Kante
   spineStartX: 169,   // Buchrücken beginnt hier (= bleed + panelW)
   spineExtra: 2,      // Buchrücken-Farbfläche ist 2 mm breiter als B (Wickel-Toleranz)
   spineLogoFromBottom: 30, // Mitte des Rücken-Logos, gemessen von der unteren Brutto-Kante
-  spineMargin: 1,     // seitlicher Freiraum im Rücken (je Seite), damit nichts anschneidet
+  spineMargin: 0.5,   // seitlicher Freiraum im Rücken (je Seite), damit nichts anschneidet
   textStartX: 182,    // Titelkasten: linke Textkante (+ B)
-  textEndX: 232,      // Titelkasten: spätestens hier umbrechen (+ B)
+  textEndX: 318,      // Titelkasten: spätestens hier umbrechen (+ B)
 }
 
 // ── Rückenstärke B nach Seitenzahl ──────────────────────────────────
@@ -135,6 +136,81 @@ function luminance([r, g, b]) {
 function contrast(a, b) {
   const la = luminance(a), lb = luminance(b)
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+// Helle Schutzfläche unter den Logos (siehe unten) – ein warmes Off-White.
+const PLATE = [250, 249, 246]
+
+// Das Hintergrundbild GENAU so, wie es auf dem Cover erscheint (cover-fit auf die
+// Bruttofläche), in ein Canvas rendern. Damit stimmen Farbanalyse und
+// Motiv-Analyse mit dem überein, was am Ende gedruckt wird — und mm lassen sich
+// direkt in Pixel umrechnen.
+export function renderCoverCanvas(imgEl, wMm, hMm, pxPerMm = 2) {
+  const cw = Math.round(wMm * pxPerMm)
+  const chh = Math.round(hMm * pxPerMm)
+  const cv = document.createElement('canvas')
+  cv.width = cw; cv.height = chh
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  const s = Math.max(cw / imgEl.naturalWidth, chh / imgEl.naturalHeight)
+  const w = imgEl.naturalWidth * s, h = imgEl.naturalHeight * s
+  ctx.drawImage(imgEl, (cw - w) / 2, (chh - h) / 2, w, h)
+  return { ctx, pxPerMm, wPx: cw, hPx: chh }
+}
+
+// Ruhigstes horizontales Band in einem Ausschnitt finden: Der Kasten soll dort
+// liegen, wo im Bild am wenigsten „los ist" (wenig Detail/Kontrast) — also keine
+// Gesichter, Kanten oder Motive verdeckt werden.
+//
+// bottomBias (0…1) bevorzugt zusätzlich eine tiefe Lage: unten ist der typografische
+// Normalfall fürs Cover. Ein höher liegendes Band gewinnt nur, wenn es SPÜRBAR
+// ruhiger ist — der Zuschlag entspricht `bottomBias × mittlere Detailstärke`.
+export function quietestBandY(canvas, { xMm, widthMm, topMm, bottomMm, boxHMm, stepMm = 2, bottomBias = 0.55 }) {
+  const { ctx, pxPerMm } = canvas
+  const x0 = Math.round(xMm * pxPerMm)
+  const w = Math.round(widthMm * pxPerMm)
+  const boxH = Math.round(boxHMm * pxPerMm)
+  const yTop = Math.round(topMm * pxPerMm)
+  const yBot = Math.round(bottomMm * pxPerMm)
+  if (w <= 0 || boxH <= 0 || yBot - yTop <= boxH) return topMm
+
+  const img = ctx.getImageData(x0, yTop, w, yBot - yTop)
+  const d = img.data
+  const rows = yBot - yTop
+  // Pro Bildzeile: mittlere Detailstärke (horizontaler Helligkeitsgradient).
+  const energy = new Float64Array(rows)
+  for (let y = 0; y < rows; y++) {
+    let sum = 0
+    for (let x = 1; x < w; x++) {
+      const i = (y * w + x) * 4, j = (y * w + x - 1) * 4
+      const l1 = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+      const l0 = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]
+      sum += Math.abs(l1 - l0)
+    }
+    energy[y] = sum / Math.max(1, w - 1)
+  }
+  // Gleitendes Fenster in Kastenhöhe → das ruhigste Fenster gewinnt, mit
+  // Zuschlag für Fenster, die weiter oben liegen (siehe bottomBias).
+  let mean = 0
+  for (let y = 0; y < rows; y++) mean += energy[y]
+  mean /= Math.max(1, rows)
+
+  // „+1" ist ein Sockel: ohne ihn wäre der Zuschlag bei einem gleichmäßig ruhigen
+  // Bild (mittlere Detailstärke ≈ 0) ebenfalls 0 — die Priorität für unten würde
+  // verschwinden und der Kasten landete willkürlich ganz oben.
+  const biasScale = bottomBias * (mean + 1)
+
+  const step = Math.max(1, Math.round(stepMm * pxPerMm))
+  const lastY = rows - boxH
+  let best = lastY, bestScore = Infinity
+  for (let y = 0; y <= lastY; y += step) {
+    let s = 0
+    for (let k = y; k < y + boxH; k++) s += energy[k]
+    s /= boxH
+    const height = lastY > 0 ? 1 - y / lastY : 0   // 1 = ganz oben, 0 = ganz unten
+    const score = s + biasScale * height
+    if (score < bestScore) { bestScore = score; best = y }
+  }
+  return topMm + best / pxPerMm
 }
 
 export function pickAccentColor(imgEl) {
@@ -238,21 +314,29 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
   const fit = coverFit(bgImg.naturalWidth, bgImg.naturalHeight, W, H)
   doc.addImage(bgData, 'PNG', fit.x, fit.y, fit.w, fit.h, undefined, 'FAST')
 
-  // 2) Akzentfarbe aus dem Hintergrund ziehen
+  // 2) Akzentfarbe aus dem Hintergrund ziehen + Analyse-Canvas aufbauen
+  //    (zeigt den Hintergrund exakt so, wie er auf dem Cover landet)
   const { bg, fg } = pickAccentColor(bgImg)
+  const canvas = renderCoverCanvas(bgImg, W, H)
 
   // 3) Buchrücken einfärben: volle Höhe, beginnt bei 169 mm, Breite 2 + B
   doc.setFillColor(bg[0], bg[1], bg[2])
   doc.rect(COVER.spineStartX, 0, COVER.spineExtra + B, H, 'F')
 
-  // 3a) Rücken-Logo (quadratisch, ohne Schriftzug): mittig im Band 169…169+B,
-  //     Mitte 30 mm über der unteren Brutto-Kante.
+  // 3a) Rücken-Logo (quadratisch, ohne Schriftzug): horizontal mittig im Rücken
+  //     (169…169+B), Mitte 30 mm über der unteren Brutto-Kante. Es liegt auf einer
+  //     hellen Schutzfläche — das Logo-Rot hätte auf einem dunklen/braunen Kasten
+  //     zu wenig Kontrast.
   const spineMidX = COVER.spineStartX + B / 2
   const spineLogoW = Math.max(2, B - 2 * COVER.spineMargin)
   const spineLogoData = await toDataUrl('/cover-logo-spine.png')
   const spineLogoImg = await loadImage('/cover-logo-spine.png')
   const spineLogoH = spineLogoW * (spineLogoImg.naturalHeight / spineLogoImg.naturalWidth)
   const spineLogoCY = H - COVER.spineLogoFromBottom
+  const sPad = Math.min(0.8, COVER.spineMargin)
+  doc.setFillColor(...PLATE)
+  doc.roundedRect(spineMidX - spineLogoW / 2 - sPad, spineLogoCY - spineLogoH / 2 - sPad,
+    spineLogoW + 2 * sPad, spineLogoH + 2 * sPad, 0.6, 0.6, 'F')
   doc.addImage(spineLogoData, 'PNG', spineMidX - spineLogoW / 2, spineLogoCY - spineLogoH / 2,
     spineLogoW, spineLogoH, undefined, 'FAST')
 
@@ -283,32 +367,35 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
     doc.text(line, baselineX, startY, { angle: -90 })
   }
 
-  // 4) Rückseite: farbiger Kasten (gleiche Farbe wie Titelkasten und Rücken) mit
-  //    dem freigestellten Logo darauf. Unteres Drittel, Mitte bei x = 98 mm.
-  //    Ist der Kasten dunkel, wird die helle Logo-Variante genommen — sonst
-  //    verschwände der dunkelgraue Schriftzug „Lebenswerk" darin.
-  const isDarkBox = fg[0] === 255
-  const logoSrc = isDarkBox ? '/cover-logo-light.png' : '/cover-logo.png'
-  const logoData = await toDataUrl(logoSrc)
-  const logoImg = await loadImage(logoSrc)
+  // 4) Rückseite: farbiger Streifen über die VOLLE Breite (linke Brutto-Kante bis
+  //    Buchrücken), darauf das Logo auf heller Schutzfläche.
+  const logoData = await toDataUrl('/cover-logo.png')
+  const logoImg = await loadImage('/cover-logo.png')
   const lw = COVER.logoWidth
   const lh = lw * (logoImg.naturalHeight / logoImg.naturalWidth)
   const lx = COVER.logoCenterX - lw / 2
-  // Unteres Drittel des Nutzbereichs, mit Abstand zum Sicherheitsrand.
   const netTop = COVER.bleed + COVER.safety
   const netBottom = COVER.bleed + COVER.netH - COVER.safety
-  const ly = netTop + (netBottom - netTop) * 0.72 - lh / 2
+  // UNTERKANTE des Logos liegt 30 mm über der unteren Brutto-Kante.
+  const ly = H - COVER.logoFromBottom - lh
 
-  const logoPad = 5
+  const logoPad = 6
   doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(lx - logoPad, ly - logoPad, lw + 2 * logoPad, lh + 2 * logoPad, 'F')
+  doc.rect(0, ly - logoPad, COVER.spineStartX, lh + 2 * logoPad, 'F')
+  // Schutzfläche: das Logo ist für hellen Grund gestaltet (dunkler Schriftzug,
+  // rotes „.ai"); direkt auf dem farbigen Streifen ginge das Rot unter.
+  const platePad = 3
+  doc.setFillColor(...PLATE)
+  doc.roundedRect(lx - platePad, ly - platePad, lw + 2 * platePad, lh + 2 * platePad, 1.5, 1.5, 'F')
   doc.addImage(logoData, 'PNG', lx, ly, lw, lh, undefined, 'FAST')
 
-  // 5) Titelkasten auf der Vorderseite
+  // 5) Titelkasten auf der Vorderseite: farbiger Streifen über die VOLLE Breite
+  //    (Buchrücken bis rechte Brutto-Kante); der Text sitzt darin eingerückt
+  //    zwischen 182+B und 318+B.
   const textX = COVER.textStartX + B
   const textMaxX = COVER.textEndX + B
-  const textW = textMaxX - textX          // 50 mm
-  const padX = 5, padY = 5
+  const textW = textMaxX - textX          // 136 mm
+  const padY = 7
 
   doc.setFont(HF, 'bold'); doc.setFontSize(26)
   const titleLines = doc.splitTextToSize(String(title || ''), textW)
@@ -318,13 +405,21 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
   const titleLH = 10, subLH = 6
   const blockH = titleLines.length * titleLH + (subLines.length ? 4 + subLines.length * subLH : 0)
   const boxH = blockH + 2 * padY
-  const boxW = textW + 2 * padX
 
-  // Vertikal im oberen Drittel: dort verdeckt der Kasten die Bildmitte nicht,
-  // in der die Bild-KI ihre Hauptmotive platziert (siehe SPREAD_DIRECTIVE).
-  const boxY = netTop + (netBottom - netTop) * 0.16
+  // Vertikale Lage NICHT fest, sondern motivabhängig: Der Streifen wandert in das
+  // ruhigste horizontale Band der Vorderseite, damit er keine Gesichter, Kanten
+  // oder Hauptmotive überdeckt. Der Bereich des Rückseiten-Logos (unten) wird
+  // ausgespart, damit beide Streifen nicht auf gleicher Höhe kleben.
+  const frontX = COVER.spineStartX + B
+  const boxY = quietestBandY(canvas, {
+    xMm: frontX,
+    widthMm: W - frontX,
+    topMm: netTop,
+    bottomMm: Math.min(netBottom, ly - logoPad - 6),
+    boxHMm: boxH,
+  })
   doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(textX - padX, boxY, boxW, boxH, 'F')
+  doc.rect(frontX, boxY, W - frontX, boxH, 'F')
 
   doc.setTextColor(fg[0], fg[1], fg[2])
   let ty = boxY + padY + titleLH * 0.72
