@@ -30,6 +30,9 @@ PG_VERSION="${PG_VERSION:-16}"
 
 # Storage
 STORAGE="${STORAGE:-${PREFIX}store$RANDOM}"   # global eindeutig, 3-24 lowercase
+# Origins, die die Blobs per fetch() lesen dürfen (Buch-Export im Browser).
+# Bei neuer Domain/Container-App-URL hier ergänzen (unquoted expandiert).
+CORS_ORIGINS="${CORS_ORIGINS:-https://www.lebensgeschichten.ai https://lebensgeschichten.ai http://localhost:8080 http://localhost:5173}"
 
 # Container Registry + Container Apps
 ACR="${ACR:-${PREFIX}acr$RANDOM}"             # global eindeutig, lowercase
@@ -61,6 +64,17 @@ az storage container create --account-name "$STORAGE" --account-key "$STORAGE_KE
   -n demo-books --public-access blob -o none
 az storage container create --account-name "$STORAGE" --account-key "$STORAGE_KEY" \
   -n memorial-videos --public-access blob -o none
+
+# CORS für den Blob-Dienst. Ohne diese Regel schlagen die `fetch()`-Aufrufe in
+# src/bookExport.js fehl (DOCX-/PDF-Export holt die Kapitelbilder im Browser von
+# den SAS-URLs) und die Bücher werden still ohne Bilder exportiert. Die <img>-
+# Anzeige im Admin funktioniert auch ohne CORS – der Fehler fällt also erst beim
+# Export auf. Lesezugriff bleibt allein durch das SAS-Token geschützt.
+az storage cors add --services b \
+  --account-name "$STORAGE" --account-key "$STORAGE_KEY" \
+  --methods GET HEAD OPTIONS \
+  --origins $CORS_ORIGINS \
+  --allowed-headers '*' --exposed-headers '*' --max-age 3600 -o none
 
 echo ">> Container Registry ($ACR)"
 az acr create -g "$RG" -n "$ACR" --sku Basic --admin-enabled true -o none
