@@ -1,0 +1,50 @@
+name: Deploy nach Azure
+
+# Automatischer Rollout: jeder Push auf main baut das Image in der ACR und
+# aktualisiert die Container App. Env-Variablen/Secrets der App werden dabei
+# NICHT angefasst - die bleiben, wie infra/deploy.sh sie gesetzt hat.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # fuer OIDC-Login bei Azure (kein Passwort noetig)
+  contents: read
+
+env:
+  RG: lebenswerk-rg
+  APP: lebenswerk-web
+  ACR: lebenswerkacr0713
+  ASSET_BASE: https://lebenswerkstore0713.blob.core.windows.net
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Image bauen (ACR)
+        run: |
+          az acr build -r "$ACR" -t "$ACR.azurecr.io/lebenswerk:${{ github.sha }}" \
+            -f Dockerfile --build-arg VITE_PUBLIC_ASSET_BASE="$ASSET_BASE" . -o none
+
+      - name: Web-App ausrollen
+        run: |
+          az containerapp update -g "$RG" -n "$APP" \
+            --image "$ACR.azurecr.io/lebenswerk:${{ github.sha }}" -o none
+
+      # Die Cron-Jobs laufen aus demselben Image - sonst driften sie vom Web-Stand ab.
+      - name: Cron-Jobs auf dasselbe Image heben
+        run: |
+          for JOB in $(az containerapp job list -g "$RG" --query "[].name" -o tsv); do
+            az containerapp job update -g "$RG" -n "$JOB" \
+              --image "$ACR.azurecr.io/lebenswerk:${{ github.sha }}" -o none
+            echo "aktualisiert: $JOB"
+          done
