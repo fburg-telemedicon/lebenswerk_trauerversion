@@ -28,7 +28,9 @@ import { downloadCoverPdf, spineWidthMm } from './coverExport.js'
 // Export einmalig neu erzeugt, statt veraltet liegen zu bleiben.
 // v2: „book cover"/Buchtitel aus dem Prompt entfernt (FLUX malte sonst ein
 //     Cover-Mockup mit eingewebtem Titel, Pseudo-Untertitel und Fantasie-Logo).
-const COVER_PROMPT_VERSION = 2
+// v3: Bildaufteilung vorgegeben — rechts (Vorderseite) das Hauptmotiv, links
+//     (Rückseite) ruhiger; jede Hälfte muss für sich allein funktionieren.
+const COVER_PROMPT_VERSION = 3
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
@@ -1628,7 +1630,13 @@ function Dashboard() {
     return [
       'A wide, calm establishing scene — an atmospheric place, landscape or interior.',
       motifs ? `Echo the world of these scenes: ${motifs}.` : '',
-      'Open, uncluttered composition with quiet, empty space in the left third, the centre and the right third.',
+      // Die Hälften werden im fertigen Buch NIE zusammen gesehen (der Rücken
+      // trennt sie): rechts = Vorderseite (Hauptmotiv), links = Rückseite (ruhig,
+      // aber für sich stimmig). Jede Hälfte muss allein als Bild funktionieren.
+      'Composition: the RIGHT half carries the main motif — it is the visual centre of gravity, with the most detail and interest.',
+      'The LEFT half is markedly calmer and more open, but still a coherent little scene in its own right, not empty filler.',
+      'Each half must work as a complete picture on its own; keep the exact vertical centre free of important elements.',
+      'Leave some quiet, low-detail areas so text can be placed on top later.',
       'Soft harmonious colors, gentle light, tranquil and dignified mood.',
       'No people in the foreground and no close-up faces.',
       'Absolutely no text, no letters, no words, no title, no captions, no signage, no logos, no watermarks.',
