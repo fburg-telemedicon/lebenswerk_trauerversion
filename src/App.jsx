@@ -1624,8 +1624,11 @@ function Dashboard() {
 
   // ── Druck-Cover (eigenes PDF: Rückseite + Buchrücken + Vorderseite) ──
   // Braucht die Seitenzahl des Druck-PDFs (Rückenstärke) → erst danach aktiv.
-  // Der Hintergrund wird EINMAL erzeugt und am Buch gespeichert (cover_image_path);
-  // ein erneuter Klick verwendet ihn wieder, kostet also nichts.
+  // Der Hintergrund wird erzeugt und am Buch gespeichert (cover_image_path) — ein
+  // erneuter Klick verwendet ihn wieder und kostet nichts. ABER: Zusammen mit dem
+  // Pfad wird der Grafikstil festgehalten (cover_image_style). Wird der Stil des
+  // Buchs später geändert, passt der gespeicherte Hintergrund nicht mehr und wird
+  // automatisch neu erzeugt — sonst bliebe das Cover im alten Stil hängen.
   async function downloadCover(key) {
     const gen = GENERATORS[key]
     const book = selected?.[gen.field]
@@ -1638,8 +1641,10 @@ function Dashboard() {
       // Rückenstärke früh prüfen (>400 Seiten → klare Fehlermeldung, kein Bild erzeugen).
       spineWidthMm(pages)
 
+      const style = selected.image_style || DEFAULT_IMAGE_STYLE
       let bgUrl = book.cover_image_url
-      if (!book.cover_image_path || !bgUrl) {
+      const styleChanged = book.cover_image_style !== style
+      if (!book.cover_image_path || !bgUrl || styleChanged) {
         setDlBusy(`${key}:cover-img`)
         const prompt = coverPrompt(book, selected)
         const { storagePath } = await generateImageWithRetry(selected.id, prompt, {
@@ -1647,7 +1652,9 @@ function Dashboard() {
           onWait: (s, rl) => setErr(rl ? `Rate-Limit — neuer Versuch in ${s}s …` : `Erneuter Versuch in ${s}s …`),
         })
         setErr('')
-        const updated = { ...book, cover_image_path: storagePath }
+        // Der alte Hintergrund wird beim Speichern serverseitig aufgeräumt
+        // (collectImagePaths kennt cover_image_path).
+        const updated = { ...book, cover_image_path: storagePath, cover_image_style: style }
         await adminSaveMemorialText(token, selected.id, gen.field, updated)
         // Neu laden, damit die signierte URL für den frischen Hintergrund ankommt.
         const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
