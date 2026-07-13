@@ -35,10 +35,8 @@ export const COVER = {
   logoCenterX: 98,    // Horizontale Mitte des Rückseiten-Logos (von der Brutto-Kante)
   logoWidth: 40,      // Breite des Rückseiten-Logos
   logoFromBottom: 30, // UNTERKANTE des Rückseiten-Logos über der unteren Brutto-Kante
-  spineStartX: 169,   // Buchrücken beginnt hier (= bleed + panelW)
   spineExtra: 2,      // Buchrücken-Farbfläche ist 2 mm breiter als B (Wickel-Toleranz)
   spineLogoFromBottom: 30, // Mitte des Rücken-Logos, gemessen von der unteren Brutto-Kante
-  spineMargin: 0.5,   // seitlicher Freiraum im Rücken (je Seite), damit nichts anschneidet
   textStartX: 182,    // Titelkasten: linke Textkante (+ B)
   textEndX: 318,      // Titelkasten: spätestens hier umbrechen (+ B)
 }
@@ -137,11 +135,6 @@ function contrast(a, b) {
   const la = luminance(a), lb = luminance(b)
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
-
-// Helle Schutzfläche unter den Logos (siehe unten). Exakt die Hintergrundfarbe
-// des Rückseiten-Logos (public/cover-logo.png ist deckend, nicht freigestellt) —
-// so entsteht zwischen Logo und Platte keine sichtbare Kante.
-const PLATE = [244, 232, 231]
 
 // Das Hintergrundbild GENAU so, wie es auf dem Cover erscheint (cover-fit auf die
 // Bruttofläche), in ein Canvas rendern. Damit stimmen Farbanalyse und
@@ -321,39 +314,36 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
   const { bg, fg } = pickAccentColor(bgImg)
   const canvas = renderCoverCanvas(bgImg, W, H)
 
-  // 3) Buchrücken einfärben: volle Höhe, beginnt bei 169 mm, Breite 2 + B
+  // 3) Buchrücken: exakt MITTIG auf der Bruttoseite und B + 2 mm breit
+  //    (je 1 mm Wickel-Toleranz nach beiden Seiten). Die Seitenmitte ist
+  //    (338 + B) / 2 = 169 + B/2 — der Rücken beginnt also immer bei 168.
+  const spineMidX = W / 2                       // = 169 + B/2
+  const spineBandW = B + COVER.spineExtra       // B + 2
+  const spineBandX = spineMidX - spineBandW / 2 // = 168
   doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(COVER.spineStartX, 0, COVER.spineExtra + B, H, 'F')
+  doc.rect(spineBandX, 0, spineBandW, H, 'F')
 
-  // 3a) Rücken-Logo (quadratisch, ohne Schriftzug): horizontal mittig im Rücken
-  //     (169…169+B), Mitte 30 mm über der unteren Brutto-Kante. Es liegt auf einer
-  //     hellen Schutzfläche — das Logo-Rot hätte auf einem dunklen/braunen Kasten
-  //     zu wenig Kontrast.
-  const spineMidX = COVER.spineStartX + B / 2
-  const spineLogoW = Math.max(2, B - 2 * COVER.spineMargin)
+  // 3a) Rücken-Logo: exakt B breit, mittig im Rücken, Mitte 30 mm über der
+  //     unteren Brutto-Kante. Ohne Schutzfläche — die zeichnete sich als heller
+  //     Rahmen ab; das Logo steht direkt auf der Rückenfarbe.
+  const spineLogoW = B
   const spineLogoData = await toDataUrl('/cover-logo-spine.png')
   const spineLogoImg = await loadImage('/cover-logo-spine.png')
   const spineLogoH = spineLogoW * (spineLogoImg.naturalHeight / spineLogoImg.naturalWidth)
   const spineLogoCY = H - COVER.spineLogoFromBottom
-  const sPad = Math.min(0.8, COVER.spineMargin)
-  doc.setFillColor(...PLATE)
-  doc.roundedRect(spineMidX - spineLogoW / 2 - sPad, spineLogoCY - spineLogoH / 2 - sPad,
-    spineLogoW + 2 * sPad, spineLogoH + 2 * sPad, 0.6, 0.6, 'F')
   doc.addImage(spineLogoData, 'PNG', spineMidX - spineLogoW / 2, spineLogoCY - spineLogoH / 2,
     spineLogoW, spineLogoH, undefined, 'FAST')
 
-  // 3b) Buchtitel um 90° gedreht im Rücken (liest sich von oben nach unten, wie
-  //     im deutschen Buchhandel üblich). Die Schriftgröße wird so gewählt, dass
-  //     die Zeile in die Rückenbreite B passt; passt der Titel der Länge nach
-  //     nicht in den Rücken, wird er gekürzt.
+  // 3b) Buchtitel um 90° gedreht im Rücken, von UNTEN nach OBEN laufend.
+  //     Die Zeile ist genau B breit (Schriftgrad danach gewählt) und sitzt mittig
+  //     im Rücken. Passt der Titel der Länge nach nicht, wird er gekürzt.
   const spineTextTop = COVER.bleed + COVER.safety                       // 20
   const spineTextBottom = spineLogoCY - spineLogoH / 2 - 4              // 4 mm Luft über dem Logo
   const spineTextLen = spineTextBottom - spineTextTop
   if (spineTextLen > 12 && title) {
     const PT_TO_MM = 0.3528
-    // Höhe einer Zeile ≈ 0,72 × Schriftgrad; sie muss in B minus Rand passen.
-    const usableW = Math.max(1.5, B - 2 * COVER.spineMargin)
-    const size = Math.max(6, Math.min(22, (usableW / PT_TO_MM) / 0.72))
+    // Zeilenhöhe ≈ 0,72 × Schriftgrad; sie soll genau die Rückenbreite B füllen.
+    const size = Math.max(6, Math.min(22, (B / PT_TO_MM) / 0.72))
     doc.setFont(HF, 'bold'); doc.setFontSize(size)
     doc.setTextColor(fg[0], fg[1], fg[2])
     let line = String(title)
@@ -361,16 +351,18 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
       line = line.slice(0, -2)
     }
     if (line !== String(title)) line = line.trimEnd() + '…'
-    // Bei angle:-90 läuft die Schrift nach UNTEN, die Glyphen stehen links der
-    // Grundlinie → Grundlinie um die halbe Zeilenhöhe nach rechts versetzen.
+    // angle:90 dreht gegen den Uhrzeigersinn: die Schrift läuft nach OBEN, die
+    // Glyphen stehen rechts der Grundlinie → Grundlinie um die halbe Zeilenhöhe
+    // nach links versetzen, damit die Zeile mittig im Rücken sitzt.
     const capMm = size * PT_TO_MM * 0.72
-    const baselineX = spineMidX + capMm / 2
-    const startY = spineTextTop + (spineTextLen - doc.getTextWidth(line)) / 2
-    doc.text(line, baselineX, startY, { angle: -90 })
+    const baselineX = spineMidX - capMm / 2
+    // Startpunkt ist das ZEILENENDE unten; die Zeile wächst nach oben.
+    const startY = spineTextBottom - (spineTextLen - doc.getTextWidth(line)) / 2
+    doc.text(line, baselineX, startY, { angle: 90 })
   }
 
-  // 4) Rückseite: farbiger Streifen über die VOLLE Breite (linke Brutto-Kante bis
-  //    Buchrücken), darauf das Logo auf heller Schutzfläche.
+  // 4) Rückseite: farbiger Streifen von der linken Brutto-Kante bis EXAKT an den
+  //    Buchrücken (er wird nicht überlagert), darauf das Logo.
   const logoData = await toDataUrl('/cover-logo.png')
   const logoImg = await loadImage('/cover-logo.png')
   const lw = COVER.logoWidth
@@ -383,12 +375,10 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
 
   const logoPad = 6
   doc.setFillColor(bg[0], bg[1], bg[2])
-  doc.rect(0, ly - logoPad, COVER.spineStartX, lh + 2 * logoPad, 'F')
-  // Schutzfläche: das Logo ist für hellen Grund gestaltet (dunkler Schriftzug,
-  // rotes „.ai"); direkt auf dem farbigen Streifen ginge das Rot unter.
-  const platePad = 3
-  doc.setFillColor(...PLATE)
-  doc.roundedRect(lx - platePad, ly - platePad, lw + 2 * platePad, lh + 2 * platePad, 1.5, 1.5, 'F')
+  doc.rect(0, ly - logoPad, spineBandX, lh + 2 * logoPad, 'F')
+  // Keine Schutzfläche mehr: Das Logo bringt seinen eigenen hellen Hintergrund
+  // mit (die Datei ist deckend). Eine zusätzliche Platte zeichnete sich als
+  // rosa Rahmen um das Logo ab.
   doc.addImage(logoData, 'PNG', lx, ly, lw, lh, undefined, 'FAST')
 
   // 5) Titelkasten auf der Vorderseite: farbiger Streifen über die VOLLE Breite
@@ -412,7 +402,7 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
   // ruhigste horizontale Band der Vorderseite, damit er keine Gesichter, Kanten
   // oder Hauptmotive überdeckt. Der Bereich des Rückseiten-Logos (unten) wird
   // ausgespart, damit beide Streifen nicht auf gleicher Höhe kleben.
-  const frontX = COVER.spineStartX + B
+  const frontX = spineBandX + spineBandW   // grenzt exakt an den Rücken an
   const boxY = quietestBandY(canvas, {
     xMm: frontX,
     widthMm: W - frontX,
