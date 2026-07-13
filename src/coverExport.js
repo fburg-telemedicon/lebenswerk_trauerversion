@@ -342,21 +342,30 @@ export async function downloadCoverPdf(filename, { bgUrl, pages, title, subtitle
   const spineTextLen = spineTextBottom - spineTextTop
   if (spineTextLen > 12 && title) {
     const PT_TO_MM = 0.3528
-    // Zeilenhöhe ≈ 0,72 × Schriftgrad; sie soll genau die Rückenbreite B füllen.
-    const size = Math.max(6, Math.min(22, (B / PT_TO_MM) / 0.72))
-    doc.setFont(HF, 'bold'); doc.setFontSize(size)
+    // Ober-/Unterlänge der Standardfonts (Times/Helvetica), in em.
+    const ASC = 0.75, DESC = 0.25          // zusammen 1 em = Zeilenhöhe
+    const line = String(title)
+    doc.setFont(HF, 'bold')
     doc.setTextColor(fg[0], fg[1], fg[2])
-    let line = String(title)
-    while (doc.getTextWidth(line) > spineTextLen && line.length > 4) {
-      line = line.slice(0, -2)
+
+    // Größter Grad, bei dem die Zeilenhöhe genau die Rückenbreite B füllt …
+    let size = B / PT_TO_MM / (ASC + DESC)
+    doc.setFontSize(size)
+    // … und dann so weit verkleinern, bis der Titel der LÄNGE nach in den Rücken
+    // passt. Gekürzt wird nicht mehr — ein abgeschnittener Buchtitel auf dem
+    // Rücken ist schlimmer als eine kleinere Schrift.
+    while (doc.getTextWidth(line) > spineTextLen && size > 3) {
+      size -= 0.25
+      doc.setFontSize(size)
     }
-    if (line !== String(title)) line = line.trimEnd() + '…'
-    // angle:90 dreht gegen den Uhrzeigersinn: die Schrift läuft nach OBEN, die
-    // Glyphen stehen rechts der Grundlinie → Grundlinie um die halbe Zeilenhöhe
-    // nach links versetzen, damit die Zeile mittig im Rücken sitzt.
-    const capMm = size * PT_TO_MM * 0.72
-    const baselineX = spineMidX - capMm / 2
-    // Startpunkt ist das ZEILENENDE unten; die Zeile wächst nach oben.
+
+    // Bei angle:90 kippt die Schrift so, dass die OBERLÄNGEN nach links und die
+    // UNTERLÄNGEN nach rechts der Grundlinie zeigen. Die Zeile belegt also
+    // [x − Oberlänge, x + Unterlänge]; damit sie mittig im Rücken sitzt, muss die
+    // Grundlinie um (Oberlänge − Unterlänge)/2 nach rechts versetzt werden.
+    const emMm = size * PT_TO_MM
+    const baselineX = spineMidX + (ASC - DESC) / 2 * emMm
+    // Startpunkt ist der ZEILENANFANG unten; die Zeile wächst nach oben.
     const startY = spineTextBottom - (spineTextLen - doc.getTextWidth(line)) / 2
     doc.text(line, baselineX, startY, { angle: 90 })
   }
