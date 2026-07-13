@@ -21,6 +21,7 @@ import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadAsDocx } from './bookExport.js'
+import { downloadCoverPdf, spineWidthMm } from './coverExport.js'
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
@@ -1593,8 +1594,82 @@ function Dashboard() {
     setDlBusy(`${key}:pdf`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false })
+      const { pages } = await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false })
+      // Seitenzahl am Buch festhalten — sie bestimmt die Rückenstärke des Covers
+      // und schaltet den Cover-Button frei.
+      if (pages && pages !== data.print_pages) {
+        const updated = { ...data, print_pages: pages }
+        await adminSaveMemorialText(token, selected.id, gen.field, updated)
+        setSelected(s => ({ ...s, [gen.field]: updated }))
+        setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, [gen.field]: updated } : x))
+      }
     } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
+    finally { setDlBusy('') }
+  }
+
+  // Motiv für den Cover-Hintergrund. Bewusst ruhig und ohne Personen im Zentrum:
+  // Über die Bildmitte läuft der Buchrücken, links liegt der Logo-Kasten, rechts
+  // der Titelkasten. Der Grafikstil kommt serverseitig dazu (image-styles.js).
+  function coverPrompt(book, mem) {
+    const motifs = (book.chapters || [])
+      .map(c => c.image_prompt).filter(Boolean).slice(0, 3).join(' / ')
+    return [
+      `Book cover background for a memory book titled "${book.title || mem.name}".`,
+      motifs ? `Echo the world of the book: ${motifs}.` : '',
+      'A calm, atmospheric scene with an open, uncluttered middle and open space on the left and right thirds.',
+      'Soft, harmonious colors; gentle light; no people in the foreground, no close-up faces.',
+      'No text, no lettering, no title, no logos.',
+    ].filter(Boolean).join(' ')
+  }
+
+  // ── Druck-Cover (eigenes PDF: Rückseite + Buchrücken + Vorderseite) ──
+  // Braucht die Seitenzahl des Druck-PDFs (Rückenstärke) → erst danach aktiv.
+  // Der Hintergrund wird EINMAL erzeugt und am Buch gespeichert (cover_image_path);
+  // ein erneuter Klick verwendet ihn wieder, kostet also nichts.
+  async function downloadCover(key) {
+    const gen = GENERATORS[key]
+    const book = selected?.[gen.field]
+    if (!book || gen.kind !== 'book' || dlBusy) return
+    const pages = book.print_pages
+    if (!pages) { setErr('Bitte zuerst das Druck-PDF erzeugen — daraus ergibt sich die Rückenstärke.'); return }
+
+    setDlBusy(`${key}:cover`); setErr('')
+    try {
+      // Rückenstärke früh prüfen (>400 Seiten → klare Fehlermeldung, kein Bild erzeugen).
+      spineWidthMm(pages)
+
+      let bgUrl = book.cover_image_url
+      if (!book.cover_image_path || !bgUrl) {
+        setDlBusy(`${key}:cover-img`)
+        const prompt = coverPrompt(book, selected)
+        const { storagePath } = await generateImageWithRetry(selected.id, prompt, {
+          meta: { variant: key, chapterNumber: 0, chapterHeading: 'Cover' },
+          onWait: (s, rl) => setErr(rl ? `Rate-Limit — neuer Versuch in ${s}s …` : `Erneuter Versuch in ${s}s …`),
+        })
+        setErr('')
+        const updated = { ...book, cover_image_path: storagePath }
+        await adminSaveMemorialText(token, selected.id, gen.field, updated)
+        // Neu laden, damit die signierte URL für den frischen Hintergrund ankommt.
+        const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+        if (!r.ok) throw new Error('Cover-Hintergrund konnte nicht geladen werden.')
+        const fresh = await r.json()
+        setMemorials(fresh)
+        const m = fresh.find(x => x.id === selected.id)
+        if (m) setSelected(m)
+        bgUrl = m?.[gen.field]?.cover_image_url
+        if (!bgUrl) throw new Error('Cover-Hintergrund wurde erzeugt, aber keine Bild-URL erhalten.')
+      }
+
+      setDlBusy(`${key}:cover`)
+      const filename = `${gen.filename}_${safeName(selected.name)}_Cover.pdf`
+      await downloadCoverPdf(filename, {
+        bgUrl,
+        pages,
+        title: book.title || selected.name,
+        subtitle: book.subtitle || '',
+        layout: getBookLayout(selected.book_layout),
+      })
+    } catch (e) { setErr(`Druck-Cover fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
   }
 
@@ -2217,7 +2292,7 @@ function Dashboard() {
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
@@ -2232,7 +2307,7 @@ function Dashboard() {
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') return (
-    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
+    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
   )
 
   return null

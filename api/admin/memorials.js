@@ -37,17 +37,28 @@ function sanitizePickupAddress(addr) {
   return clean
 }
 
+// Alle Bildpfade eines Buchs: Kapitelbilder + der Cover-Hintergrund.
+// Wird für ZWEI Dinge benutzt — Signieren (GET) und Aufräumen verwaister
+// Dateien (PATCH). Das Cover muss deshalb hier mit drin sein, sonst würde ein
+// neu erzeugtes Cover den alten Hintergrund nie aufräumen (bzw. der Cover-
+// Hintergrund bekäme keine URL).
 function collectImagePaths(book) {
-  if (!book?.chapters) return []
-  return book.chapters.map(c => c?.image_path).filter(Boolean)
+  if (!book) return []
+  const out = (book.chapters || []).map(c => c?.image_path).filter(Boolean)
+  if (book.cover_image_path) out.push(book.cover_image_path)
+  return out
 }
 
 function applySignedUrls(book, urlMap) {
-  if (!book?.chapters) return
-  for (const ch of book.chapters) {
+  if (!book) return
+  for (const ch of (book.chapters || [])) {
     if (!ch?.image_path) continue
     const key = String(ch.image_path).replace(/^\/+/, '')
     if (urlMap[key]) ch.image_url = urlMap[key]
+  }
+  if (book.cover_image_path) {
+    const key = String(book.cover_image_path).replace(/^\/+/, '')
+    if (urlMap[key]) book.cover_image_url = urlMap[key]
   }
 }
 

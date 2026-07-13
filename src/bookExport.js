@@ -505,6 +505,9 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
   }
 
   downloadBlob(filename, doc.output('blob'))
+  // Seitenzahl zurückgeben: sie bestimmt die Rückenstärke des Covers
+  // (src/coverExport.js) und wird deshalb am Buch gespeichert.
+  return { pages: totalPages }
 }
 
 export async function downloadAsDocx(filename, title, text, lang = 'de') {
