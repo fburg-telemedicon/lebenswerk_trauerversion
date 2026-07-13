@@ -22,6 +22,13 @@ import { reviewSystemPrompt, extractReviewText, contributionsContext } from './r
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadAsDocx } from './bookExport.js'
 import { downloadCoverPdf, spineWidthMm } from './coverExport.js'
+
+// Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
+// hochzählen — dann werden bereits gespeicherte Cover-Hintergründe beim nächsten
+// Export einmalig neu erzeugt, statt veraltet liegen zu bleiben.
+// v2: „book cover"/Buchtitel aus dem Prompt entfernt (FLUX malte sonst ein
+//     Cover-Mockup mit eingewebtem Titel, Pseudo-Untertitel und Fantasie-Logo).
+const COVER_PROMPT_VERSION = 2
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
@@ -1610,15 +1617,21 @@ function Dashboard() {
   // Motiv für den Cover-Hintergrund. Bewusst ruhig und ohne Personen im Zentrum:
   // Über die Bildmitte läuft der Buchrücken, links liegt der Logo-Kasten, rechts
   // der Titelkasten. Der Grafikstil kommt serverseitig dazu (image-styles.js).
+  // WICHTIG: Weder „book cover" noch den Buchtitel erwähnen! Beides hat FLUX dazu
+  // gebracht, ein fertiges Cover-MOCKUP zu malen — mit eingewebtem Titel, Pseudo-
+  // Untertitel und erfundenem Logo. Das nachgestellte „no text" verliert gegen so
+  // eine Ansage. Der Prompt beschreibt deshalb ausschließlich die SZENE; dass es
+  // ein Cover wird, ist allein Sache des Layouts hier im Code.
   function coverPrompt(book, mem) {
     const motifs = (book.chapters || [])
       .map(c => c.image_prompt).filter(Boolean).slice(0, 3).join(' / ')
     return [
-      `Book cover background for a memory book titled "${book.title || mem.name}".`,
-      motifs ? `Echo the world of the book: ${motifs}.` : '',
-      'A calm, atmospheric scene with an open, uncluttered middle and open space on the left and right thirds.',
-      'Soft, harmonious colors; gentle light; no people in the foreground, no close-up faces.',
-      'No text, no lettering, no title, no logos.',
+      'A wide, calm establishing scene — an atmospheric place, landscape or interior.',
+      motifs ? `Echo the world of these scenes: ${motifs}.` : '',
+      'Open, uncluttered composition with quiet, empty space in the left third, the centre and the right third.',
+      'Soft harmonious colors, gentle light, tranquil and dignified mood.',
+      'No people in the foreground and no close-up faces.',
+      'Absolutely no text, no letters, no words, no title, no captions, no signage, no logos, no watermarks.',
     ].filter(Boolean).join(' ')
   }
 
@@ -1644,7 +1657,10 @@ function Dashboard() {
       const style = selected.image_style || DEFAULT_IMAGE_STYLE
       let bgUrl = book.cover_image_url
       const styleChanged = book.cover_image_style !== style
-      if (!book.cover_image_path || !bgUrl || styleChanged) {
+      // Version des Cover-Prompts: Wird der Prompt verbessert, sind alle mit dem
+      // alten erzeugten Hintergründe überholt und werden einmalig neu erzeugt.
+      const promptOld = (book.cover_prompt_v || 1) < COVER_PROMPT_VERSION
+      if (!book.cover_image_path || !bgUrl || styleChanged || promptOld) {
         setDlBusy(`${key}:cover-img`)
         const prompt = coverPrompt(book, selected)
         const { storagePath } = await generateImageWithRetry(selected.id, prompt, {
@@ -1654,7 +1670,7 @@ function Dashboard() {
         setErr('')
         // Der alte Hintergrund wird beim Speichern serverseitig aufgeräumt
         // (collectImagePaths kennt cover_image_path).
-        const updated = { ...book, cover_image_path: storagePath, cover_image_style: style }
+        const updated = { ...book, cover_image_path: storagePath, cover_image_style: style, cover_prompt_v: COVER_PROMPT_VERSION }
         await adminSaveMemorialText(token, selected.id, gen.field, updated)
         // Neu laden, damit die signierte URL für den frischen Hintergrund ankommt.
         const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
