@@ -12,6 +12,14 @@ permissions:
   id-token: write   # fuer OIDC-Login bei Azure (kein Passwort noetig)
   contents: read
 
+# Zwei schnell aufeinanderfolgende Pushes starteten bisher zwei Deploys, die sich
+# gegenseitig ins Gehege kamen (beide bauen und rollen dieselbe Container-App aus)
+# - einer davon schlug fehl. Jetzt laeuft immer nur ein Deploy: ein neuer Push
+# bricht den noch laufenden ab, denn nur der neueste Stand soll live gehen.
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: true
+
 env:
   RG: lebenswerk-rg
   APP: lebenswerk-web
