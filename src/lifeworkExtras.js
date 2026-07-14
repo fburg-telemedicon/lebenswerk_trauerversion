@@ -481,7 +481,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
         {
           "year": "Jahr oder Zeitraum, z. B. 1965; leer, wenn unbekannt",
           "title": "Überschrift der Station, max. 5 Wörter",
-          "text": "1 Satz, konkret, max. 22 Wörter",
+          "text": "1 kurzer Satz, konkret, max. 14 Wörter",
           "image_prompt": "English, 10-20 words: a small SCENE that captures this station — a place with a few objects and atmosphere (e.g. 'a warm bakery back room at dawn, trays of bread, flour dust in the light'). Objects and places, no faces, no portraits, no text.",
           "weight": "Bedeutung dieser Station: 3 = Wendepunkt (groß), 2 = wichtig, 1 = Nebenstation"
         }
@@ -495,9 +495,9 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 
 Regeln zum AUFBAU:
 - "sections": 4–5 Lebensabschnitte, CHRONOLOGISCH (z. B. Wurzeln & Kindheit, Jugend & Ausbildung, Beruf, Familie & Liebe, Späte Jahre & Vermächtnis).
-- Insgesamt 10–12 "stations" (also 2–3 je Abschnitt) — WENIGE, dafür STARKE Stationen. Wähle die Wendepunkte, nicht jede Episode.
-- "weight": Pro Poster höchstens 3 Stationen mit weight 3 und höchstens 4 mit weight 2. Der Rest ist 1.
-- "image_prompt" ist das Herz der Grafik: eine kleine SZENE mit Atmosphäre (Ort + wenige Gegenstände + Licht), KEINE Gesichter, KEINE Porträts, kein Text im Bild.
+- Insgesamt 16–18 "stations" (also 3–4 je Abschnitt). Das Poster lebt von vielen kleinen Bildern.
+- "weight": Pro Poster höchstens 4 Stationen mit weight 3 und höchstens 6 mit weight 2. Der Rest ist 1.
+- "image_prompt" ist das Herz der Grafik: EIN klar erkennbares Bildmotiv — ein Gegenstand, ein Ort, eine kleine Szene mit wenigen Elementen (Bäckerfenster, Lokomotive, Krankenbett, Akkordeon, Gartenbank, Marmeladengläser). Freigestellt gedacht, KEINE Gesichter, KEINE Porträts, kein Text im Bild.
 - "values": 5–8 Stück. "places": 3–6 Stück. "quote": genau EIN Satz.
 
 Regeln zur WAHRHEIT (die wichtigsten):
@@ -1324,5 +1324,119 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
   const grid = densityGrid(el, SCENE.cols, SCENE.rows)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid }, st)
+  doc.save(filename)
+}
+
+// ════════════════════════════════════════════════════════════════
+// 5) LEBENSKARTE (Straße + viele Vignetten) — das aktuelle Poster
+// ════════════════════════════════════════════════════════════════
+//
+// Vorbild ist die Fritz-Pipa-Infografik: EIN geschwungener Weg, an dem viele
+// kleine, freigestellte Bilder liegen — jedes mit seiner Beschriftung DIREKT
+// daneben. Genau daran scheiterten die Vorgänger:
+//   • „ein großes KI-Bild + Text hineinlegen": Das Modell füllte nur eine
+//     Diagonale, der Rest blieb tot, und der Text hatte keinen Bezug zum Motiv
+//     neben ihm (er wurde in freie Flächen gelegt, nicht zu seinem Bild).
+//   • „Raster aus gleich großen Kacheln": zu mechanisch.
+// Jetzt: Wir zeichnen die Straße selbst (Vektor, viele Windungen) und setzen die
+// Bilder darauf. Damit weiß das Layout für JEDES Bild, wo es liegt — die
+// Beschriftung steht deshalb immer bei ihrem Bild und NIE auf einer Grafik.
+const MAP = {
+  margin: 16,
+  headH: 40,          // nur der Name
+  imgW: { 3: 66, 2: 52, 1: 40 },   // Bildbreiten nach Bedeutung (3:2)
+}
+
+// Die Straße: mäandert von links unten nach rechts oben, mit mehreren Schwüngen.
+function roadPoints(n) {
+  const x0 = MAP.margin + 12, x1 = P.W - MAP.margin - 12
+  const yTop = MAP.headH + 26, yBot = P.H - MAP.margin - 34
+  const midY = (yTop + yBot) / 2
+  const amp = (yBot - yTop) / 2 - 4
+  const pts = []
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1)
+    const x = x0 + t * (x1 - x0)
+    // Grundneigung (unten links → oben rechts) + zwei überlagerte Wellen: das gibt
+    // die „echten" Windungen statt einer glatten Diagonale.
+    const drift = (0.5 - t) * amp * 0.55
+    const wave = Math.sin(t * Math.PI * 3.1) * amp * 0.52 + Math.sin(t * Math.PI * 1.3 + 0.9) * amp * 0.3
+    const y = Math.max(yTop, Math.min(yBot, midY + drift + wave))
+    pts.push({ x, y })
+  }
+  return pts
+}
+
+function paintPosterMap(d, data, images, st) {
+  const { W, H } = P
+  const stations = []
+  ;(data.sections || []).forEach((sec, si) => (sec.stations || []).forEach((s, ti) =>
+    stations.push({ ...s, si, ti, first: ti === 0, section: sec,
+      weight: Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1)),
+      color: st.accents[si % st.accents.length] })))
+  if (!stations.length) throw new Error('Das Poster enthält keine Stationen.')
+
+  d.rect(0, 0, W, H, st.paper)
+
+  // Kopf: nur der Name.
+  const who = String(data.person?.name || data.title || '').trim()
+  if (who) d.text(who, W / 2, 26, { size: 42, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
+
+  // Straße (dick, in den Abschnittsfarben) — zuerst, alles andere liegt darauf.
+  const road = roadPoints(stations.length)
+  d.curveThrough(road, i => stations[Math.min(i, stations.length - 1)].color, 3.2)
+
+  // Stationen: Bild auf dem Weg, Text auf der abgewandten Seite — NIE auf einer Grafik.
+  stations.forEach((s, i) => {
+    const p = road[i]
+    const above = i % 2 === 0                    // abwechselnd über/unter der Straße
+    const w = MAP.imgW[s.weight]
+    const h = w / 1.5
+    const x = Math.max(MAP.margin, Math.min(W - MAP.margin - w, p.x - w / 2))
+    const y = above ? p.y - 8 - h : p.y + 8
+    const img = images[`${s.si}:${s.ti}`]
+    if (img) d.image(img.data, x, y, w, h)
+
+    // Text außerhalb des Bildes: über dem Bild, wenn das Bild oben liegt; sonst darunter.
+    const tw = w + 26
+    const tx = x + w / 2
+    // Jahr steht IMMER über dem Titel — auch wenn der Block nach oben wächst.
+    if (above) {
+      const ty = y - 10
+      d.text(String(s.title || ''), tx, ty, { size: 11.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: tw, maxLines: 2 })
+      if (s.year) d.text(String(s.year), tx, ty - 7, { size: 15, bold: true, align: 'center', color: s.color, font: st.heading, maxW: tw, maxLines: 1 })
+    } else {
+      let ty = y + h + 9
+      if (s.year) { d.text(String(s.year), tx, ty, { size: 15, bold: true, align: 'center', color: s.color, font: st.heading, maxW: tw, maxLines: 1 }); ty += 7 }
+      d.text(String(s.title || ''), tx, ty, { size: 11.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: tw, maxLines: 2 })
+    }
+  })
+
+  // Abschnittsnamen: als farbige Pille am oberen bzw. unteren Blattrand, über der
+  // ersten Station des Abschnitts — nie über einem Bild.
+  stations.forEach((s, i) => {
+    if (!s.first) return
+    const head = String(s.section.heading || '').trim()
+    const per = String(s.section.period || '').trim()
+    const label = per ? `${head} · ${per}` : head
+    if (!label) return
+    const pw = Math.min(120, 10 + label.length * 2.05)
+    const px = Math.max(MAP.margin, Math.min(W - MAP.margin - pw, road[i].x - pw / 2))
+    const py = (i % 2 === 0) ? MAP.headH - 2 : H - MAP.margin - 12
+    d.pill(px, py, pw, 8.4, s.color)
+    d.text(label, px + pw / 2, py + 5.8, { size: 7.2, bold: true, align: 'center', color: [255, 255, 255], font: st.heading, maxW: pw - 5, maxLines: 1 })
+  })
+}
+
+// `urls` = { "si:ti": signierte URL der Vignette }
+export async function downloadPosterMapPdf(filename, data, urls = {}, styleKey) {
+  const st = getPosterStyle(styleKey || data?.style)
+  const images = {}
+  await Promise.all(Object.entries(urls).map(async ([k, url]) => {
+    if (!url) return
+    try { images[k] = await loadImage(url) } catch { /* Station ohne Bild */ }
+  }))
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  paintPosterMap(pdfDraw(doc), data || {}, images, st)
   doc.save(filename)
 }
