@@ -160,6 +160,8 @@ function posterImagePaths(poster) {
   if (poster?.scene_path) out.push(String(poster.scene_path).replace(/^\/+/, ''))
   for (const v of (Array.isArray(poster?.variants) ? poster.variants : [])) {
     if (v?.scene_path) out.push(String(v.scene_path).replace(/^\/+/, ''))
+    // Das leere Beschriftungsfeld (eigene Grafik, wird vom Layout vervielfältigt).
+    if (v?.bubble_path) out.push(String(v.bubble_path).replace(/^\/+/, ''))
     for (const t of (Array.isArray(v.tiles) ? v.tiles : [])) {
       if (t?.image_path) out.push(String(t.image_path).replace(/^\/+/, ''))
     }
@@ -183,6 +185,10 @@ function applyPosterUrls(poster, urlMap) {
     if (v?.scene_path) {
       const k = String(v.scene_path).replace(/^\/+/, '')
       if (urlMap[k]) v.scene_url = urlMap[k]
+    }
+    if (v?.bubble_path) {
+      const k = String(v.bubble_path).replace(/^\/+/, '')
+      if (urlMap[k]) v.bubble_url = urlMap[k]
     }
     for (const t of (Array.isArray(v.tiles) ? v.tiles : [])) {
       if (!t?.image_path) continue

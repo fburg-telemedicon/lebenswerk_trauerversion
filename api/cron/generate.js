@@ -531,7 +531,25 @@ async function processPoster(job, deadline) {
       await step('Szenen im Motiv werden verortet')
       spots = await locateScenes(job, scenePath, result.data)
     }
-    result.variants.push({ style, scene_path: scenePath, scene_spots: spots })
+
+    // Das leere Beschriftungsfeld als EIGENE Grafik im selben Stil. Getrennt, weil
+    // ein Bildmodell in ein Feld, das es zusammen mit dem Blatt malt, reflexhaft
+    // Buchstaben kritzelt — und sich dabei verschreibt. So sieht es nie Text und
+    // Feld zusammen; den Text druckt das Layout später als Vektor darauf.
+    let bubblePath = null
+    if (scenePath) {
+      if (await canceled(job.id)) return 'canceled'
+      await step('Beschriftungsfeld wird gezeichnet')
+      try {
+        const r = await adminPost('/api/admin/generate-image', {
+          memorialCode: code, prompt: 'a blank label plaque', variant: 'bubble', posterStyle: style,
+        })
+        bubblePath = r.storagePath
+      } catch (e) {
+        console.warn(`[generate] Beschriftungsfeld (${style}) fehlgeschlagen: ${e.message}`)
+      }
+    }
+    result.variants.push({ style, scene_path: scenePath, scene_spots: spots, bubble_path: bubblePath })
     await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 3 + idx, total }, result })
     if (result.variants.length < styles.length) await sleep(3000)
   }

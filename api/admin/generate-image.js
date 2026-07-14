@@ -104,10 +104,13 @@ const sceneDirective = (key) => {
     // Szenen) und die Bitte um leere Schild-KARTEN widersprachen sich — FLUX löste
     // den Widerspruch, indem es die Schilder wegließ. Deshalb steht hier jetzt
     // ausdrücklich, dass das Blatt aus GENAU ZWEI Arten von Elementen besteht.
-    'THE SHEET CONTAINS EXACTLY TWO KINDS OF ELEMENTS, nothing else: ' +
-    '(1) EXACTLY TWELVE SCENES (buildings, interiors, tools, vehicles, gardens, landscapes), arranged as a LOOSE GRID in READING ORDER: left to right, row by row, top to bottom. Each scene is an ORGANIC, IRREGULAR painted shape whose edges dissolve softly into the bare paper — like a watercolour blot. A scene is NEVER a rectangle and NEVER framed. ' +
-    '(2) exactly ONE EMPTY LABEL CARD under EVERY scene: a small cream-white ROUNDED RECTANGLE with a thin ink outline, lying flat on the bare paper directly BELOW its scene, roughly as wide as that scene and about one fifth as tall. These label cards are the ONLY rectangular shapes on the whole sheet. Every scene has exactly one card; no scene without a card, no card without a scene. ' +
-    'The label cards are COMPLETELY BLANK and EMPTY — a flat, clean, uniform pale surface, no writing, no lines, no ornament, no scribbles, nothing on them at all. They are clearly LIGHTER than everything around them. ' +
+    // KEINE Schilder mehr im Blatt: Eine leere Karte im Bild lädt das Modell dazu
+    // ein, sie vollzukritzeln („Four Cowip", „Snuchsmornings"). Die Beschriftungs-
+    // felder entstehen deshalb als EIGENE Grafik (Variante 'bubble') und werden
+    // vom Layout ins Blatt gesetzt — das Bildmodell sieht Text und Feld nie
+    // zusammen und kann sich folglich auch nicht verschreiben.
+    'EXACTLY TWELVE SCENES (buildings, interiors, tools, vehicles, gardens, landscapes), arranged as a LOOSE GRID in READING ORDER: left to right, row by row, top to bottom. ' +
+    'Each scene is an ORGANIC, IRREGULAR painted shape whose edges dissolve softly into the bare paper — like a watercolour blot. A scene is NEVER a rectangle, NEVER framed, no panels, no cards, no signs, no labels, no plaques, no banners. ' +
     'A road WINDS and LOOPS wildly ACROSS THE WHOLE SHEET, from the bottom left corner to the top right, through the gaps between the scenes — many bends and curves, never a straight line — passing EVERY scene in reading order. It reaches all four regions of the sheet, not just one half. ' +
     `The paper is a flat plain background of the exact colour ${s.paper}. ` +
     'CRUCIAL SPACING: the scenes must be clearly SEPARATED by WIDE alleys of that plain paper colour — each scene stands alone with generous plain space around it; scenes must never touch or merge. ' +
@@ -120,6 +123,23 @@ const sceneDirective = (key) => {
     'ABSOLUTELY NO TEXT OF ANY KIND. No letters, no words, no numbers, no dates, no captions, no labels, no titles, no headings, no legends, no signage, no shop signs, no book covers with lettering, no newspapers, no posters within the picture, no handwriting, no scribbles that resemble writing, no calligraphy, no watermark, no signature. ' +
     'Signs, boards, book spines and papers that would normally carry writing must be left completely BLANK. ' +
     'The sheet must be entirely free of any glyph, character or symbol resembling a letter or digit.'
+}
+
+// ── Das Beschriftungsfeld als EIGENE Grafik ───────────────────────
+// Warum getrennt: Ein Bildmodell, das ein Beschriftungsfeld malt, schreibt fast
+// zwangsläufig etwas hinein — und verschreibt sich dabei. Also bekommt es den
+// Auftrag ohne jeden Textbezug: EIN leeres, handgemaltes Feld auf leerem Papier,
+// im Stil des Posters. Das Layout schneidet es frei, setzt es so oft ins Blatt,
+// wie es Stationen gibt, und druckt den echten Text als Vektor darauf.
+const bubbleDirective = (key) => {
+  const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
+  return `${s.look} ` +
+    'ONE single hand-drawn blank LABEL PLAQUE, centred, seen straight from the front, filling most of the frame. ' +
+    'It looks like a small paper tag or wooden signboard: a horizontal rounded shape with a hand-drawn ink outline and a slightly uneven, hand-made silhouette (never a perfect machine rectangle), with a soft warm highlight and a faint shadow. ' +
+    `Its surface is a clean, uniform, PALE surface, clearly lighter than the surrounding paper, and the area AROUND the plaque is flat plain paper of the exact colour ${s.paper} — nothing else in the picture. ` +
+    'The plaque is COMPLETELY BLANK: no writing, no letters, no numbers, no lines, no ruling, no ornament, no scribbles, no decoration, nothing on its surface at all. It is an empty label waiting to be written on. ' +
+    'No scene, no objects, no people, no background motif. ' +
+    'ABSOLUTELY NO TEXT ANYWHERE IN THE IMAGE.'
 }
 
 // Eine Szene = eine Kachel des Posters. Der Renderer setzt die Kacheln direkt
@@ -338,8 +358,10 @@ module.exports = async function handler(req, res) {
     // Poster-Vignette: eigener Aufbau (freigestellte Illustration auf Papierfarbe,
     // kein Doppelseiten-Motiv, kein Buch-Grafikstil). Siehe VIGNETTE_DIRECTIVE.
     const isScene = variant === 'scene'
-    const isVignette = variant === 'vignette' || isScene
+    const isBubble = variant === 'bubble'     // leeres Beschriftungsfeld als eigene Grafik
+    const isVignette = variant === 'vignette' || isScene || isBubble
     const vigDir = isScene ? sceneDirective(req.body?.posterStyle)
+      : isBubble ? bubbleDirective(req.body?.posterStyle)
       : (isVignette ? vignetteDirective(req.body?.posterStyle) : null)
     const build = isVignette
       // Bei Vignetten wird das Motiv NICHT von Medium-Wörtern befreit — der Stil

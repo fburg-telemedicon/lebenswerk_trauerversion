@@ -272,6 +272,8 @@ function pdfDraw(doc) {
       doc.circle(cx, cy, r, 'F')
     },
     image(data, x, y, w, h) { doc.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST') },
+    // Gemaltes Beschriftungsfeld (eigene Grafik, beliebig oft gesetzt).
+    sprite(img, x, y, w, h) { doc.addImage(img.data, 'PNG', x, y, w, h, undefined, 'FAST') },
     // Szenenkachel des Posters: kommt bereits zugeschnitten als JPEG (13 Szenen als
     // PNG blähten die Datei auf ein Vielfaches auf) und füllt ihre Zelle exakt.
     tile(img, x, y, w, h) { doc.addImage(img.data, 'JPEG', x, y, w, h, undefined, 'FAST') },
@@ -1582,7 +1584,10 @@ function freeMask(bg, st) {
 // im Motiv landet — und erst wenn das Blatt wirklich keinen Platz mehr hat,
 // bekommt die Kartusche eine kräftigere Deckung (dann liegt sie sichtbar auf dem
 // Bild, aber lesbar).
-function placeBubble(mask, taken, bh, wishX, wishY) {
+// `fixedW` (Breite des gemalten Beschriftungsfeldes) darf NICHT variiert werden —
+// eine schmalere Fassung würde das Bild stauchen. Ohne Feld (Vektor-Kartusche)
+// bleibt es bei den drei Breiten.
+function placeBubble(mask, taken, bh, wishX, wishY, fixedW = null) {
   const rows = mask.length, cols = mask[0].length
   const cw = P.W / cols, ch = P.H / rows
   // `needPaper=false` erlaubt das Motiv als Untergrund — aber NIE eine andere
@@ -1612,7 +1617,7 @@ function placeBubble(mask, taken, bh, wishX, wishY) {
   // erst die breite, dann die schmaleren Kartuschen probiert. Vorher wurde die
   // breite Fassung über das halbe Blatt gejagt, bevor eine schmale direkt an der
   // Szene überhaupt zur Debatte stand — deshalb rutschten Beschriftungen weit weg.
-  const WIDTHS = [62, 52, 44]
+  const WIDTHS = fixedW ? [fixedW] : [62, 52, 44]
   const search = (needPaper, maxRad) => {
     for (let rad = 0; rad <= maxRad; rad += 4) {
       const steps = rad === 0 ? 1 : Math.max(12, Math.round(rad / 1.6))
@@ -1731,7 +1736,12 @@ function paintPosterScene(d, data, bg, st) {
       return
     }
 
-    const bh = s2.year ? 17 : 12
+    // Das gemalte Beschriftungsfeld (eigene Grafik im Stil des Blattes) gibt die
+    // Höhe vor — es soll nicht verzerrt werden. Ohne Feld bleibt es beim schlichten
+    // Vektor-Papierfeld wie bisher.
+    const bubbleImg = bg.bubble
+    const BW = 66
+    const bh = bubbleImg ? Math.max(15, Math.min(30, BW / bubbleImg.aspect)) : (s2.year ? 17 : 12)
     const loc = spotMap.get(i)
 
     // Wunschort = die Szene selbst. Erst das gemalte Schild (falls die Bild-KI
@@ -1750,9 +1760,26 @@ function paintPosterScene(d, data, bg, st) {
       wishY = SCENE.headH + (Math.floor(i / 5) + 0.5) / 3 * (H - SCENE.headH)
     }
 
-    const pos = placeBubble(mask, taken, bh, wishX, wishY)
-    // Auf Papier reicht ein zartes Feld; muss die Kartusche ausnahmsweise auf dem
-    // Motiv liegen, deckt sie kräftiger — lesbar bleibt sie in jedem Fall.
+    const pos = placeBubble(mask, taken, bh, wishX, wishY, bubbleImg ? BW : null)
+
+    if (bubbleImg) {
+      // Das gemalte Feld wird eingesetzt (unverzerrt), der Text als Vektor darauf.
+      // Die Bild-KI hat dieses Feld ohne jeden Textbezug gemalt — sie konnte sich
+      // also gar nicht verschreiben.
+      d.sprite(bubbleImg, pos.x, pos.y, pos.w, bh)
+      const inner = bh * 0.62                          // Kontur/Schatten aussparen
+      const yearSize = Math.max(9, Math.min(14, inner * 0.42))
+      const titleSize = Math.max(8, Math.min(12, inner * 0.36))
+      let ty = pos.y + bh / 2 - (s2.year ? inner * 0.18 : titleSize * 0.15) + yearSize * 0.3
+      if (s2.year) {
+        d.text(String(s2.year), pos.x + pos.w / 2, ty, { size: yearSize, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: pos.w * 0.78, maxLines: 1 })
+        ty += yearSize * 0.52 + 0.6
+      }
+      d.text(String(s2.title || ''), pos.x + pos.w / 2, ty, { size: titleSize, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: pos.w * 0.78, maxLines: 2 })
+      return
+    }
+
+    // Ältere Poster ohne gemaltes Feld: schlichtes Vektor-Papierfeld wie bisher.
     d.bubble(pos.x, pos.y, pos.w, bh, st.paper, s2.color, pos.onPaper ? 0.9 : 0.97)
     let ty = pos.y + 6.5
     if (s2.year) {
@@ -1844,6 +1871,7 @@ function canvasDraw(ctx, s, imgEl) {
       ctx.restore()
     },
     image(_data, x, y, w, h) { ctx.drawImage(imgEl, x * s, y * s, w * s, h * s) },
+    sprite(img, x, y, w, h) { ctx.drawImage(img.el, x * s, y * s, w * s, h * s) },
     bubble(x, y, w, h, fill, edge, alpha = 0.88) {
       ctx.save()
       ctx.globalAlpha = alpha
@@ -1867,14 +1895,44 @@ function canvasDraw(ctx, s, imgEl) {
   }
 }
 
+// Das leere Beschriftungsfeld (eigene Grafik) freischneiden: Die Bild-KI liefert
+// es mittig auf Papier; gebraucht wird nur das Feld selbst. Gefunden wird es mit
+// derselben Erkennung wie zuvor die Karten im Blatt (hellste, glatte, geschlossene
+// Fläche) — findet sie nichts, wird das Bild mittig beschnitten.
+async function cropBubble(imgEl) {
+  const found = detectCards(imgEl).sort((a, b) => b.area - a.area)[0]
+  const box = found || { x: 0.12, y: 0.3, w: 0.76, h: 0.4 }
+  // Etwas Luft rundherum, damit Kontur und Schatten nicht abgeschnitten werden.
+  const pad = 0.03
+  const x = Math.max(0, box.x - pad), y = Math.max(0, box.y - pad)
+  const w = Math.min(1 - x, box.w + 2 * pad), h = Math.min(1 - y, box.h + 2 * pad)
+  const W = Math.round(imgEl.naturalWidth * w), H = Math.round(imgEl.naturalHeight * h)
+  const cv = document.createElement('canvas')
+  cv.width = W; cv.height = H
+  cv.getContext('2d').drawImage(imgEl, Math.round(imgEl.naturalWidth * x), Math.round(imgEl.naturalHeight * y), W, H, 0, 0, W, H)
+  const dataUrl = cv.toDataURL('image/png')
+  return { data: dataUrl, el: await toImageEl(dataUrl), aspect: W / H }
+}
+
 // Motiv + Bildanalyse einer Variante laden (beides brauchen Vorschau und PDF).
 async function loadSheet(data, variant) {
   const url = variant?.scene_url || data?.scene_url
   if (!url) throw new Error('Das Poster-Motiv konnte nicht geladen werden — bitte die Seite neu laden.')
   const img = await loadImage(url)
   const el = await toImageEl(img.data)
+
+  // Das Beschriftungsfeld ist eine eigene Grafik — einmal geladen, beliebig oft
+  // gesetzt. Fehlt sie (ältere Poster), zeichnet das Layout wie bisher eine
+  // schlichte Vektor-Kartusche.
+  let bubble = null
+  const burl = variant?.bubble_url
+  if (burl) {
+    try { bubble = await cropBubble(await toImageEl((await loadImage(burl)).data)) }
+    catch (e) { console.warn('Beschriftungsfeld nicht ladbar:', e.message) }
+  }
+
   return {
-    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows), colors: colorMap(el), cards: detectCards(el) },
+    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows), colors: colorMap(el), cards: detectCards(el), bubble },
     el,
     data: { ...data, scene_spots: variant?.scene_spots || data?.scene_spots },
   }
