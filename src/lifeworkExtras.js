@@ -1447,6 +1447,95 @@ function plaqueRect(loc, bg, st) {
   return { x: rx, y: ry, w: rw, h: rh }
 }
 
+// ── Wo ist wirklich Papier? ───────────────────────────────────────
+// Zwei Anläufe sind daran gescheitert, „frei" zu schätzen: einmal über die
+// Detaildichte (eine dunkle, glatte Wand ist genauso ruhig wie leeres Papier),
+// einmal über die Farbe (die Aquarell-Szenen sind selbst hell und cremefarben).
+// Beides zusammen reicht — aber nur, wenn nicht die MITTE eines Feldes geprüft
+// wird, sondern JEDE Zelle, die es überdeckt. Genau das macht `freeMask`: eine
+// Karte des Blattes im feinen Raster, in der eine Zelle nur dann frei ist, wenn
+// sie ruhig UND papierhell ist. Die Kartusche wird anschließend in eine Fläche
+// gesetzt, die KOMPLETT frei ist — nicht in eine, deren Mittelpunkt frei aussieht.
+function freeMask(bg, st) {
+  const rows = bg.grid.length, cols = bg.grid[0].length
+  const all = bg.grid.flat().slice().sort((a, b) => a - b)
+  const quiet = all[Math.floor(all.length * 0.35)] * 1.5 + 2
+
+  // Die Papierfarbe des BLATTES (nicht die des Stils): der Median der hellsten
+  // Zellen. Damit funktioniert die Prüfung auch, wenn die Bild-KI ein wärmeres
+  // oder kühleres Papier gemalt hat, als der Stil vorsieht.
+  const lumas = []
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const p = bg.colors[r][c]
+    lumas.push({ l: 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2], p })
+  }
+  lumas.sort((a, b) => b.l - a.l)
+  const bright = lumas.slice(0, Math.max(1, Math.floor(lumas.length * 0.12)))
+  const paper = [0, 1, 2].map(k => bright.reduce((a, x) => a + x.p[k], 0) / bright.length)
+
+  const mask = []
+  for (let r = 0; r < rows; r++) {
+    mask.push([])
+    for (let c = 0; c < cols; c++) {
+      const p = bg.colors[r][c]
+      const dist = Math.hypot(p[0] - paper[0], p[1] - paper[1], p[2] - paper[2])
+      mask[r].push(bg.grid[r][c] < quiet && dist < 26)
+    }
+  }
+  return mask
+}
+
+// Eine Kartusche unterbringen: gesucht wird die Stelle, die (a) komplett auf
+// freiem Papier liegt, (b) noch nicht belegt ist und (c) möglichst nah an ihrer
+// Szene. Findet sich nichts, wird die Nähe zur Szene aufgegeben, bevor der Text
+// im Motiv landet — und erst wenn das Blatt wirklich keinen Platz mehr hat,
+// bekommt die Kartusche eine kräftigere Deckung (dann liegt sie sichtbar auf dem
+// Bild, aber lesbar).
+function placeBubble(mask, taken, bw, bh, wishX, wishY) {
+  const rows = mask.length, cols = mask[0].length
+  const cw = P.W / cols, ch = P.H / rows
+  const need = (x, y) => {
+    if (x < 3 || y < P.margin || x + bw > P.W - 3 || y + bh > P.H - 3) return false
+    const c0 = Math.floor(x / cw), c1 = Math.ceil((x + bw) / cw) - 1
+    const r0 = Math.floor(y / ch), r1 = Math.ceil((y + bh) / ch) - 1
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        if (r < 0 || c < 0 || r >= rows || c >= cols) return false
+        if (!mask[r][c] || taken[r][c]) return false
+      }
+    }
+    return true
+  }
+  const claim = (x, y) => {
+    const c0 = Math.floor(x / cw), c1 = Math.ceil((x + bw) / cw) - 1
+    const r0 = Math.floor(y / ch), r1 = Math.ceil((y + bh) / ch) - 1
+    for (let r = Math.max(0, r0); r <= Math.min(rows - 1, r1); r++) {
+      for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) taken[r][c] = true
+    }
+  }
+
+  // Ringe um den Wunschort, in 4-mm-Schritten nach außen.
+  for (let rad = 0; rad <= 170; rad += 4) {
+    const steps = rad === 0 ? 1 : Math.max(8, Math.round(rad / 2))
+    let best = null
+    for (let k = 0; k < steps; k++) {
+      const a = (k / steps) * Math.PI * 2
+      const x = wishX - bw / 2 + Math.cos(a) * rad
+      const y = wishY - bh / 2 + Math.sin(a) * rad
+      if (!need(x, y)) continue
+      const dist = Math.hypot(x + bw / 2 - wishX, y + bh / 2 - wishY)
+      if (!best || dist < best.dist) best = { x, y, dist }
+    }
+    if (best) { claim(best.x, best.y); return { x: best.x, y: best.y, onPaper: true } }
+  }
+
+  // Nichts frei: direkt unter die Szene, mit deckender Kartusche.
+  const x = Math.max(3, Math.min(P.W - bw - 3, wishX - bw / 2))
+  const y = Math.max(P.margin, Math.min(P.H - bh - 3, wishY + 14))
+  claim(x, y)
+  return { x, y, onPaper: false }
+}
+
 function paintPosterScene(d, data, bg, st) {
   const { W, H } = P
   const stations = []
@@ -1468,87 +1557,53 @@ function paintPosterScene(d, data, bg, st) {
     d.text(who, W / 2, 24, { size: 26, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: tw - 10, maxLines: 1 })
   }
 
-  // Beschriftungen als KARTUSCHEN: Das Blatt ist vollflächig illustriert — es gibt
-  // keine freien Papiergassen mehr. Statt Schrift ins Motiv zu legen (unlesbar),
-  // bekommt jede Station ein kleines Papierfeld, gesetzt an die RUHIGSTE Stelle in
-  // ihrer Umgebung. Die Chronologie steuert grob die Spalte, damit die Reihenfolge
-  // von links nach rechts lesbar bleibt.
-  const cellW = (W - 2 * SCENE.margin) / SCENE.cols
-  const cellH = (H - SCENE.headH - SCENE.footH) / SCENE.rows
-  const used = new Set()
-  const spots = placeLabels(bg.grid2, stations.length, SCENE.cols, SCENE.rows, used)
+  // BESCHRIFTUNGEN: Jede Station bekommt eine Kartusche auf freiem Papier — so nah
+  // an ihrer Szene wie möglich. Wo Papier ist, wird nicht geschätzt, sondern
+  // gemessen (freeMask: ruhig UND papierhell, Zelle für Zelle). Gesucht wird eine
+  // Fläche, die KOMPLETT frei ist; belegte Flächen sind gesperrt, damit sich zwei
+  // Kartuschen nie überlagern.
+  const mask = freeMask(bg, st)
+  const taken = mask.map(row => row.map(() => false))
+  // Der Titel oben blockiert seinen Platz.
+  for (let r = 0; r < taken.length; r++) {
+    for (let c = 0; c < taken[0].length; c++) {
+      if ((r + 0.5) / taken.length * H < 34) taken[r][c] = true
+    }
+  }
 
-  // Wo liegt die Szene? `scene_spots` kommt aus der Bildanalyse beim Erzeugen
-  // (8×6-Raster). Die Kartusche wird dann DIREKT AN dieser Szene abgesetzt —
-  // in die ruhigste der vier Positionen darum. Ohne Verortung bleibt es bei der
-  // ruhigsten freien Zelle (Rückfall).
   const spotMap = new Map((data.scene_spots || []).map(x => [Number(x.i), x]))
-  const gCols = bg.grid2[0].length, gRows = bg.grid2.length
 
   stations.forEach((s2, i) => {
-    const bw = Math.min(cellW - 4, 62)
+    const bw = 62
     const bh = s2.year ? 17 : 12
-    let bx, by
     const loc = spotMap.get(i)
 
-    // BESTER FALL: Die Bild-KI hat an der Szene ein LEERES SCHILD mitgemalt, und die
-    // Bildanalyse hat es vermessen (relative Koordinaten). Dann steht der Text nicht
-    // irgendwo auf dem Motiv, sondern in einer Fläche, die eigens dafür da ist — und
-    // gehört sichtbar zu SEINER Szene. Vertraut wird der Angabe nur, wenn dort auch
-    // wirklich eine ruhige Fläche liegt (sonst hat das Modell danebengegriffen).
+    // Wunschort = die Szene selbst. Erst das gemalte Schild (falls die Bild-KI
+    // eines gesetzt hat und es wirklich eines ist), sonst die Mitte der Szene aus
+    // der Bildanalyse, sonst der Reihe nach über das Blatt verteilt.
     const plaque = loc ? plaqueRect(loc, bg, st) : null
+    let wishX, wishY
     if (plaque) {
-      const r = plaque
-      // Der Text steht NICHT im gemalten Schild — das Schild sagt nur, WO er
-      // hingehört. Darüber liegt eine eigene Kartusche in fester, lesbarer Größe.
-      // (Vorher habe ich die Schrift auf die Schildhöhe skaliert; malte die KI ein
-      // Mini-Schild, wurde die Beschriftung mikroskopisch und klebte im Motiv.)
-      d.bubble(r.x, r.y, r.w, r.h, st.paper, s2.color, 0.93)
-      let ty = r.y + 6.5
-      if (s2.year) {
-        d.text(String(s2.year), r.x + r.w / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: r.w - 4, maxLines: 1 })
-        ty += 5.5
-      }
-      d.text(String(s2.title || ''), r.x + r.w / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: r.w - 4, maxLines: 2 })
-      return
-    }
-
-    if (loc && Number.isFinite(loc.col) && Number.isFinite(loc.row)) {
-      const sx = (Math.min(7, Math.max(0, loc.col)) + 0.5) / 8 * W
-      const sy = (Math.min(5, Math.max(0, loc.row)) + 0.5) / 6 * H
-      const cands = [
-        { x: sx - bw / 2, y: sy + 20 }, { x: sx - bw / 2, y: sy - 20 - bh },
-        { x: sx - bw - 12, y: sy - bh / 2 }, { x: sx + 12, y: sy - bh / 2 },
-      ]
-      let best = null
-      for (const c of cands) {
-        const x = Math.max(6, Math.min(W - bw - 6, c.x))
-        const y = Math.max(SCENE.headH + 4, Math.min(H - bh - 6, c.y))
-        const gc = Math.min(gCols - 1, Math.max(0, Math.floor((x + bw / 2) / W * gCols)))
-        const gr = Math.min(gRows - 1, Math.max(0, Math.floor((y + bh / 2) / H * gRows)))
-        const key = `${gr}:${gc}`
-        // Papierstrafe: Eine ruhige, aber DUNKLE Zelle (glatte Wand, Nachthimmel)
-        // ist keine gute Textfläche — dort saß die Kartusche zuletzt mitten im
-        // Motiv. Je weiter die Farbe vom Papier weg ist, desto teurer der Platz.
-        const score = bg.grid2[gr][gc] + (used.has(key) ? 60 : 0) + notPaperPenalty(x + bw / 2, y + bh / 2, bg, st)
-        if (!best || score < best.score) best = { x, y, score, key }
-      }
-      used.add(best.key)
-      bx = best.x; by = best.y
+      wishX = plaque.x + plaque.w / 2
+      wishY = plaque.y + plaque.h / 2
+    } else if (loc && Number.isFinite(loc.col) && Number.isFinite(loc.row)) {
+      wishX = (Math.min(7, Math.max(0, loc.col)) + 0.5) / 8 * W
+      wishY = (Math.min(5, Math.max(0, loc.row)) + 0.5) / 6 * H + 22   // bevorzugt UNTER der Szene
     } else {
-      const spot = spots[i]
-      if (!spot) return
-      bx = Math.max(6, Math.min(W - bw - 6, SCENE.margin + spot.c * cellW + (cellW - bw) / 2))
-      by = Math.max(SCENE.headH + 4, Math.min(H - bh - 6, SCENE.headH + spot.r * cellH + (cellH - bh) / 2))
+      wishX = ((i % 5) + 0.5) / 5 * W
+      wishY = SCENE.headH + (Math.floor(i / 5) + 0.5) / 3 * (H - SCENE.headH)
     }
 
-    d.bubble(bx, by, bw, bh, st.paper, s2.color)
-    let ty = by + 6.5
+    const pos = placeBubble(mask, taken, bw, bh, wishX, wishY)
+    // Auf Papier reicht ein zartes Feld; muss die Kartusche ausnahmsweise auf dem
+    // Motiv liegen, deckt sie kräftiger — lesbar bleibt sie in jedem Fall.
+    d.bubble(pos.x, pos.y, bw, bh, st.paper, s2.color, pos.onPaper ? 0.9 : 0.97)
+    let ty = pos.y + 6.5
     if (s2.year) {
-      d.text(String(s2.year), bx + bw / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: bw - 4, maxLines: 1 })
+      d.text(String(s2.year), pos.x + bw / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: bw - 4, maxLines: 1 })
       ty += 5.5
     }
-    d.text(String(s2.title || ''), bx + bw / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: bw - 4, maxLines: 2 })
+    d.text(String(s2.title || ''), pos.x + bw / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: bw - 4, maxLines: 2 })
   })
 }
 
