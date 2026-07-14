@@ -33,10 +33,24 @@ function stripForSpeech(s) {
 
 // Neural-Stimme je Sprache (der/die Beitragende wählt die Sprache im Interview).
 // Per Env feinjustierbar; ohne Sprache/unbekannt → Deutsch.
+//
+// Achtung, der Schlüssel ist der VOLLE Sprachcode: `de-CH` (Schweiz) darf nicht
+// auf `de` gekürzt werden, sonst spricht eine deutsche Stimme mit einem Schweizer.
 const TTS_VOICES = {
-  de: process.env.AZURE_SPEECH_TTS_VOICE    || 'de-DE-KatjaNeural',
-  pl: process.env.AZURE_SPEECH_TTS_VOICE_PL || 'pl-PL-ZofiaNeural',
-  en: process.env.AZURE_SPEECH_TTS_VOICE_EN || 'en-US-JennyNeural',
+  de:      process.env.AZURE_SPEECH_TTS_VOICE       || 'de-DE-KatjaNeural',
+  'de-CH': process.env.AZURE_SPEECH_TTS_VOICE_DE_CH || 'de-CH-LeniNeural',
+  pl:      process.env.AZURE_SPEECH_TTS_VOICE_PL    || 'pl-PL-ZofiaNeural',
+  en:      process.env.AZURE_SPEECH_TTS_VOICE_EN    || 'en-US-JennyNeural',
+  es:      process.env.AZURE_SPEECH_TTS_VOICE_ES    || 'es-ES-ElviraNeural',
+  it:      process.env.AZURE_SPEECH_TTS_VOICE_IT    || 'it-IT-ElsaNeural',
+  eu:      process.env.AZURE_SPEECH_TTS_VOICE_EU    || 'eu-ES-AinhoaNeural',
+  he:      process.env.AZURE_SPEECH_TTS_VOICE_HE    || 'he-IL-HilaNeural',
+  ar:      process.env.AZURE_SPEECH_TTS_VOICE_AR    || 'ar-EG-SalmaNeural',
+}
+// Sprachcode → Stimme. Erst exakt (de-CH), dann der Sprachteil (de), sonst Deutsch.
+function pickVoice(language) {
+  const code = String(language || 'de')
+  return TTS_VOICES[code] || TTS_VOICES[code.slice(0, 2)] || TTS_VOICES.de
 }
 
 // ── Azure AI Speech (Neural TTS) ──────────────────────────────────
@@ -44,9 +58,9 @@ async function speakAzure(text, language) {
   const region = process.env.AZURE_SPEECH_REGION
   const key    = process.env.AZURE_SPEECH_KEY
   if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
-  const voice = TTS_VOICES[String(language || 'de').slice(0, 2)] || TTS_VOICES.de
+  const voice = pickVoice(language)
   const rate  = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
-  const lang  = voice.slice(0, 5) || 'de-DE' // z. B. "de-DE" / "pl-PL"
+  const lang  = voice.slice(0, 5) || 'de-DE' // z. B. "de-DE" / "pl-PL" / "he-IL"
   const ssml  = `<speak version='1.0' xml:lang='${lang}'><voice name='${voice}'>`
               + `<prosody rate='${rate}'>${xmlEscape(text)}</prosody></voice></speak>`
 

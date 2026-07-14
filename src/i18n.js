@@ -10,26 +10,52 @@
 //                      Deutsch kommt aus src/categories.js, pl/en als Overlay.
 
 import { CATEGORIES } from './categories.js'
+import { swissify, ES, IT, EU, HE, AR } from './i18nLangs.js'
 
+// `rtl: true` = Schreibrichtung rechts nach links. Das betrifft nicht nur die
+// Textausrichtung, sondern auch den Druck-PDF-Export: jsPDF kann arabische
+// Buchstabenverbindungen nicht formen, deshalb bleibt der Druck-PDF-Knopf für
+// diese Sprachen gesperrt (DOCX kann es — Word formt selbst).
 export const LANGUAGES = [
-  { code: 'de', label: 'Deutsch' },
-  { code: 'pl', label: 'Polski' },
-  { code: 'en', label: 'English' },
+  { code: 'de',    label: 'Deutsch' },
+  { code: 'de-CH', label: 'Schwiizerdütsch' },
+  { code: 'en',    label: 'English' },
+  { code: 'pl',    label: 'Polski' },
+  { code: 'es',    label: 'Español' },
+  { code: 'it',    label: 'Italiano' },
+  { code: 'eu',    label: 'Euskara' },
+  { code: 'he',    label: 'עברית', rtl: true },
+  { code: 'ar',    label: 'العربية', rtl: true },
 ]
 export const LANGUAGE_CODES = LANGUAGES.map(l => l.code)
 export const DEFAULT_LANGUAGE = 'de'
 
+export const isRTL = lang => Boolean(LANGUAGES.find(l => l.code === lang)?.rtl)
+// Sprachen ohne Druck-PDF: siehe oben (fehlende Ligaturen-Formung in jsPDF).
+export const canPrintPdf = lang => !isRTL(lang)
+
 // Wird ans ENDE des Systemprompts gehängt (letzte Instruktion gewinnt), damit
 // die Zielsprache die im Prompt enthaltene Regel „Schreibe auf Deutsch"
 // zuverlässig überschreibt. Für Deutsch leer (keine Änderung).
+const OVERRIDE = {
+  pl: 'NADRZĘDNA ZASADA JĘZYKA (ma pierwszeństwo przed KAŻDĄ wcześniejszą instrukcją, w tym „Schreibe auf Deutsch"): Cały tekst, wszystkie pytania i odpowiedzi pisz WYŁĄCZNIE po polsku.',
+  en: 'OVERRIDING LANGUAGE RULE (takes precedence over EVERY earlier instruction, including "Schreibe auf Deutsch"): Write all text, every question and reply EXCLUSIVELY in English.',
+  es: 'REGLA DE IDIOMA PRIORITARIA (prevalece sobre CUALQUIER instrucción anterior, incluida «Schreibe auf Deutsch»): Escribe todo el texto, todas las preguntas y respuestas EXCLUSIVAMENTE en español.',
+  it: 'REGOLA LINGUISTICA PRIORITARIA (prevale su OGNI istruzione precedente, inclusa «Schreibe auf Deutsch»): Scrivi tutto il testo, ogni domanda e ogni risposta ESCLUSIVAMENTE in italiano.',
+  eu: 'HIZKUNTZA ARAU NAGUSIA (aurreko EDOZEIN jarraibideren gainetik dago, «Schreibe auf Deutsch» barne): Idatzi testu guztia, galdera eta erantzun guztiak EUSKARAZ soilik.',
+  he: 'כלל שפה עליון (גובר על כל הוראה קודמת, לרבות „Schreibe auf Deutsch"): כתוב את כל הטקסט, כל השאלות וכל התשובות בעברית בלבד.',
+  ar: 'قاعدة اللغة العليا (تَعلو على أي تعليمات سابقة، بما فيها „Schreibe auf Deutsch"): اكتب كل النص وكل الأسئلة والأجوبة باللغة العربية فقط.',
+  // Schweiz: Der Mensch spricht Mundart — die KI versteht sie, schreibt aber
+  // Schweizer Hochdeutsch. Dialekt-Schreibweise hat keine verbindliche
+  // Rechtschreibung; ein Buch in Mundart-Verschriftlichung wirkt unfreiwillig
+  // komisch. Deshalb: hören ja, schreiben nein.
+  'de-CH': 'ÜBERGEORDNETE SPRACHREGEL: Die Person spricht Schweizerdeutsch (Mundart). Verstehe die Mundart, aber SCHREIBE ausschliesslich in SCHWEIZER HOCHDEUTSCH: normale deutsche Schriftsprache, jedoch OHNE „ß" (immer „ss"), mit Schweizer Wortwahl, wo sie natürlich ist (z. B. Velo, Znüni, Spital, parkieren, Trottoir). Schreibe NIEMALS in Dialekt-Verschriftlichung.',
+}
 export function langDirective(lang) {
-  if (lang === 'pl') {
-    return '\n\n────────────────\nNADRZĘDNA ZASADA JĘZYKA (ma pierwszeństwo przed KAŻDĄ wcześniejszą instrukcją, w tym „Schreibe auf Deutsch" / „auf Deutsch"): Cały tekst, wszystkie pytania i odpowiedzi pisz WYŁĄCZNIE po polsku. Nie używaj języka niemieckiego ani angielskiego (z wyjątkiem pola „image_prompt", które pozostaje po angielsku).'
-  }
-  if (lang === 'en') {
-    return '\n\n────────────────\nOVERRIDING LANGUAGE RULE (takes precedence over EVERY earlier instruction, including "Schreibe auf Deutsch" / "auf Deutsch"): Write all text, every question and reply EXCLUSIVELY in English. Do not use German (except the "image_prompt" field, which stays in English).'
-  }
-  return ''
+  const rule = OVERRIDE[lang]
+  if (!rule) return ''
+  const imgNote = ' (Ausnahme: das Feld „image_prompt" bleibt immer Englisch.)'
+  return `\n\n────────────────\n${rule}${imgNote}`
 }
 
 // ── Feste UI-Texte ────────────────────────────────────────────────
@@ -345,7 +371,8 @@ ${url}
   euDoneBody: 'Your life story has been saved. You can come back and continue at any time.',
 }
 
-const UI = { de: DE, pl: PL, en: EN }
+// Schweizer Hochdeutsch = Deutsch ohne ß (kein eigenes Wörterbuch nötig).
+const UI = { de: DE, 'de-CH': swissify(DE), pl: PL, en: EN, es: ES, it: IT, eu: EU, he: HE, ar: AR }
 export function uiText(lang) { return UI[lang] || UI[DEFAULT_LANGUAGE] }
 
 // ── Hinweis zur Entstehung des Buches ─────────────────────────────
@@ -391,12 +418,68 @@ const DISCLAIMER = {
   },
 }
 
+// Die neuen Sprachen (2026-07-15). Schweizer Hochdeutsch wird abgeleitet.
+const DISCLAIMER_ES = {
+  textSelf: 'Este libro se ha creado con ayuda de inteligencia artificial a partir de una entrevista con la propia persona. Recoge sus propios recuerdos y relatos.',
+  textOthers: 'Este libro se ha creado con ayuda de inteligencia artificial a partir de entrevistas con personas cercanas. Recoge los recuerdos y relatos personales de quienes participaron.',
+  liability: 'No podemos verificar su exactitud, integridad ni actualidad; se excluye toda responsabilidad en la medida permitida por la ley.',
+  imgAi: 'Las imágenes del libro han sido generadas íntegramente por inteligencia artificial. Son interpretaciones artísticas libres de las escenas narradas: no son fotografías reales ni muestran a personas reales; cualquier parecido es involuntario.',
+  imgAiRef: 'Las imágenes han sido generadas por inteligencia artificial. Para representar a las personas se han usado como referencia fotografías originales subidas, de modo que se parezcan a la realidad (procedimiento imagen a imagen) y aparezcan situadas en la época del capítulo. Aun así no son fotografías reales, sino representaciones generadas artificialmente y modificadas de forma artística.',
+  imgPhotos: 'El libro contiene además fotografías reales subidas por los participantes. Para las páginas solo se han recortado, escalado y dispuesto; su contenido no se ha modificado.',
+  imgNone: 'El libro no contiene imágenes.',
+  poster: 'Las ilustraciones han sido generadas íntegramente por IA; todos los datos, años y textos proceden de la entrevista.',
+}
+const DISCLAIMER_IT = {
+  textSelf: 'Questo libro è stato realizzato con l\'aiuto dell\'intelligenza artificiale, sulla base di un\'intervista con la persona stessa. Riporta i suoi ricordi e i suoi racconti.',
+  textOthers: 'Questo libro è stato realizzato con l\'aiuto dell\'intelligenza artificiale, sulla base di interviste con persone vicine. Riporta ricordi e racconti personali di chi ha partecipato.',
+  liability: 'Non possiamo verificarne l\'esattezza, la completezza e l\'attualità; ogni responsabilità è esclusa nei limiti consentiti dalla legge.',
+  imgAi: 'Le immagini del libro sono state generate interamente dall\'intelligenza artificiale. Sono libere interpretazioni artistiche delle scene raccontate: non sono fotografie reali e non ritraggono persone reali; ogni somiglianza è involontaria.',
+  imgAiRef: 'Le immagini sono state generate dall\'intelligenza artificiale. Per raffigurare le persone sono state usate come riferimento fotografie originali caricate, affinché le figure somiglino alla realtà (metodo immagine-a-immagine) e siano collocate nell\'epoca del capitolo. Non sono comunque fotografie reali, ma raffigurazioni generate artificialmente e modificate artisticamente.',
+  imgPhotos: 'Il libro contiene inoltre vere fotografie caricate dai partecipanti. Per le pagine sono state solo ritagliate, ridimensionate e disposte; il loro contenuto non è stato alterato.',
+  imgNone: 'Il libro non contiene immagini.',
+  poster: 'Le illustrazioni sono interamente generate dall\'IA; tutti i dati, gli anni e i testi provengono dall\'intervista.',
+}
+const DISCLAIMER_EU = {
+  textSelf: 'Liburu hau adimen artifizialaren laguntzarekin sortu da, pertsonari berari egindako elkarrizketan oinarrituta. Bere oroitzapenak eta kontakizunak jasotzen ditu.',
+  textOthers: 'Liburu hau adimen artifizialaren laguntzarekin sortu da, hurbilekoei egindako elkarrizketetan oinarrituta. Parte hartu dutenen oroitzapen eta kontakizun pertsonalak jasotzen ditu.',
+  liability: 'Ezin dugu haien zehaztasuna, osotasuna eta gaurkotasuna egiaztatu; erantzukizuna baztertuta dago legeak onartzen duen neurrian.',
+  imgAi: 'Liburuko irudiak osorik adimen artifizialak sortu ditu. Kontatutako eszenen interpretazio artistiko libreak dira: ez dira benetako argazkiak, ez dituzte benetako pertsonak erakusten; antzekotasunak ez dira nahita eginak.',
+  imgAiRef: 'Irudiak adimen artifizialak sortu ditu. Pertsonak irudikatzeko, igotako jatorrizko argazkiak erabili dira erreferentzia gisa, agertzen direnak errealitatearen antza izan dezaten (irudi-irudira metodoa) eta kapituluaren garaian koka daitezen. Hala ere, ez dira benetako argazkiak, artifizialki sortutako eta artistikoki aldatutako irudikapenak baizik.',
+  imgPhotos: 'Liburuak, gainera, parte-hartzaileek igotako benetako argazkiak ditu. Orrialdeetarako mozketa, eskalatze eta kokapena baino ez zaie egin; edukia ez da aldatu.',
+  imgNone: 'Liburuak ez du irudirik.',
+  poster: 'Ilustrazioak osorik IAk sortuak dira; datu, urte eta testu guztiak elkarrizketatik datoz.',
+}
+const DISCLAIMER_HE = {
+  textSelf: 'הספר נוצר בעזרת בינה מלאכותית, על בסיס ראיון עם האדם עצמו. הוא משקף את זיכרונותיו ותיאוריו.',
+  textOthers: 'הספר נוצר בעזרת בינה מלאכותית, על בסיס ראיונות עם אנשים קרובים. הוא משקף זיכרונות ותיאורים אישיים של המשתתפים.',
+  liability: 'איננו יכולים לאמת את נכונותם, שלמותם ועדכניותם; האחריות לכך מוחרגת ככל שהחוק מתיר.',
+  imgAi: 'האיורים בספר נוצרו כולם בידי בינה מלאכותית. הם פרשנות אמנותית חופשית של הסצנות המסופרות: אינם צילומים אמיתיים ואינם מציגים אנשים ממשיים; כל דמיון אינו מכוון.',
+  imgAiRef: 'האיורים נוצרו בידי בינה מלאכותית. לצורך הצגת אנשים שימשו צילומים מקוריים שהועלו כהשראה, כדי שהדמויות ידמו למציאות (שיטת תמונה-לתמונה) וימוקמו בתקופת הפרק. עם זאת אין אלה צילומים אמיתיים, אלא ייצוגים שנוצרו באופן מלאכותי ושונו אמנותית.',
+  imgPhotos: 'הספר כולל גם צילומים אמיתיים שהעלו המשתתפים. לצורך עמודי הספר הם רק נחתכו, הוקטנו וסודרו — תוכנם לא שונה.',
+  imgNone: 'הספר אינו כולל תמונות.',
+  poster: 'האיורים נוצרו כולם בידי בינה מלאכותית; כל הנתונים, השנים והטקסטים לקוחים מהראיון.',
+}
+const DISCLAIMER_AR = {
+  textSelf: 'أُعدّ هذا الكتاب بمساعدة الذكاء الاصطناعي، استناداً إلى مقابلة مع الشخص نفسه. وهو يعكس ذكرياته ورواياته.',
+  textOthers: 'أُعدّ هذا الكتاب بمساعدة الذكاء الاصطناعي، استناداً إلى مقابلات مع أشخاص مقرّبين. وهو يعكس ذكريات المشاركين ورواياتهم الشخصية.',
+  liability: 'لا يمكننا التحقق من صحتها أو اكتمالها أو حداثتها؛ وتُستبعد المسؤولية عن ذلك بالقدر الذي يسمح به القانون.',
+  imgAi: 'وُلِّدت جميع صور الكتاب بواسطة الذكاء الاصطناعي. وهي تفسيرات فنية حرة للمشاهد المروية: ليست صوراً حقيقية ولا تُظهر أشخاصاً حقيقيين؛ وأي تشابه غير مقصود.',
+  imgAiRef: 'وُلِّدت الصور بواسطة الذكاء الاصطناعي. ولتصوير الأشخاص استُخدمت صور أصلية مرفوعة كمرجع، كي تشبه الشخصيات الواقع (أسلوب صورة إلى صورة) وتُوضع في زمن الفصل المعني. ومع ذلك فهي ليست صوراً حقيقية، بل تمثيلات مولَّدة اصطناعياً ومعدَّلة فنياً.',
+  imgPhotos: 'يحتوي الكتاب أيضاً على صور حقيقية رفعها المشاركون. ولم يجرِ عليها سوى القص وتغيير الحجم والترتيب لأغراض الصفحات؛ ولم يُغيَّر محتواها.',
+  imgNone: 'لا يحتوي الكتاب على صور.',
+  poster: 'الرسوم مولَّدة بالكامل بالذكاء الاصطناعي؛ وجميع المعلومات والسنوات والنصوص مأخوذة من المقابلة.',
+}
+Object.assign(DISCLAIMER, {
+  'de-CH': swissify(DISCLAIMER.de),
+  es: DISCLAIMER_ES, it: DISCLAIMER_IT, eu: DISCLAIMER_EU, he: DISCLAIMER_HE, ar: DISCLAIMER_AR,
+})
+
 // `facts` = { selfNarrated, hasAiImages, hasReferenceImages, hasRealPhotos }
 export function bookDisclaimer(lang, facts = {}) {
   const t = DISCLAIMER[lang] || DISCLAIMER.de
   const parts = [facts.selfNarrated ? t.textSelf : t.textOthers, t.liability]
   if (facts.hasAiImages) parts.push(facts.hasReferenceImages ? t.imgAiRef : t.imgAi)
-  if (facts.hasRealPhotos) parts.push(facts.hasAiImages ? t.imgPhotos : t.imgPhotos.replace(/^Außerdem enthält das Buch |^Księga zawiera ponadto |^The book also contains /, m => m.replace(/Außerdem enthält das Buch/, 'Das Buch enthält').replace(/Księga zawiera ponadto/, 'Księga zawiera').replace(/The book also contains/, 'The book contains')))
+  if (facts.hasRealPhotos) parts.push(t.imgPhotos)
   if (!facts.hasAiImages && !facts.hasRealPhotos) parts.push(t.imgNone)
   return parts.join(' ')
 }

@@ -15,7 +15,21 @@ const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
-const LOCALE = { de: 'de-DE', en: 'en-US', pl: 'pl-PL' }
+// Erkennungssprache je Interview-Sprache. `de-CH` ist der Grund, warum hier der
+// VOLLE Code steht: Azure erkennt Schweizerdeutsch (Mundart) nur mit dem Locale
+// `de-CH` — mit `de-DE` bliebe von einem Mundart-Satz wenig übrig.
+// Arabisch: `ar-EG` als breit verstandene Verkehrssprache (per Env änderbar).
+const LOCALE = {
+  de: 'de-DE',
+  'de-CH': 'de-CH',
+  en: 'en-US',
+  pl: 'pl-PL',
+  es: 'es-ES',
+  it: 'it-IT',
+  eu: 'eu-ES',
+  he: 'he-IL',
+  ar: process.env.AZURE_SPEECH_STT_LOCALE_AR || 'ar-EG',
+}
 
 // ── Azure AI Speech (Fast Transcription) ──────────────────────────
 async function transcribeAzure({ buffer, mimeType, ext, language }) {

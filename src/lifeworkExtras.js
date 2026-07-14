@@ -510,7 +510,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 
 Regeln zum AUFBAU:
 - "sections": 4–5 Lebensabschnitte, CHRONOLOGISCH (z. B. Wurzeln & Kindheit, Jugend & Ausbildung, Beruf, Familie & Liebe, Späte Jahre & Vermächtnis).
-- Insgesamt 10–12 "stations" (also 2–3 je Abschnitt) — WENIGE, dafür STARKE Stationen. Wähle die Wendepunkte, nicht jede Episode.
+- GENAU 12 "stations" insgesamt (also 2–3 je Abschnitt) — WENIGE, dafür STARKE Stationen. Wähle die Wendepunkte, nicht jede Episode. Nicht mehr und nicht weniger als 12: Das Blatt hat genau 12 Plätze.
 - "weight": Pro Poster höchstens 3 Stationen mit weight 3 und höchstens 4 mit weight 2. Der Rest ist 1.
 - "image_prompt" ist das Herz der Grafik: eine kleine SZENE mit Atmosphäre (Ort + wenige Gegenstände + Licht), KEINE Gesichter, KEINE Porträts, kein Text im Bild.
 - "values": 5–8 Stück. "places": 3–6 Stück. "quote": genau EIN Satz.
@@ -1692,11 +1692,22 @@ function paintPosterScene(d, data, bg, st) {
   // nötig, die Karte IST die Kartusche, und sie gehört sichtbar zu ihrer Szene.
   // Karten und Stationen stehen beide in Leserichtung — die i-te Karte gehört zur
   // i-ten Station.
+  // Karten und Stationen sind selten exakt gleich viele (die Bild-KI malt „etwa
+  // zwölf" Szenen, die Inhalte können 15 Stationen hergeben). Deshalb wird NICHT
+  // alles verworfen, sobald eine Karte fehlt: Die vorhandenen Karten werden der
+  // Reihe nach vergeben, der Rest sucht sich wie bisher freies Papier — und die
+  // Karten sind dabei gesperrt, damit dort keine zweite Beschriftung landet.
   const cards = bg.cards || []
-  const useCards = cards.length >= stations.length
+  cards.forEach(c => {
+    const r0 = Math.floor(c.y * mask.length), r1 = Math.ceil((c.y + c.h) * mask.length) - 1
+    const c0 = Math.floor(c.x * mask[0].length), c1 = Math.ceil((c.x + c.w) * mask[0].length) - 1
+    for (let r = Math.max(0, r0); r <= Math.min(mask.length - 1, r1); r++) {
+      for (let cc = Math.max(0, c0); cc <= Math.min(mask[0].length - 1, c1); cc++) taken[r][cc] = true
+    }
+  })
 
   stations.forEach((s2, i) => {
-    if (useCards) {
+    if (i < cards.length) {
       const c = cards[i]
       const cx = c.x * W, cy = c.y * H, cw = c.w * W, ch = c.h * H
       const pad = Math.min(3, ch * 0.12)
