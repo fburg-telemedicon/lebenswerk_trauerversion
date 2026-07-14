@@ -1136,3 +1136,157 @@ export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
     host.remove()
   }
 }
+
+// ════════════════════════════════════════════════════════════════
+// 4) POSTER ALS ILLUSTRIERTES BLATT (Szene + Vektortext)
+// ════════════════════════════════════════════════════════════════
+//
+// Die Vorbilder (NotebookLM-Infografiken) sind EIN großes KI-Bild — deshalb sehen
+// sie so üppig aus, und deshalb steht darin „Goburt in Segen". Wir nehmen die
+// Optik, nicht den Fehler: Die Bild-KI malt das ganze Blatt (mäandernder Weg,
+// Szenen, warmes Papier) und lässt dabei bewusst RUHIGE FLÄCHEN frei; der Text
+// kommt als Vektor darüber. Wo genau, entscheidet keine Vermutung, sondern eine
+// Analyse des fertigen Bildes: Wir messen die Detaildichte je Rasterzelle und
+// setzen jede Beschriftung in die ruhigste Zelle in ihrer Nähe.
+
+// Motiv-Prompt fürs Gesamtblatt: aus den Stationen destilliert.
+export function posterSceneSystem(data) {
+  const st = []
+  ;(data.sections || []).forEach(sec => (sec.stations || []).forEach(s => {
+    if (s.image_prompt) st.push(String(s.image_prompt))
+  }))
+  const scenes = st.slice(0, 12).map((s, i) => `${i + 1}. ${s}`).join('\n')
+  return `Du bist Illustrator. Beschreibe EIN einziges, weites Illustrationsblatt (Lebenskarte) in ENGLISCH — es zeigt den Lebensweg als mäandernden Pfad, an dem die folgenden Szenen liegen (in dieser Reihenfolge, von links unten nach rechts oben):
+
+${scenes}
+
+Gib NUR die englische Bildbeschreibung aus (60–110 Wörter), keine Erklärung, kein Markdown, KEINE Anführungszeichen.
+
+Regeln:
+- Beschreibe den Weg und die Szenen entlang des Weges, ihre Anordnung und die Atmosphäre.
+- Verlange ausdrücklich große, ruhige, leere Papierflächen zwischen und um die Szenen (dort wird später Text gedruckt).
+- KEIN Text im Bild, keine Schrift, keine Zahlen, keine Schilder.
+- Keine Gesichter, keine Porträts.
+- Nenne kein Medium und keinen Kunststil (der kommt separat).`
+}
+
+// Detaildichte je Rasterzelle: viel Kontrast = Bild, wenig = ruhige Fläche.
+function densityGrid(imgEl, cols, rows) {
+  const W = 240, H = Math.round(W * (imgEl.naturalHeight / imgEl.naturalWidth))
+  const cv = document.createElement('canvas')
+  cv.width = W; cv.height = H
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(imgEl, 0, 0, W, H)
+  const { data } = ctx.getImageData(0, 0, W, H)
+  const grid = []
+  for (let r = 0; r < rows; r++) {
+    grid.push([])
+    for (let c = 0; c < cols; c++) {
+      const x0 = Math.floor(c * W / cols), x1 = Math.floor((c + 1) * W / cols)
+      const y0 = Math.floor(r * H / rows), y1 = Math.floor((r + 1) * H / rows)
+      let sum = 0, n = 0
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0 + 1; x < x1; x++) {
+          const i = (y * W + x) * 4, j = (y * W + x - 1) * 4
+          const l1 = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+          const l0 = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]
+          sum += Math.abs(l1 - l0); n++
+        }
+      }
+      grid[r].push(n ? sum / n : 0)
+    }
+  }
+  return grid
+}
+
+const SCENE = { cols: 6, rows: 5, margin: 16, headH: 44, footH: 22 }
+
+// Zellen belegen: Jede Station bekommt die ruhigste noch freie Zelle möglichst
+// nahe ihrer chronologischen Spalte — so bleibt die Leserichtung erhalten, ohne
+// dass Text auf einer Illustration landet.
+function placeLabels(grid, count, cols, rows, used) {
+  const out = []
+  for (let i = 0; i < count; i++) {
+    const wantCol = Math.min(cols - 1, Math.floor(i * cols / count))
+    let best = null
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (used.has(`${r}:${c}`)) continue
+        // Ruhe + Nähe zur Wunschspalte (Detaildichte zählt stärker)
+        const score = grid[r][c] + Math.abs(c - wantCol) * 3.5
+        if (!best || score < best.score) best = { r, c, score }
+      }
+    }
+    if (!best) break
+    used.add(`${best.r}:${best.c}`)
+    out.push(best)
+  }
+  return out
+}
+
+function paintPosterScene(d, data, bg, st) {
+  const { W, H } = P
+  const stations = []
+  ;(data.sections || []).forEach((sec, si) => (sec.stations || []).forEach((s, ti) =>
+    stations.push({ ...s, si, ti, color: st.accents[si % st.accents.length], first: ti === 0, section: sec })))
+
+  // Bild full-bleed (cover-fit, nie verzerrt)
+  const s = Math.max(W / bg.w, H / bg.h)
+  d.image(bg.data, (W - bg.w * s) / 2, (H - bg.h * s) / 2, bg.w * s, bg.h * s)
+
+  // Kopf: Titel auf einem hellen Band, damit er auf jedem Motiv steht.
+  d.rect(0, 0, W, SCENE.headH, st.paper, 0.86)
+  const title = String(data.title || 'Ein Leben')
+  d.text(st.titleUpper ? title.toUpperCase() : title, W / 2, 20, { size: 26, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
+  if (data.subtitle) d.text(String(data.subtitle), W / 2, 30, { size: 11, italic: true, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
+  const who = [data.person?.name, data.person?.years].filter(Boolean).join('   ·   ')
+  if (who) d.text(who, W / 2, 38, { size: 9, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
+
+  // Beschriftungen in die ruhigsten Zellen
+  const cellW = (W - 2 * SCENE.margin) / SCENE.cols
+  const cellH = (H - SCENE.headH - SCENE.footH) / SCENE.rows
+  const used = new Set()
+  const spots = placeLabels(bg.grid, stations.length, SCENE.cols, SCENE.rows, used)
+
+  stations.forEach((s2, i) => {
+    const spot = spots[i]
+    if (!spot) return
+    const x = SCENE.margin + spot.c * cellW
+    const y = SCENE.headH + spot.r * cellH
+    const pad = 3
+    const bw = cellW - 4
+    // Halbtransparentes Papier-Panel: hält den Text auch über Illustrationen lesbar.
+    d.rect(x + 2, y + 2, bw, cellH - 6, st.paper, 0.82)
+    d.thickLine(x + 2, y + 2, x + 2, y + cellH - 4, s2.color, 1.2)
+
+    let ty = y + 8
+    if (s2.year) { d.text(String(s2.year), x + pad + 3, ty, { size: 8.5, bold: true, color: s2.color, font: st.heading, maxW: bw - 8, maxLines: 1 }); ty += 4.6 }
+    ty += d.text(String(s2.title || ''), x + pad + 3, ty, { size: 8, bold: true, color: st.ink, font: st.heading, maxW: bw - 8, maxLines: 2 })
+    d.text(String(s2.text || ''), x + pad + 3, ty + 1, { size: 6.2, color: st.soft, font: st.body, maxW: bw - 8, maxLines: 5 })
+  })
+
+  // Fuß
+  const fy = H - SCENE.footH + 8
+  d.rect(0, H - SCENE.footH, W, SCENE.footH, st.paper, 0.9)
+  const values = (Array.isArray(data.values) ? data.values : []).slice(0, 8)
+  const places = (Array.isArray(data.places) ? data.places : []).slice(0, 6)
+  const colW = (W - 2 * SCENE.margin) / 3 - 8
+  if (values.length) d.text('WERTE:  ' + values.join('  ·  '), SCENE.margin, fy, { size: 7.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
+  if (places.length) d.text('ORTE:  ' + places.join('  ·  '), SCENE.margin + colW + 12, fy, { size: 7.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
+  if (data.quote) d.text(`„${data.quote}"`, SCENE.margin + 2 * (colW + 12), fy, { size: 9, italic: true, color: st.ink, font: st.heading, maxW: colW + 8, maxLines: 2 })
+}
+
+// `sceneUrl` = signierte URL des Gesamtbildes.
+export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey) {
+  const st = getPosterStyle(styleKey || data?.style)
+  const img = await loadImage(sceneUrl)
+  const el = await new Promise((res, rej) => {
+    const im = new Image()
+    im.onload = () => res(im); im.onerror = () => rej(new Error('Motiv konnte nicht gelesen werden.'))
+    im.src = img.data
+  })
+  const grid = densityGrid(el, SCENE.cols, SCENE.rows)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid }, st)
+  doc.save(filename)
+}

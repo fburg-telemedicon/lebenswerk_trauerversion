@@ -55,7 +55,7 @@ import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
-import { treeSystem, posterSystem, posterLayoutSystem, posterImageJobs, downloadTreePdf, downloadPosterPdf, downloadPosterSvgPdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
+import { treeSystem, posterSystem, posterSceneSystem, posterImageJobs, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -1996,37 +1996,27 @@ Regeln:
       }
       if (!data) throw new Error('Die KI hat kein gültiges JSON geliefert. Bitte erneut versuchen.')
 
-      // Poster: je Station eine Vignette erzeugen (sequenziell — FLUX mag keine
-      // Parallelität, und die Rate-Limit-Wiederholung steckt in generateImageWithRetry).
+      // Poster: EIN illustriertes Blatt (Weg + Szenen, garantiert ohne Schrift).
+      // Der Text kommt beim Zeichnen als Vektor darüber — in die ruhigsten Zonen
+      // des Bildes (Detaildichte-Analyse), damit er nie auf einer Szene klebt.
       if (!isTree) {
         data.style = posterStyle
-        const jobs = posterImageJobs(data)
-        for (let i = 0; i < jobs.length; i++) {
-          const j = jobs[i]
-          setExtraMsg(`Illustration ${i + 1} von ${jobs.length} wird gezeichnet …`)
-          try {
-            const img = await generateImageWithRetry(selected.id, j.prompt, {
-              meta: { variant: 'vignette', posterStyle },
-              onWait: (sec, rate) => setExtraMsg(`Illustration ${i + 1} von ${jobs.length}${rate ? ` — Bild-KI ausgelastet, warte ${sec} s` : ` — neuer Versuch in ${sec} s`} …`),
-            })
-            const path = img?.storagePath || img?.path
-            if (path) data.sections[j.si].stations[j.ti].image_path = path
-          } catch (e) {
-            console.warn(`Vignette ${j.key} fehlgeschlagen (Station bleibt ohne Bild):`, e.message)
-          }
-          // Drosseln: Bilder in Serie laufen sonst in das Minutenkontingent von
-          // FLUX („exceeded rate limit") — dann fehlen dem Poster die letzten
-          // Illustrationen. Eine kurze Pause hält uns unter dem Limit.
-          if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 4000))
-        }
-
-        // HINWEIS: Ein früherer Versuch ließ die KI das Blatt als freies SVG
-        // entwerfen. Ergebnis: Texte lagen auf Bildern, Wege kreuzten sich, Zeilen
-        // liefen aus dem Blatt — ein Sprachmodell sieht seine eigene Zeichnung
-        // nicht. Die Gestaltung kommt deshalb weiterhin von der KI (welche Station
-        // ist ein Wendepunkt, wie heißen die Abschnitte), die GEOMETRIE rechnet der
-        // Renderer (src/lifeworkExtras.js) — der garantiert, was ein LLM nicht kann:
-        // keine Überlappung, kein Überstand, sauberer Umbruch.
+        setExtraMsg('Motiv des Posters wird beschrieben …')
+        let motif = ''
+        try {
+          motif = String(await askLLM(posterSceneSystem(data), [{ role: 'user', content: 'Gib jetzt die Bildbeschreibung aus.' }],
+            { memorialCode: selected.id, kind: 'life_poster_scene', token })).trim()
+        } catch { /* Fallback unten */ }
+        if (!motif) motif = 'A winding path across a wide sheet with small scenes of a life along it: a bakery window, a meadow, a hospital ward, a workshop, a garden, a choir; generous empty paper between the scenes.'
+        setExtraMsg('Das Poster wird gezeichnet (ein großes Motiv) …')
+        const img = await generateImageWithRetry(selected.id, motif, {
+          meta: { variant: 'scene', posterStyle },
+          onWait: (sec, rate) => setExtraMsg(rate ? `Bild-KI ausgelastet, warte ${sec} s …` : `Neuer Versuch in ${sec} s …`),
+        })
+        const path = img?.storagePath || img?.path
+        if (!path) throw new Error('Das Poster-Motiv konnte nicht erzeugt werden.')
+        data.scene_path = path
+        data.scene_prompt = motif
       }
 
       setExtraMsg('Wird gespeichert …')
@@ -2056,6 +2046,12 @@ Regeln:
       if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
       // Poster: die signierten URLs der Vignetten einsammeln (sie stehen frisch am
       // gerade geladenen Datensatz, nicht im gespeicherten JSON).
+      // Poster: ein illustriertes Blatt + Vektortext darüber.
+      else if (data.scene_url || data.scene_path) {
+        if (!data.scene_url) throw new Error('Das Poster-Motiv konnte nicht geladen werden — bitte die Seite neu laden.')
+        await downloadPosterScenePdf(`${base}.pdf`, data, data.scene_url, data.style)
+      }
+      // Ältere Poster (Vignetten je Station) weiterhin zeichenbar.
       else {
         const urls = {}
         ;(data.sections || []).forEach((sec, si) => {

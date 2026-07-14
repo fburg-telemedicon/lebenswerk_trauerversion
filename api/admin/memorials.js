@@ -154,6 +154,8 @@ async function signMemorialImages(memorials) {
 // Bildpfade des Lebensposters: je Station eine Vignette.
 function posterImagePaths(poster) {
   const out = []
+  // Gesamtmotiv des Posters (ein illustriertes Blatt).
+  if (poster?.scene_path) out.push(String(poster.scene_path).replace(/^\/+/, ''))
   for (const sec of (Array.isArray(poster?.sections) ? poster.sections : [])) {
     for (const st of (Array.isArray(sec.stations) ? sec.stations : [])) {
       if (st?.image_path) out.push(String(st.image_path).replace(/^\/+/, ''))
@@ -165,6 +167,10 @@ function posterImagePaths(poster) {
 // image_url je Station setzen (wie bei den Kapitelbildern: image_path ist die
 // gespeicherte Referenz, image_url wird bei jedem Laden frisch signiert).
 function applyPosterUrls(poster, urlMap) {
+  if (poster?.scene_path) {
+    const k = String(poster.scene_path).replace(/^\/+/, '')
+    if (urlMap[k]) poster.scene_url = urlMap[k]
+  }
   for (const sec of (Array.isArray(poster?.sections) ? poster.sections : [])) {
     for (const st of (Array.isArray(sec.stations) ? sec.stations : [])) {
       if (!st?.image_path) continue

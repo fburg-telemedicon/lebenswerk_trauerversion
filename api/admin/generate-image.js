@@ -91,6 +91,23 @@ const VIGNETTE_STYLES = {
   },
 }
 
+// Das ganze Lebensposter als EIN illustriertes Blatt (Variante 'scene'). Genau
+// die Optik der Vorbilder — mäandernder Weg, viele kleine Szenen — aber ohne ein
+// einziges Schriftzeichen: Beschriftungen setzt das Layout als Vektortext, weil
+// Bildmodelle sich verschreiben („Goburt in Segen"). Damit dafür Platz bleibt,
+// verlangt der Prompt großzügige ruhige Flächen.
+const sceneDirective = (key) => {
+  const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
+  return `${s.look} ` +
+    'ONE single wide illustrated "map of a life": a winding path or road that meanders across the whole sheet from the lower left to the upper right, ' +
+    'with about ten small vignette scenes placed along it (buildings, interiors, tools, vehicles, gardens, landscapes) as described below. ' +
+    `The paper is a flat plain background of the exact colour ${s.paper}. ` +
+    'CRUCIAL: leave GENEROUS EMPTY areas of that plain paper colour around and between the scenes — at least 40% of the sheet must remain calm, empty background where captions will be printed later. ' +
+    'Keep the outer 5% margin of the image completely empty. ' +
+    'No human faces, no portraits — figures only small and from a distance. ' +
+    'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage, NO titles anywhere in the image.'
+}
+
 const vignetteDirective = (key) => {
   const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
   return `${s.look} ` +
@@ -301,8 +318,10 @@ module.exports = async function handler(req, res) {
     // befreit, damit ein "vintage photo"-Motiv nicht den Aquarell-Stil kippt.
     // Poster-Vignette: eigener Aufbau (freigestellte Illustration auf Papierfarbe,
     // kein Doppelseiten-Motiv, kein Buch-Grafikstil). Siehe VIGNETTE_DIRECTIVE.
-    const isVignette = variant === 'vignette'
-    const vigDir = isVignette ? vignetteDirective(req.body?.posterStyle) : null
+    const isScene = variant === 'scene'
+    const isVignette = variant === 'vignette' || isScene
+    const vigDir = isScene ? sceneDirective(req.body?.posterStyle)
+      : (isVignette ? vignetteDirective(req.body?.posterStyle) : null)
     const build = isVignette
       // Bei Vignetten wird das Motiv NICHT von Medium-Wörtern befreit — der Stil
       // steckt hier gerade in der Direktive, und das Motiv ist ohnehin ein reines
