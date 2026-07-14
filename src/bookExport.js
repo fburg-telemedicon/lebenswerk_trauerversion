@@ -6,7 +6,7 @@ import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Tex
 import jsPDF from 'jspdf'
 import { getCategory } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
-import { uiText } from './i18n.js'
+import { uiText, bookDisclaimer, imageFacts } from './i18n.js'
 
 // Disclaimer zur Entstehung & Haftung – wird ans Ende jedes Buchs/jeder Rede
 // gesetzt (HTML-Ansicht + DOCX) und im Impressum/Datenschutz referenziert.
@@ -275,7 +275,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
   endChildren.push(new Paragraph({ spacing: { after: 200 },
-    children: [new TextRun({ text: bt.aiDisclaimer, font: BF, size: 18, italics: true, color: '78716c' })] }))
+    children: [new TextRun({ text: bookDisclaimer(book.language || 'de', { ...imageFacts(book), selfNarrated: opts.selfNarrated === true }), font: BF, size: 18, italics: true, color: '78716c' })] }))
   sections.push(docxSection(endChildren, SectionType.NEXT_PAGE))
 
   const doc = new Document({
@@ -486,7 +486,7 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
       y += hmm + 4
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
-  flow(bt.aiDisclaimer, { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
+  flow(bookDisclaimer(book.language || 'de', { ...imageFacts(book), selfNarrated: opts.selfNarrated === true }), { size: 10, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
 
   // ── Auf ein Vielfaches von 4 auffüllen (Druckbogen/Signaturen) ──
   // Buchbindung setzt Seiten in 4er-Bögen; die Gesamtseitenzahl muss durch 4

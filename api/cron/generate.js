@@ -270,8 +270,11 @@ async function processBook(job, deadline) {
           else if (!ch.image_prompt) { ch.image_error = 'kein image_prompt im Kapitel' }
           else {
             const refPath = result.faceRefByChapter?.[ch.number] || result.faceRefGlobal
-            const { storagePath } = await adminPost('/api/admin/generate-image', { memorialCode: code, prompt: ch.image_prompt, imageStyle: p.imageStyle, variant: p.variant, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPath ? { referencePaths: [refPath] } : {}) })
-            ch.image_path = storagePath; ch.image_error = null
+            const { storagePath, img2img } = await adminPost('/api/admin/generate-image', { memorialCode: code, prompt: ch.image_prompt, imageStyle: p.imageStyle, variant: p.variant, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPath ? { referencePaths: [refPath] } : {}) })
+            // `img2img` = ein echtes Referenzfoto ging in die Bildgenerierung ein.
+            // Wird am Kapitel festgehalten, weil der KI-Hinweis im Buch genau das
+            // offenlegen muss (Personen-Ähnlichkeit auf Basis eines Fotos).
+            ch.image_path = storagePath; ch.image_error = null; ch.image_ref = Boolean(img2img)
           }
         }
       } catch (e) {

@@ -225,9 +225,22 @@ function paintTree(d, layout, memorial) {
   // jsPDF-Standardschriften (WinAnsi) kennen kein ♥ und drucken statt dessen Müll.
   const ly = H - margin - frame - 8
   d.line(margin + frame + 20, ly - 7, W - margin - frame - 20, ly - 7, TREE.goldSoft)
-  const legend = '*  geboren        †  verstorben              Ehe/Partnerschaft        „Name nicht genannt" = im Interview kein Name gefallen'
-  d.text(legend, W / 2, ly, { size: 6.2, align: 'center', color: TREE.soft, font: 'times' })
-  d.heart(W / 2 - 14, ly - 1.4, 1.8, TREE.gold)
+  // Die Legende wird stückweise gesetzt, damit das Herz VOR seinem Text steht und
+  // ihn nicht überdeckt (ein zentrierter Gesamttext ließ die Position raten).
+  const parts = [
+    { t: '*  geboren', w: 22 },
+    { t: '†  verstorben', w: 27 },
+    { t: 'Ehe/Partnerschaft', w: 34, heart: true },
+    { t: '„Name nicht genannt" = im Interview kein Name gefallen', w: 78 },
+  ]
+  const gapL = 8
+  const totalL = parts.reduce((n, p) => n + p.w, 0) + gapL * (parts.length - 1)
+  let lx = (W - totalL) / 2
+  for (const part of parts) {
+    if (part.heart) { d.heart(lx + 1.6, ly - 1.3, 1.7, TREE.gold); d.text(part.t, lx + 5, ly, { size: 6.2, color: TREE.soft, font: 'times' }) }
+    else d.text(part.t, lx, ly, { size: 6.2, color: TREE.soft, font: 'times' })
+    lx += part.w + gapL
+  }
 }
 
 // jsPDF-Adapter für paintTree/paintPoster.
