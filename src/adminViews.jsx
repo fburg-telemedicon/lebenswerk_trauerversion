@@ -411,9 +411,9 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
             <Check
               on={bdForm.showTranscript !== false}
               onChange={v => set({ showTranscript: v })}
-              title="Transkript-Anzeige im Sprach-Interview"
-              text="Beitragenden das Transkript ihrer Antworten anzeigen"
-              hint="Deaktiviert: reines Sprach-Interview, die Antwort wird direkt gesendet."
+              title="Transkript-Schalter im Sprach-Interview"
+              text="Beitragende dürfen das Transkript einblenden"
+              hint="Das Interview startet immer ohne Transkript; diese Option blendet nur den Schalter dafür ein."
             />
             <Check
               on={bdForm.photoUploadTab === true}
@@ -1107,6 +1107,35 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </div>
           </div>
         )}
+        {/* Anredeform (nur Lebenswerk): Wird sie hier gesetzt, fragt das Interview
+            nicht mehr danach — der Endnutzer sieht beim Start nur noch, was fehlt. */}
+        {ci.useAddressForm && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>Anredeform im Interview</Lbl>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+              {[
+                { v:'Du',  label:'Du' },
+                { v:'Sie', label:'Sie' },
+                { v:'',    label:'Endnutzer wählt selbst' },
+              ].map(o => {
+                const on = (createForm.intake?.address || '') === o.v
+                return (
+                  <div
+                    key={o.v || 'auto'}
+                    onClick={() => setCreateForm({ ...createForm, intake: { ...createForm.intake, address: o.v } })}
+                    style={{
+                      ...S.card, cursor:'pointer', textAlign:'center', padding:'12px 8px',
+                      borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1,
+                      fontSize: 14, fontWeight: on ? 600 : 400,
+                    }}
+                  >
+                    {o.label}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
         {(ci.extra || []).map(f => (
           <div key={f.key} style={{ marginBottom: 14 }}>
             <Lbl>{f.label}</Lbl>
@@ -1176,29 +1205,22 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           {expertMode ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
         </button>
         {expertMode && (<>
-        {isLifework && (
+        {/* Welche Fragen gestellt werden, entscheidet allein die Katalogauswahl
+            weiter unten („kein Katalog“ = freie KI-Fragen). Eine zweite Checkbox
+            dafür gab es einmal — sie war dieselbe Entscheidung an zweiter Stelle. */}
         <div style={{ marginBottom: 24 }}>
-          <Lbl>Interviewfragen</Lbl>
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
-            <input type="checkbox" checked={createForm.aiQuestions === true} onChange={e => setCreateForm({ ...createForm, aiQuestions: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-            <span style={{ fontSize:14 }}>Ausschließlich KI-generierte Fragen (ohne Standard-Fragenkatalog)</span>
-          </label>
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: nicht aktiv – das Interview folgt dem Lebenswerk-Standardkatalog (12 Sitzungen mit je 10 Fragen).
-            Aktiviert: Die KI überlegt sich die Fragen frei entlang der Lebensstationen.
-          </p>
-        </div>
-        )}
-        <div style={{ marginBottom: 24 }}>
-          <Lbl>Transkript-Anzeige im Sprach-Interview</Lbl>
+          <Lbl>Transkript-Schalter im Sprach-Interview</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
             <input type="checkbox" checked={createForm.showTranscript !== false} onChange={e => setCreateForm({ ...createForm, showTranscript: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-            <span style={{ fontSize:14 }}>Beitragenden das Transkript ihrer Antworten anzeigen</span>
+            <span style={{ fontSize:14 }}>Beitragende dürfen das Transkript einblenden</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: aktiv. Die transkribierte Antwort wird angezeigt; Beitragende können sie vor dem Senden prüfen und bei Bedarf neu einsprechen. Deaktiviert: reines Sprach-Interview (Antwort wird direkt gesendet).
+            Standard: aktiv. Das Interview startet immer als reines Sprach-Gespräch (kein Transkript). Ist diese Option aktiv, sehen Beitragende einen Schalter, mit dem sie das Transkript ihrer Antworten einblenden und Antworten löschen oder neu einsprechen können. Deaktiviert: kein Schalter, reines Sprach-Interview.
           </p>
         </div>
+        {/* Beim Lebenswerk erzählt nur der Endnutzer selbst — eine Namensliste der
+            Beitragenden gibt es dort nicht, also auch keine Option dafür. */}
+        {!isLifework && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Namensliste der Beitragenden im Buch</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -1209,6 +1231,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             Standard: aktiv. Am Buchende erscheint eine Seite „Mitwirkende" mit Namen und Beziehung. Deaktiviert: Die Seite entfällt (der KI-Hinweis am Buchende bleibt). Wirkt auf DOCX- und Druck-PDF-Export; später im Dashboard änderbar.
           </p>
         </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Foto-Upload als Tab im Interview</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -1250,14 +1273,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             <div style={{ marginBottom: 24 }}>
               <Lbl>Fragenkatalog</Lbl>
               <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
-                Standard: die KI überlegt sich die Interviewfragen selbst. Alternativ führt sie das Interview entlang eines vordefinierten Katalogs.
+                {isLifework
+                  ? 'Das Lebenswerk folgt dem Standardkatalog (12 Sitzungen mit je 10 Fragen). Wird kein Katalog gewählt, überlegt sich die KI die Fragen selbst.'
+                  : 'Standard: die KI überlegt sich die Interviewfragen selbst. Alternativ führt sie das Interview entlang eines vordefinierten Katalogs.'}
               </p>
               <select
                 value={createForm.catalogId}
                 onChange={e => setCreateForm({ ...createForm, catalogId: e.target.value })}
                 style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
               >
-                <option value="">KI überlegt selbst (Standard)</option>
+                <option value="">{isLifework ? 'Lebenswerk-Standardkatalog' : 'KI überlegt selbst (Standard)'}</option>
                 {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               {createForm.catalogId && (
@@ -2314,13 +2339,19 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 </div>
                 )}
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>Transkript-Anzeige im Sprach-Interview</Lbl>
+                  <Lbl>Transkript-Schalter im Sprach-Interview</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
                     <input type="checkbox" checked={od.showTranscript !== false} onChange={e => setOd({ showTranscript: e.target.checked })}
                       style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-                    <span style={{ fontSize:14 }}>Transkript anzeigen (Beitragende können Antworten prüfen & neu einsprechen)</span>
+                    <span style={{ fontSize:14 }}>Schalter anbieten, mit dem das Transkript eingeblendet werden kann</span>
                   </label>
+                  <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+                    Das Interview startet immer ohne Transkript.
+                  </p>
                 </div>
+                {/* Beim Lebenswerk erzählt nur eine Person — eine Namensliste der
+                    Beitragenden ergibt dort keinen Sinn. */}
+                {!isLifework && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Namensliste der Beitragenden im Buch</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2332,6 +2363,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                     Wirkt sofort auf jeden neuen DOCX- und Druck-PDF-Export — das Buch muss dafür nicht neu erzeugt werden.
                   </p>
                 </div>
+                )}
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Foto-Upload als Tab im Interview</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>

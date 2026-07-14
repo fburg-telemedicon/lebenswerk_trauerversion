@@ -91,8 +91,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   const [micStream,  setMicStream]  = useState(null) // aktiver Aufnahme-Stream → Schallwellen-Animation
   const [transcript, setTranscript] = useState('')
   // Anzeigemodus: mit Transkript (+ Löschen/Neu einsprechen) oder reines Sprach-
-  // Interview. Startwert aus der Buch-Einstellung; im Interview umschaltbar.
-  const [showTx,     setShowTx]     = useState(memorial?.show_transcript !== false)
+  // Interview. Das Interview startet IMMER ohne Transkript (ruhiger Einstieg); die
+  // Buch-Einstellung `show_transcript` entscheidet nur, ob der Schalter überhaupt
+  // angeboten wird, mit dem der Beitragende es einblenden kann.
+  const [showTx,     setShowTx]     = useState(false)
+  const txAvailable = memorial?.show_transcript !== false
   const [err,        setErr]        = useState('')
   const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
@@ -352,26 +355,35 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
-            <div
-              onClick={() => setShowTx(v => !v)}
-              role="switch"
-              aria-checked={showTx}
-              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, marginTop:18, cursor:'pointer', fontSize:12, color:'#78716c', userSelect:'none' }}
-            >
-              <span style={{ position:'relative', width:38, height:22, borderRadius:11, background: showTx ? '#1c1917' : '#d6d3d1', transition:'background .2s', flexShrink:0, display:'inline-block' }}>
-                <span style={{ position:'absolute', top:2, left: showTx ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 2px rgba(0,0,0,.25)' }} />
-              </span>
-              {t.txToggleLabel}
-            </div>
+            {/* Beide Bedienelemente stehen in EIGENEN Zeilen. Vorher waren Schalter
+                (inline-flex) und Button Inline-Elemente derselben Zeile — der Button
+                rutschte dann neben die Schalter-Beschriftung und überdeckte sie. */}
+            {txAvailable && (
+              <div style={{ marginTop:18 }}>
+                <div
+                  onClick={() => setShowTx(v => !v)}
+                  role="switch"
+                  aria-checked={showTx}
+                  style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, cursor:'pointer', fontSize:12, color:'#78716c', userSelect:'none' }}
+                >
+                  <span style={{ position:'relative', width:38, height:22, borderRadius:11, background: showTx ? '#1c1917' : '#d6d3d1', transition:'background .2s', flexShrink:0, display:'inline-block' }}>
+                    <span style={{ position:'absolute', top:2, left: showTx ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 2px rgba(0,0,0,.25)' }} />
+                  </span>
+                  {t.txToggleLabel}
+                </div>
+              </div>
+            )}
             {memorial.catalog && micState === 'idle' && (
-              <button
-                onClick={() => sendAnswer(({ de:'Weiter zur nächsten Frage, bitte.', en:'Please move on to the next question.', pl:'Przejdźmy do następnego pytania.' })[lang] || 'Weiter zur nächsten Frage, bitte.')}
-                disabled={aiLoading}
-                className="secondary"
-                style={{ marginTop:16, fontSize:13, padding:'8px 16px' }}
-              >
-                {({ de:'Nächste Frage →', en:'Next question →', pl:'Następne pytanie →' })[lang] || 'Nächste Frage →'}
-              </button>
+              <div style={{ marginTop:16 }}>
+                <button
+                  onClick={() => sendAnswer(({ de:'Weiter zur nächsten Frage, bitte.', en:'Please move on to the next question.', pl:'Przejdźmy do następnego pytania.' })[lang] || 'Weiter zur nächsten Frage, bitte.')}
+                  disabled={aiLoading}
+                  className="secondary"
+                  style={{ fontSize:13, padding:'8px 16px' }}
+                >
+                  {({ de:'Nächste Frage →', en:'Next question →', pl:'Następne pytanie →' })[lang] || 'Nächste Frage →'}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -792,6 +804,21 @@ export function ContributorFlow({ code, endUserToken = null }) {
   // die Beziehung wird intern fest gesetzt (die Spalte ist NOT NULL).
   const isSelf = memorial?.product_category === 'lifework'
   const SELF_REL = 'Ich selbst'
+  // Beim Lebenswerk gibt es nur EINE Person — den Endnutzer. Was der Manager bei
+  // der Buchanlage schon erfasst hat (Name, Geschlecht, Anredeform), fragt der
+  // Start nicht noch einmal ab; gefragt wird nur, was fehlt.
+  const askName    = !isSelf || !memorial?.name
+  const askGender  = !isSelf || !memorial?.gender
+  const askAddress = !isSelf || !memorial?.intake?.address
+  useEffect(() => {
+    if (!isSelf || !memorial) return
+    setContribForm(f => ({
+      ...f,
+      name:    f.name    || memorial.name || '',
+      gender:  f.gender  || memorial.gender || '',
+      address: memorial.intake?.address || f.address || 'Sie',
+    }))
+  }, [isSelf, memorial])
   // Ohne Firmenlogo trägt ein Lebenswerk das Lebenswerk-Logo statt des Standard-Logos.
   const bannerLogo = memorial?.owner_logo || (isSelf ? '/lebenswerk-logo.png' : null)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
@@ -849,7 +876,10 @@ export function ContributorFlow({ code, endUserToken = null }) {
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
             {ct.introNoun} <strong>{memorial?.name}</strong>
           </p>
+          {askName && (
           <div style={{ marginBottom:14 }}><Lbl>{isSelf ? t.yourNameSelf : t.yourName}</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder={t.fullName} /></div>
+          )}
+          {askGender && (
           <div style={{ marginBottom:14 }}>
             <Lbl>{t.yourGender}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
@@ -873,6 +903,7 @@ export function ContributorFlow({ code, endUserToken = null }) {
               ))}
             </div>
           </div>
+          )}
           {!isSelf && (
           <div style={{ marginBottom:14 }}>
             <Lbl>{ct.relationshipLabel.replace('{name}', memorial?.name || '')}</Lbl>
@@ -880,6 +911,7 @@ export function ContributorFlow({ code, endUserToken = null }) {
             <p style={{ fontSize:12, color:'#78716c', marginTop:6, lineHeight:1.5 }}>{ct.relationshipHint ? ct.relationshipHint.replace(/\{name\}/g, memorial?.name || 'die Person') : t.relationshipHint(memorial?.name, memorial?.gender)}</p>
           </div>
           )}
+          {askAddress && (
           <div style={{ marginBottom:24 }}>
             <Lbl>{t.addressQ}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
@@ -905,6 +937,7 @@ export function ContributorFlow({ code, endUserToken = null }) {
               ))}
             </div>
           </div>
+          )}
           <div style={{ ...S.card, background:'#fffbeb', borderColor:'#fde68a', marginBottom:18 }}>
             <label style={{ display:'flex', gap:11, alignItems:'flex-start', cursor:'pointer', fontSize:13.5, lineHeight:1.6, color:'#57534e' }}>
               <input

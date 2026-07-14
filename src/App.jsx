@@ -146,7 +146,7 @@ const EMPTY_CREATE = {
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   // nur Kategorie Lebenswerk
-  enduserEmail: '', aiQuestions: false,
+  enduserEmail: '',
 }
 
 
@@ -779,7 +779,6 @@ function Dashboard() {
       showContributors: false,
       photoUploadTab: true,
       enduserEmail: '',
-      aiQuestions: false,
     }
   }
 
@@ -833,7 +832,6 @@ function Dashboard() {
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,
-        aiQuestions: createForm.aiQuestions === true,
       })
       setCreatedCode(code)
       setView('created')

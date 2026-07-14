@@ -72,10 +72,15 @@ module.exports = async function handler(req, res) {
       // image_style/book_layout sind für den Einstellungs-Tab des Endnutzers nötig
       // (Kategorie Lebenswerk); sie verraten nichts über die Inhalte des Buchs.
       const PUBLIC_FIELDS =
-        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, created_at'
+        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, intake, created_at'
       const { data, error } = await supabase
         .from('memorials').select(PUBLIC_FIELDS).eq('id', code).single()
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
+
+      // Aus `intake` (kategorie-spezifische Notizen des Managers) darf nur EIN Feld
+      // nach außen: die Anredeform (Du/Sie) des Lebenswerks. Ist sie gesetzt, fragt
+      // der Beitragenden-Flow sie nicht noch einmal ab. Alles andere bleibt intern.
+      data.intake = data.intake?.address ? { address: String(data.intake.address) } : null
 
       // Zugeordneten Fragenkatalog (Name + Kapitel/Fragen) mitliefern, damit der
       // Beitragenden-Flow das Interview daran entlangführen kann. Ohne Katalog

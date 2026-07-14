@@ -422,7 +422,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail, aiQuestions } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail } = req.body || {}
       if (!name) return res.status(400).json({ error: 'Name ist ein Pflichtfeld.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -457,8 +457,11 @@ module.exports = async function handler(req, res) {
 
       // Lebenswerk-Standardkatalog (12 Sitzungen à 10 Fragen), sofern der Admin
       // nicht ausdrücklich auf KI-generierte Fragen umgestellt hat.
+      // Beim Lebenswerk führt der Standardkatalog das Interview, solange kein
+      // anderer gewählt wurde. (Die frühere zweite Checkbox „nur KI-Fragen" war
+      // dieselbe Entscheidung an zweiter Stelle und ist entfallen.)
       let catalog = catalogId || null
-      if (isLifework) catalog = aiQuestions === true ? null : (catalogId || await ensureLifeworkCatalog(supabase))
+      if (isLifework && !catalog) catalog = await ensureLifeworkCatalog(supabase)
 
       const code = genCode()
       // Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie).

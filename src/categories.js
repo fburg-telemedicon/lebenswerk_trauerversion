@@ -1144,7 +1144,11 @@ export const CATEGORIES = {
     intake: {
       subjectLabel: 'Name des Endnutzers *',
       subjectPlaceholder: 'Vollständiger Name',
-      useGender: false,        // Das Geschlecht gibt der Endnutzer selbst an.
+      // Geschlecht und Anredeform werden hier erfasst, wenn sie bekannt sind — der
+      // Endnutzer wird beim Start dann nur noch nach dem gefragt, was fehlt.
+      useGender: true,
+      genderLabel: 'Geschlecht des Endnutzers',
+      useAddressForm: true,    // Du/Sie — nur beim Lebenswerk
       useDate: false,          // Kein Anlass, kein Anlass-Datum.
       useCutoff: false,        // Keine Frist — der Endnutzer bestimmt sein Tempo.
       useEnduser: true,        // Stattdessen: E-Mail-Adresse + Sprache (Einladung).
