@@ -227,7 +227,7 @@ export function pickAccentColor(imgEl) {
     cur.n++; cur.h += h; cur.s += s; cur.l += l
     buckets.set(key, cur)
   }
-  if (buckets.size === 0) return { bg: [61, 56, 51], fg: [255, 255, 255] }
+  if (buckets.size === 0) return { bg: [24, 22, 20], fg: [255, 255, 255] }
 
   let best = null, bestScore = -1
   for (const c of buckets.values()) {
@@ -240,20 +240,25 @@ export function pickAccentColor(imgEl) {
     if (score > bestScore) { bestScore = score; best = { h, s, l } }
   }
 
-  // Ton in einen druckfreundlichen Bereich ziehen: kräftig genug, um als Fläche
-  // zu wirken, dunkel genug für weiße Schrift.
-  let s = Math.min(best.s, 0.55)
-  let l = Math.min(Math.max(best.l, 0.20), 0.42)
+  // Der Kasten bleibt im Farbton des Bildes, wird aber bewusst in ein Extrem
+  // gezogen: entweder SEHR hell (schwarze Schrift) oder SEHR dunkel (weiße
+  // Schrift). Ein mittelhelles Feld ergäbe zwar formal 4.5:1, wirkt gedruckt
+  // aber flau — der Titel soll auf den ersten Blick lesbar sein.
+  const light = best.l >= 0.5
+  const white = [255, 255, 255]
+  const black = [0, 0, 0]
+  const fg = light ? black : white
+  // Bei einer sehr hellen Fläche muss die Sättigung stark runter, sonst wird der
+  // Ton nicht hell, sondern nur pastellig-bunt.
+  let s = light ? Math.min(best.s, 0.14) : Math.min(best.s, 0.40)
+  let l = light ? 0.94 : 0.10
   let bg = hslToRgb(best.h, s, l)
 
-  // Schriftfarbe: Weiß oder sehr dunkles Braun — je nach Kontrast.
-  const white = [255, 255, 255]
-  const dark = [28, 25, 23]
-  let fg = contrast(bg, white) >= contrast(bg, dark) ? white : dark
-  // Notfalls den Kasten nachdunkeln/aufhellen, bis WCAG-AA (4.5:1) sicher steht.
+  // Deutlich über WCAG-AA: erst ab ~12:1 wirkt der Titel wirklich plakativ.
   let guard = 0
-  while (contrast(bg, fg) < 4.5 && guard++ < 20) {
-    l = fg === white ? Math.max(0.08, l - 0.03) : Math.min(0.92, l + 0.03)
+  while (contrast(bg, fg) < 12 && guard++ < 30) {
+    l = light ? Math.min(0.99, l + 0.02) : Math.max(0.02, l - 0.02)
+    s = Math.max(0, s - 0.02)
     bg = hslToRgb(best.h, s, l)
   }
   return { bg, fg }
