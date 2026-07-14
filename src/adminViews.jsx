@@ -1012,10 +1012,13 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     const cat = getCategory(createForm.productCategory)
     const ci  = cat.intake
     // Lebenswerk: Statt eines Einladungslinks für viele Beitragende bekommt EIN
-    // Endnutzer ein eigenes Login. Deshalb E-Mail-Adresse (Pflicht) und genau EINE
-    // Sprache (oder bewusst keine — dann wählt der Endnutzer beim ersten Start).
+    // Endnutzer ein eigenes Login — sofern eine E-Mail-Adresse hinterlegt wird.
+    // Ohne Adresse entsteht kein Konto; der Zugang läuft dann über den
+    // Einladungslink wie bei den anderen Kategorien. Eine ANGEGEBENE Adresse muss
+    // aber gültig sein, sonst geht die Einladung ins Leere.
     const isLifework = createForm.productCategory === 'lifework'
-    const emailOk = !isLifework || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((createForm.enduserEmail || '').trim())
+    const euMail = (createForm.enduserEmail || '').trim()
+    const emailOk = !isLifework || !euMail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(euMail)
     const canSubmit = createForm.name && (isLifework || createForm.organizer) && (!ci.useGender || createForm.gender) && emailOk && !busy
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
@@ -1036,7 +1039,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
         </div>
         {isLifework && (
           <div style={{ marginBottom: 14 }}>
-            <Lbl>E-Mail-Adresse des Endnutzers *</Lbl>
+            <Lbl>E-Mail-Adresse des Endnutzers (optional)</Lbl>
             <input
               type="email"
               value={createForm.enduserEmail || ''}
@@ -1044,8 +1047,10 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
               placeholder="name@beispiel.de"
             />
             <p style={{ fontSize:12, color:'#78716c', marginTop:6, lineHeight:1.5 }}>
-              Der Endnutzer erhält an diese Adresse eine Einladung in der gewählten Sprache, vergibt sich sein Passwort
-              und landet nach dem Login direkt in seinem Interview – ohne Dashboard.
+              Mit Adresse: Der Endnutzer erhält eine Einladung in der gewählten Sprache, vergibt sich sein Passwort und
+              landet nach dem Login direkt in seinem Interview – ohne Dashboard.<br />
+              Ohne Adresse: kein eigenes Login – der Endnutzer kommt über den Einladungslink hinein, den Sie nach dem
+              Anlegen erhalten. Den Einstellungs-Tab (Grafik-/Textstil) gibt es dann nicht.
             </p>
           </div>
         )}

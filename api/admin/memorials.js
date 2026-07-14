@@ -397,10 +397,14 @@ module.exports = async function handler(req, res) {
       // Beiträge Dritter — dort bleibt der Organisator Pflicht.
       const organizerName = isLifework ? String(name).trim() : String(organizer || '').trim()
       if (!organizerName) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
+      // E-Mail-Adresse ist OPTIONAL: Mit Adresse bekommt der Endnutzer ein eigenes
+      // Konto samt Einladung; ohne Adresse entsteht kein Konto und der Zugang läuft
+      // über den Einladungslink (?code=…) wie bei den anderen Kategorien.
       const email = String(enduserEmail || '').trim()
       if (isLifework) {
-        if (!email) return res.status(400).json({ error: 'Für ein Lebenswerk wird die E-Mail-Adresse des Endnutzers benötigt.' })
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse des Endnutzers angeben.' })
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse des Endnutzers angeben (oder das Feld leer lassen).' })
+        }
         await ensureLifeworkSchema()
       }
 
@@ -457,10 +461,12 @@ module.exports = async function handler(req, res) {
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'memorial.create', target: code, detail: { category } })
 
-      // Lebenswerk: Konto für den Endnutzer anlegen und ihn per Mail einladen.
-      // Ein Fehlschlag beim Versand darf das bereits angelegte Buch nicht
-      // entwerten — der Admin bekommt stattdessen den Einladungslink zurück.
-      if (!isLifework) return res.json({ code })
+      // Lebenswerk MIT E-Mail-Adresse: Konto für den Endnutzer anlegen und ihn per
+      // Mail einladen. Ein Fehlschlag beim Versand darf das bereits angelegte Buch
+      // nicht entwerten — der Admin bekommt stattdessen den Einladungslink zurück.
+      // Ohne Adresse bleibt es beim Buch; der Endnutzer kommt dann über den
+      // Einladungslink (?code=…) hinein wie ein Beitragender.
+      if (!isLifework || !email) return res.json({ code })
 
       const out = { code }
       const invite_token = generateInviteToken()
@@ -481,7 +487,9 @@ module.exports = async function handler(req, res) {
         // Konto konnte nicht angelegt werden (z. B. Adresse bereits vergeben) —
         // Buch wieder entfernen, sonst stünde ein Lebenswerk ohne Erzähler da.
         await supabase.from('memorials').delete().eq('id', code)
-        if (euErr.code === '23505') return res.status(409).json({ error: 'Für diese E-Mail-Adresse existiert bereits ein Zugang.' })
+        if (euErr.code === '23505' || /duplicate key|app_users_username_key/i.test(euErr.message || '')) {
+          return res.status(409).json({ error: `Für „${email}" existiert bereits ein Zugang (Benutzer oder Endnutzer). Bitte eine andere Adresse verwenden – oder das Feld leer lassen und den Einladungslink nutzen.` })
+        }
         throw euErr
       }
       out.enduser_id = eu.id

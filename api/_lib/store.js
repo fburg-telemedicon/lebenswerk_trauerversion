@@ -210,7 +210,16 @@ class Query {
 
   async _run() {
     try { return await this._exec() }
-    catch (e) { return { data: null, error: { message: e.message }, count: null } }
+    // Den Postgres-Fehlercode (z. B. 23505 = Unique-Verletzung) MITGEBEN: Die
+    // Aufrufer prüfen `error.code`, um daraus eine verständliche Meldung zu machen
+    // („E-Mail bereits vergeben") statt den rohen Constraint-Text zu zeigen.
+    catch (e) {
+      return {
+        data: null,
+        error: { message: e.message, code: e.code, detail: e.detail, constraint: e.constraint },
+        count: null,
+      }
+    }
   }
 
   _finalize(rows) {
