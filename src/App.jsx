@@ -417,6 +417,9 @@ function Dashboard() {
   // Lebenswerk-Nebenprodukte (Stammbaum / Lebensposter): '' | 'tree' | 'poster'
   const [extraBusy, setExtraBusy]       = useState('')
   const [extraMsg, setExtraMsg]         = useState('')
+  // Download eines Nebenprodukts läuft (Bilder laden + PDF zeichnen dauert):
+  // '' | 'tree' | 'poster'
+  const [extraDl, setExtraDl]           = useState('')
   // Sprachwahl BEIM SPEICHERN (Pflegeexzerpt): { key } | null
   const [dlLangModal, setDlLangModal]   = useState(null)
   // Stilwahl vor dem Erzeugen des Lebensposters
@@ -1742,6 +1745,7 @@ function Dashboard() {
   function downloadTextAsPdf(text, lang, suffix = '') {
     if (!text) return
     const gen = GENERATORS.eulogy
+    setDlBusy('eulogy:pdf'); setErr('')
     try {
       downloadTextPdf(
         `${gen.filename}_${safeName(selected.name)}${suffix}.pdf`,
@@ -1749,6 +1753,7 @@ function Dashboard() {
         text, lang,
       )
     } catch (e) { setErr(`PDF fehlgeschlagen: ${e.message}`) }
+    finally { setDlBusy('') }
   }
 
   // Zielsprache des Exzerpts gewählt: Deutsch → direkt laden, sonst erst
@@ -2031,11 +2036,14 @@ Regeln:
   }
 
   // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
+  // Dauert trotzdem spürbar: Beim Poster werden bis zu 20 Vignetten geladen und
+  // ein mehrere MB großes PDF gezeichnet. Deshalb ein eigener Busy-Zustand.
   async function downloadExtra(kind, mem = selected) {
     const isTree = kind === 'tree'
     const data = isTree ? mem?.family_tree : mem?.life_poster
     if (!data) { setErr(isTree ? 'Es gibt noch keinen Stammbaum.' : 'Es gibt noch kein Lebensposter.'); return }
     const base = `${isTree ? 'Stammbaum' : 'Lebensposter'}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
+    setExtraDl(kind); setErr('')
     try {
       if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
       // Poster: die signierten URLs der Vignetten einsammeln (sie stehen frisch am
@@ -2048,6 +2056,7 @@ Regeln:
         await downloadPosterPdf(`${base}.pdf`, data, urls, data.style)
       }
     } catch (e) { setErr(e.message) }
+    finally { setExtraDl('') }
   }
 
   // ── Bilder überarbeiten: gezielt einzelne Kapitelbilder neu generieren ──
@@ -2759,7 +2768,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraBusy={extraBusy} extraMsg={extraMsg} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraBusy={extraBusy} extraMsg={extraMsg} extraDl={extraDl} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
