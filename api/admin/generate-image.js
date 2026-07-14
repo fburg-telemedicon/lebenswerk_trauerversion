@@ -94,9 +94,9 @@ const VIGNETTE_STYLES = {
 const vignetteDirective = (key) => {
   const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
   return `${s.look} ` +
-    `ONE single isolated subject, centred, floating on a completely flat plain background of the exact colour ${s.paper} — ` +
-    'the background must be one uniform colour: NO scenery, NO horizon, NO ground, NO frame, NO border, NO drop shadow, NO vignetting. ' +
-    'Generous empty margin around the subject; the subject must not touch the edges. ' +
+    `A small SCENE: a place with a few objects and atmosphere, set on a plain background of the exact colour ${s.paper} — ` +
+    'the scene occupies the centre and fades into that flat colour towards the edges: NO frame, NO border, NO drop shadow, NO vignetting, no hard cut-out edges. ' +
+    'Leave a calm margin around the scene; nothing important may touch the edges. ' +
     'No human faces and no portraits — show objects, places, tools, vehicles, animals or figures seen from a distance/from behind. ' +
     'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage anywhere in the image.'
 }

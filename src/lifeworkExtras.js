@@ -438,7 +438,8 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
           "year": "Jahr oder Zeitraum, z. B. 1965; leer, wenn unbekannt",
           "title": "Überschrift der Station, max. 5 Wörter",
           "text": "1 Satz, konkret, max. 22 Wörter",
-          "image_prompt": "English, 8-16 words: ONE single concrete object or small scene symbolising this station (e.g. a red brick bakery shop front; an old steam locomotive; a nurse cap with a stethoscope). No faces, no portraits, no text."
+          "image_prompt": "English, 10-20 words: a small SCENE that captures this station — a place with a few objects and atmosphere (e.g. 'a warm bakery back room at dawn, trays of bread, flour dust in the light'). Objects and places, no faces, no portraits, no text.",
+          "weight": "Bedeutung dieser Station: 3 = Wendepunkt (groß), 2 = wichtig, 1 = Nebenstation"
         }
       ]
     }
@@ -449,9 +450,10 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 }
 
 Regeln zum AUFBAU:
-- "sections": 4–6 Lebensabschnitte, CHRONOLOGISCH (z. B. Wurzeln & Kindheit, Jugend & Ausbildung, Beruf, Familie & Liebe, Späte Jahre, Werte & Vermächtnis).
-- Jeder Abschnitt hat 3–4 "stations" — insgesamt 14–20 Stationen. Nicht mehr, sonst wird das Poster unlesbar.
-- "image_prompt" ist das Herz der Grafik: EIN klar erkennbares Symbol, kein Wimmelbild, KEINE Gesichter/Porträts (die Illustration steht frei auf dem Papier). Denke in Gegenständen und Orten: Werkstatt, Akkordeon, Fahrrad, Klinikflur, Kirchturm, Küchentisch, Koffer, Garten.
+- "sections": 4–5 Lebensabschnitte, CHRONOLOGISCH (z. B. Wurzeln & Kindheit, Jugend & Ausbildung, Beruf, Familie & Liebe, Späte Jahre & Vermächtnis).
+- Insgesamt 10–12 "stations" (also 2–3 je Abschnitt) — WENIGE, dafür STARKE Stationen. Wähle die Wendepunkte, nicht jede Episode.
+- "weight": Pro Poster höchstens 3 Stationen mit weight 3 und höchstens 4 mit weight 2. Der Rest ist 1.
+- "image_prompt" ist das Herz der Grafik: eine kleine SZENE mit Atmosphäre (Ort + wenige Gegenstände + Licht), KEINE Gesichter, KEINE Porträts, kein Text im Bild.
 - "values": 5–8 Stück. "places": 3–6 Stück. "quote": genau EIN Satz.
 
 Regeln zur WAHRHEIT (die wichtigsten):
@@ -651,4 +653,164 @@ export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   paintPoster(pdfDraw(doc), data || {}, images, st)
   doc.save(filename)
+}
+
+// ════════════════════════════════════════════════════════════════
+// 3) POSTER-KOMPOSITION DURCH DIE KI (SVG)
+// ════════════════════════════════════════════════════════════════
+//
+// Das feste Raster oben (paintPoster) ist zuverlässig, sieht aber gebaut aus:
+// gleich große Kreise in Bahnen. Die Vorbilder leben von freier Komposition —
+// unterschiedlich große Szenen, ein geschwungener Weg, Text mal links, mal
+// rechts. Genau das kann eine KI: Sie bekommt die Inhalte und die Bildmaße und
+// ENTWIRFT DAS BLATT als SVG.
+//
+// Warum das die Rechtschreibung rettet: Im SVG ist jeder Text ECHTER TEXT (vom
+// Sprachmodell geschrieben, nicht vom Bildmodell gemalt) und wird als Vektor ins
+// PDF gesetzt — beliebig scharf, korrekt geschrieben. Die Bild-KI liefert nur
+// noch die Illustrationen.
+//
+// Sicherheitsnetz: Kommt kein brauchbares SVG zurück, greift das feste Layout
+// (downloadPosterPdf) — das Poster entsteht also immer.
+
+// Zeilenumbruch gibt es in SVG nicht. Die KI markiert Textblöcke deshalb mit
+// data-w (verfügbare Breite in mm); wir brechen den Text hier selbst um und
+// messen dabei mit derselben Schrift, mit der das PDF gesetzt wird.
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+export function posterLayoutSystem(data, styleKey) {
+  const st = getPosterStyle(styleKey)
+  const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')
+  const palette = st.accents.map(hex).join(', ')
+  const stations = []
+  ;(data.sections || []).forEach((sec, si) => {
+    ;(sec.stations || []).forEach((s, ti) => {
+      stations.push(`  IMG:${si}:${ti} | Abschnitt „${sec.heading}" (${sec.period || ''}) | Jahr: ${s.year || '—'} | Titel: ${s.title} | Bedeutung: ${s.weight || 1}\n     Text: ${s.text}`)
+    })
+  })
+
+  return `Du bist Infografik-Designerin. Du gestaltest ein LEBENSPOSTER im Format DIN A2 quer als SVG.
+
+Blatt: viewBox="0 0 594 420" (Einheiten = Millimeter). Sicherheitsrand: 14 mm rundum, dort darf NICHTS Wichtiges liegen.
+
+STIL „${st.label}":
+- Papierfarbe (Hintergrund-Rechteck über das ganze Blatt): ${hex(st.paper)}
+- Schriftfarbe: ${hex(st.ink)}, gedämpft: ${hex(st.soft)}
+- Akzentfarben (für Wege, Bänder, Jahreszahlen): ${palette}
+- Schriften: NUR font-family="times" (Serifen) oder font-family="helvetica" (serifenlos). Überschriften bevorzugt ${st.heading}, Fließtext ${st.body}.
+
+INHALTE (alles davon MUSS aufs Poster, wörtlich, ohne Änderung):
+Titel: ${data.title}
+Untertitel: ${data.subtitle || ''}
+Person: ${[data.person?.name, data.person?.years].filter(Boolean).join(' · ')}
+Stationen (chronologisch — jede hat ein Bild, das du über den Platzhalter einsetzt):
+${stations.join('\n')}
+Werte: ${(data.values || []).join(' · ')}
+Orte: ${(data.places || []).join(' · ')}
+Zitat: ${data.quote || ''}
+
+SO BAUST DU DAS BLATT:
+- Ein geschwungener Weg (ein oder mehrere <path> mit Bézier-Kurven, stroke-width 2–3, stroke-linecap="round") führt CHRONOLOGISCH durch das Blatt und verbindet die Stationen. Er darf sich krümmen, aufsteigen, abfallen — er ist die Lebenslinie, kein Lineal. Die Farbe wechselt je Lebensabschnitt (nutze die Akzentfarben in der Reihenfolge der Abschnitte).
+- Die Stationen liegen ENTLANG dieses Weges, NICHT auf einem Raster: unterschiedliche Höhen, mal über, mal unter dem Weg, unregelmäßige Abstände.
+- Bilder als <image href="IMG:si:ti" x="…" y="…" width="…" height="…" preserveAspectRatio="xMidYMid slice"/>. Die Platzhalter-href MUSS exakt so bleiben (IMG:Abschnitt:Station), sie wird beim Rendern durch das echte Bild ersetzt.
+  • Bedeutung 3 → großes Bild, etwa 90–110 mm breit
+  • Bedeutung 2 → mittleres Bild, etwa 60–75 mm breit
+  • Bedeutung 1 → kleines Bild, etwa 40–50 mm breit
+  • Seitenverhältnis IMMER 3:2 (Breite:Höhe = 1.5), sonst wird das Bild beschnitten.
+  • Bilder dürfen sich NICHT überlappen und keinen Text überdecken.
+- Je Abschnitt EIN Band/eine Pille (<rect rx="4"> in der Akzentfarbe, weiße Schrift darauf) mit dem Namen des Abschnitts und dem Zeitraum, am Beginn der Gruppe.
+- Zu jeder Station: Jahreszahl (fett, in der Akzentfarbe), Titel (fett, Schriftfarbe) und der Text. Setze sie WECHSELND neben, über oder unter das Bild — nicht immer gleich.
+- Titel des Posters groß (font-size 26–34) im Kopfbereich, Untertitel darunter, Person klein darunter.
+- Werte, Orte und das Zitat in einer ruhigen Fußzone.
+
+TEXT — WICHTIG (SVG kann nicht umbrechen, das erledigt der Renderer):
+- Jeder mehrzeilige Text ist EIN <text>-Element mit dem Attribut data-w="Breite in mm". Der Renderer bricht ihn innerhalb dieser Breite um. Schreibe den Text als reinen Inhalt, OHNE <tspan>.
+- Beispiel: <text x="120" y="180" data-w="52" font-family="helvetica" font-size="3.4" fill="${hex(st.soft)}">Der Satz zur Station.</text>
+- text-anchor="start" (Standard), "middle" oder "end" — der Umbruch respektiert das.
+- Schriftgrößen: Stationstext 3.2–3.8, Stationstitel 4.5–5.5, Jahreszahl 5–6, Abschnittsband 4, Poster-Titel 26–34.
+- Ändere KEINEN der oben gelieferten Texte: kein Umformulieren, keine Kürzung, keine neuen Sätze. Du gestaltest nur.
+
+ERLAUBTE ELEMENTE: svg, g, rect, circle, ellipse, line, path, polyline, polygon, text, image. KEINE style-Blöcke, KEIN <foreignObject>, KEIN Filter, KEIN Skript, KEINE externen Verweise (außer den IMG:-Platzhaltern).
+
+Gib AUSSCHLIESSLICH das SVG aus — beginnend mit <svg und endend mit </svg>. Kein Markdown, keine Erklärung.`
+}
+
+// SVG der KI → echtes DOM-SVG, Bilder eingesetzt, Text umbrochen.
+// `images` = { "si:ti": dataURL }
+function prepareSvg(svgText, images, doc) {
+  const clean = String(svgText || '').trim().replace(/^```(?:svg|xml)?/i, '').replace(/```$/, '').trim()
+  const start = clean.indexOf('<svg')
+  const end = clean.lastIndexOf('</svg>')
+  if (start < 0 || end < 0) throw new Error('Die KI hat kein SVG geliefert.')
+  const src = clean.slice(start, end + 6)
+
+  const parsed = new DOMParser().parseFromString(src, 'image/svg+xml')
+  if (parsed.querySelector('parsererror')) throw new Error('Das SVG der KI ist fehlerhaft.')
+  const svg = parsed.documentElement
+
+  // Sicherheit: nur erlaubte Elemente behalten (kein Skript, kein externer Verweis).
+  const ALLOWED = new Set(['svg', 'g', 'rect', 'circle', 'ellipse', 'line', 'path', 'polyline', 'polygon', 'text', 'tspan', 'image', 'defs', 'title', 'desc'])
+  for (const el of [...svg.querySelectorAll('*')]) {
+    if (!ALLOWED.has(el.tagName.toLowerCase())) el.remove()
+  }
+
+  // Bilder einsetzen; Platzhalter ohne Bild verschwinden.
+  for (const img of [...svg.querySelectorAll('image')]) {
+    const href = img.getAttribute('href') || img.getAttribute('xlink:href') || ''
+    const m = /^IMG:(\d+):(\d+)$/.exec(href.trim())
+    const data = m ? images[`${m[1]}:${m[2]}`] : null
+    if (!data) { img.remove(); continue }
+    img.setAttribute('href', data)
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', data)
+  }
+
+  // Zeilenumbruch: <text data-w="…"> → tspans, gemessen mit der PDF-Schrift.
+  for (const t of [...svg.querySelectorAll('text[data-w]')]) {
+    const w = parseFloat(t.getAttribute('data-w'))
+    const size = parseFloat(t.getAttribute('font-size') || '4')
+    const fam = (t.getAttribute('font-family') || 'helvetica').includes('times') ? 'times' : 'helvetica'
+    const bold = (t.getAttribute('font-weight') || '').toString() === 'bold' || Number(t.getAttribute('font-weight')) >= 600
+    const italic = (t.getAttribute('font-style') || '') === 'italic'
+    const content = (t.textContent || '').replace(/\s+/g, ' ').trim()
+    if (!content || !(w > 0)) continue
+
+    doc.setFont(fam, bold ? 'bold' : (italic ? 'italic' : 'normal'))
+    doc.setFontSize(size)
+    const lines = doc.splitTextToSize(content, w)
+    const x = t.getAttribute('x') || '0'
+    while (t.firstChild) t.removeChild(t.firstChild)
+    lines.forEach((line, i) => {
+      const ts = parsed.createElementNS(SVG_NS, 'tspan')
+      ts.setAttribute('x', x)
+      if (i > 0) ts.setAttribute('dy', String(size * 1.25))
+      ts.textContent = line
+      t.appendChild(ts)
+    })
+  }
+  return svg
+}
+
+// Rendert das KI-SVG als Vektor-PDF (A2 quer). `urls` = { "si:ti": signierte URL }
+export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
+  const images = {}
+  await Promise.all(Object.entries(urls).map(async ([k, url]) => {
+    if (!url) return
+    try { const im = await loadImage(url); images[k] = im.data } catch { /* Bild fällt weg */ }
+  }))
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  const svg = prepareSvg(svgText, images, doc)
+
+  // svg2pdf braucht das Element im Dokument (Layout-Messung).
+  const host = document.createElement('div')
+  host.style.cssText = 'position:fixed;left:-10000px;top:0;width:594mm;height:420mm;'
+  host.appendChild(svg)
+  document.body.appendChild(host)
+  try {
+    const { svg2pdf } = await import('svg2pdf.js')
+    await svg2pdf(svg, doc, { x: 0, y: 0, width: P.W, height: P.H })
+    doc.save(filename)
+  } finally {
+    host.remove()
+  }
 }

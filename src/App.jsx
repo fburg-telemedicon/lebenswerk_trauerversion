@@ -55,7 +55,7 @@ import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
-import { treeSystem, posterSystem, posterImageJobs, downloadTreePdf, downloadPosterPdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
+import { treeSystem, posterSystem, posterLayoutSystem, posterImageJobs, downloadTreePdf, downloadPosterPdf, downloadPosterSvgPdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -2014,10 +2014,29 @@ Regeln:
           } catch (e) {
             console.warn(`Vignette ${j.key} fehlgeschlagen (Station bleibt ohne Bild):`, e.message)
           }
-          // Drosseln: 20 Bilder in Serie laufen sonst in das Minutenkontingent von
+          // Drosseln: Bilder in Serie laufen sonst in das Minutenkontingent von
           // FLUX („exceeded rate limit") — dann fehlen dem Poster die letzten
           // Illustrationen. Eine kurze Pause hält uns unter dem Limit.
           if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 4000))
+        }
+
+        // Komposition: Die KI ENTWIRFT das Blatt als SVG (geschwungener Weg,
+        // unterschiedlich große Szenen, Text frei gesetzt). Jeder Text darin ist
+        // echter Vektortext — also rechtschreibsicher und beliebig scharf.
+        // Scheitert das, bleibt data.svg leer und der Download fällt auf das feste
+        // Layout zurück; das Poster entsteht in jedem Fall.
+        setExtraMsg('Das Blatt wird gestaltet …')
+        try {
+          const svgSys = posterLayoutSystem(data, posterStyle)
+          for (let attempt = 1; attempt <= 2 && !data.svg; attempt++) {
+            const svg = await askLLM(svgSys, [{ role: 'user', content: 'Gib jetzt das fertige SVG aus.' }],
+              { memorialCode: selected.id, kind: 'life_poster_svg', token })
+            const s = String(svg || '')
+            if (s.includes('<svg') && s.includes('</svg>')) data.svg = s.slice(s.indexOf('<svg'), s.lastIndexOf('</svg>') + 6)
+            else if (attempt < 2) await new Promise(r => setTimeout(r, 1500))
+          }
+        } catch (e) {
+          console.warn('Poster-Komposition fehlgeschlagen — festes Layout wird verwendet:', e.message)
         }
       }
 
@@ -2053,6 +2072,16 @@ Regeln:
         ;(data.sections || []).forEach((sec, si) => {
           ;(sec.stations || []).forEach((st, ti) => { if (st?.image_url) urls[`${si}:${ti}`] = st.image_url })
         })
+        // Bevorzugt die KI-Komposition (freies SVG). Ist sie fehlerhaft, fällt der
+        // Download auf das feste Layout zurück, statt gar kein Poster zu liefern.
+        if (data.svg) {
+          try {
+            await downloadPosterSvgPdf(`${base}.pdf`, data.svg, urls)
+            return
+          } catch (e) {
+            console.warn('KI-Komposition nicht renderbar — festes Layout:', e.message)
+          }
+        }
         await downloadPosterPdf(`${base}.pdf`, data, urls, data.style)
       }
     } catch (e) { setErr(e.message) }
