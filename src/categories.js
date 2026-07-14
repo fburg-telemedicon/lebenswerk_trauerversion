@@ -56,14 +56,66 @@ function v1ChapterBand(words) {
 // Gesamt-Wortzahl. Beides aus derselben Zielmenge abgeleitet, damit Outline und
 // Kapitelschreiber konsistent rechnen (der Kapitelschreiber kennt die Kapitel-
 // zahl nicht direkt, leitet sie aber identisch aus den Beiträgen ab).
-function v2Scale(contributions) {
+//
+// ── Warum die Obergrenze aus SEITEN kommt ──────────────────────────
+// Früher standen hier zwei geratene Deckel (höchstens 16 Kapitel, höchstens
+// 2000 Wörter je Kapitel). Bei viel Material war das Buch damit schon lange
+// „voll", während die Hälfte der Beiträge unbenutzt liegen blieb. Die einzige
+// ECHTE Schranke ist der Druck: Über 400 Seiten gibt es keine Rückenstärke
+// (SPINE_TABLE in coverExport.js). Deshalb rechnet die Skalierung jetzt in
+// Druckseiten und schöpft das Material bis zu diesem Budget aus.
+const PRINT_PAGE = {
+  wordsPerPage: 260,      // 154×216 mm, 12 pt, Zeilenabstand 1,5 → ~27 Zeilen à ~10 Wörter
+  imagePagesPerChapter: 2, // jede Kapiteldoppelseite belegt zwei Seiten
+  frontMatter: 8,          // Titelei, Impressum, KI-Hinweis, Mitwirkende
+  maxPages: 250,           // Zielobergrenze für ein volles Buch (harte Druckgrenze: 400)
+}
+
+// `chapterTarget` = angestrebte Kapitellänge in Wörtern. Sie bestimmt, ob ein
+// Buch aus vielen kurzen oder wenigen langen Kapiteln besteht.
+function v2Scale(contributions, chapterTarget = 1100) {
   const words = totalContributedWords(contributions)
-  const target = Math.round(words * 1.3)            // angestrebte Gesamt-Textmenge (Body)
-  const chapters = Math.min(16, Math.max(4, Math.round(target / 700)))
+  // Der Erzähltext darf etwas länger sein als das Rohmaterial (ausformulieren),
+  // ohne dass etwas erfunden werden muss.
+  let target = Math.round(words * 1.15)
+  let chapters = Math.max(4, Math.round(target / chapterTarget))
+
+  // Seitenbudget: Text + Bildseiten + Titelei müssen unter maxPages bleiben.
+  // Kapitelzahl und Textmenge hängen voneinander ab → ein paar Runden annähern.
+  for (let i = 0; i < 6; i++) {
+    const textPages = PRINT_PAGE.maxPages - PRINT_PAGE.frontMatter - chapters * PRINT_PAGE.imagePagesPerChapter
+    const allowed = Math.max(4000, textPages * PRINT_PAGE.wordsPerPage)
+    if (target <= allowed) break
+    target = allowed
+    chapters = Math.max(4, Math.round(target / chapterTarget))
+  }
+
   const per = chapters ? Math.round(target / chapters) : 0
-  const min = Math.min(1500, Math.max(300, Math.round(per * 0.8)))
-  const max = Math.min(2000, Math.max(620, Math.round(per * 1.35)))
+  const min = Math.min(3000, Math.max(500, Math.round(per * 0.85)))
+  const max = Math.min(3600, Math.max(800, Math.round(per * 1.3)))
   return { words, chapters, min, max: Math.max(max, min + 150) }
+}
+
+// ── Wiederholungsschutz ───────────────────────────────────────────
+// Jedes Kapitel wird in einem EIGENEN KI-Aufruf geschrieben, und jeder dieser
+// Aufrufe bekommt ALLE Beiträge zu sehen. Ohne Gegenmaßnahme landet dieselbe
+// starke Anekdote deshalb in mehreren Kapiteln. Der Kapitelschreiber bekommt
+// darum die vollständige Gliederung: Er weiß, was die anderen Kapitel abdecken,
+// und hält sich strikt an seinen Abschnitt.
+function outlineBlock(outline, number) {
+  const list = Array.isArray(outline) ? outline : []
+  if (list.length === 0) return ''
+  const lines = list.map(c => {
+    const mark = Number(c.number) === Number(number) ? '►' : ' '
+    const themes = String(c.themes || '').replace(/\s+/g, ' ').trim()
+    return `${mark} Kapitel ${c.number}: ${c.heading || ''}${themes ? ` — ${themes}` : ''}`
+  })
+  return `
+
+GESAMTGLIEDERUNG DES BUCHES (► = das Kapitel, das du JETZT schreibst):
+${lines.join('\n')}
+
+ABGRENZUNG (wichtig): Schreibe AUSSCHLIESSLICH den Stoff deines eigenen Kapitels. Erinnerungen, Episoden und Zitate, die laut Gliederung zu einem ANDEREN Kapitel gehören, lässt du weg — sie werden dort erzählt. Greife nicht vor und fasse nicht zusammen, was vorher schon kam. Eine Anekdote gehört in GENAU EIN Kapitel.`
 }
 
 function addressRule(address) {
@@ -249,10 +301,10 @@ Regeln:
 Beiträge:\n\n${blocks(contributions)}`
 }
 
-function memorialV2Chapter(memorial, contributions, plan) {
+function memorialV2Chapter(memorial, contributions, plan, outline) {
   const g = genderNote(memorial)
   const sc = v2Scale(contributions)
-  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel einer Lebensgeschichte von ${memorial.name}${g} (Variante 2: Lebensstationen).
+  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel einer Lebensgeschichte von ${memorial.name}${g} (Variante 2: Lebensstationen).${outlineBlock(outline, plan.number)}
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
 Inhaltliche Schwerpunkte für dieses Kapitel:
@@ -451,10 +503,10 @@ Beiträge:\n\n${blocks(contributions)}`
 }
 
 function makeV2Chapter(p) {
-  return (memorial, contributions, plan) => {
+  return (memorial, contributions, plan, outline) => {
     const g = genderNote(memorial)
     const sc = v2Scale(contributions)
-    return `Du bist ${p.v2Role}. Du schreibst EIN Kapitel ${p.v2NounGen} für ${memorial.name}${g} (Variante 2).
+    return `Du bist ${p.v2Role}. Du schreibst EIN Kapitel ${p.v2NounGen} für ${memorial.name}${g} (Variante 2).${outlineBlock(outline, plan.number)}
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
 Inhaltliche Schwerpunkte für dieses Kapitel:
@@ -545,9 +597,12 @@ ${flow}
 }
 
 // Die Autobiographie speist sich aus EINEM Erzähler; „contributions" ist hier
-// faktisch das eine (lange) Interview. Umfang skaliert wie gehabt mit der Textmenge.
+// faktisch das eine (lange) Interview. Der Stoff ist entsprechend dicht, deshalb
+// längere Kapitel (~2000 Wörter) als bei den Beitrags-Büchern.
+const LIFEWORK_CHAPTER_WORDS = 2000
+
 function lifeworkV2Outline(memorial, contributions) {
-  const sc = v2Scale(contributions)
+  const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
   return `Du bist ein erfahrener Biograph. Aus dem folgenden Interview, das ${memorial.name} über das eigene Leben gegeben hat, planst du eine Autobiographie.
 
 Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel entlang der Lebensstationen (z. B. Kindheit, Jugend und Schulzeit, Aufbruch ins Erwachsenenleben, Beruf, Liebe und Familie, Leidenschaften, Krisen und Wendepunkte, Werte, Vermächtnis). Wähle nur Kapitel, die das Interview inhaltlich tatsächlich hergibt. Die Kapitel-TEXTE werden später separat geschrieben.
@@ -573,9 +628,9 @@ Regeln:
 Interview:\n\n${blocks(contributions)}`
 }
 
-function lifeworkV2Chapter(memorial, contributions, plan) {
-  const sc = v2Scale(contributions)
-  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel der Autobiographie von ${memorial.name}.
+function lifeworkV2Chapter(memorial, contributions, plan, outline) {
+  const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
+  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel der Autobiographie von ${memorial.name}.${outlineBlock(outline, plan.number)}
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
 Inhaltliche Schwerpunkte für dieses Kapitel:

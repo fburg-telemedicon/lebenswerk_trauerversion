@@ -1490,7 +1490,7 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
     )
 }
 
-export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, downloadGeneratedPdf, downloadCover, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText, dlBusy }) {
+export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, requestDownload, dlLangOverlay, downloadGeneratedPdf, downloadCover, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText, dlBusy }) {
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
     const data = selected[gen.field]
@@ -1671,7 +1671,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
 
         {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
-            <button onClick={() => downloadGenerated(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}</button>
+            <button onClick={() => requestDownload(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}</button>
             {gen.kind === 'book' && (
               <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}</button>
             )}
@@ -1695,6 +1695,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
         )}
         {eulogyStyleOverlay}
         {genLangOverlay}
+        {dlLangOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}
@@ -1704,7 +1705,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
     )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraBusy, extraMsg }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraBusy, extraMsg, requestDownload, dlLangOverlay }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const isLifework = selected?.product_category === 'lifework'
@@ -1945,7 +1946,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       <button onClick={() => { setEditMode(false); setEditDraft(null); setView(gen.view) }} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         👁 Ansehen/Bearbeiten
                       </button>
-                      <button onClick={() => downloadGenerated(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                      <button onClick={() => requestDownload(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         {dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}
                       </button>
                       {gen.kind === 'book' && (
@@ -2279,6 +2280,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
         </div>
         {eulogyStyleOverlay}
         {genLangOverlay}
+        {dlLangOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}

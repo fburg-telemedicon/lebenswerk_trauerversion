@@ -34,11 +34,21 @@ function authorized(req) {
 }
 const canceled = async id => (await genjobs.jobStatus(id)) === 'canceled'
 
-// Azure-Aufruf mit Backoff. Wiederholt bei JEDEM transienten Fehler bis 3× (Rate-
-// Limit länger); leere Antwort gilt als Fehler. Content-Policy → sofort abbrechen.
+// Azure-Aufruf mit Backoff. Content-Policy → sofort abbrechen (ein erneuter
+// Versuch mit demselben Prompt bringt nichts).
+//
+// RATE-LIMIT bekommt eigene, viel großzügigere Regeln: Wenn zwei Jobs desselben
+// Buchs gleichzeitig laufen (z. B. Autobiographie + Pflegeexzerpt), teilen sie
+// sich das Azure-Token-Kontingent — dann kommen 429er in Serie. Kurze Wartezeiten
+// (früher 6 s/12 s, dann Aufgeben) haben in so einem Fall einzelne Abschnitte
+// scheitern lassen. Jetzt: bis zu 6 Versuche mit exponentiell wachsender Pause
+// (10/20/40/60/60 s, plus Jitter gegen Gleichtakt) — das überbrückt ein volles
+// Kontingent-Fenster, statt den Abschnitt zu verlieren.
+const MAX_ATTEMPTS = 6
+const MAX_ATTEMPTS_OTHER = 3
 async function callWithBackoff(args) {
   let lastErr
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; ; attempt++) {
     try {
       const r = await callAzure(args)
       if (!String(r.text || '').trim()) throw new Error('leere Antwort')
@@ -46,7 +56,13 @@ async function callWithBackoff(args) {
     } catch (e) {
       lastErr = e
       if (isContentFilter(e.message)) break
-      if (attempt < 3) { await sleep((isRateLimit(e.message) ? 6000 : 2000) * attempt); continue }
+      const rate = isRateLimit(e.message)
+      const limit = rate ? MAX_ATTEMPTS : MAX_ATTEMPTS_OTHER
+      if (attempt >= limit) break
+      const wait = rate
+        ? Math.min(60000, 10000 * Math.pow(2, attempt - 1)) + Math.round(Math.random() * 3000)
+        : 2000 * attempt
+      await sleep(wait)
     }
   }
   throw lastErr

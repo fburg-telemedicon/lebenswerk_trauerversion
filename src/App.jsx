@@ -417,6 +417,8 @@ function Dashboard() {
   // Lebenswerk-Nebenprodukte (Stammbaum / Lebensposter): '' | 'tree' | 'poster'
   const [extraBusy, setExtraBusy]       = useState('')
   const [extraMsg, setExtraMsg]         = useState('')
+  // Sprachwahl BEIM SPEICHERN (Pflegeexzerpt): { key } | null
+  const [dlLangModal, setDlLangModal]   = useState(null)
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1585,7 +1587,10 @@ function Dashboard() {
         const chapterSteps = chapterPlans.map(plan => ({
           system: (key === 'book_v1'
             ? gen.chapterSystem(selected, plan.contribution, plan.number)
-            : gen.chapterSystem(selected, contributions, plan)) + dir,
+            // Die GANZE Gliederung mitgeben: Jedes Kapitel entsteht in einem eigenen
+            // KI-Aufruf mit allen Beiträgen im Kontext — ohne die Gliederung landete
+            // dieselbe Anekdote in mehreren Kapiteln.
+            : gen.chapterSystem(selected, contributions, plan, chapterPlans)) + dir,
           user: 'Erzeuge jetzt dieses eine Kapitel als JSON.',
           meta: {
             number: plan.number,
@@ -1699,6 +1704,49 @@ function Dashboard() {
       setGenPct(p => ({ ...p, [key]: undefined }))
       cancelGenRef.current[key] = false
     }
+  }
+
+  // Download anstoßen. Sonderfall Pflegeexzerpt (Lebenswerk): Der Text entsteht
+  // IMMER auf Deutsch; erst beim Speichern wird die Zielsprache gefragt — es geht
+  // in eine Pflegeakte, die Sprache hängt am Pflegeteam, nicht am Buch.
+  function requestDownload(key) {
+    if (key === 'eulogy' && selected?.product_category === 'lifework' && selected?.eulogy_text) {
+      setDlLangModal({ key })
+      return
+    }
+    downloadGenerated(key)
+  }
+
+  // Zielsprache des Exzerpts gewählt: Deutsch → direkt laden, sonst erst
+  // übersetzen. Das Original (Deutsch) bleibt am Buch gespeichert; übersetzt wird
+  // nur die heruntergeladene Fassung.
+  async function pickDlLang(code) {
+    const m = dlLangModal
+    setDlLangModal(null)
+    if (!m) return
+    if (code === 'de') { downloadGenerated('eulogy'); return }
+
+    const gen = GENERATORS.eulogy
+    const source = selected?.eulogy_text
+    if (!source) return
+    setDlBusy('eulogy:docx'); setErr('')
+    try {
+      const target = LANGUAGES.find(l => l.code === code)?.label || code
+      const sys = `Du bist ein professioneller Fachübersetzer für Pflegedokumentation. Übersetze den folgenden deutschen Text („${gen.noun}", Bestandteil einer Pflegeakte) nach ${target} (Sprachcode ${code}).
+
+Regeln:
+- Übersetze VOLLSTÄNDIG und sinngetreu. Nichts weglassen, nichts hinzufügen, nichts interpretieren.
+- Struktur exakt beibehalten: Absätze, Reihenfolge, Abschnittsüberschriften (auch die Überschriften übersetzen).
+- Eigennamen, Orte und Jahreszahlen unverändert lassen.
+- Pflegefachliche Begriffe in der Zielsprache fachlich korrekt und gebräuchlich wiedergeben.
+- Gib AUSSCHLIESSLICH den übersetzten Text aus — keine Vorbemerkung, keine Erklärung, kein Markdown.`
+      const translated = await askLLM(sys, [{ role: 'user', content: String(source) }],
+        { memorialCode: selected.id, kind: 'eulogy_translate', token })
+      if (!String(translated || '').trim()) throw new Error('Die Übersetzung kam leer zurück.')
+      const filename = `${gen.filename}_${safeName(selected.name)}_${code.toUpperCase()}.docx`
+      await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, translated, code)
+    } catch (e) { setErr(`Übersetzung/Download fehlgeschlagen: ${e.message}`) }
+    finally { setDlBusy('') }
   }
 
   async function downloadGenerated(key) {
@@ -1852,12 +1900,12 @@ function Dashboard() {
     if (langs.length > 1) { setGenLangModal({ key, extraArg }); return }
     generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined })
   }
-  // Zur Auswahl stehende Sprachen einer Erzeugung. Sonderfall Pflegeexzerpt: Es
-  // geht in eine Pflegeakte und wird oft in einer anderen Sprache gebraucht als
-  // das Buch — deshalb hier IMMER alle Sprachen zur Wahl stellen.
+  // Zur Auswahl stehende Sprachen einer Erzeugung. Sonderfall Pflegeexzerpt
+  // (Lebenswerk): Es entsteht IMMER auf Deutsch — die Zielsprache wird erst beim
+  // Speichern gefragt und der Text dann übersetzt (siehe pickDlLang).
   function genLangs(key) {
     const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
-    if (key === 'eulogy' && selected?.product_category === 'lifework') return LANGUAGE_CODES
+    if (key === 'eulogy' && selected?.product_category === 'lifework') return ['de']
     return langs
   }
   function pickGenLang(code) {
@@ -2102,6 +2150,31 @@ function Dashboard() {
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
           <button className="ghost" onClick={() => setGenLangModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  // Sprachwahl BEIM SPEICHERN des Pflegeexzerpts. Der Text liegt auf Deutsch am
+  // Buch; wird eine andere Sprache gewählt, übersetzt die KI die Datei — das
+  // deutsche Original bleibt unverändert erhalten.
+  const dlLangOverlay = dlLangModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 420, width:'100%' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>In welcher Sprache soll das {GENERATORS.eulogy.noun} gespeichert werden?</h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>
+          Erstellt wurde es auf Deutsch. Wählen Sie eine andere Sprache, wird die Datei vor dem Download übersetzt;
+          die deutsche Fassung im Dashboard bleibt erhalten.
+        </p>
+        <div style={{ display:'grid', gap:10, marginBottom:14 }}>
+          {LANGUAGES.map(l => (
+            <button key={l.code} onClick={() => pickDlLang(l.code)} style={{ fontSize:15, padding:'12px 16px' }}>
+              {l.label}{l.code === 'de' ? ' (Original)' : ' – übersetzen'}
+            </button>
+          ))}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+          <button className="ghost" onClick={() => setDlLangModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
         </div>
       </div>
     </div>
@@ -2570,7 +2643,7 @@ function Dashboard() {
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraBusy={extraBusy} extraMsg={extraMsg} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraBusy={extraBusy} extraMsg={extraMsg} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
@@ -2585,7 +2658,7 @@ function Dashboard() {
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') return (
-    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
+    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} />
   )
 
   return null
