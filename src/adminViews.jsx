@@ -1011,7 +1011,12 @@ export function CreateCategoryView({ err, allowedSlugs, logout, setView, chooseC
 export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logout, setView, setCreateForm, handleCreate }) {
     const cat = getCategory(createForm.productCategory)
     const ci  = cat.intake
-    const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && !busy
+    // Lebenswerk: Statt eines Einladungslinks für viele Beitragende bekommt EIN
+    // Endnutzer ein eigenes Login. Deshalb E-Mail-Adresse (Pflicht) und genau EINE
+    // Sprache (oder bewusst keine — dann wählt der Endnutzer beim ersten Start).
+    const isLifework = createForm.productCategory === 'lifework'
+    const emailOk = !isLifework || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((createForm.enduserEmail || '').trim())
+    const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && emailOk && !busy
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     const [expertMode, setExpertMode] = useState(false)
@@ -1029,6 +1034,52 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <Lbl>{ci.subjectLabel}</Lbl>
           <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder={ci.subjectPlaceholder} />
         </div>
+        {isLifework && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>E-Mail-Adresse des Endnutzers *</Lbl>
+            <input
+              type="email"
+              value={createForm.enduserEmail || ''}
+              onChange={e => setCreateForm({ ...createForm, enduserEmail: e.target.value })}
+              placeholder="name@beispiel.de"
+            />
+            <p style={{ fontSize:12, color:'#78716c', marginTop:6, lineHeight:1.5 }}>
+              Der Endnutzer erhält an diese Adresse eine Einladung in der gewählten Sprache, vergibt sich sein Passwort
+              und landet nach dem Login direkt in seinem Interview – ohne Dashboard.
+            </p>
+          </div>
+        )}
+        {isLifework && (
+          <div style={{ marginBottom: 14 }}>
+            <Lbl>Sprache des Endnutzers *</Lbl>
+            <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px', lineHeight:1.5 }}>
+              Genau eine Sprache – sie gilt für die Einladungs-E-Mail und das ganze Interview. Ohne Festlegung wählt der
+              Endnutzer die Sprache beim ersten Start selbst (die Einladung geht dann auf Deutsch raus).
+            </p>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {[...LANGUAGES, { code: '', label: 'Endnutzer wählt selbst' }].map(l => {
+                // Genau EINE Sprache = vom Admin festgelegt; alle drei = Wahl beim Start.
+                const on = l.code
+                  ? (createForm.languages.length === 1 && createForm.languages[0] === l.code)
+                  : createForm.languages.length !== 1
+                return (
+                  <label key={l.code || 'auto'} style={{
+                    display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                    ...S.card, padding:'10px 14px',
+                    borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1,
+                  }}>
+                    <input
+                      type="radio" name="lifework-lang" checked={on}
+                      onChange={() => setCreateForm(f => ({ ...f, languages: l.code ? [l.code] : LANGUAGES.map(x => x.code) }))}
+                      style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
+                    />
+                    <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        )}
         {ci.useGender && (
           <div style={{ marginBottom: 14 }}>
             <Lbl>{ci.genderLabel}</Lbl>
@@ -1088,6 +1139,9 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </p>
           </div>
         )}
+        {/* Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie) —
+            bei EINEM Erzähler ergäbe „ein Beitrag = ein Kapitel" kein Buch. */}
+        {!isLifework && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Buch-Variante *</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
@@ -1107,10 +1161,24 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             ))}
           </div>
         </div>
+        )}
         <button type="button" onClick={() => setExpertMode(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>
           {expertMode ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
         </button>
         {expertMode && (<>
+        {isLifework && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Interviewfragen</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.aiQuestions === true} onChange={e => setCreateForm({ ...createForm, aiQuestions: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Ausschließlich KI-generierte Fragen (ohne Standard-Fragenkatalog)</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: nicht aktiv – das Interview folgt dem Lebenswerk-Standardkatalog (12 Sitzungen mit je 10 Fragen).
+            Aktiviert: Die KI überlegt sich die Fragen frei entlang der Lebensstationen.
+          </p>
+        </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Transkript-Anzeige im Sprach-Interview</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -1229,6 +1297,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         )}
+        {!isLifework && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Sprachen *</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
@@ -1258,6 +1327,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             })}
           </div>
         </div>
+        )}
         </>)}
         <button
           disabled={!canSubmit}

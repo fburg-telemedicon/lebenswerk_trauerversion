@@ -5,10 +5,13 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial } from './api.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE } from './i18n.js'
 import { getCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
+import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
+import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
+import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
 import { S, PartnerBanner, Dots, Err, Lbl } from './ui.jsx'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
 
@@ -284,7 +287,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <PartnerBanner logoUrl={memorial?.owner_logo} />
+      <PartnerBanner logoUrl={memorial?.owner_logo} category={memorial?.product_category} />
       <div style={{ borderBottom: '1px solid #e7e5e4', padding: '12px 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
@@ -580,10 +583,46 @@ function ContributorPhotoUpload({ code, contribId, t }) {
 
 // Untere Tab-Leiste im Interview (nur wenn Buch-Option photo_upload_tab gesetzt):
 // wechselt zwischen Interview und Foto-Upload. Ohne die Option keine Icons.
-function ContribTabBar({ tab, setTab, t }) {
+// Einstellungs-Tab des Endnutzers (Kategorie Lebenswerk): Grafikstil + Textstil
+// seines eigenen Buchs. Autorisiert über den Endnutzer-Token (siehe App.jsx).
+function EnduserSettings({ code, token, memorial, t }) {
+  const [imageStyle, setImageStyle] = useState(memorial?.image_style || DEFAULT_IMAGE_STYLE)
+  const [bookLayout, setBookLayout] = useState(memorial?.book_layout || DEFAULT_BOOK_LAYOUT)
+  const [saved, setSaved] = useState('')
+  const [err, setErr] = useState('')
+
+  async function save(patch) {
+    setErr(''); setSaved('')
+    try {
+      await updateOwnMemorial(token, code, patch)
+      setSaved(t.settingsSaved)
+      setTimeout(() => setSaved(''), 2000)
+    } catch { setErr(t.settingsSaveErr) }
+  }
+
+  return (
+    <div style={{ ...S.page, paddingTop:'2rem' }}>
+      <h2 style={{ fontSize:20, fontWeight:700, marginBottom:6 }}>{t.settingsTitle}</h2>
+      <p style={{ ...S.muted, marginBottom:'1.5rem' }}>{t.settingsIntro}</p>
+      <Err msg={err} />
+      <div style={{ marginBottom:24 }}>
+        <Lbl>{t.settingsImageStyle}</Lbl>
+        <ImageStylePicker value={imageStyle} onChange={k => { setImageStyle(k); save({ imageStyle: k }) }} />
+      </div>
+      <div style={{ marginBottom:24 }}>
+        <Lbl>{t.settingsBookLayout}</Lbl>
+        <BookLayoutPicker value={bookLayout} onChange={k => { setBookLayout(k); save({ bookLayout: k }) }} />
+      </div>
+      {saved && <p style={{ fontSize:13, color:'#16a34a' }}>{saved}</p>}
+    </div>
+  )
+}
+
+function ContribTabBar({ tab, setTab, t, withSettings }) {
   const items = [
     { id: 'interview', icon: '🎙️', label: t.tabInterview },
     { id: 'photo',     icon: '📷', label: t.tabPhoto },
+    ...(withSettings ? [{ id: 'settings', icon: '⚙️', label: t.tabSettings }] : []),
   ]
   return (
     <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #e7e5e4', display:'flex', zIndex:30, boxShadow:'0 -1px 4px rgba(0,0,0,.05)' }}>
@@ -601,7 +640,10 @@ function ContribTabBar({ tab, setTab, t }) {
   )
 }
 
-export function ContributorFlow({ code }) {
+// `endUserToken` gesetzt → der Erzähler ist der Endnutzer eines Lebenswerks: Er
+// erzählt sein EIGENES Leben (keine Beziehungsangabe), kann Fotos hochladen und
+// bekommt einen Einstellungs-Tab für Grafik- und Textstil seines Buchs.
+export function ContributorFlow({ code, endUserToken = null }) {
   const [view, setView]                       = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]               = useState(null)
   const [contribForm, setContribForm]         = useState({ name:'', gender:'', relationship:'', address:'Sie' })
@@ -676,8 +718,10 @@ export function ContributorFlow({ code }) {
     const form = local.contribForm
     if (local.consentAt) { setConsentAt(local.consentAt); setConsentChecked(true) }
     // Nur direkt ins Interview, wenn Formular vollständig UND bereits eingewilligt
-    // wurde – sonst zurück zur Info-Maske inkl. Einwilligungsschritt.
-    const complete = form && form.name && form.gender && form.relationship && form.address && local.consentAt
+    // wurde – sonst zurück zur Info-Maske inkl. Einwilligungsschritt. Beim
+    // Lebenswerk gibt es keine Beziehungsangabe, die vollständig sein könnte.
+    const relOk = isSelf || Boolean(form && form.relationship)
+    const complete = form && form.name && form.gender && relOk && form.address && local.consentAt
     setContribId(local.contribId)
     if (form) setContribForm({ ...contribForm, ...form })
     setInitialMessages([])
@@ -716,7 +760,7 @@ export function ContributorFlow({ code }) {
           contributionId: contribId,
           memorialCode: code,
           contributorName: contribForm.name,
-          relationship: contribForm.relationship,
+          relationship: isSelf ? SELF_REL : contribForm.relationship,
           messages,
           contributorGender: contribForm.gender || null,
           contributorAddress: contribForm.address || null,
@@ -744,6 +788,12 @@ export function ContributorFlow({ code }) {
   const needLang = !!memorial && langs.length > 1 && !lang
   const t  = uiText(L)
   const ct = contributorL10n(memorial?.product_category, L)
+  // Lebenswerk: Der Erzähler IST die Hauptperson — keine Beziehungsangabe, und
+  // die Beziehung wird intern fest gesetzt (die Spalte ist NOT NULL).
+  const isSelf = memorial?.product_category === 'lifework'
+  const SELF_REL = 'Ich selbst'
+  // Ohne Firmenlogo trägt ein Lebenswerk das Lebenswerk-Logo statt des Standard-Logos.
+  const bannerLogo = memorial?.owner_logo || (isSelf ? '/lebenswerk-logo.png' : null)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
 
   function copyResumeUrl() {
@@ -772,7 +822,7 @@ export function ContributorFlow({ code }) {
       {/* Sprachauswahl — bei mehreren angebotenen Sprachen ganz am Anfang */}
       {needLang && view !== 'error' && (
         <>
-          <PartnerBanner logoUrl={memorial?.owner_logo} />
+          <PartnerBanner logoUrl={memorial?.owner_logo} category={memorial?.product_category} />
           <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
             <div style={{ marginBottom:20 }}>
               {langs.map(code => (
@@ -793,13 +843,13 @@ export function ContributorFlow({ code }) {
 
       {!needLang && view === 'info' && (
         <>
-          <PartnerBanner logoUrl={memorial?.owner_logo} />
+          <PartnerBanner logoUrl={memorial?.owner_logo} category={memorial?.product_category} />
           <div style={{ ...S.page, paddingTop:'2rem' }}>
             <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{ct.heading}</h2>
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
             {ct.introNoun} <strong>{memorial?.name}</strong>
           </p>
-          <div style={{ marginBottom:14 }}><Lbl>{t.yourName}</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder={t.fullName} /></div>
+          <div style={{ marginBottom:14 }}><Lbl>{isSelf ? t.yourNameSelf : t.yourName}</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder={t.fullName} /></div>
           <div style={{ marginBottom:14 }}>
             <Lbl>{t.yourGender}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
@@ -823,11 +873,13 @@ export function ContributorFlow({ code }) {
               ))}
             </div>
           </div>
+          {!isSelf && (
           <div style={{ marginBottom:14 }}>
             <Lbl>{ct.relationshipLabel.replace('{name}', memorial?.name || '')}</Lbl>
             <input value={contribForm.relationship} onChange={e=>setContribForm({...contribForm,relationship:e.target.value})} placeholder={ct.relationshipPlaceholder} />
             <p style={{ fontSize:12, color:'#78716c', marginTop:6, lineHeight:1.5 }}>{ct.relationshipHint ? ct.relationshipHint.replace(/\{name\}/g, memorial?.name || 'die Person') : t.relationshipHint(memorial?.name, memorial?.gender)}</p>
           </div>
+          )}
           <div style={{ marginBottom:24 }}>
             <Lbl>{t.addressQ}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
@@ -870,7 +922,7 @@ export function ContributorFlow({ code }) {
               </span>
             </label>
           </div>
-          <button disabled={!contribForm.name||!contribForm.gender||!contribForm.relationship||!contribForm.address||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
+          <button disabled={!contribForm.name||!contribForm.gender||(!isSelf && !contribForm.relationship)||!contribForm.address||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             {ct.interviewButton}
           </button>
           </div>
@@ -905,7 +957,7 @@ export function ContributorFlow({ code }) {
         const vi = (
           <VoiceInterview
             memorial={memorial}
-            contribForm={contribForm}
+            contribForm={isSelf ? { ...contribForm, relationship: SELF_REL } : contribForm}
             lang={L}
             onSave={saveProgress}
             onPause={handlePause}
@@ -915,8 +967,10 @@ export function ContributorFlow({ code }) {
         )
         // Ohne die Option kein Tab-Umschalter – Interview wie gehabt.
         if (!memorial.photo_upload_tab) return vi
-        // Mit Option: beide Panels bleiben gemountet (Interview-Fortschritt bleibt
+        // Mit Option: alle Panels bleiben gemountet (Interview-Fortschritt bleibt
         // erhalten), nur Sichtbarkeit per Tab. Untere Tab-Leiste schaltet um.
+        // Der Einstellungs-Tab existiert nur für den eingeloggten Endnutzer.
+        const withSettings = isSelf && Boolean(endUserToken)
         return (
           <div style={{ paddingBottom: 64 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
@@ -925,7 +979,12 @@ export function ContributorFlow({ code }) {
                 <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
               </div>
             </div>
-            <ContribTabBar tab={tab} setTab={setTab} t={t} />
+            {withSettings && (
+              <div style={{ display: tab === 'settings' ? 'block' : 'none' }}>
+                <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
+              </div>
+            )}
+            <ContribTabBar tab={tab} setTab={setTab} t={t} withSettings={withSettings} />
           </div>
         )
       })()}

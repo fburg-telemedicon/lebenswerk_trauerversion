@@ -22,12 +22,15 @@ export function Dots() {
 // hinterlegte Firmenlogo (logoUrl); solange keins hinterlegt ist, das
 // Lebensgeschichten.ai-Standardlogo (statisches Asset in /public).
 export const DEFAULT_LOGO = '/logo-lebensgeschichten.png'
-export function PartnerBanner({ logoUrl }) {
+// `category` = Produktkategorie des Buchs: Ein Lebenswerk trägt ohne eigenes
+// Firmenlogo das Lebenswerk-Logo statt des Lebensgeschichten-Standardlogos.
+export function PartnerBanner({ logoUrl, category }) {
+  const fallback = category === 'lifework' ? '/lebenswerk-logo.png' : DEFAULT_LOGO
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'10px 1.25rem', display:'flex', alignItems:'center', gap:12 }}>
         <img
-          src={logoUrl || DEFAULT_LOGO}
+          src={logoUrl || fallback}
           alt="Lebensgeschichten.ai"
           style={{ maxHeight:40, maxWidth:220, width:'auto', objectFit:'contain', flexShrink:0 }}
         />

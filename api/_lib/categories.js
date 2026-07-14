@@ -14,6 +14,7 @@ const CATEGORY_LABELS = {
   company:       'Betriebsjubiläum',
   newborn:       'Willkommensbuch',
   encouragement: 'Mutmachbuch',
+  lifework:      'Lebenswerk',
 }
 
 const CATEGORY_SLUGS = Object.keys(CATEGORY_LABELS)

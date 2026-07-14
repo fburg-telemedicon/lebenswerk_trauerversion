@@ -12,8 +12,29 @@ const { verifyCredentials, issueToken, isConfigured, verifyPassword, hashPasswor
 const { enforce } = require('../_lib/ratelimit')
 const { audit } = require('../_lib/audit')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
+const { ensureLifeworkSchema } = require('../_lib/lifework')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+
+// Antwort-Nutzlast eines erfolgreichen Logins. Endnutzer (Kategorie Lebenswerk)
+// bekommen zusätzlich ihren Buch-Code + die vom Admin gesetzte Sprache: Das
+// Frontend zeigt ihnen daraufhin kein Dashboard, sondern direkt ihr Interview.
+function sessionFor(user) {
+  const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
+  const eu = user.is_enduser ? (user.enduser_memorial || null) : null
+  return {
+    token: issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats, eu }),
+    admin: Boolean(user.is_admin),
+    cats: user.is_admin ? '*' : cats,
+    uid: user.id,
+    username: user.username,
+    enduser: Boolean(user.is_enduser),
+    code: eu,
+    lang: user.lang || null,
+  }
+}
+
+const USER_COLS = 'id, username, allowed_categories, is_admin, is_enduser, enduser_memorial, lang'
 
 // Passwort-Reset anfordern (öffentlich): POST /api/admin/login { reset: "<email>" }.
 // Aus Datenschutz-/Sicherheitsgründen IMMER generische Erfolgsmeldung – egal ob die
@@ -59,9 +80,10 @@ async function handleInvite(req, res, tok) {
   // Bremse gegen das Durchprobieren von Tokens.
   if (!(await enforce(req, res, { name: 'invite-ip', limit: 20, windowSeconds: 300 }))) return
 
+  await ensureLifeworkSchema()
   const { data: user } = await supabase
     .from('app_users')
-    .select('id, username, allowed_categories, is_admin, invite_token, invite_expires')
+    .select(`${USER_COLS}, invite_token, invite_expires`)
     .eq('invite_token', tok)
     .maybeSingle()
 
@@ -87,10 +109,8 @@ async function handleInvite(req, res, tok) {
       console.error('/api/admin/login invite redeem error:', error)
       return res.status(500).json({ error: error.message })
     }
-    const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
-    const token = issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats })
     await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'user.invite_redeem' })
-    return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats, uid: user.id, username: user.username })
+    return res.json(sessionFor(user))
   }
   return res.status(405).end()
 }
@@ -126,19 +146,18 @@ module.exports = async function handler(req, res) {
     return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*', uid: null, username: String(username) })
   }
 
-  // 2. Benutzer aus app_users
+  // 2. Benutzer aus app_users (Manager ODER Endnutzer)
   try {
+    await ensureLifeworkSchema()
     const { data: user } = await supabase
       .from('app_users')
-      .select('id, username, pw_hash, pw_salt, allowed_categories, is_admin')
+      .select(`${USER_COLS}, pw_hash, pw_salt`)
       .eq('username', username || '')
       .single()
 
     if (user && verifyPassword(password, user.pw_hash, user.pw_salt)) {
-      const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
-      const token = issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats })
       await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'login.success' })
-      return res.json({ token, admin: Boolean(user.is_admin), cats: user.is_admin ? '*' : cats, uid: user.id, username: user.username })
+      return res.json(sessionFor(user))
     }
   } catch (e) {
     console.error('/api/admin/login lookup error:', e)

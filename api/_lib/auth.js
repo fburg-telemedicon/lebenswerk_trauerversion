@@ -60,10 +60,13 @@ function verifyCredentials(username, password) {
 }
 
 // Erzeugt einen signierten Token mit Ablaufdatum und Berechtigungs-Claims.
-//   claims = { uid, admin, cats }
+//   claims = { uid, admin, cats, eu }
 //     uid   : app_users.id (null beim Env-Admin)
 //     admin : true => Superuser (sieht alle Kategorien)
 //     cats  : '*' (alle) ODER string[] der erlaubten Kategorie-Slugs
+//     eu    : Buch-Code eines ENDNUTZERS (Kategorie Lebenswerk) — ein solches
+//             Konto hat kein Dashboard, sondern nur Zugriff auf genau dieses
+//             eine Buch (sein eigenes). Bei allen anderen Konten null.
 function issueToken(claims = {}) {
   const c = getConfig()
   const payload = base64url(JSON.stringify({
@@ -71,6 +74,7 @@ function issueToken(claims = {}) {
     uid:   claims.uid ?? null,
     admin: Boolean(claims.admin),
     cats:  claims.admin ? '*' : (Array.isArray(claims.cats) ? claims.cats : []),
+    eu:    claims.eu || null,
   }))
   const sig = sign(payload, c.secret)
   return `${payload}.${sig}`
@@ -94,6 +98,7 @@ function verifyToken(token) {
       uid:   data.uid ?? null,
       admin: Boolean(data.admin),
       cats:  data.cats === '*' ? '*' : (Array.isArray(data.cats) ? data.cats : []),
+      eu:    data.eu || null,
     }
   } catch {
     return null

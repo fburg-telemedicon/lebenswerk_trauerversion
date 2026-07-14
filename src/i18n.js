@@ -127,6 +127,16 @@ ${url}
   txToggleLabel: 'Transkript & Korrekturmöglichkeiten anzeigen',
   tabInterview: 'Interview',
   tabPhoto: 'Foto-Upload',
+  // Lebenswerk / Endnutzer
+  tabSettings: 'Einstellungen',
+  settingsTitle: 'Einstellungen für Ihr Buch',
+  settingsIntro: 'Sie können jederzeit ändern, wie Ihr Buch aussehen soll. Die Einstellungen wirken auf das fertige Buch, nicht auf das Gespräch.',
+  settingsImageStyle: 'Grafikstil der Bilder',
+  settingsBookLayout: 'Textstil (Schrift & Design)',
+  settingsSaved: '✓ Gespeichert',
+  settingsSaveErr: 'Die Einstellung konnte nicht gespeichert werden.',
+  yourNameSelf: 'Ihr Name *',
+  euDoneBody: 'Ihre Lebensgeschichte ist gespeichert. Sie können jederzeit zurückkommen und weitererzählen.',
 }
 
 const PL = {
@@ -220,6 +230,16 @@ ${url}
   txToggleLabel: 'Pokaż transkrypcję i możliwość korekty',
   tabInterview: 'Wywiad',
   tabPhoto: 'Zdjęcia',
+  // Dzieło życia / użytkownik końcowy
+  tabSettings: 'Ustawienia',
+  settingsTitle: 'Ustawienia Twojej książki',
+  settingsIntro: 'W każdej chwili możesz zmienić wygląd swojej książki. Ustawienia dotyczą gotowej książki, nie rozmowy.',
+  settingsImageStyle: 'Styl graficzny ilustracji',
+  settingsBookLayout: 'Styl tekstu (krój pisma i układ)',
+  settingsSaved: '✓ Zapisano',
+  settingsSaveErr: 'Nie udało się zapisać ustawienia.',
+  yourNameSelf: 'Twoje imię i nazwisko *',
+  euDoneBody: 'Twoja historia życia została zapisana. Możesz wrócić w każdej chwili i opowiadać dalej.',
 }
 
 const EN = {
@@ -313,6 +333,16 @@ ${url}
   txToggleLabel: 'Show transcript & correction options',
   tabInterview: 'Interview',
   tabPhoto: 'Photos',
+  // Life’s work / end user
+  tabSettings: 'Settings',
+  settingsTitle: 'Settings for your book',
+  settingsIntro: 'You can change how your book will look at any time. These settings affect the finished book, not the conversation.',
+  settingsImageStyle: 'Graphic style of the images',
+  settingsBookLayout: 'Text style (typography & design)',
+  settingsSaved: '✓ Saved',
+  settingsSaveErr: 'The setting could not be saved.',
+  yourNameSelf: 'Your name *',
+  euDoneBody: 'Your life story has been saved. You can come back and continue at any time.',
 }
 
 const UI = { de: DE, pl: PL, en: EN }
@@ -330,6 +360,7 @@ const CONTRIB = {
     company:       { nounBook: 'księga jubileuszowa', heading: 'Twój wkład', introNoun: 'Księga jubileuszowa dla', relationshipLabel: 'Twój związek z {name} *', relationshipPlaceholder: 'np. pracowniczka, założyciel, członek, klientka …', relationshipHint: 'Z Twojej perspektywy: jak jesteś związany z {name}? Wpisz swoją rolę – np. „pracowniczka", „założyciel", „członek" lub „klientka".', consentNoun: 'księgi jubileuszowej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
     newborn:       { nounBook: 'księga powitalna', heading: 'Twoje życzenia', introNoun: 'Księga powitalna dla', relationshipLabel: 'Twoja relacja z rodziną *', relationshipPlaceholder: 'np. babcia, wujek, przyjaciółka rodziców …', relationshipHint: 'Z Twojej perspektywy: kim jesteś dla dziecka i jego rodziny? Wpisz swoją rolę – np. „babcia", „wujek" lub „przyjaciółka rodziców".', consentNoun: 'księgi powitalnej', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
     encouragement: { nounBook: 'księga otuchy', heading: 'Twoja wiadomość', introNoun: 'Księga otuchy dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. siostra, przyjaciel, koleżanka …', relationshipHint: 'Z Twojej perspektywy: kim jesteś dla osoby {name}? Wpisz swoją rolę – np. „siostra", „przyjaciel" lub „koleżanka".', consentNoun: 'księgi otuchy', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
+    lifework:      { nounBook: 'dzieło życia', heading: 'Twoja historia życia', introNoun: 'Dzieło życia:', consentNoun: 'mojego dzieła życia (autobiografii)', interviewButton: '🎙 Rozpocznij rozmowę →' },
   },
   en: {
     memorial:      { nounBook: 'memorial book', heading: 'Your memory', introNoun: 'Memorial book for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. daughter, friend, colleague, neighbour …', relationshipHint: 'From your perspective: who are you to {name}? Enter your own role – e.g. “daughter” or “son” (meaning “I am {name}’s daughter / son”).', consentNoun: 'memorial book', interviewButton: '🎙 Start voice interview →' },
@@ -340,6 +371,7 @@ const CONTRIB = {
     company:       { nounBook: 'anniversary book', heading: 'Your contribution', introNoun: 'Anniversary book for', relationshipLabel: 'Your connection to {name} *', relationshipPlaceholder: 'e.g. employee, founder, member, customer …', relationshipHint: 'From your perspective: how are you connected to {name}? Enter your role – e.g. “employee”, “founder”, “member” or “customer”.', consentNoun: 'anniversary book', interviewButton: '🎙 Start voice interview →' },
     newborn:       { nounBook: 'welcome book', heading: 'Your wishes', introNoun: 'Welcome book for', relationshipLabel: 'Your relationship to the family *', relationshipPlaceholder: 'e.g. grandma, uncle, friend of the parents …', relationshipHint: 'From your perspective: who are you to the child and its family? Enter your role – e.g. “grandma”, “uncle” or “friend of the parents”.', consentNoun: 'welcome book', interviewButton: '🎙 Start voice interview →' },
     encouragement: { nounBook: 'book of encouragement', heading: 'Your message', introNoun: 'Book of encouragement for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. sister, friend, colleague …', relationshipHint: 'From your perspective: who are you to {name}? Enter your own role – e.g. “sister”, “friend” or “colleague”.', consentNoun: 'book of encouragement', interviewButton: '🎙 Start voice interview →' },
+    lifework:      { nounBook: 'life’s work', heading: 'Your life story', introNoun: 'Life’s work of', consentNoun: 'life’s work (autobiography)', interviewButton: '🎙 Start the conversation →' },
   },
 }
 

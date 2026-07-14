@@ -144,6 +144,8 @@ const EMPTY_CREATE = {
   catalogId: '', followups: 7,
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
+  // nur Kategorie Lebenswerk
+  enduserEmail: '', aiQuestions: false,
 }
 
 
@@ -493,10 +495,14 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       sessionStorage.setItem('lw_admin_token', d.token)
-      const authInfo = { admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username }
+      const authInfo = {
+        admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username,
+        // Endnutzer (Lebenswerk): kein Dashboard, sondern direkt das eigene Interview.
+        enduser: Boolean(d.enduser), code: d.code || null,
+      }
       sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
       setToken(d.token); setAuth(authInfo)
-      await loadMemorials(d.token)
+      if (!authInfo.enduser) await loadMemorials(d.token)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -741,13 +747,28 @@ function Dashboard() {
   // überschrieben von den im Dashboard gepflegten Standardwerten (falls geladen).
   function freshCreateForm(slug) {
     const d = bookDefaults || {}
-    return {
+    const base = {
       ...EMPTY_CREATE,
       ...d,
       productCategory: slug,
       intake: {},
       pickupAddress: { ...EMPTY_PICKUP, ...(d.pickupAddress || {}) },
       languages: d.languages?.length ? [...d.languages] : [DEFAULT_LANGUAGE],
+    }
+    if (slug !== 'lifework') return base
+    // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
+    // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,
+    // keine Mitwirkenden-Liste (es erzählt nur ein Mensch).
+    return {
+      ...base,
+      bookVariant: 2,
+      cutoffDays: 0,
+      showIntroVideo: false,
+      showTranscript: false,
+      showContributors: false,
+      photoUploadTab: true,
+      enduserEmail: '',
+      aiQuestions: false,
     }
   }
 
@@ -793,6 +814,10 @@ function Dashboard() {
         followups: createForm.followups,
         imageStyle: createForm.imageStyle || DEFAULT_IMAGE_STYLE,
         bookLayout: createForm.bookLayout || DEFAULT_BOOK_LAYOUT,
+        // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
+        // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
+        enduserEmail: createForm.enduserEmail?.trim() || null,
+        aiQuestions: createForm.aiQuestions === true,
       })
       setCreatedCode(code)
       setView('created')
@@ -2347,6 +2372,14 @@ function Dashboard() {
   ) : null
 
 
+  // ── ENDNUTZER (Lebenswerk) ──
+  // Kein Dashboard: Wer als Endnutzer eingeloggt ist, landet direkt in seinem
+  // eigenen Interview — Sprachwahl (falls der Admin keine Sprache gesetzt hat),
+  // dann Angaben zur Person, dann das Gespräch.
+  if (token && auth.enduser && auth.code) {
+    return <ContributorFlow code={auth.code} endUserToken={token} />
+  }
+
   // ── LOGIN ──
   if (view === 'login') return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
@@ -2509,8 +2542,10 @@ function InviteFlow({ token }) {
       sessionStorage.setItem('lw_admin_token', d.token)
       sessionStorage.setItem('lw_admin_auth', JSON.stringify({
         admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username,
+        // Endnutzer landen nach dem Einlösen direkt in ihrem Interview, nicht im Dashboard.
+        enduser: Boolean(d.enduser), code: d.code || null,
       }))
-      // Ohne ?invite neu laden – das Dashboard liest den Token aus sessionStorage.
+      // Ohne ?invite neu laden – die Sitzung wird aus sessionStorage gelesen.
       window.location.href = '/'
     } catch (e) { setErr(e.message); setBusy(false) }
   }

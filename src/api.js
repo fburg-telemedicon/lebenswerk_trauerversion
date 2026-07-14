@@ -24,13 +24,26 @@ async function parseResponse(res) {
 // Anlage läuft jetzt authentifiziert über den Admin-Endpoint, damit
 // Produktkategorie + Eigentümer-Gruppe serverseitig vertrauenswürdig
 // gesetzt werden können.
-export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout }) {
+export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail, aiQuestions }) {
   const res = await fetch('/api/admin/memorials', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail, aiQuestions }),
   })
+  // Lebenswerk zusätzlich: { enduser_id, invite_token, email_sent }
   return parseResponse(res) // { code }
+}
+
+// ── Endnutzer (Lebenswerk) ────────────────────────────────────────
+// Der Endnutzer darf an SEINEM Buch nur Grafik- und Textstil ändern; der Server
+// prüft das über den `eu`-Claim seines Tokens.
+export async function updateOwnMemorial(token, code, { imageStyle, bookLayout } = {}) {
+  const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ imageStyle, bookLayout }),
+  })
+  return parseResponse(res) // { ok }
 }
 
 // ── Buch-Standardwerte ────────────────────────────────────────────

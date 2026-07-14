@@ -4,6 +4,13 @@
 //
 // Beides nutzt denselben Link `?invite=TOKEN`: Das Einlösen setzt ein (neues)
 // Passwort – für die Erst-Einladung wie für den Reset identisch.
+//
+// kind:
+//   'invite'  – Manager-Zugang zum Dashboard (Standard)
+//   'reset'   – Passwort zurücksetzen
+//   'enduser' – Einladung eines ENDNUTZERS zu seinem eigenen Lebenswerk. Kein
+//               Dashboard, sondern das persönliche Interview; die Mail ist in der
+//               Sprache, die der Admin für ihn gewählt hat (de/pl/en).
 
 const { sendMail } = require('./graphmail')
 
@@ -24,30 +31,81 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 }
 
-function buildHtml({ heading, intro, url }) {
+// Texte je Mail-Art und Sprache. Nur die Endnutzer-Einladung ist mehrsprachig —
+// Manager arbeiten im deutschen Dashboard.
+const TEXTS = {
+  invite: {
+    de: {
+      subject: 'Ihr Zugang zu Lebensgeschichten',
+      heading: 'Willkommen bei Lebensgeschichten',
+      intro: 'Für Sie wurde ein Zugang zum Lebensgeschichten-Dashboard angelegt. Über den folgenden Link vergeben Sie Ihr Passwort und schließen die Einrichtung ab:',
+      button: 'Passwort festlegen',
+      fallback: 'Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:',
+      footer: 'Der Link ist zeitlich begrenzt gültig. Falls Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren.',
+    },
+  },
+  reset: {
+    de: {
+      subject: 'Passwort zurücksetzen – Lebensgeschichten',
+      heading: 'Passwort zurücksetzen',
+      intro: 'Sie haben angefordert, Ihr Passwort zurückzusetzen. Über den folgenden Link vergeben Sie ein neues Passwort:',
+      button: 'Passwort festlegen',
+      fallback: 'Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:',
+      footer: 'Der Link ist zeitlich begrenzt gültig. Falls Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren.',
+    },
+  },
+  enduser: {
+    de: {
+      subject: 'Ihr Lebenswerk – Ihr persönlicher Zugang',
+      heading: 'Willkommen zu Ihrem Lebenswerk',
+      intro: 'Für Sie wurde ein persönlicher Zugang angelegt, über den Sie Ihre eigene Lebensgeschichte erzählen. Ein KI-Interviewer begleitet Sie in Ruhe durch Ihre Erinnerungen – Sie bestimmen selbst, wann und wie lange Sie erzählen; Ihre Antworten werden automatisch gespeichert. Am Ende entsteht daraus Ihre Autobiographie. Über den folgenden Link vergeben Sie zunächst Ihr Passwort:',
+      button: 'Passwort festlegen und beginnen',
+      fallback: 'Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:',
+      footer: 'Der Link ist zeitlich begrenzt gültig. Falls Sie dies nicht erwarten, können Sie diese E-Mail ignorieren.',
+    },
+    pl: {
+      subject: 'Twoje dzieło życia – Twój osobisty dostęp',
+      heading: 'Witamy w Twoim dziele życia',
+      intro: 'Utworzyliśmy dla Ciebie osobisty dostęp, dzięki któremu opowiesz historię swojego życia. Prowadzący rozmowę asystent AI spokojnie przeprowadzi Cię przez Twoje wspomnienia – sam(a) decydujesz, kiedy i jak długo opowiadasz; Twoje odpowiedzi zapisują się automatycznie. Na koniec powstanie z nich Twoja autobiografia. Pod poniższym linkiem ustawisz najpierw swoje hasło:',
+      button: 'Ustaw hasło i zacznij',
+      fallback: 'Jeśli przycisk nie działa, skopiuj ten link do przeglądarki:',
+      footer: 'Link jest ważny przez ograniczony czas. Jeśli się tego nie spodziewasz, zignoruj tę wiadomość.',
+    },
+    en: {
+      subject: 'Your life’s work – your personal access',
+      heading: 'Welcome to your life’s work',
+      intro: 'A personal account has been created for you, through which you can tell the story of your own life. An AI interviewer will guide you gently through your memories – you decide when and for how long you talk, and your answers are saved automatically. In the end, your autobiography emerges from them. Use the link below to set your password first:',
+      button: 'Set password and begin',
+      fallback: 'If the button does not work, copy this link into your browser:',
+      footer: 'The link is valid for a limited time. If you were not expecting this, you can ignore this email.',
+    },
+  },
+}
+
+function pickText(kind, lang) {
+  const byLang = TEXTS[kind] || TEXTS.invite
+  return byLang[lang] || byLang.de
+}
+
+function buildHtml({ heading, intro, url, button, fallback, footer, lang }) {
   const safeUrl = esc(url)
-  return `<!doctype html><html lang="de"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+  return `<!doctype html><html lang="${esc(lang)}"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
   <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
     <h1 style="font-size:20px;font-weight:700;margin:0 0 14px;">${esc(heading)}</h1>
     <p style="font-size:15px;line-height:1.6;margin:0 0 20px;color:#44403c;">${esc(intro)}</p>
-    <p style="margin:0 0 24px;"><a href="${safeUrl}" style="display:inline-block;background:#1c1917;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;">Passwort festlegen</a></p>
-    <p style="font-size:12px;line-height:1.6;color:#78716c;margin:0 0 6px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:</p>
+    <p style="margin:0 0 24px;"><a href="${safeUrl}" style="display:inline-block;background:#1c1917;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;">${esc(button)}</a></p>
+    <p style="font-size:12px;line-height:1.6;color:#78716c;margin:0 0 6px;">${esc(fallback)}</p>
     <p style="font-size:12px;line-height:1.6;word-break:break-all;margin:0 0 24px;"><a href="${safeUrl}" style="color:#57534e;">${safeUrl}</a></p>
-    <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">Der Link ist zeitlich begrenzt gültig. Falls Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren.<br>— Lebensgeschichten</p>
+    <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">${esc(footer)}<br>— Lebensgeschichten</p>
   </div></body></html>`
 }
 
-// kind: 'invite' (Erst-Einladung) | 'reset' (Passwort zurücksetzen)
-async function sendAccessMail({ to, url, kind = 'invite' }) {
-  const isReset = kind === 'reset'
-  const subject = isReset ? 'Passwort zurücksetzen – Lebensgeschichten' : 'Ihr Zugang zu Lebensgeschichten'
-  const heading = isReset ? 'Passwort zurücksetzen' : 'Willkommen bei Lebensgeschichten'
-  const intro = isReset
-    ? 'Sie haben angefordert, Ihr Passwort zurückzusetzen. Über den folgenden Link vergeben Sie ein neues Passwort:'
-    : 'Für Sie wurde ein Zugang zum Lebensgeschichten-Dashboard angelegt. Über den folgenden Link vergeben Sie Ihr Passwort und schließen die Einrichtung ab:'
-  const text = `${heading}\n\n${intro}\n\n${url}\n\nDer Link ist zeitlich begrenzt gültig. Falls Sie dies nicht angefordert haben, ignorieren Sie diese E-Mail.\n\n— Lebensgeschichten`
-  const html = buildHtml({ heading, intro, url })
-  return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
+// kind: 'invite' | 'reset' | 'enduser';  lang: 'de' | 'pl' | 'en' (nur enduser)
+async function sendAccessMail({ to, url, kind = 'invite', lang = 'de' }) {
+  const t = pickText(kind, lang)
+  const text = `${t.heading}\n\n${t.intro}\n\n${url}\n\n${t.footer}\n\n— Lebensgeschichten`
+  const html = buildHtml({ ...t, url, lang })
+  return sendMail({ to, subject: t.subject, text, html, replyTo: REPLY_TO, bcc: BCC })
 }
 
 module.exports = { sendAccessMail, baseUrl, inviteLink }

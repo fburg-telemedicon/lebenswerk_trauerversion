@@ -508,6 +508,150 @@ Beiträge:\n\n${blocks(contributions)}`
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// LEBENSWERK — Autobiographie: der Erzähler IST die Hauptperson
+// ════════════════════════════════════════════════════════════════
+// Alle übrigen Kategorien sammeln Beiträge DRITTER über eine Person. Beim
+// Lebenswerk erzählt der „Endnutzer" sein eigenes Leben — Rolle, Perspektive und
+// Buchaufbau unterscheiden sich dadurch grundlegend, deshalb eigene Prompts
+// statt eines PROFILES-Eintrags. Es gibt nur Variante 2 (durchkomponierte
+// Autobiographie); eine Variante 1 (ein Beitrag = ein Kapitel) ergäbe bei einem
+// einzigen Erzähler kein Buch.
+
+function lifeworkInterview(memorial, name, rel, address, contributorGender) {
+  const addr = addressRule(address)
+  const gen = contributorGenderRule(contributorGender)
+  const cb = catalogBlock(memorial)
+  const flow = cb
+    ? catalogRules(cb, name)
+    : `- WICHTIG: Bohre nicht endlos. Höchstens ZWEI vertiefende Nachfragen zu einer Antwort. Danach wechsle zu einem neuen Lebensabschnitt oder Thema.
+- Arbeite dich locker durch das ganze Leben: Kindheit, Familie, Schule, Jugend, Ausbildung/Studium, Beruf, Liebe und Partnerschaft, eigene Familie, Freundschaften, Hobbys und Leidenschaften, Reisen, Werte und Überzeugungen, Krisen und Wendepunkte, Stolz und Glück, Lebensweisheiten, Vermächtnis — wähle pro neuer Frage ein anderes Feld.`
+  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Interview mit ${name} über ${address === 'Du' ? 'dein' : 'Ihr'} EIGENES Leben — daraus entsteht ${name}s Autobiographie.
+
+Ziel: Die Lebensgeschichte in konkreten Erinnerungen, Szenen und Geschichten einfangen — so, wie ${name} sie selbst erzählt.
+
+Regeln:
+- ${addr}${gen ? `\n- ${gen}` : ''}
+- Du sprichst mit der Hauptperson SELBST. Frage nach ${address === 'Du' ? 'deinen' : 'Ihren'} eigenen Erlebnissen, Gefühlen und Gedanken — nicht danach, wie andere die Person sehen.
+- Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
+- Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
+- Frage nach konkreten Erlebnissen, Szenen und Menschen, nicht nach Allgemeinem
+- Sei geduldig und wertschätzend; es gibt kein Zeitlimit und keine Reihenfolgepflicht
+- ${THIRD_PARTY_RULE}
+${interviewGreetingRule(name)}
+${interviewScopeRule(name)}
+${flow}
+- Schreibe auf Deutsch`
+}
+
+// Die Autobiographie speist sich aus EINEM Erzähler; „contributions" ist hier
+// faktisch das eine (lange) Interview. Umfang skaliert wie gehabt mit der Textmenge.
+function lifeworkV2Outline(memorial, contributions) {
+  const sc = v2Scale(contributions)
+  return `Du bist ein erfahrener Biograph. Aus dem folgenden Interview, das ${memorial.name} über das eigene Leben gegeben hat, planst du eine Autobiographie.
+
+Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel entlang der Lebensstationen (z. B. Kindheit, Jugend und Schulzeit, Aufbruch ins Erwachsenenleben, Beruf, Liebe und Familie, Leidenschaften, Krisen und Wendepunkte, Werte, Vermächtnis). Wähle nur Kapitel, die das Interview inhaltlich tatsächlich hergibt. Die Kapitel-TEXTE werden später separat geschrieben.
+
+Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
+{
+  "title": "Gesamttitel des Buches",
+  "subtitle": "Untertitel des Buches",
+  "chapters": [
+    { "number": 1, "heading": "Überschrift", "themes": "2–4 Sätze: welche konkreten Erinnerungen aus dem Interview gehören in DIESES Kapitel — als Anweisung für das spätere Schreiben." }
+  ]
+}
+
+Regeln:
+- Genau ${sc.chapters} Kapitel, chronologisch sortiert (früh → spät); rein thematische Kapitel (Werte, Vermächtnis) dürfen ans Ende
+- "heading": kurz und prägnant (1–3 Wörter)
+- "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen hier behandelt werden
+- "title" persönlich und würdevoll, bezogen auf das Leben von ${memorial.name}
+- "subtitle" knapp, ergänzt den Titel
+- Auf Deutsch
+- Gültiges JSON, keine trailing commas
+
+Interview:\n\n${blocks(contributions)}`
+}
+
+function lifeworkV2Chapter(memorial, contributions, plan) {
+  const sc = v2Scale(contributions)
+  return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel der Autobiographie von ${memorial.name}.
+
+Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
+Inhaltliche Schwerpunkte für dieses Kapitel:
+${plan.themes || '(keine spezifischen Schwerpunkte aus dem Gerüst)'}
+
+Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Codeblock, keine Erklärungen):
+{
+  "number": ${plan.number},
+  "heading": ${JSON.stringify(plan.heading || '')},
+  "body": "Fließtext …",
+  "image_prompt": "English image description; the person in a scene from this chapter, set in the correct historical period"
+}
+
+Regeln:
+- "body": ${sc.min}–${sc.max} Wörter, ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person
+- Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"
+- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
+- Alles auf Deutsch (außer image_prompt)
+- Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
+
+Interview:\n\n${blocks(contributions)}`
+}
+
+// ── Pflegeexzerpt (Nebenprodukt des Lebenswerks) ──────────────────
+// Zweiseitige Zusammenfassung für die Pflegeakte. Auswahlkriterium für jeden
+// Abschnitt: Hilft die Information einer Pflegekraft, diesen Menschen BESSER zu
+// pflegen — Zugang finden, Verhalten verstehen, Würde und Selbstbestimmung
+// wahren? Reine Anekdoten ohne Pflegerelevanz gehören NICHT hinein.
+const LIFEWORK_CARE_STYLES = [
+  {
+    key: 'sachlich', title: 'Sachlich-strukturiert', sub: 'Knapp, für die Akte',
+    instruction: 'Sachlich-strukturiert: nüchterne, dichte Fachsprache für die Pflegeakte. Kurze Sätze, Aufzählungscharakter im Fließtext, keine Ausschmückung — jede Zeile muss praktisch verwertbar sein.',
+  },
+  {
+    key: 'personenzentriert', title: 'Personenzentriert', sub: 'Sachlich, aber mit Menschenbild',
+    instruction: 'Personenzentriert: sachlich und knapp, aber so formuliert, dass die Pflegekraft den Menschen dahinter erkennt. Fakten zuerst, jeweils mit dem kurzen biografischen Grund, warum das für die Pflege zählt.',
+  },
+]
+
+const LIFEWORK_CARE_SECTIONS = [
+  { key: 'person', label: 'Person und Lebensweg in Kürze', greets: false,
+    brief: 'Wer ist dieser Mensch: Herkunft, prägende Lebensstationen, Beruf, Rollen (z. B. Mutter, Handwerker, Leitung). Nur das, was hilft, ihn einzuordnen und mit ihm ins Gespräch zu kommen. Ca. 90–140 Wörter.' },
+  { key: 'ansprache', label: 'Ansprache, Sprache und Kommunikation', greets: false,
+    brief: 'Wie möchte die Person angesprochen werden (Anrede, Namensform, Du/Sie)? Sprache(n), Dialekt, Humor, Gesprächsstil; Themen, über die sie gern spricht und die Zugang schaffen. Ca. 70–110 Wörter.' },
+  { key: 'alltag', label: 'Gewohnheiten, Tagesstruktur und Vorlieben', greets: false,
+    brief: 'Gewohnter Tagesablauf, Schlaf- und Essgewohnheiten, Vorlieben und Abneigungen (Essen, Musik, Rituale, Ordnung, Nähe/Distanz, Kleidung). Alles, was Alltag und Pflegehandlungen erleichtert. Ca. 90–140 Wörter.' },
+  { key: 'ressourcen', label: 'Ressourcen und was Freude macht', greets: false,
+    brief: 'Interessen, Hobbys, Fähigkeiten, Musik, Orte, Tiere, Glaube — konkrete Anknüpfungspunkte, mit denen sich die Person aktivieren, beruhigen und motivieren lässt. Ca. 80–120 Wörter.' },
+  { key: 'belastung', label: 'Belastende Themen und Umgang in Krisen', greets: false,
+    brief: 'Biografisch begründete Belastungen, Verluste und heikle Themen; woran sich Unruhe oder Rückzug entzünden kann und was in schwierigen Momenten erfahrungsgemäß hilft (Trost, Nähe, Rückzug, Musik, Gespräch). Sachlich, ohne Diagnosen zu erfinden. Ca. 90–140 Wörter.' },
+  { key: 'werte', label: 'Werte, Würde und Selbstbestimmung', greets: false,
+    brief: 'Werte, Glaube, Haltung zu Selbstständigkeit, Scham und Hilfe; was der Person Würde bedeutet und worauf sie in der Pflege Wert legt. Ca. 70–110 Wörter.' },
+]
+
+function lifeworkCareSection(memorial, contributions, section, styleInstruction) {
+  const styleBlock = styleInstruction
+    ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n`
+    : ''
+  return `Du bist eine erfahrene Pflegefachkraft mit biografischer Ausbildung. Du erstellst aus der Autobiographie von ${memorial.name} ein PFLEGEEXZERPT: eine zweiseitige Zusammenfassung, die Bestandteil der Pflegeakte wird und Pflegenden hilft, diesen Menschen besser zu verstehen und zu pflegen.
+
+DIESER ABSCHNITT: „${section.label}"
+${section.brief}
+${styleBlock}
+Anforderungen:
+- Schreibe AUSSCHLIESSLICH über ${memorial.name} in der dritten Person
+- NUR pflegerelevante Informationen: Was ändert das Handeln am Bett, im Gespräch, im Tagesablauf? Anekdoten ohne Nutzen für die Pflege lässt du weg
+- Stütze dich AUSSCHLIESSLICH auf das Interview. Erfinde nichts, vermute nichts. Was das Interview nicht hergibt, wird nicht behauptet — fehlt eine Angabe, benenne die Lücke in einem knappen Halbsatz („keine Angaben zu …") statt sie zu füllen
+- KEINE medizinischen Diagnosen, keine Therapieempfehlungen, keine Medikation — du bist Biograph, nicht Behandler
+- Konkret statt allgemein: „hört morgens gern Blasmusik" statt „mag Musik"
+- Absätze durch eine Leerzeile (\\n\\n) trennen
+- Auf Deutsch
+- Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. Keine Überschrift, keine Metakommentare, kein Markdown.
+
+Interview:\n\n${blocks(contributions)}`
+}
+
 // ── Profile + Endtext-Stile/-Abschnitte je Nicht-Trauer-Kategorie ──
 const FOUR_GREETS = (g1, l2, b2, l3, b3, l4, b4) => [g1, { label: l2, brief: b2, greets: false }, { label: l3, brief: b3, greets: false }, { label: l4, brief: b4, greets: false }]
 
@@ -908,9 +1052,47 @@ export const CATEGORIES = {
       consentNoun: 'Mutmachbuchs', interviewButton: '🎙 Sprach-Interview beginnen →',
     },
   }),
+
+  lifework: {
+    slug: 'lifework',
+    label: 'Lebenswerk',
+    icon: '🌳',
+    description: 'Autobiographie: Der Mensch erzählt sein eigenes Leben – mit eigenem Zugang, im eigenen Tempo.',
+    nounBook: 'Lebenswerk',
+    intake: {
+      subjectLabel: 'Name des Endnutzers *',
+      subjectPlaceholder: 'Vollständiger Name',
+      useGender: false,        // Das Geschlecht gibt der Endnutzer selbst an.
+      useDate: false,          // Kein Anlass, kein Anlass-Datum.
+      useCutoff: false,        // Keine Frist — der Endnutzer bestimmt sein Tempo.
+      useEnduser: true,        // Stattdessen: E-Mail-Adresse + Sprache (Einladung).
+      extra: [],
+      createHeading: 'Neues Lebenswerk anlegen',
+      createIntro: 'Der Endnutzer erhält per E-Mail einen persönlichen Zugang und erzählt darüber seine Lebensgeschichte.',
+      createButton: 'Lebenswerk anlegen →',
+    },
+    contributor: {
+      heading: 'Ihre Lebensgeschichte',
+      introNoun: 'Lebenswerk von',
+      consentNoun: 'Lebenswerks',
+      interviewButton: '🎙 Interview beginnen →',
+    },
+    interviewSystem: lifeworkInterview,
+    generators: {
+      // Lebenswerk kennt nur Variante 2. book_v1 zeigt bewusst auf dieselben
+      // Builder, damit nichts bricht, falls irgendwo doch V1 angefragt wird —
+      // angeboten wird sie nicht (BOOK_VARIANTS filtert sie heraus).
+      book_v1: { label: 'Autobiographie', filename: 'Lebenswerk', outlineSystem: lifeworkV2Outline, chapterSystem: lifeworkV2Chapter },
+      book_v2: { label: 'Autobiographie', filename: 'Lebenswerk', outlineSystem: lifeworkV2Outline, chapterSystem: lifeworkV2Chapter },
+    },
+    finalText: {
+      label: 'Pflegeexzerpt', filename: 'Pflegeexzerpt', noun: 'Pflegeexzerpt',
+      styles: LIFEWORK_CARE_STYLES, sections: LIFEWORK_CARE_SECTIONS, sectionSystem: lifeworkCareSection,
+    },
+  },
 }
 
-export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement', 'lifework']
 
 // Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
 export const CATEGORY_COLORS = {
@@ -922,6 +1104,7 @@ export const CATEGORY_COLORS = {
   company:       '#7c3aed', // Violett (Dienstjubiläum)
   newborn:       '#16a34a', // Frisches Grün (Geburt)
   encouragement: '#db2777', // Pink (Mutmachbuch)
+  lifework:      '#15803d', // Tiefes Grün (Lebenswerk/Baum)
 }
 
 export function categoryColor(slug) {

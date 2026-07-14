@@ -8,16 +8,52 @@
 
 const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
+const { checkAuth } = require('./_lib/auth')
+const { normalizeStyle } = require('./_lib/image-styles')
+const { normalizeLayout } = require('./_lib/book-layouts')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 )
 
+// PATCH /api/memorial?code=ABC123  { imageStyle?, bookLayout? }
+// Der EINSTELLUNGS-Tab des Endnutzers (Kategorie Lebenswerk): Er darf Grafikstil
+// und Buchlayout SEINES eigenen Buchs ändern — mehr nicht. Autorisiert allein der
+// `eu`-Claim seines Tokens (der Buch-Code); ein fremder Code wird abgewiesen.
+async function handleEnduserPatch(req, res, code) {
+  if (!checkAuth(req, res)) return
+  if (!req.auth.eu || req.auth.eu !== code) {
+    return res.status(403).json({ error: 'Kein Zugriff auf dieses Buch.' })
+  }
+  const { imageStyle, bookLayout } = req.body || {}
+  const update = {}
+  if (imageStyle !== undefined) {
+    const s = normalizeStyle(imageStyle)
+    if (!s) return res.status(400).json({ error: 'Unbekannter Grafikstil.' })
+    update.image_style = s
+  }
+  if (bookLayout !== undefined) {
+    const l = normalizeLayout(bookLayout)
+    if (!l) return res.status(400).json({ error: 'Unbekanntes Buchlayout.' })
+    update.book_layout = l
+  }
+  if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Änderung übergeben.' })
+  const { error } = await supabase.from('memorials').update(update).eq('id', code)
+  if (error) throw error
+  return res.json({ ok: true, ...update })
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   try {
+    if (req.method === 'PATCH') {
+      const code = (req.query.code || '').toUpperCase().trim()
+      if (!code) return res.status(400).json({ error: 'Code fehlt.' })
+      return await handleEnduserPatch(req, res, code)
+    }
+
     if (req.method === 'GET') {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'Code fehlt.' })
@@ -33,8 +69,10 @@ module.exports = async function handler(req, res) {
       // ALLER Beitragenden und dürfen nicht über den öffentlichen, nur per
       // 6-stelligem Code geschützten Endpunkt nach außen gelangen. Auch
       // intake (kategorie-spezifische Notizen) und owner_user bleiben intern.
+      // image_style/book_layout sind für den Einstellungs-Tab des Endnutzers nötig
+      // (Kategorie Lebenswerk); sie verraten nichts über die Inhalte des Buchs.
       const PUBLIC_FIELDS =
-        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, created_at'
+        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, created_at'
       const { data, error } = await supabase
         .from('memorials').select(PUBLIC_FIELDS).eq('id', code).single()
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })

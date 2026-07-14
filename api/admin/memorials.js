@@ -11,6 +11,9 @@ const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memor
 const { genCode } = require('../_lib/codes')
 const { normalizeStyle, DEFAULT_STYLE } = require('../_lib/image-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
+const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
+const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
+const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -372,7 +375,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail, aiQuestions } = req.body || {}
       if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
@@ -380,29 +383,51 @@ module.exports = async function handler(req, res) {
         return res.status(403).json({ error: 'Keine Berechtigung für diese Produktkategorie.' })
       }
 
+      const isLifework = category === LIFEWORK
+      const email = String(enduserEmail || '').trim()
+      if (isLifework) {
+        if (!email) return res.status(400).json({ error: 'Für ein Lebenswerk wird die E-Mail-Adresse des Endnutzers benötigt.' })
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse des Endnutzers angeben.' })
+        await ensureLifeworkSchema()
+      }
+
       const ALLOWED_LANGS = ['de', 'pl', 'en']
       let langs = Array.isArray(languages) ? [...new Set(languages.filter(l => ALLOWED_LANGS.includes(l)))] : []
       if (langs.length === 0) langs = ['de']
+      // Lebenswerk: Der Admin legt EINE Sprache fest — oder keine, dann wählt der
+      // Endnutzer beim ersten Start selbst (dafür müssen alle Sprachen offenstehen).
+      const euLang = isLifework && Array.isArray(languages) && languages.length === 1 ? langs[0] : null
+      if (isLifework) langs = euLang ? [euLang] : [...ALLOWED_LANGS]
+
+      // Lebenswerk-Standardkatalog (12 Sitzungen à 10 Fragen), sofern der Admin
+      // nicht ausdrücklich auf KI-generierte Fragen umgestellt hat.
+      let catalog = catalogId || null
+      if (isLifework) catalog = aiQuestions === true ? null : (catalogId || await ensureLifeworkCatalog(supabase))
 
       const code = genCode()
-      const variant = (bookVariant === 2 || bookVariant === '2') ? 2 : 1
+      // Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie).
+      const variant = isLifework ? 2 : ((bookVariant === 2 || bookVariant === '2') ? 2 : 1)
       let days = parseInt(cutoffDays, 10)
       if (!Number.isFinite(days) || days < 0) days = 7
       const insertRow = {
         id: code, name, organizer, gender: gender || null, book_variant: variant,
-        funeral_date: funeralDate || null,
-        cutoff_days: days,
-        show_intro_video: showIntroVideo !== false,
-        show_transcript: showTranscript !== false,
-        show_contributors: showContributors !== false,
-        photo_upload_tab: photoUploadTab === true,
+        // Lebenswerk: kein Anlass-Datum, keine Erfassungsfrist — der Endnutzer
+        // bestimmt selbst, wie schnell er erzählt.
+        funeral_date: isLifework ? null : (funeralDate || null),
+        cutoff_days: isLifework ? 0 : days,
+        show_intro_video: isLifework ? false : showIntroVideo !== false,
+        // Transkript-Umschalter bleibt sichtbar, startet aber ausgeschaltet.
+        show_transcript: isLifework ? false : showTranscript !== false,
+        // Es gibt nur einen Erzähler — eine Mitwirkenden-Liste ergibt keinen Sinn.
+        show_contributors: isLifework ? false : showContributors !== false,
+        photo_upload_tab: isLifework ? true : photoUploadTab === true,
         product_category: category,
         owner_user: req.auth.admin ? null : (req.auth.uid || null),
         intake: intake && typeof intake === 'object' ? intake : null,
         languages: langs,
         note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
         pickup_address: sanitizePickupAddress(pickupAddress),
-        catalog_id: catalogId || null,
+        catalog_id: catalog,
         followups: sanitizeFollowups(followups),
         image_style: normalizeStyle(imageStyle) || DEFAULT_STYLE,
         book_layout: normalizeLayout(bookLayout) || DEFAULT_BOOK_LAYOUT,
@@ -418,7 +443,47 @@ module.exports = async function handler(req, res) {
       }
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'memorial.create', target: code, detail: { category } })
-      return res.json({ code })
+
+      // Lebenswerk: Konto für den Endnutzer anlegen und ihn per Mail einladen.
+      // Ein Fehlschlag beim Versand darf das bereits angelegte Buch nicht
+      // entwerten — der Admin bekommt stattdessen den Einladungslink zurück.
+      if (!isLifework) return res.json({ code })
+
+      const out = { code }
+      const invite_token = generateInviteToken()
+      const invite_expires = new Date(Date.now() + INVITE_TTL_MS).toISOString()
+      const { data: eu, error: euErr } = await supabase.from('app_users')
+        .insert({
+          username: email,
+          pw_hash: null, pw_salt: null,
+          invite_token, invite_expires,
+          allowed_categories: [],
+          is_admin: false,
+          is_enduser: true,
+          enduser_memorial: code,
+          lang: euLang,
+        })
+        .select('id').single()
+      if (euErr) {
+        // Konto konnte nicht angelegt werden (z. B. Adresse bereits vergeben) —
+        // Buch wieder entfernen, sonst stünde ein Lebenswerk ohne Erzähler da.
+        await supabase.from('memorials').delete().eq('id', code)
+        if (euErr.code === '23505') return res.status(409).json({ error: 'Für diese E-Mail-Adresse existiert bereits ein Zugang.' })
+        throw euErr
+      }
+      out.enduser_id = eu.id
+      out.invite_token = invite_token
+      await audit(req, { actor: req.auth, action: 'enduser.create', target: eu.id, detail: { code, email, lang: euLang } })
+      try {
+        await sendAccessMail({ to: email, url: inviteLink(req, invite_token), kind: 'enduser', lang: euLang || 'de' })
+        out.email_sent = true
+        await audit(req, { actor: req.auth, action: 'enduser.invite_sent', target: eu.id, detail: { to: email } })
+      } catch (e) {
+        console.error('/api/admin/memorials enduser mail:', e)
+        out.email_sent = false
+        out.email_error = e.message
+      }
+      return res.json(out)
     }
 
     if (req.method === 'DELETE') {
