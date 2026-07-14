@@ -1466,7 +1466,17 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
 //   • Die Größen schwanken (Bedeutung + Streuung), die Höhen sind versetzt.
 //   • Der LEBENSWEG läuft als geschwungene Straße HINTER den Szenen durch und
 //     wird in den Lücken sichtbar — die Szenen liegen an ihm wie Stationen.
-const TILE = { W: 594, H: 420, margin: 12, headH: 36, capH: 29, gapY: 3, foot: 7 }
+// ── Der Lebensweg trägt das Blatt ─────────────────────────────────
+// Zwei Anläufe sind an derselben Stelle gescheitert: Ein Zeilenraster bleibt ein
+// Zeilenraster, auch mit Streuung — und eine Straße, die HINTER dicht gesetzten
+// Kacheln liegt, blitzt nur in Schlitzen durch und wirkt wie ein verirrter Strich.
+//
+// Also umgekehrt: Zuerst existiert die STRASSE. Sie schlängelt sich in drei Bahnen
+// über das Blatt (links→rechts, dann zurück, dann wieder vor — ein Weg, kein
+// Textumbruch). Die Szenen werden AN ihr aufgereiht, abwechselnd links und rechts
+// versetzt, sodass der Weg zwischen ihnen frei bleibt und sichtbar ist. Ihre
+// Beschriftung steht auf der straßenabgewandten Seite, in geprüft freiem Papier.
+const TILE = { W: 594, H: 420, margin: 10, headH: 34, foot: 6 }
 
 // Deterministische Streuung: gleiche Station → gleicher Wert. Kein Zufall, damit
 // Vorschau und PDF identisch sind und ein zweiter Download nicht anders aussieht.
@@ -1475,79 +1485,189 @@ function jitter(s, salt) {
   return (h - Math.floor(h)) * 2 - 1        // −1 … +1
 }
 
+// Die Straße als dichte Punktfolge: drei Bahnen im Zickzack, mit Wellen überlagert
+// und weichen Kehren an den Rändern. Kein Kreis, keine Diagonale — ein Weg.
+function roadPath(lanes = 3) {
+  const x0 = TILE.margin + 14, x1 = TILE.W - TILE.margin - 14
+  const yTop = TILE.headH + 30, yBot = TILE.H - TILE.foot - 34
+  const laneH = (yBot - yTop) / (lanes - 1)
+  const pts = []
+  const STEPS = 120
+  for (let lane = 0; lane < lanes; lane++) {
+    const y = yTop + lane * laneH
+    const fwd = lane % 2 === 0
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS
+      const x = fwd ? x0 + t * (x1 - x0) : x1 - t * (x1 - x0)
+      // Zwei überlagerte Wellen: die Straße schwingt kräftig, ohne sich zu kreuzen.
+      const wob = Math.sin(t * Math.PI * 2.2 + lane * 1.7) * laneH * 0.17
+                + Math.sin(t * Math.PI * 5.1 + lane) * laneH * 0.06
+      pts.push({ x, y: y + wob })
+    }
+    // Kehre an den Rand: halbrunder Bogen hinunter zur nächsten Bahn.
+    if (lane < lanes - 1) {
+      const cx = fwd ? x1 : x0
+      const dir = fwd ? 1 : -1
+      for (let i = 1; i <= 14; i++) {
+        const a = (i / 14) * Math.PI
+        pts.push({
+          x: cx + dir * Math.sin(a) * 11,
+          y: y + laneH * (1 - Math.cos(a)) / 2,
+        })
+      }
+    }
+  }
+  return pts
+}
+
+// Bogenlängen-Tabelle → Punkt + Tangente an beliebiger Stelle des Weges.
+function pathSampler(pts) {
+  const acc = [0]
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y
+    acc.push(acc[i - 1] + Math.hypot(dx, dy))
+  }
+  const total = acc[acc.length - 1]
+  return (t) => {
+    const target = Math.max(0, Math.min(1, t)) * total
+    let i = 1
+    while (i < acc.length - 1 && acc[i] < target) i++
+    const p0 = pts[i - 1], p1 = pts[i]
+    const seg = acc[i] - acc[i - 1] || 1
+    const f = (target - acc[i - 1]) / seg
+    const x = p0.x + (p1.x - p0.x) * f
+    const y = p0.y + (p1.y - p0.y) * f
+    const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1
+    const nx = -(p1.y - p0.y) / len, ny = (p1.x - p0.x) / len   // Normale
+    return { x, y, nx, ny }
+  }
+}
+
+const CAP_H = 16   // Höhe des Textstreifens, den jede Szene mitbringt
+
+const overlaps = (a, b, tol = 0) =>
+  a.x < b.x + b.w - tol && a.x + a.w - tol > b.x && a.y < b.y + b.h - tol && a.y + a.h - tol > b.y
+
 function layoutTiles(data, available) {
   const stations = []
   ;(Array.isArray(data?.sections) ? data.sections : []).forEach((sec, si) =>
     (Array.isArray(sec.stations) ? sec.stations : []).forEach((s, ti) => {
       const key = `${si}:${ti}`
-      // Szenen ohne Bild (die Bild-KI kann eine einzelne verweigern) fallen ganz
-      // raus, statt ein Loch im Blatt zu hinterlassen.
       if (available && !available.has(key)) return
       stations.push({ ...s, si, ti, key, weight: Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1)) })
     }))
   if (!stations.length) return null
 
   const n = stations.length
-  const rows = n <= 6 ? 2 : n <= 15 ? 3 : 4
-  const base = Math.floor(n / rows), rem = n % rows
-  const counts = Array.from({ length: rows }, (_, r) => base + (r < rem ? 1 : 0))
-  const bodyW = TILE.W - 2 * TILE.margin
-  const bodyH = TILE.H - TILE.headH - TILE.foot
-  const rowH = bodyH / rows
-  const maxH = rowH - TILE.capH - TILE.gapY
+  const road = roadPath(n > 9 ? 3 : 2)
+  const at = pathSampler(road)
 
+  // Grundgröße so wählen, dass die Szenen zusammen das Blatt füllen, ohne es zu
+  // ersticken: Fläche/Station, davon Breite bei 3:2.
+  const usable = (TILE.W - 2 * TILE.margin) * (TILE.H - TILE.headH - TILE.foot)
+  const baseW = Math.min(150, Math.sqrt((usable * 0.95 / n) * 1.5))
+
+  const build = (shrink) => {
   const out = []
-  let i = 0
-  counts.forEach((cols, r) => {
-    const row = stations.slice(i, i + cols); i += cols
-    // Breite nach Bedeutung PLUS Streuung. Die Zellen bleiben überschneidungsfrei;
-    // die Szenen darin dürfen über ihre Zelle hinausragen (siehe `bleed`) und sich
-    // an den weichen Rändern überlagern.
-    const ks = row.map(s => (1 + 0.3 * (s.weight - 1)) * (1 + 0.12 * jitter(s, 1)))
-    const sum = ks.reduce((a, b) => a + b, 0)
-    let x = TILE.margin
-    row.forEach((s, c) => {
-      const cellW = bodyW * ks[c] / sum
-      const bleed = 4                                  // Überlappung an den weichen Rändern
-      const w = cellW + bleed
-      const h = Math.min(maxH, maxH * (0.84 + 0.16 * (s.weight - 1) / 2) * (1 + 0.05 * jitter(s, 2)))
-      // Höhenversatz nur innerhalb des Spielraums der Zeile — so bricht die Zeile
-      // optisch auf, aber keine Szene rutscht je in die Textzeile darunter.
-      const slack = (maxH - h) / 2
-      const top = TILE.headH + r * rowH + slack + slack * jitter(s, 3)
-      out.push({
-        ...s, row: r,
-        x: x - bleed / 2, y: top, w, h,
-        cx: x + cellW / 2, cy: top + h / 2,            // Straßenpunkt = Mitte der Szene
-        capX: x, capW: cellW - 2,
-        capY: TILE.headH + r * rowH + maxH + 5.5,      // Textzeile: FEST je Zeile, nie versetzt
-      })
-      x += cellW
-    })
+  stations.forEach((s, i) => {
+    const t = (i + 0.5) / n
+    const p = at(t)
+    const scale = (0.82 + 0.22 * (s.weight - 1)) * (1 + 0.1 * jitter(s, 2)) * shrink
+    const w = baseW * scale
+    const h = w / 1.5
+    const side = i % 2 === 0 ? -1 : 1                       // abwechselnd über/unter dem Weg
+    const off = (h / 2 + 7) * (1 + 0.12 * jitter(s, 4))     // Abstand zur Straßenmitte
+    let cx = p.x + p.nx * off * side
+    let cy = p.y + p.ny * off * side
+    // Auf dem Blatt halten (Rand + Kopfzeile).
+    cx = Math.max(TILE.margin + w / 2, Math.min(TILE.W - TILE.margin - w / 2, cx))
+    cy = Math.max(TILE.headH + h / 2, Math.min(TILE.H - TILE.foot - h / 2, cy))
+    out.push({ ...s, w, h, x: cx - w / 2, y: cy - h / 2, cx, cy, side, i })
   })
-  return { stations: out, rows, rowH }
-}
 
-// Die Straße: je Zeile ein geschwungener Zug, der links aus dem Blatt kommt, durch
-// die Mittelpunkte der Szenen läuft und rechts wieder hinausführt (die nächste
-// Zeile nimmt ihn wieder auf — wie eine umbrechende Textzeile). So bleibt der Weg
-// durchgehend lesbar, ohne je eine Textzeile zu kreuzen.
-function roadRows(L) {
-  const rows = []
-  for (let r = 0; r < L.rows; r++) {
-    const inRow = L.stations.filter(s => s.row === r)
-    if (!inRow.length) continue
-    const pts = []
-    pts.push({ x: -8, y: inRow[0].cy + 6 })
-    inRow.forEach((s, i) => {
-      // Der Weg schlängelt um die Szenenmitte herum, mal darüber, mal darunter.
-      pts.push({ x: s.cx - s.w * 0.22, y: s.cy + (i % 2 ? -1 : 1) * s.h * 0.26 })
-      pts.push({ x: s.cx + s.w * 0.22, y: s.cy + (i % 2 ? 1 : -1) * s.h * 0.22 })
-    })
-    pts.push({ x: TILE.W + 8, y: inRow[inRow.length - 1].cy - 6 })
-    rows.push({ pts, color: inRow[0] })
+  // Jede Szene bringt ihren TEXTSTREIFEN mit: Er gehört zur Szene wie ihr Schatten
+  // und liegt auf der straßenabgewandten Seite. Verschoben wird immer die EINHEIT
+  // aus Bild + Streifen. Dadurch kann eine Beschriftung gar nicht erst auf einem
+  // fremden Bild landen — nicht durch Prüfen, sondern durch Bauart.
+  const capH = CAP_H
+  const unit = s => ({
+    x: s.x - 1,
+    y: (s.side < 0 ? s.y - capH - 3 : s.y) - 1,
+    w: s.w + 2,
+    h: s.h + capH + 3 + 2,
+  })
+
+  // Entzerrung mit zwei verschiedenen Maßstäben:
+  //   • Bild gegen Bild darf sich überlagern (bis ~16 %) — genau das lässt die
+  //     Szenen an ihren weichen Rändern ineinanderfließen.
+  //   • Text gegen Bild und Text gegen Text darf sich NIE überlagern.
+  const capOf = s => ({ x: s.x, w: s.w, h: capH, y: s.side < 0 ? s.y - capH - 3 : s.y + s.h + 3 })
+  const sep = (A, B, ox, oy, slackX, slackY) => {
+    if (ox <= slackX || oy <= slackY) return false
+    if (ox - slackX < oy - slackY) {
+      const push = (ox - slackX) / 2 + 0.4
+      const dir = A.cx < B.cx ? -1 : 1
+      A.x += push * dir; B.x -= push * dir
+    } else {
+      const push = (oy - slackY) / 2 + 0.4
+      const dir = A.cy < B.cy ? -1 : 1
+      A.y += push * dir; B.y -= push * dir
+    }
+    A.cx = A.x + A.w / 2; A.cy = A.y + A.h / 2
+    B.cx = B.x + B.w / 2; B.cy = B.y + B.h / 2
+    return true
   }
-  return rows
+  const inter = (a, b) => {
+    const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+    const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+    return ox > 0 && oy > 0 ? [ox, oy] : null
+  }
+
+  for (let pass = 0; pass < 120; pass++) {
+    let moved = false
+    for (let a = 0; a < out.length; a++) {
+      for (let b = a + 1; b < out.length; b++) {
+        const A = out[a], B = out[b]
+        const cA = capOf(A), cB = capOf(B)
+        let ov = inter(A, B)                                  // Bild ↔ Bild: Überlappung erlaubt
+        if (ov) moved = sep(A, B, ov[0], ov[1], Math.min(A.w, B.w) * 0.26, Math.min(A.h, B.h) * 0.26) || moved
+        ov = inter(cA, B); if (ov) moved = sep(A, B, ov[0], ov[1], 0, 0) || moved   // Text ↔ Bild: nie
+        ov = inter(cB, A); if (ov) moved = sep(A, B, ov[0], ov[1], 0, 0) || moved
+        ov = inter(cA, cB); if (ov) moved = sep(A, B, ov[0], ov[1], 0, 0) || moved  // Text ↔ Text: nie
+      }
+    }
+    for (const s of out) {
+      const top = TILE.headH + (s.side < 0 ? capH + 3 : 0)
+      const bot = TILE.H - TILE.foot - (s.side < 0 ? 0 : capH + 3)
+      s.x = Math.max(TILE.margin, Math.min(TILE.W - TILE.margin - s.w, s.x))
+      s.y = Math.max(top, Math.min(bot - s.h, s.y))
+      s.cx = s.x + s.w / 2; s.cy = s.y + s.h / 2
+    }
+    if (!moved) break
+  }
+
+  out.forEach(s => {
+    s.cap = {
+      x: s.x, w: s.w,
+      y: s.side < 0 ? s.y - capH - 3 : s.y + s.h + 3,
+      h: capH,
+    }
+  })
+  return out
+  }
+
+  // Das Blatt ist endlich: Wenn sich die Einheiten (Bild + Textstreifen) bei dieser
+  // Größe nicht überschneidungsfrei anordnen lassen, werden ALLE Szenen etwas
+  // kleiner — lieber ein etwas luftigeres Poster als Text auf einem Bild.
+  let out = null
+  for (let shrink = 1; shrink >= 0.5; shrink -= 0.04) {
+    out = build(shrink)
+    const clash = out.some((A, a) => out.some((B, b) => b !== a &&
+      (overlaps(A.cap, B, 0.5) || (b > a && overlaps(A.cap, B.cap, 0.5)))))
+    if (!clash) break
+  }
+
+  return { stations: out, road }
 }
 
 // `images` = { "si:ti": { data, el } } — bereits maskiert und auf die Zelle gebracht.
@@ -1559,31 +1679,32 @@ function paintPosterTiles(d, data, images, st) {
   d.rect(0, 0, W, H, st.paper)
 
   const who = String(data.person?.name || data.title || '').trim()
-  if (who) d.text(st.titleUpper ? who.toUpperCase() : who, W / 2, 25, { size: 38, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 80, maxLines: 1 })
+  if (who) d.text(st.titleUpper ? who.toUpperCase() : who, W / 2, 24, { size: 38, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 80, maxLines: 1 })
 
-  // Erst die Straße — die Szenen legen sich darüber, der Weg bleibt in den Lücken
-  // und an den weichen Rändern sichtbar.
-  for (const road of roadRows(L)) {
-    const c = st.accents[road.color.si % st.accents.length]
-    d.curveThrough(road.pts, () => c, 5.5)
-    d.curveThrough(road.pts, () => st.paper, 1.1)   // heller Mittelstreifen
-  }
+  // Die Straße: breiter Belag in der Abschnittsfarbe, darauf ein heller Mittel-
+  // streifen. Sie liegt UNTER den Szenen, bleibt zwischen ihnen aber frei sichtbar,
+  // weil die Szenen sie abwechselnd links und rechts säumen.
+  const roadColor = st.accents[0]
+  d.curveThrough(L.road, () => roadColor, 7)
+  d.curveThrough(L.road, () => st.paper, 1.6)
+
+  L.stations.forEach(s => {
+    const img = images[s.key]
+    if (img) d.tile(img, s.x, s.y, s.w, s.h)
+  })
 
   L.stations.forEach(s => {
     const color = st.accents[s.si % st.accents.length]
-    const img = images[s.key]
-    if (img) d.tile(img, s.x, s.y, s.w, s.h)
-
-    let y = s.capY
+    const c = s.cap
+    let y = c.y + 5
     if (s.year) {
-      d.text(String(s.year), s.capX, y, { size: 13, bold: true, color, font: st.heading, maxW: s.capW, maxLines: 1 })
-      y += 5.8
+      d.text(String(s.year), c.x + c.w / 2, y, { size: 12, bold: true, align: 'center', color, font: st.heading, maxW: c.w, maxLines: 1 })
+      y += 5.4
     }
-    y += d.text(String(s.title || ''), s.capX, y, { size: 13.5, bold: true, color: st.ink, font: st.heading, maxW: s.capW, maxLines: 2 })
-    if (s.text) d.text(String(s.text), s.capX, y + 1.4, { size: 9.5, color: st.soft, font: st.body, maxW: s.capW, maxLines: 2 })
+    d.text(String(s.title || ''), c.x + c.w / 2, y, { size: 13, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: c.w, maxLines: 2 })
   })
 
-  d.text('Lebenswerk · Lebensgeschichten.ai', W - TILE.margin, H - 3, { size: 6.5, align: 'right', color: st.soft, font: st.body })
+  d.text('Lebenswerk · Lebensgeschichten.ai', W - TILE.margin, H - 2.5, { size: 6.5, align: 'right', color: st.soft, font: st.body })
 }
 
 // Szene auf die Zelle bringen — formatfüllend zugeschnitten UND mit weichen
