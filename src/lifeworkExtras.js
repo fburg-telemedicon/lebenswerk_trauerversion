@@ -678,6 +678,39 @@ export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
 // messen dabei mit derselben Schrift, mit der das PDF gesetzt wird.
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
+// Grob, aber ausreichend: die äußersten Koordinaten des SVG-Inhalts. Wir lesen die
+// Positions-Attribute aller Elemente und zusätzlich die Zahlen aus Pfaddaten. Das
+// reicht, um zu erkennen, dass das Modell z. B. in Pixeln gerechnet hat (Werte weit
+// jenseits von 594/420) und um den Inhalt aufs Blatt zurückzuholen.
+function svgExtent(svg) {
+  let maxX = 0, maxY = 0
+  const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0 }
+  for (const el of svg.querySelectorAll('*')) {
+    const t = el.tagName.toLowerCase()
+    if (t === 'rect' || t === 'image') {
+      maxX = Math.max(maxX, num(el.getAttribute('x')) + num(el.getAttribute('width')))
+      maxY = Math.max(maxY, num(el.getAttribute('y')) + num(el.getAttribute('height')))
+    } else if (t === 'circle' || t === 'ellipse') {
+      maxX = Math.max(maxX, num(el.getAttribute('cx')) + num(el.getAttribute('r') || el.getAttribute('rx')))
+      maxY = Math.max(maxY, num(el.getAttribute('cy')) + num(el.getAttribute('r') || el.getAttribute('ry')))
+    } else if (t === 'text' || t === 'tspan') {
+      maxX = Math.max(maxX, num(el.getAttribute('x')))
+      maxY = Math.max(maxY, num(el.getAttribute('y')))
+    } else if (t === 'line') {
+      maxX = Math.max(maxX, num(el.getAttribute('x1')), num(el.getAttribute('x2')))
+      maxY = Math.max(maxY, num(el.getAttribute('y1')), num(el.getAttribute('y2')))
+    } else if (t === 'path' || t === 'polyline' || t === 'polygon') {
+      const d = el.getAttribute('d') || el.getAttribute('points') || ''
+      const nums = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number)
+      for (let i = 0; i + 1 < nums.length; i += 2) {
+        maxX = Math.max(maxX, nums[i])
+        maxY = Math.max(maxY, nums[i + 1])
+      }
+    }
+  }
+  return { maxX, maxY }
+}
+
 export function posterLayoutSystem(data, styleKey) {
   const st = getPosterStyle(styleKey)
   const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')
@@ -691,7 +724,11 @@ export function posterLayoutSystem(data, styleKey) {
 
   return `Du bist Infografik-Designerin. Du gestaltest ein LEBENSPOSTER im Format DIN A2 quer als SVG.
 
-Blatt: viewBox="0 0 594 420" (Einheiten = Millimeter). Sicherheitsrand: 14 mm rundum, dort darf NICHTS Wichtiges liegen.
+BLATTMASSE — HALTE DICH EXAKT DARAN:
+- Das Wurzelelement lautet GENAU: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 594 420">
+- KEIN width-Attribut, KEIN height-Attribut am <svg>. Keine Pixel, keine "px"-Einheiten irgendwo.
+- ALLE Koordinaten liegen zwischen 0 und 594 (x) bzw. 0 und 420 (y) — die Einheit ist Millimeter. Eine Schriftgröße von 4 bedeutet 4 mm, nicht 4 px.
+- Sicherheitsrand 14 mm rundum: dort darf NICHTS Wichtiges liegen. Nichts darf über den Blattrand hinausragen.
 
 STIL „${st.label}":
 - Papierfarbe (Hintergrund-Rechteck über das ganze Blatt): ${hex(st.paper)}
@@ -748,20 +785,73 @@ function prepareSvg(svgText, images, doc) {
   if (parsed.querySelector('parsererror')) throw new Error('Das SVG der KI ist fehlerhaft.')
   const svg = parsed.documentElement
 
+  // ── Bilder bändigen ──
+  // Zwei Dinge zwingend geradeziehen:
+  //  1. Breite deckeln (das Modell setzt gelegentlich ein Bild über das halbe Blatt).
+  //  2. preserveAspectRatio auf "none": svg2pdf setzt ein Bild mit "…slice" in
+  //     seiner NATÜRLICHEN Pixelgröße ins PDF — ein 1536-px-Bild deckte damit das
+  //     halbe Poster zu. Die Illustrationen sind exakt 3:2, die Rahmen ebenfalls,
+  //     also verzerrt "none" nichts.
+  for (const img of [...svg.querySelectorAll('image')]) {
+    let w = parseFloat(img.getAttribute('width') || '0')
+    if (!(w > 0)) w = 60
+    if (w > 130) w = 130
+    img.setAttribute('width', String(w))
+    img.setAttribute('height', String(Math.round((w / 1.5) * 100) / 100))
+    img.setAttribute('preserveAspectRatio', 'none')
+  }
+
+  // ── Auf Millimeter normalisieren ──
+  // Trotz klarer Vorgabe arbeitet die KI gern in Pixeln (viewBox z. B.
+  // "0 0 1600 1131"). Würden wir die viewBox einfach auf 594×420 setzen, läge der
+  // Inhalt weit außerhalb — man sähe nur die linke obere Ecke. Also: vorhandene
+  // viewBox lesen, den Inhalt in eine skalierte Gruppe hängen und DANN das Blatt
+  // auf A2 in mm festlegen. Der Skalierungsfaktor gilt auch für den Textumbruch.
+  const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number)
+  let vbW = vb.length === 4 && vb[2] > 0 ? vb[2] : parseFloat(svg.getAttribute('width')) || P.W
+  let vbH = vb.length === 4 && vb[3] > 0 ? vb[3] : parseFloat(svg.getAttribute('height')) || P.H
+
+  // Selbst mit korrekter viewBox schreibt das Modell Elemente über den Blattrand
+  // hinaus. Deshalb messen wir die TATSÄCHLICHE Ausdehnung des Inhalts (Attribute
+  // + Pfadkoordinaten) und rechnen damit — so passt das Blatt am Ende immer.
+  const extent = svgExtent(svg)
+  if (extent.maxX > vbW * 1.02) vbW = extent.maxX
+  if (extent.maxY > vbH * 1.02) vbH = extent.maxY
+
+  const scale = Math.min(P.W / vbW, P.H / vbH)
+  if (Math.abs(scale - 1) > 0.001) {
+    const g = parsed.createElementNS(SVG_NS, 'g')
+    g.setAttribute('transform', `scale(${scale})`)
+    while (svg.firstChild) g.appendChild(svg.firstChild)
+    svg.appendChild(g)
+  }
+  svg.setAttribute('viewBox', `0 0 ${P.W} ${P.H}`)
+  svg.setAttribute('width', String(P.W))
+  svg.setAttribute('height', String(P.H))
+  svg.removeAttribute('preserveAspectRatio')
+
   // Sicherheit: nur erlaubte Elemente behalten (kein Skript, kein externer Verweis).
   const ALLOWED = new Set(['svg', 'g', 'rect', 'circle', 'ellipse', 'line', 'path', 'polyline', 'polygon', 'text', 'tspan', 'image', 'defs', 'title', 'desc'])
   for (const el of [...svg.querySelectorAll('*')]) {
     if (!ALLOWED.has(el.tagName.toLowerCase())) el.remove()
   }
 
-  // Bilder einsetzen; Platzhalter ohne Bild verschwinden.
+  // Bilder NICHT von svg2pdf zeichnen lassen: Es ignoriert width/height eines
+  // <image> und setzt die Datei in ihrer natürlichen Pixelgröße ins PDF — ein
+  // 1536-px-Bild deckte damit das halbe Poster zu. Wir sammeln die Bilder mit
+  // ihren SVG-Maßen ein, entfernen die Elemente und zeichnen sie anschließend
+  // selbst mit jsPDF (unter die Vektorebene).
+  const placed = []
   for (const img of [...svg.querySelectorAll('image')]) {
     const href = img.getAttribute('href') || img.getAttribute('xlink:href') || ''
     const m = /^IMG:(\d+):(\d+)$/.exec(href.trim())
     const data = m ? images[`${m[1]}:${m[2]}`] : null
-    if (!data) { img.remove(); continue }
-    img.setAttribute('href', data)
-    img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', data)
+    const x = parseFloat(img.getAttribute('x') || '0')
+    const y = parseFloat(img.getAttribute('y') || '0')
+    const w = parseFloat(img.getAttribute('width') || '0')
+    const h = parseFloat(img.getAttribute('height') || '0')
+    if (data && w > 0 && h > 0) placed.push({ data, x: x * scale, y: y * scale, w: w * scale, h: h * scale })
+    img.remove()
   }
 
   // Zeilenumbruch: <text data-w="…"> → tspans, gemessen mit der PDF-Schrift.
@@ -774,9 +864,12 @@ function prepareSvg(svgText, images, doc) {
     const content = (t.textContent || '').replace(/\s+/g, ' ').trim()
     if (!content || !(w > 0)) continue
 
+    // Gemessen wird im PDF (Millimeter). Arbeitet das SVG in anderen Einheiten,
+    // müssen Schriftgröße und Breite erst mit demselben Faktor umgerechnet werden,
+    // mit dem der Inhalt später skaliert wird — sonst bricht der Text falsch um.
     doc.setFont(fam, bold ? 'bold' : (italic ? 'italic' : 'normal'))
-    doc.setFontSize(size)
-    const lines = doc.splitTextToSize(content, w)
+    doc.setFontSize(size * scale)
+    const lines = doc.splitTextToSize(content, w * scale).map(l => l)
     const x = t.getAttribute('x') || '0'
     while (t.firstChild) t.removeChild(t.firstChild)
     lines.forEach((line, i) => {
@@ -787,7 +880,20 @@ function prepareSvg(svgText, images, doc) {
       t.appendChild(ts)
     })
   }
-  return svg
+  // Das vollflächige Papier-Rechteck muss VOR den Bildern liegen — svg2pdf malt
+  // die Vektorebene aber ZULETZT und würde die Illustrationen sonst zudecken.
+  // Also: Papierfarbe herausziehen, Rechteck entfernen, Papier selbst zeichnen.
+  let paper = null
+  for (const r of [...svg.querySelectorAll('rect')]) {
+    const w = parseFloat(r.getAttribute('width') || '0')
+    const h = parseFloat(r.getAttribute('height') || '0')
+    if (w >= vbW * 0.97 && h >= vbH * 0.97) {
+      paper = r.getAttribute('fill') || null
+      r.remove()
+      break
+    }
+  }
+  return { svg, placed, paper }
 }
 
 // Rendert das KI-SVG als Vektor-PDF (A2 quer). `urls` = { "si:ti": signierte URL }
@@ -799,7 +905,14 @@ export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
   }))
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  const svg = prepareSvg(svgText, images, doc)
+  const { svg, placed, paper } = prepareSvg(svgText, images, doc)
+
+  // Reihenfolge: Papier, dann die Illustrationen (Pixel), dann die Vektorebene
+  // (Wege, Bänder, Schrift) darüber.
+  if (paper) { doc.setFillColor(paper); doc.rect(0, 0, P.W, P.H, 'F') }
+  for (const im of placed) {
+    try { doc.addImage(im.data, 'PNG', im.x, im.y, im.w, im.h, undefined, 'FAST') } catch { /* Bild überspringen */ }
+  }
 
   // svg2pdf braucht das Element im Dokument (Layout-Messung).
   const host = document.createElement('div')
@@ -807,7 +920,9 @@ export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
   host.appendChild(svg)
   document.body.appendChild(host)
   try {
-    const { svg2pdf } = await import('svg2pdf.js')
+    // Gezielt den ESM-Build laden: Die Paket-Auflösung liefert sonst je nach
+    // Umgebung das UMD-Bündel, dessen Default-Export kein Aufruf-Ziel ist.
+    const { svg2pdf } = await import('svg2pdf.js/dist/svg2pdf.es.js')
     await svg2pdf(svg, doc, { x: 0, y: 0, width: P.W, height: P.H })
     doc.save(filename)
   } finally {
