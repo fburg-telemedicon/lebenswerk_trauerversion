@@ -307,6 +307,35 @@ function pdfDraw(doc) {
       doc.setLineCap('butt')
       doc.setLineWidth(0.3)
     },
+    // Weicher Weg durch eine Punktfolge (Catmull-Rom, in kurze Segmente zerlegt).
+    // jsPDF kann Kurven nur relativ zeichnen; die Abtastung ist einfacher und
+    // erlaubt es, die Farbe unterwegs zu wechseln (je Lebensabschnitt).
+    curveThrough(points, colorAt, width) {
+      if (points.length < 2) return
+      const P0 = [points[0], ...points, points[points.length - 1]]
+      doc.setLineCap('round')
+      doc.setLineWidth(width)
+      for (let i = 1; i < P0.length - 2; i++) {
+        const p0 = P0[i - 1], p1 = P0[i], p2 = P0[i + 1], p3 = P0[i + 2]
+        const c = colorAt(i - 1)
+        doc.setDrawColor(c[0], c[1], c[2])
+        let px = p1.x, py = p1.y
+        for (let s = 1; s <= 12; s++) {
+          const t = s / 12, t2 = t * t, t3 = t2 * t
+          const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3)
+          const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+          doc.line(px, py, x, y)
+          px = x; py = y
+        }
+      }
+      doc.setLineCap('butt')
+      doc.setLineWidth(0.3)
+    },
+    // Bild rechteckig (3:2) mit dünnem Rahmen.
+    photo(data, x, y, w, h, edge) {
+      doc.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST')
+      if (edge) { doc.setDrawColor(edge[0], edge[1], edge[2]); doc.setLineWidth(0.4); doc.rect(x, y, w, h, 'S'); doc.setLineWidth(0.3) }
+    },
     // Abgerundete Farbfläche: die Abschnitts-Pille.
     pill(x, y, w, h, color) {
       doc.setFillColor(color[0], color[1], color[2])
@@ -641,6 +670,171 @@ async function loadImage(url) {
   return { data, ...dims }
 }
 
+// ── Organisches Layout (Hybrid) ───────────────────────────────────
+// Die KI entscheidet die GESTALTUNG (welche Station ist ein Wendepunkt, welcher
+// Abschnitt gehört zusammen, was steht drin); die GEOMETRIE rechnet der Code —
+// denn ein Sprachmodell sieht seine eigene Zeichnung nicht und legt Texte über
+// Bilder. Hier gilt: Jede Station bekommt eine ZELLE, Zellen überlappen sich nie,
+// und alles einer Station bleibt in ihrer Zelle. Innerhalb dieser Garantie ist
+// das Blatt frei: Zellen sind unterschiedlich breit (nach Bedeutung), die Bilder
+// sitzen in drei Größen, die Höhe schwankt, der Text steht mal über, mal unter
+// dem Bild — und der Weg läuft als weiche Kurve durch die Bildmitten.
+const ORG = {
+  headH: 66,          // Titelzone
+  footH: 26,          // Werte/Orte/Zitat
+  lanes: 3,
+  imgW: { 3: 92, 2: 66, 1: 46 },   // Bildbreite nach Bedeutung (3:2)
+  gap: 5,
+}
+
+function layoutOrganic(data, st) {
+  const stations = []
+  ;(data.sections || []).slice(0, 6).forEach((sec, si) => {
+    ;(sec.stations || []).forEach((s, ti) => {
+      const w = Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1))
+      stations.push({ ...s, si, ti, weight: w, first: ti === 0, section: sec, color: st.accents[si % st.accents.length] })
+    })
+  })
+  if (!stations.length) return null
+
+  const usableW = P.W - 2 * P.margin
+  const bodyTop = ORG.headH
+  const bodyH = P.H - ORG.headH - ORG.footH
+
+  // Stationen auf Bahnen verteilen: Wir füllen eine Bahn, bis ihre Breite voll
+  // ist — dadurch stehen mal vier kleine, mal zwei große Stationen in einer Zeile.
+  // Bahnen AUSGEWOGEN füllen: Jede Bahn bekommt etwa denselben Breiten-Anteil.
+  // (Greedy „füllen bis voll" ließ in der letzten Bahn eine einzelne Station
+  // stehen — halbes Blatt leer.)
+  const cellOf = s => ORG.imgW[s.weight] + ORG.gap * 2
+  const total = stations.reduce((n, s) => n + cellOf(s), 0)
+  const laneCount = Math.min(ORG.lanes, Math.max(1, Math.ceil(total / usableW)))
+  const target = total / laneCount
+  const lanes = [[]]
+  let acc = 0
+  for (const s of stations) {
+    const c = cellOf(s)
+    if (lanes.length < laneCount && acc > 0 && acc + c / 2 > target) {
+      lanes.push([]); acc = 0
+    }
+    lanes[lanes.length - 1].push(s)
+    acc += c
+  }
+
+  // Höhe erst JETZT verteilen: nach der Zahl der tatsächlich gefüllten Bahnen.
+  // (Rechnete man mit der Obergrenze, bliebe bei zwei Bahnen unten eine leer.)
+  const laneH = bodyH / lanes.length
+
+  // Zellen einer Bahn proportional auf die volle Breite dehnen → kein Flattern am
+  // Zeilenende, aber die Breitenverhältnisse (und damit die Bildgrößen) bleiben.
+  lanes.forEach((lane, li) => {
+    const total = lane.reduce((n, s) => n + cellOf(s), 0)
+    const stretch = usableW / total
+    let x = P.margin
+    lane.forEach((s, i) => {
+      const cw = cellOf(s) * stretch
+      s.cellX = x
+      s.cellW = cw
+      s.lane = li
+      // Höhenversatz: gerade/ungerade Stationen wandern leicht nach oben bzw.
+      // unten — das nimmt dem Blatt die Reihenoptik, ohne Zellen zu verlassen.
+      const swing = (i % 2 === 0 ? -1 : 1) * (li % 2 === 0 ? 1 : -1)
+      s.imgW = Math.min(ORG.imgW[s.weight], cw - 2 * ORG.gap)
+      s.imgH = s.imgW / 1.5
+      s.laneTop = bodyTop + li * laneH
+      s.laneH = laneH
+      // Text mal unter, mal über dem Bild (abwechselnd, nie beides am selben Ort).
+      // Über der ERSTEN Station eines Abschnitts sitzt die Abschnitts-Pille —
+      // dort darf der Text nicht auch nach oben, sonst kollidiert beides.
+      s.textAbove = !s.first && (i + li) % 3 === 1
+      const slack = laneH - s.imgH - 22
+      const off = Math.max(-6, Math.min(6, swing * slack * 0.18))
+      s.imgY = s.laneTop + (s.textAbove ? 22 : 6) + off
+      s.imgX = x + (cw - s.imgW) / 2
+      s.cx = s.imgX + s.imgW / 2
+      s.cy = s.imgY + s.imgH / 2
+      x += cw
+    })
+  })
+  return { stations, lanes }
+}
+
+function paintPosterOrganic(d, data, images, st) {
+  const L = layoutOrganic(data, st)
+  if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
+  const { W, H, margin } = P
+
+  d.rect(0, 0, W, H, st.paper)
+
+  // Kopf
+  const title = String(data.title || 'Ein Leben')
+  d.text(st.titleUpper ? title.toUpperCase() : title, W / 2, 28, { size: 32, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
+  if (data.subtitle) d.text(String(data.subtitle), W / 2, 40, { size: 12, italic: true, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
+  const who = [data.person?.name, data.person?.years].filter(Boolean).join('   ·   ')
+  if (who) d.text(who, W / 2, 49, { size: 9.5, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
+
+  // Der Weg: eine weiche Kurve durch alle Bildmitten, Farbe je Abschnitt.
+  const pts = L.stations.map(s => ({ x: s.cx, y: s.cy }))
+  d.curveThrough(pts, i => (L.stations[Math.min(i, L.stations.length - 1)].color), 2.2)
+
+  // Stationen
+  for (const s of L.stations) {
+    const img = images[`${s.si}:${s.ti}`]
+    if (img) d.photo(img.data, s.imgX, s.imgY, s.imgW, s.imgH, s.color)
+    else { d.card(s.imgX, s.imgY, s.imgW, s.imgH, st.paper, s.color, 0.4) }
+
+    // Textblock (über oder unter dem Bild) — bleibt immer in der Zelle.
+    const tw = s.cellW - 2 * ORG.gap
+    const tx = s.cellX + s.cellW / 2
+    let ty = s.textAbove ? s.imgY - 13 : s.imgY + s.imgH + 6
+    if (s.year) {
+      d.text(String(s.year), tx, ty, { size: 8.5, bold: true, align: 'center', color: s.color, font: st.heading, maxW: tw, maxLines: 1 })
+      ty += 4.4
+    }
+    ty += d.text(String(s.title || ''), tx, ty, { size: 8.2, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: tw, maxLines: 2 })
+    // Die Beschreibung steht immer unter dem Bild — steht die Überschrift oben,
+    // ist der Platz darunter frei; sonst schließt sie an die Überschrift an.
+    const dy = s.textAbove ? s.imgY + s.imgH + 6 : ty + 1
+    d.text(String(s.text || ''), tx, dy, { size: 6.4, align: 'center', color: st.soft, font: st.body, maxW: tw, maxLines: 4 })
+  }
+
+  // Abschnitts-Pillen: über der ERSTEN Station jedes Abschnitts, am oberen
+  // Zellenrand — sie kollidieren nie mit Bild oder Text, weil dort Luft bleibt.
+  for (const s of L.stations) {
+    if (!s.first) continue
+    const head = String(s.section.heading || '').trim()
+    const per = String(s.section.period || '').trim()
+    const label = per ? `${head} · ${per}` : head
+    if (!label) continue
+    const pw = Math.min(s.cellW + 24, 8 + label.length * 1.9)
+    const px = Math.max(margin, Math.min(W - margin - pw, s.cx - pw / 2))
+    const py = s.laneTop - 1
+    d.pill(px, py, pw, 7.6, s.color)
+    d.text(label, px + pw / 2, py + 5.2, { size: 6.6, bold: true, align: 'center', color: [255, 255, 255], font: st.heading, maxW: pw - 4, maxLines: 1 })
+  }
+
+  // Fuß
+  const fy = H - ORG.footH + 8
+  d.line(margin, fy - 7, W - margin, fy - 7, st.soft)
+  const values = (Array.isArray(data.values) ? data.values : []).slice(0, 8)
+  const places = (Array.isArray(data.places) ? data.places : []).slice(0, 6)
+  const colW = (W - 2 * margin) / 3 - 8
+  if (values.length) {
+    d.text('WERTE', margin, fy, { size: 6.5, bold: true, color: st.accents[0], font: st.heading })
+    d.text(values.join('  ·  '), margin, fy + 5.5, { size: 8.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
+  }
+  if (places.length) {
+    const x = margin + colW + 12
+    d.text('ORTE', x, fy, { size: 6.5, bold: true, color: st.accents[1 % st.accents.length], font: st.heading })
+    d.text(places.join('  ·  '), x, fy + 5.5, { size: 8.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
+  }
+  if (data.quote) {
+    const x = margin + 2 * (colW + 12)
+    d.text(`„${data.quote}"`, x, fy + 2, { size: 10, italic: true, color: st.ink, font: st.heading, maxW: colW + 8, maxLines: 3 })
+  }
+  d.text('Lebenswerk · Lebensgeschichten.ai', W - margin, H - 4, { size: 6, align: 'right', color: st.soft, font: st.body })
+}
+
 // `urls` = { "si:ti": signierte URL }. Ein fehlendes Bild ist nicht fatal — die
 // Station bekommt dann einen leeren Kreis in ihrer Abschnittsfarbe.
 export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
@@ -651,7 +845,7 @@ export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
     try { images[k] = await loadImage(url) } catch { /* Station bleibt ohne Bild */ }
   }))
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  paintPoster(pdfDraw(doc), data || {}, images, st)
+  paintPosterOrganic(pdfDraw(doc), data || {}, images, st)
   doc.save(filename)
 }
 

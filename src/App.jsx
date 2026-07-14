@@ -2020,24 +2020,13 @@ Regeln:
           if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 4000))
         }
 
-        // Komposition: Die KI ENTWIRFT das Blatt als SVG (geschwungener Weg,
-        // unterschiedlich große Szenen, Text frei gesetzt). Jeder Text darin ist
-        // echter Vektortext — also rechtschreibsicher und beliebig scharf.
-        // Scheitert das, bleibt data.svg leer und der Download fällt auf das feste
-        // Layout zurück; das Poster entsteht in jedem Fall.
-        setExtraMsg('Das Blatt wird gestaltet …')
-        try {
-          const svgSys = posterLayoutSystem(data, posterStyle)
-          for (let attempt = 1; attempt <= 2 && !data.svg; attempt++) {
-            const svg = await askLLM(svgSys, [{ role: 'user', content: 'Gib jetzt das fertige SVG aus.' }],
-              { memorialCode: selected.id, kind: 'life_poster_svg', token })
-            const s = String(svg || '')
-            if (s.includes('<svg') && s.includes('</svg>')) data.svg = s.slice(s.indexOf('<svg'), s.lastIndexOf('</svg>') + 6)
-            else if (attempt < 2) await new Promise(r => setTimeout(r, 1500))
-          }
-        } catch (e) {
-          console.warn('Poster-Komposition fehlgeschlagen — festes Layout wird verwendet:', e.message)
-        }
+        // HINWEIS: Ein früherer Versuch ließ die KI das Blatt als freies SVG
+        // entwerfen. Ergebnis: Texte lagen auf Bildern, Wege kreuzten sich, Zeilen
+        // liefen aus dem Blatt — ein Sprachmodell sieht seine eigene Zeichnung
+        // nicht. Die Gestaltung kommt deshalb weiterhin von der KI (welche Station
+        // ist ein Wendepunkt, wie heißen die Abschnitte), die GEOMETRIE rechnet der
+        // Renderer (src/lifeworkExtras.js) — der garantiert, was ein LLM nicht kann:
+        // keine Überlappung, kein Überstand, sauberer Umbruch.
       }
 
       setExtraMsg('Wird gespeichert …')
