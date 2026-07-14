@@ -1977,60 +1977,47 @@ Regeln:
     setPosterStyleModal(true)
   }
 
+  // Beide Nebenprodukte laufen SERVERSEITIG als Job (wie Buch und Rede): Der
+  // Browser stellt den Auftrag ein und pollt nur noch den Fortschritt. Schließt
+  // man den Tab, läuft die Erzeugung weiter — und sie lässt sich abbrechen.
   async function generateExtra(kind, posterStyle = DEFAULT_POSTER_STYLE) {
     if (!selected) return
     const isTree = kind === 'tree'
-    const field  = isTree ? 'family_tree' : 'life_poster'
+    const field = isTree ? 'family_tree' : 'life_poster'
     if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
     if (selected[field] && !window.confirm(`${isTree ? 'Der Stammbaum' : 'Das Lebensposter'} wird neu erzeugt und ersetzt die bisherige Fassung. Fortfahren?`)) return
 
-    setExtraBusy(kind); setErr(''); setExtraMsg(isTree ? 'Familie wird aus dem Interview gelesen …' : 'Lebensstationen werden gesammelt …')
+    setErr('')
+    setGenErr(p => ({ ...p, [kind]: '' }))
+    setGenOwner(o => ({ ...o, [kind]: selected.id }))
+    setGenerating(g => ({ ...g, [kind]: true }))
+    setGenProgress(p => ({ ...p, [kind]: isTree ? 'Familie wird gelesen …' : 'Lebensstationen werden gesammelt …' }))
+    setGenPct(p => ({ ...p, [kind]: 0 }))
+    cancelGenRef.current[kind] = false
     try {
-      const sys = isTree ? treeSystem(selected, contributions) : posterSystem(selected, contributions)
-      let data = null
-      for (let attempt = 1; attempt <= 2 && !data; attempt++) {
-        const raw = await askLLM(sys, [{ role: 'user', content: 'Gib jetzt das JSON aus.' }],
-          { memorialCode: selected.id, kind: isTree ? 'family_tree' : 'life_poster', token })
-        data = tryParseJSON(raw)
-        if (!data && attempt < 2) await new Promise(r => setTimeout(r, 1200))
-      }
-      if (!data) throw new Error('Die KI hat kein gültiges JSON geliefert. Bitte erneut versuchen.')
+      const params = isTree
+        ? { resultType: 'json', field, kind: 'family_tree', memorialCode: selected.id, label: 'Familie wird gelesen',
+            system: treeSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
+        : { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id, posterStyle,
+            system: posterSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
+      const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
+      genJobRef.current[kind] = jobId
+      await pollGeneration(kind, jobId)
 
-      // Poster: EIN illustriertes Blatt (Weg + Szenen, garantiert ohne Schrift).
-      // Der Text kommt beim Zeichnen als Vektor darüber — in die ruhigsten Zonen
-      // des Bildes (Detaildichte-Analyse), damit er nie auf einer Szene klebt.
-      if (!isTree) {
-        data.style = posterStyle
-        setExtraMsg('Motiv des Posters wird beschrieben …')
-        let motif = ''
-        try {
-          motif = String(await askLLM(posterSceneSystem(data), [{ role: 'user', content: 'Gib jetzt die Bildbeschreibung aus.' }],
-            { memorialCode: selected.id, kind: 'life_poster_scene', token })).trim()
-        } catch { /* Fallback unten */ }
-        if (!motif) motif = 'A winding path across a wide sheet with small scenes of a life along it: a bakery window, a meadow, a hospital ward, a workshop, a garden, a choir; generous empty paper between the scenes.'
-        setExtraMsg('Das Poster wird gezeichnet (ein großes Motiv) …')
-        const img = await generateImageWithRetry(selected.id, motif, {
-          meta: { variant: 'scene', posterStyle },
-          onWait: (sec, rate) => setExtraMsg(rate ? `Bild-KI ausgelastet, warte ${sec} s …` : `Neuer Versuch in ${sec} s …`),
-        })
-        const path = img?.storagePath || img?.path
-        if (!path) throw new Error('Das Poster-Motiv konnte nicht erzeugt werden.')
-        data.scene_path = path
-        data.scene_prompt = motif
-      }
-
-      setExtraMsg('Wird gespeichert …')
-      await adminSaveMemorialText(token, selected.id, field, data)
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) {
         const fresh = await r.json(); setMemorials(fresh)
         const u = fresh.find(m => m.id === selected.id)
-        if (u) { setSelected(u); await downloadExtra(kind, u); return }
+        if (u) setSelected(u)
       }
-      setSelected(s => ({ ...s, [field]: data }))
-      await downloadExtra(kind, { ...selected, [field]: data })
-    } catch (e) { setErr(e.message) }
-    finally { setExtraBusy(''); setExtraMsg('') }
+      setGenPct(p => ({ ...p, [kind]: 100 }))
+    } catch (e) {
+      const msg = e.message === '__CANCELLED__' ? 'Abgebrochen.' : e.message
+      setGenErr(p => ({ ...p, [kind]: msg }))
+    } finally {
+      setGenerating(g => ({ ...g, [kind]: false }))
+      setGenProgress(p => ({ ...p, [kind]: '' }))
+    }
   }
 
   // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
@@ -2782,7 +2769,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraBusy={extraBusy} extraMsg={extraMsg} extraDl={extraDl} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

@@ -298,10 +298,107 @@ async function processBook(job, deadline) {
   return 'done'
 }
 
+
+// ─────────── Lebenswerk-Nebenprodukte: Stammbaum & Lebensposter ───────────
+// Beide liefen bisher im Browser (schloss man den Tab, war die Arbeit weg und es
+// gab keinen Abbrechen-Knopf). Jetzt laufen sie wie Buch und Rede als Job:
+//   Stammbaum: { resultType:'json', field:'family_tree', system, user }
+//   Poster:    { resultType:'poster', field:'life_poster', system, user, posterStyle }
+async function processJson(job, deadline) {
+  const p = job.params || {}
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 0, total: 1, message: p.label || 'Wird gelesen' } })
+  let data = null
+  for (let attempt = 1; attempt <= 2 && !data; attempt++) {
+    const raw = await runLLMStep(job, p.kind, p.system, p.user || 'Gib jetzt das JSON aus.')
+    data = genprompts.tryParseJSON(raw)
+    if (!data && attempt < 2) await sleep(1500)
+  }
+  if (!data) { await genjobs.failJob(job.id, 'Die KI hat kein gültiges JSON geliefert.'); return 'error' }
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, data)
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: 1, total: 1 }, result: { saved: true } })
+  return 'done'
+}
+
+// Motiv-Prompt für das Poster-Gesamtbild (aus den Stationen). Muss zu
+// posterSceneSystem() in src/lifeworkExtras.js passen — hier serverseitig, weil
+// er erst gebaut werden kann, wenn die Stationen feststehen.
+function sceneSystemFor(data) {
+  const scenes = []
+  for (const sec of (data.sections || [])) {
+    for (const st of (sec.stations || [])) if (st.image_prompt) scenes.push(String(st.image_prompt))
+  }
+  const list = scenes.slice(0, 12).map((s, i) => `${i + 1}. ${s}`).join(String.fromCharCode(10))
+  return `Du bist Illustrator. Beschreibe EIN einziges, weites Illustrationsblatt (Lebenskarte) in ENGLISCH — es zeigt den Lebensweg als mäandernden Pfad, an dem die folgenden Szenen liegen (von links unten nach rechts oben):
+
+${list}
+
+Gib NUR die englische Bildbeschreibung aus (60–110 Wörter), keine Erklärung, kein Markdown, keine Anführungszeichen.
+
+Regeln:
+- Beschreibe Weg, Szenen, Anordnung und Atmosphäre.
+- Verlange ausdrücklich große, ruhige, leere Papierflächen zwischen und um die Szenen (dort wird später Text gedruckt).
+- KEIN Text im Bild, keine Schrift, keine Zahlen, keine Schilder. Keine Gesichter.
+- Nenne kein Medium und keinen Kunststil.`
+}
+
+async function processPoster(job, deadline) {
+  const p = job.params || {}
+  const code = p.memorialCode || job.memorial_id
+  const result = job.result && typeof job.result === 'object' ? job.result : {}
+
+  // Schritt 1: Inhalte (Stationen, Werte, Zitat)
+  if (!result.data) {
+    if (await canceled(job.id)) return 'canceled'
+    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 0, total: 3, message: 'Lebensstationen werden gesammelt' }, result })
+    let data = null
+    for (let attempt = 1; attempt <= 2 && !data; attempt++) {
+      const raw = await runLLMStep(job, 'life_poster', p.system, p.user || 'Gib jetzt das JSON aus.')
+      data = genprompts.tryParseJSON(raw)
+      if (!data && attempt < 2) await sleep(1500)
+    }
+    if (!data) { await genjobs.failJob(job.id, 'Die KI hat kein gültiges JSON geliefert.'); return 'error' }
+    data.style = p.posterStyle || 'storybook'
+    result.data = data
+    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 1, total: 3, message: 'Motiv wird beschrieben' }, result })
+  }
+
+  // Schritt 2: Motiv-Beschreibung
+  if (!result.motif) {
+    if (await canceled(job.id)) return 'canceled'
+    try {
+      result.motif = await runLLMStep(job, 'life_poster_scene', sceneSystemFor(result.data), 'Gib jetzt die Bildbeschreibung aus.')
+    } catch (e) {
+      result.motif = 'A winding path across a wide sheet with small scenes of a life along it: a bakery window, a meadow, a hospital ward, a workshop, a garden, a choir; generous empty paper between the scenes.'
+    }
+    await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Das Poster wird gezeichnet' }, result })
+  }
+
+  // Schritt 3: das Blatt zeichnen lassen
+  if (await canceled(job.id)) return 'canceled'
+  try {
+    const { storagePath } = await adminPost('/api/admin/generate-image', {
+      memorialCode: code, prompt: result.motif, variant: 'scene', posterStyle: result.data.style,
+    })
+    result.data.scene_path = storagePath
+    result.data.scene_prompt = result.motif
+  } catch (e) {
+    await genjobs.failJob(job.id, `Das Poster-Motiv konnte nicht erzeugt werden: ${e.message}`)
+    return 'error'
+  }
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveMemorialField(code, p.field, result.data)
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: 3, total: 3 }, result: { saved: true } })
+  return 'done'
+}
+
 async function processJob(job, deadline) {
   const rt = job.params?.resultType
   if (rt === 'text-join') return processTextJoin(job, deadline)
   if (rt === 'book') return processBook(job, deadline)
+  if (rt === 'json') return processJson(job, deadline)
+  if (rt === 'poster') return processPoster(job, deadline)
   await genjobs.failJob(job.id, `Unbekannter resultType: ${rt}`)
   return 'error'
 }
