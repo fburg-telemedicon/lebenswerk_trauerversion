@@ -1517,34 +1517,39 @@ function placeBubble(mask, taken, bh, wishX, wishY) {
       for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) taken[r][c] = true
     }
   }
-  const search = (bw, needPaper) => {
-    for (let rad = 0; rad <= 200; rad += 4) {
-      const steps = rad === 0 ? 1 : Math.max(10, Math.round(rad / 2))
-      let best = null
-      for (let k = 0; k < steps; k++) {
-        const a = (k / steps) * Math.PI * 2
-        const x = wishX - bw / 2 + Math.cos(a) * rad
-        const y = wishY - bh / 2 + Math.sin(a) * rad
-        if (!fits(x, y, bw, needPaper)) continue
-        const dist = Math.hypot(x + bw / 2 - wishX, y + bh / 2 - wishY)
-        if (!best || dist < best.dist) best = { x, y, dist }
+  // NÄHE SCHLÄGT BREITE: Der Ring wächst nach außen, und bei JEDEM Radius werden
+  // erst die breite, dann die schmaleren Kartuschen probiert. Vorher wurde die
+  // breite Fassung über das halbe Blatt gejagt, bevor eine schmale direkt an der
+  // Szene überhaupt zur Debatte stand — deshalb rutschten Beschriftungen weit weg.
+  const WIDTHS = [62, 52, 44]
+  const search = (needPaper, maxRad) => {
+    for (let rad = 0; rad <= maxRad; rad += 4) {
+      const steps = rad === 0 ? 1 : Math.max(12, Math.round(rad / 1.6))
+      for (const bw of WIDTHS) {
+        let best = null
+        for (let k = 0; k < steps; k++) {
+          const a = (k / steps) * Math.PI * 2
+          const x = wishX - bw / 2 + Math.cos(a) * rad
+          const y = wishY - bh / 2 + Math.sin(a) * rad
+          if (!fits(x, y, bw, needPaper)) continue
+          const dist = Math.hypot(x + bw / 2 - wishX, y + bh / 2 - wishY)
+          if (!best || dist < best.dist) best = { x, y, bw, dist }
+        }
+        if (best) return best
       }
-      if (best) return best
     }
     return null
   }
 
-  // 1) Auf freiem Papier, so nah wie möglich — notfalls mit schmalerer Kartusche.
-  for (const bw of [62, 52, 44]) {
-    const hit = search(bw, true)
-    if (hit) { claim(hit.x, hit.y, bw); return { x: hit.x, y: hit.y, w: bw, onPaper: true } }
-  }
-  // 2) Kein Papier mehr frei: dann eben auf dem Motiv — aber garantiert nicht auf
-  //    einer anderen Kartusche, und mit kräftigerer Deckung (siehe Aufrufer).
-  for (const bw of [62, 52, 44]) {
-    const hit = search(bw, false)
-    if (hit) { claim(hit.x, hit.y, bw); return { x: hit.x, y: hit.y, w: bw, onPaper: false } }
-  }
+  // 1) Freies Papier in der Nähe der Szene (bis ~9 cm).
+  let hit = search(true, 90)
+  // 2) Weiter weg, aber immer noch auf Papier — besser als auf dem Motiv.
+  if (!hit) hit = search(true, 200)
+  if (hit) { claim(hit.x, hit.y, hit.bw); return { x: hit.x, y: hit.y, w: hit.bw, onPaper: true } }
+  // 3) Kein Papier mehr frei: dann eben auf dem Motiv, dicht an der Szene — aber
+  //    garantiert nicht auf einer anderen Kartusche (Deckung stärker, s. Aufrufer).
+  hit = search(false, 200)
+  if (hit) { claim(hit.x, hit.y, hit.bw); return { x: hit.x, y: hit.y, w: hit.bw, onPaper: false } }
   // 3) Das Blatt ist voll (sollte nicht vorkommen): unter der Szene absetzen.
   const bw = 44
   const x = Math.max(3, Math.min(P.W - bw - 3, wishX - bw / 2))
