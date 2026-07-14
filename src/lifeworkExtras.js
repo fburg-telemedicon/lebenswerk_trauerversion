@@ -1233,43 +1233,67 @@ function paintPosterScene(d, data, bg, st) {
     stations.push({ ...s, si, ti, color: st.accents[si % st.accents.length], first: ti === 0, section: sec })))
 
   // Bild full-bleed (cover-fit, nie verzerrt)
-  const s = Math.max(W / bg.w, H / bg.h)
-  d.image(bg.data, (W - bg.w * s) / 2, (H - bg.h * s) / 2, bg.w * s, bg.h * s)
+  const sc = Math.max(W / bg.w, H / bg.h)
+  d.image(bg.data, (W - bg.w * sc) / 2, (H - bg.h * sc) / 2, bg.w * sc, bg.h * sc)
 
-  // Kopf: Titel auf einem hellen Band, damit er auf jedem Motiv steht.
-  d.rect(0, 0, W, SCENE.headH, st.paper, 0.86)
-  const title = String(data.title || 'Ein Leben')
-  d.text(st.titleUpper ? title.toUpperCase() : title, W / 2, 21, { size: 30, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
-  if (data.subtitle) d.text(String(data.subtitle), W / 2, 30, { size: 11, italic: true, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
-  const who = [data.person?.name, data.person?.years].filter(Boolean).join('   ·   ')
-  if (who) d.text(who, W / 2, 38, { size: 9, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
+  // Kopf: NUR Name und Lebensspanne, groß, OHNE Kasten. Ein Poster braucht keine
+  // Buchtitelei — der Name trägt es.
+  const who = String(data.person?.name || '').trim()
+  const years = String(data.person?.years || '').trim()
+  if (who) d.text(who, W / 2, 26, { size: 40, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
+  if (years) d.text(years, W / 2, 38, { size: 17, align: 'center', color: st.soft, font: st.heading, maxW: W - 120, maxLines: 1 })
 
-  // Beschriftungen in die ruhigsten Zellen
-  const cellW = (W - 2 * SCENE.margin) / SCENE.cols
-  const cellH = (H - SCENE.headH - SCENE.footH) / SCENE.rows
+  // Beschriftungen: GROSS und NEBEN ihrer Szene.
+  // `scene_spots` sagt (aus der Bildanalyse), in welcher Rasterzelle die Szene
+  // einer Station liegt. Der Text wird in die RUHIGSTE NACHBARZELLE gesetzt — nah
+  // genug für den Bezug, aber nicht auf der Illustration. Fehlt die Zuordnung,
+  // greift wie bisher „ruhigste freie Zelle in der Nähe der Chronologie".
+  const SPOT_COLS = 8, SPOT_ROWS = 6
+  const spotMap = new Map((data.scene_spots || []).map(s2 => [Number(s2.i), s2]))
+  const gCols = bg.grid[0].length, gRows = bg.grid.length
   const used = new Set()
-  const spots = placeLabels(bg.grid, stations.length, SCENE.cols, SCENE.rows, used)
+  const fallback = placeLabels(bg.grid, stations.length, SCENE.cols, SCENE.rows, used)
 
-  // Beschriftung: WENIG Text, GROSS, OHNE Kasten. Ein Poster liest man aus zwei
-  // Metern Entfernung — dort zählt nur Jahr und Station. Die Sätze standen früher
-  // in halbleeren Panels; sie sind ersatzlos entfallen (der Inhalt steckt im Buch).
   stations.forEach((s2, i) => {
-    const spot = spots[i]
-    if (!spot) return
-    // Frei angeordnet statt zentriert im Raster: Versatz und leichte Neigung sind
-    // deterministisch aus dem Index abgeleitet (gleiches Poster = gleiches Bild),
-    // wirken aber von Hand gesetzt. Der Text bleibt in seiner ruhigen Zelle.
-    const jitterX = Math.sin(i * 2.3) * cellW * 0.16
-    const jitterY = Math.cos(i * 1.7) * cellH * 0.14
-    const angle = Math.sin(i * 1.1) * 3.5
-    const cx = SCENE.margin + spot.c * cellW + cellW / 2 + jitterX
-    const cy = SCENE.headH + spot.r * cellH + cellH / 2 + jitterY
-    let ty = cy - 4
-    if (s2.year) {
-      d.text(String(s2.year), cx, ty, { size: 16, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: cellW + 10, maxLines: 1, angle })
-      ty += 7.5
+    let x, y
+    const spot = spotMap.get(i)
+    if (spot && Number.isFinite(spot.col) && Number.isFinite(spot.row)) {
+      // Szene liegt bei (col,row) im 8×6-Raster → in Blattkoordinaten umrechnen
+      const sx = (Math.min(SPOT_COLS - 1, Math.max(0, spot.col)) + 0.5) / SPOT_COLS * W
+      const sy = (Math.min(SPOT_ROWS - 1, Math.max(0, spot.row)) + 0.5) / SPOT_ROWS * H
+      // Vier Kandidaten rund um die Szene; der ruhigste gewinnt.
+      const cands = [
+        { x: sx, y: sy - 30 }, { x: sx, y: sy + 32 },
+        { x: sx - 46, y: sy }, { x: sx + 46, y: sy },
+      ].map(c => ({
+        x: Math.max(40, Math.min(W - 40, c.x)),
+        y: Math.max(SCENE.headH + 10, Math.min(H - SCENE.footH - 10, c.y)),
+      }))
+      let best = null
+      for (const c of cands) {
+        const gc = Math.min(gCols - 1, Math.max(0, Math.floor(c.x / W * gCols)))
+        const gr = Math.min(gRows - 1, Math.max(0, Math.floor(c.y / H * gRows)))
+        const key = `${gr}:${gc}`
+        const penalty = used.has(key) ? 40 : 0
+        const score = bg.grid[gr][gc] + penalty
+        if (!best || score < best.score) best = { ...c, score, key }
+      }
+      used.add(best.key)
+      x = best.x; y = best.y
+    } else {
+      const f = fallback[i]
+      if (!f) return
+      x = SCENE.margin + f.c * cellW + cellW / 2
+      y = SCENE.headH + f.r * cellH + cellH / 2
     }
-    d.text(String(s2.title || ''), cx, ty, { size: 11.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: cellW + 12, maxLines: 2, angle })
+
+    const angle = Math.sin(i * 1.1) * 2.5
+    let ty = y
+    if (s2.year) {
+      d.text(String(s2.year), x, ty, { size: 19, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: 70, maxLines: 1, angle })
+      ty += 8.5
+    }
+    d.text(String(s2.title || ''), x, ty, { size: 13, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: 80, maxLines: 2, angle })
   })
 
   // Fuß

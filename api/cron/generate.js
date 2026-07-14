@@ -378,6 +378,52 @@ async function imageHasLettering(job, storagePath) {
   }
 }
 
+
+// ── Wo liegt welche Szene? ────────────────────────────────────────
+// Die Beschriftungen sollen NEBEN der Szene stehen, die sie meinen — nicht
+// irgendwo. Wo das Bildmodell die Szenen platziert hat, weiß nur das Bild selbst.
+// Also fragen wir es ab: Das multimodale Modell bekommt das fertige Motiv und die
+// Liste der Stationen und ordnet jeder Station eine Zelle in einem 8×6-Raster zu.
+// Schlägt das fehl, bleibt es beim bisherigen Verhalten (ruhigste freie Zelle).
+async function locateScenes(job, storagePath, data) {
+  try {
+    const items = []
+    ;(data.sections || []).forEach((sec, si) => (sec.stations || []).forEach((st, ti) => {
+      items.push(`${items.length}: ${st.title} — ${st.image_prompt || ''}`)
+    }))
+    if (!items.length) return null
+    const { data: file, error } = await genjobs.supabase.storage.from(IMAGE_BUCKET).download(storagePath)
+    if (error || !file) return null
+    const b64 = Buffer.from(await file.arrayBuffer()).toString('base64')
+    const r = await callWithBackoff({
+      system: 'Du lokalisierst Bildelemente in einem Raster. Antworte AUSSCHLIESSLICH mit rohem JSON.',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: `Das Bild ist eine illustrierte Lebenskarte. Lege ein Raster mit 8 Spalten (col 0-7, links nach rechts) und 6 Zeilen (row 0-5, oben nach unten) darüber.
+
+Ordne jeder der folgenden Stationen die Rasterzelle zu, in der die zu ihr passende Szene im Bild liegt. Kommt eine Szene im Bild nicht vor, lass sie weg.
+
+Stationen:
+${items.join(String.fromCharCode(10))}
+
+Antworte NUR so: {"spots":[{"i":0,"col":1,"row":4},{"i":1,"col":2,"row":3}]}` },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
+        ],
+      }],
+    })
+    if (r.inT || r.outT) {
+      await recordCost({ memorial_id: job.memorial_id, kind: 'poster_locate', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
+    }
+    const parsed = genprompts.tryParseJSON(r.text) || {}
+    const spots = Array.isArray(parsed.spots) ? parsed.spots : []
+    return spots.length ? spots : null
+  } catch (e) {
+    console.warn('[generate] Szenen-Lokalisierung übersprungen:', e.message)
+    return null
+  }
+}
+
 async function processPoster(job, deadline) {
   const p = job.params || {}
   const code = p.memorialCode || job.memorial_id
@@ -435,6 +481,12 @@ async function processPoster(job, deadline) {
   }
   result.data.scene_path = lastPath
   result.data.scene_prompt = result.motif
+
+  // Wo liegt welche Szene? -> Beschriftungen finden damit ihren Bezugspunkt.
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Szenen im Motiv werden verortet' }, result })
+  const spots = await locateScenes(job, lastPath, result.data)
+  if (spots) result.data.scene_spots = spots
   if (await canceled(job.id)) return 'canceled'
   await genjobs.saveMemorialField(code, p.field, result.data)
   await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: 3, total: 3 }, result: { saved: true } })
