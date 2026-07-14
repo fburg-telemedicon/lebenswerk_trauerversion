@@ -158,6 +158,7 @@ function posterImagePaths(poster) {
   const out = []
   if (poster?.scene_path) out.push(String(poster.scene_path).replace(/^\/+/, ''))
   for (const v of (Array.isArray(poster?.variants) ? poster.variants : [])) {
+    if (v?.scene_path) out.push(String(v.scene_path).replace(/^\/+/, ''))
     for (const t of (Array.isArray(v.tiles) ? v.tiles : [])) {
       if (t?.image_path) out.push(String(t.image_path).replace(/^\/+/, ''))
     }
@@ -178,6 +179,10 @@ function applyPosterUrls(poster, urlMap) {
     if (urlMap[k]) poster.scene_url = urlMap[k]
   }
   for (const v of (Array.isArray(poster?.variants) ? poster.variants : [])) {
+    if (v?.scene_path) {
+      const k = String(v.scene_path).replace(/^\/+/, '')
+      if (urlMap[k]) v.scene_url = urlMap[k]
+    }
     for (const t of (Array.isArray(v.tiles) ? v.tiles : [])) {
       if (!t?.image_path) continue
       const key = String(t.image_path).replace(/^\/+/, '')

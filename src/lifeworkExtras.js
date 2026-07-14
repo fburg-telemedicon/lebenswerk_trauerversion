@@ -1446,333 +1446,30 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
 }
 
 // ════════════════════════════════════════════════════════════════
-// 6) LEBENSPOSTER aus EINZELSZENEN — der aktuelle Weg
+// 6) VORSCHAU + DOWNLOAD je Stil (ein gemaltes Blatt, Text als Vektor)
 // ════════════════════════════════════════════════════════════════
 //
-// Alle Vorgänger scheiterten am selben Punkt: Wir ließen EIN großes Blatt malen
-// und mussten hinterher RATEN, wo darin die Szenen liegen, um die Beschriftung
-// danebenzusetzen. Jede Messung war eine Näherung — und der Text landete doch
-// wieder auf einem Motiv.
-//
-// Jetzt andersherum: Die Szenen entstehen EINZELN (Bildmodus 'vignette', je Szene
-// ein Bild), und das Blatt setzen WIR zusammen. Damit ist die Lage jeder Szene
-// bekannt, und ihre Beschriftung steht per Konstruktion in der Papierzeile
-// darunter — sie KANN nicht mehr auf einer Grafik liegen.
-//
-// Damit daraus kein Kontaktbogen wird (erster Anlauf: gleich große Rechtecke mit
-// harten Kanten in einem starren Raster), kommen drei Dinge dazu:
-//   • Die Szenen werden mit WEICHEN Rändern maskiert und dürfen einander
-//     überlappen — sie fließen ineinander statt aneinanderzustoßen.
-//   • Die Größen schwanken (Bedeutung + Streuung), die Höhen sind versetzt.
-//   • Der LEBENSWEG läuft als geschwungene Straße HINTER den Szenen durch und
-//     wird in den Lücken sichtbar — die Szenen liegen an ihm wie Stationen.
-// ── Der Lebensweg trägt das Blatt ─────────────────────────────────
-// Zwei Anläufe sind an derselben Stelle gescheitert: Ein Zeilenraster bleibt ein
-// Zeilenraster, auch mit Streuung — und eine Straße, die HINTER dicht gesetzten
-// Kacheln liegt, blitzt nur in Schlitzen durch und wirkt wie ein verirrter Strich.
-//
-// Also umgekehrt: Zuerst existiert die STRASSE. Sie schlängelt sich in drei Bahnen
-// über das Blatt (links→rechts, dann zurück, dann wieder vor — ein Weg, kein
-// Textumbruch). Die Szenen werden AN ihr aufgereiht, abwechselnd links und rechts
-// versetzt, sodass der Weg zwischen ihnen frei bleibt und sichtbar ist. Ihre
-// Beschriftung steht auf der straßenabgewandten Seite, in geprüft freiem Papier.
-const TILE = { W: 594, H: 420, margin: 10, headH: 34, foot: 6 }
+// Zwischendurch hat das Layout das Blatt aus EINZELN gezeichneten Szenen selbst
+// zusammengesetzt. Der Text saß damit garantiert richtig — aber das Blatt sah aus
+// wie ein Kontaktbogen: Der geschwungene Weg und die freie, wilde Anordnung
+// entstehen nur, wenn die Bild-KI das ganze Blatt in einem Zug malt. Also wieder
+// EIN Motiv je Stil (`variants[].scene_path`), Beschriftung als Vektor darüber
+// (Bildmodelle verschreiben sich). Wo die Szenen liegen, hat der Worker beim
+// Erzeugen ausgemessen (`scene_spots`) — daran hängen die Kartuschen.
 
-// Deterministische Streuung: gleiche Station → gleicher Wert. Kein Zufall, damit
-// Vorschau und PDF identisch sind und ein zweiter Download nicht anders aussieht.
-function jitter(s, salt) {
-  const h = Math.sin((s.si + 1) * 12.9898 + (s.ti + 1) * 78.233 + salt * 3.1) * 43758.5453
-  return (h - Math.floor(h)) * 2 - 1        // −1 … +1
-}
-
-// Die Straße als dichte Punktfolge: drei Bahnen im Zickzack, mit Wellen überlagert
-// und weichen Kehren an den Rändern. Kein Kreis, keine Diagonale — ein Weg.
-function roadPath(lanes = 3) {
-  const x0 = TILE.margin + 14, x1 = TILE.W - TILE.margin - 14
-  const yTop = TILE.headH + 30, yBot = TILE.H - TILE.foot - 34
-  const laneH = (yBot - yTop) / (lanes - 1)
-  const pts = []
-  const STEPS = 120
-  for (let lane = 0; lane < lanes; lane++) {
-    const y = yTop + lane * laneH
-    const fwd = lane % 2 === 0
-    for (let i = 0; i <= STEPS; i++) {
-      const t = i / STEPS
-      const x = fwd ? x0 + t * (x1 - x0) : x1 - t * (x1 - x0)
-      // Zwei überlagerte Wellen: die Straße schwingt kräftig, ohne sich zu kreuzen.
-      const wob = Math.sin(t * Math.PI * 2.2 + lane * 1.7) * laneH * 0.17
-                + Math.sin(t * Math.PI * 5.1 + lane) * laneH * 0.06
-      pts.push({ x, y: y + wob })
-    }
-    // Kehre an den Rand: halbrunder Bogen hinunter zur nächsten Bahn.
-    if (lane < lanes - 1) {
-      const cx = fwd ? x1 : x0
-      const dir = fwd ? 1 : -1
-      for (let i = 1; i <= 14; i++) {
-        const a = (i / 14) * Math.PI
-        pts.push({
-          x: cx + dir * Math.sin(a) * 11,
-          y: y + laneH * (1 - Math.cos(a)) / 2,
-        })
-      }
-    }
-  }
-  return pts
-}
-
-// Bogenlängen-Tabelle → Punkt + Tangente an beliebiger Stelle des Weges.
-function pathSampler(pts) {
-  const acc = [0]
-  for (let i = 1; i < pts.length; i++) {
-    const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y
-    acc.push(acc[i - 1] + Math.hypot(dx, dy))
-  }
-  const total = acc[acc.length - 1]
-  return (t) => {
-    const target = Math.max(0, Math.min(1, t)) * total
-    let i = 1
-    while (i < acc.length - 1 && acc[i] < target) i++
-    const p0 = pts[i - 1], p1 = pts[i]
-    const seg = acc[i] - acc[i - 1] || 1
-    const f = (target - acc[i - 1]) / seg
-    const x = p0.x + (p1.x - p0.x) * f
-    const y = p0.y + (p1.y - p0.y) * f
-    const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1
-    const nx = -(p1.y - p0.y) / len, ny = (p1.x - p0.x) / len   // Normale
-    return { x, y, nx, ny }
-  }
-}
-
-const CAP_H = 16   // Höhe des Textstreifens, den jede Szene mitbringt
-
-const overlaps = (a, b, tol = 0) =>
-  a.x < b.x + b.w - tol && a.x + a.w - tol > b.x && a.y < b.y + b.h - tol && a.y + a.h - tol > b.y
-
-function layoutTiles(data, available) {
-  const stations = []
-  ;(Array.isArray(data?.sections) ? data.sections : []).forEach((sec, si) =>
-    (Array.isArray(sec.stations) ? sec.stations : []).forEach((s, ti) => {
-      const key = `${si}:${ti}`
-      if (available && !available.has(key)) return
-      stations.push({ ...s, si, ti, key, weight: Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1)) })
-    }))
-  if (!stations.length) return null
-
-  const n = stations.length
-  const road = roadPath(n > 9 ? 3 : 2)
-  const at = pathSampler(road)
-
-  // Grundgröße so wählen, dass die Szenen zusammen das Blatt füllen, ohne es zu
-  // ersticken: Fläche/Station, davon Breite bei 3:2.
-  const usable = (TILE.W - 2 * TILE.margin) * (TILE.H - TILE.headH - TILE.foot)
-  const baseW = Math.min(150, Math.sqrt((usable * 0.95 / n) * 1.5))
-
-  const build = (shrink) => {
-  const out = []
-  stations.forEach((s, i) => {
-    const t = (i + 0.5) / n
-    const p = at(t)
-    const scale = (0.82 + 0.22 * (s.weight - 1)) * (1 + 0.1 * jitter(s, 2)) * shrink
-    const w = baseW * scale
-    const h = w / 1.5
-    const side = i % 2 === 0 ? -1 : 1                       // abwechselnd über/unter dem Weg
-    const off = (h / 2 + 7) * (1 + 0.12 * jitter(s, 4))     // Abstand zur Straßenmitte
-    let cx = p.x + p.nx * off * side
-    let cy = p.y + p.ny * off * side
-    // Auf dem Blatt halten (Rand + Kopfzeile).
-    cx = Math.max(TILE.margin + w / 2, Math.min(TILE.W - TILE.margin - w / 2, cx))
-    cy = Math.max(TILE.headH + h / 2, Math.min(TILE.H - TILE.foot - h / 2, cy))
-    out.push({ ...s, w, h, x: cx - w / 2, y: cy - h / 2, cx, cy, side, i })
-  })
-
-  // Jede Szene bringt ihren TEXTSTREIFEN mit: Er gehört zur Szene wie ihr Schatten
-  // und liegt auf der straßenabgewandten Seite. Verschoben wird immer die EINHEIT
-  // aus Bild + Streifen. Dadurch kann eine Beschriftung gar nicht erst auf einem
-  // fremden Bild landen — nicht durch Prüfen, sondern durch Bauart.
-  const capH = CAP_H
-  const unit = s => ({
-    x: s.x - 1,
-    y: (s.side < 0 ? s.y - capH - 3 : s.y) - 1,
-    w: s.w + 2,
-    h: s.h + capH + 3 + 2,
-  })
-
-  // Entzerrung mit zwei verschiedenen Maßstäben:
-  //   • Bild gegen Bild darf sich überlagern (bis ~16 %) — genau das lässt die
-  //     Szenen an ihren weichen Rändern ineinanderfließen.
-  //   • Text gegen Bild und Text gegen Text darf sich NIE überlagern.
-  const capOf = s => ({ x: s.x, w: s.w, h: capH, y: s.side < 0 ? s.y - capH - 3 : s.y + s.h + 3 })
-  const sep = (A, B, ox, oy, slackX, slackY) => {
-    if (ox <= slackX || oy <= slackY) return false
-    if (ox - slackX < oy - slackY) {
-      const push = (ox - slackX) / 2 + 0.4
-      const dir = A.cx < B.cx ? -1 : 1
-      A.x += push * dir; B.x -= push * dir
-    } else {
-      const push = (oy - slackY) / 2 + 0.4
-      const dir = A.cy < B.cy ? -1 : 1
-      A.y += push * dir; B.y -= push * dir
-    }
-    A.cx = A.x + A.w / 2; A.cy = A.y + A.h / 2
-    B.cx = B.x + B.w / 2; B.cy = B.y + B.h / 2
-    return true
-  }
-  const inter = (a, b) => {
-    const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
-    const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
-    return ox > 0 && oy > 0 ? [ox, oy] : null
-  }
-
-  for (let pass = 0; pass < 120; pass++) {
-    let moved = false
-    for (let a = 0; a < out.length; a++) {
-      for (let b = a + 1; b < out.length; b++) {
-        const A = out[a], B = out[b]
-        const cA = capOf(A), cB = capOf(B)
-        let ov = inter(A, B)                                  // Bild ↔ Bild: Überlappung erlaubt
-        if (ov) moved = sep(A, B, ov[0], ov[1], Math.min(A.w, B.w) * 0.26, Math.min(A.h, B.h) * 0.26) || moved
-        ov = inter(cA, B); if (ov) moved = sep(A, B, ov[0], ov[1], 0, 0) || moved   // Text ↔ Bild: nie
-        ov = inter(cB, A); if (ov) moved = sep(A, B, ov[0], ov[1], 0, 0) || moved
-        ov = inter(cA, cB); if (ov) moved = sep(A, B, ov[0], ov[1], 0, 0) || moved  // Text ↔ Text: nie
-      }
-    }
-    for (const s of out) {
-      const top = TILE.headH + (s.side < 0 ? capH + 3 : 0)
-      const bot = TILE.H - TILE.foot - (s.side < 0 ? 0 : capH + 3)
-      s.x = Math.max(TILE.margin, Math.min(TILE.W - TILE.margin - s.w, s.x))
-      s.y = Math.max(top, Math.min(bot - s.h, s.y))
-      s.cx = s.x + s.w / 2; s.cy = s.y + s.h / 2
-    }
-    if (!moved) break
-  }
-
-  out.forEach(s => {
-    s.cap = {
-      x: s.x, w: s.w,
-      y: s.side < 0 ? s.y - capH - 3 : s.y + s.h + 3,
-      h: capH,
-    }
-  })
-  return out
-  }
-
-  // Das Blatt ist endlich: Wenn sich die Einheiten (Bild + Textstreifen) bei dieser
-  // Größe nicht überschneidungsfrei anordnen lassen, werden ALLE Szenen etwas
-  // kleiner — lieber ein etwas luftigeres Poster als Text auf einem Bild.
-  let out = null
-  for (let shrink = 1; shrink >= 0.5; shrink -= 0.04) {
-    out = build(shrink)
-    const clash = out.some((A, a) => out.some((B, b) => b !== a &&
-      (overlaps(A.cap, B, 0.5) || (b > a && overlaps(A.cap, B.cap, 0.5)))))
-    if (!clash) break
-  }
-
-  return { stations: out, road }
-}
-
-// `images` = { "si:ti": { data, el } } — bereits maskiert und auf die Zelle gebracht.
-function paintPosterTiles(d, data, images, st) {
-  const L = layoutTiles(data, new Set(Object.keys(images)))
-  if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
-  const { W, H } = TILE
-
-  d.rect(0, 0, W, H, st.paper)
-
-  const who = String(data.person?.name || data.title || '').trim()
-  if (who) d.text(st.titleUpper ? who.toUpperCase() : who, W / 2, 24, { size: 38, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 80, maxLines: 1 })
-
-  // Die Straße: breiter Belag in der Abschnittsfarbe, darauf ein heller Mittel-
-  // streifen. Sie liegt UNTER den Szenen, bleibt zwischen ihnen aber frei sichtbar,
-  // weil die Szenen sie abwechselnd links und rechts säumen.
-  const roadColor = st.accents[0]
-  d.curveThrough(L.road, () => roadColor, 7)
-  d.curveThrough(L.road, () => st.paper, 1.6)
-
-  L.stations.forEach(s => {
-    const img = images[s.key]
-    if (img) d.tile(img, s.x, s.y, s.w, s.h)
-  })
-
-  L.stations.forEach(s => {
-    const color = st.accents[s.si % st.accents.length]
-    const c = s.cap
-    let y = c.y + 5
-    if (s.year) {
-      d.text(String(s.year), c.x + c.w / 2, y, { size: 12, bold: true, align: 'center', color, font: st.heading, maxW: c.w, maxLines: 1 })
-      y += 5.4
-    }
-    d.text(String(s.title || ''), c.x + c.w / 2, y, { size: 13, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: c.w, maxLines: 2 })
-  })
-
-  d.text('Lebenswerk · Lebensgeschichten.ai', W - TILE.margin, H - 2.5, { size: 6.5, align: 'right', color: st.soft, font: st.body })
-}
-
-// Szene auf die Zelle bringen — formatfüllend zugeschnitten UND mit weichen
-// Rändern maskiert. Der harte Zuschnitt war der Grund für die Kontaktbogen-Optik:
-// Er hat genau die auslaufenden Ränder weggeschnitten, die die Bild-KI malt.
-// Deshalb PNG (Alpha) statt JPEG.
-async function prepareTile(img, wMm, hMm) {
-  const el = await new Promise((res, rej) => {
+// Bild als Element (für die Bildanalyse und die Leinwand-Vorschau).
+async function toImageEl(dataUrl) {
+  return await new Promise((res, rej) => {
     const im = new Image()
-    im.onload = () => res(im); im.onerror = () => rej(new Error('Szene konnte nicht gelesen werden.'))
-    im.src = img.data
+    im.onload = () => res(im)
+    im.onerror = () => rej(new Error('Motiv konnte nicht gelesen werden.'))
+    im.src = dataUrl
   })
-  const PX = 6                                     // px pro mm ≈ 150 dpi auf A2
-  const W = Math.round(wMm * PX), H = Math.round(hMm * PX)
-  const cv = document.createElement('canvas')
-  cv.width = W; cv.height = H
-  const ctx = cv.getContext('2d')
-
-  const aspect = W / H
-  let sw = img.w, sh = img.h
-  if (img.w / img.h > aspect) sw = img.h * aspect
-  else sh = img.w / aspect
-  ctx.drawImage(el, (img.w - sw) / 2, (img.h - sh) / 2, sw, sh, 0, 0, W, H)
-
-  // Weiche Ränder: an allen vier Seiten läuft die Deckkraft aus, dazu die Ecken
-  // per radialer Maske. Dadurch verschmelzen benachbarte Szenen und der Weg
-  // darunter scheint durch, statt an einer Kante abzureißen.
-  ctx.globalCompositeOperation = 'destination-out'
-  const fx = Math.round(W * 0.12), fy = Math.round(H * 0.14)
-  const edge = (x0, y0, x1, y1, rect) => {
-    const g = ctx.createLinearGradient(x0, y0, x1, y1)
-    g.addColorStop(0, 'rgba(0,0,0,1)')
-    g.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = g
-    ctx.fillRect(...rect)
-  }
-  edge(0, 0, fx, 0, [0, 0, fx, H])
-  edge(W, 0, W - fx, 0, [W - fx, 0, fx, H])
-  edge(0, 0, 0, fy, [0, 0, W, fy])
-  edge(0, H, 0, H - fy, [0, H - fy, W, fy])
-  ctx.globalCompositeOperation = 'source-over'
-
-  const data = cv.toDataURL('image/png')
-  const el2 = await new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = data })
-  return { data, el: el2 }
 }
 
-// Die Szenen einer Variante laden und auf ihre Zellen bringen. Erst ohne Bilder
-// layouten (um die Zellmaße zu kennen), dann mit den tatsächlich vorhandenen
-// Szenen noch einmal — fehlende Szenen verschieben das Layout also selbst.
-async function prepareTiles(data, variant) {
-  const tiles = (Array.isArray(variant?.tiles) ? variant.tiles : []).filter(t => t.image_url)
-  const have = new Set(tiles.map(t => `${t.si}:${t.ti}`))
-  const L = layoutTiles(data, have)
-  if (!L) throw new Error('Das Poster enthält keine Stationen mit Szene.')
-  const images = {}
-  await Promise.all(tiles.map(async t => {
-    const s = L.stations.find(x => x.si === t.si && x.ti === t.ti)
-    if (!s) return
-    try { images[`${t.si}:${t.ti}`] = await prepareTile(await loadImage(t.image_url), s.w, s.h) } catch { /* Szene fehlt */ }
-  }))
-  return images
-}
-
-// Zeichenbackend für die Bildschirm-Vorschau: dieselbe Layoutfunktion, anderes
-// Ziel. So zeigt die Detailansicht die Stile als Thumbnails, ohne dass ein zweites
-// Layout gepflegt werden müsste.
-function canvasDraw(ctx, s) {
+// Zeichenbackend für die Bildschirm-Vorschau: dieselbe Malfunktion wie fürs PDF,
+// anderes Ziel. So zeigt die Detailansicht exakt das, was heruntergeladen wird.
+function canvasDraw(ctx, s, imgEl) {
   const col = c => `rgb(${c[0]},${c[1]},${c[2]})`
   const setFont = o => {
     const px = (o.size || 10) * 0.3528 * s
@@ -1791,25 +1488,33 @@ function canvasDraw(ctx, s) {
     if (cur) lines.push(cur)
     return lines
   }
+  const roundRect = (x, y, w, h, r) => {
+    ctx.beginPath()
+    ctx.moveTo((x + r) * s, y * s)
+    ctx.arcTo((x + w) * s, y * s, (x + w) * s, (y + h) * s, r * s)
+    ctx.arcTo((x + w) * s, (y + h) * s, x * s, (y + h) * s, r * s)
+    ctx.arcTo(x * s, (y + h) * s, x * s, y * s, r * s)
+    ctx.arcTo(x * s, y * s, (x + w) * s, y * s, r * s)
+    ctx.closePath()
+  }
   return {
-    rect(x, y, w, h, c) { ctx.fillStyle = col(c); ctx.fillRect(x * s, y * s, w * s, h * s) },
-    tile(img, x, y, w, h) { ctx.drawImage(img.el, x * s, y * s, w * s, h * s) },
-    curveThrough(points, colorAt, width) {
-      if (points.length < 2) return
-      ctx.strokeStyle = col(colorAt(0))
-      ctx.lineWidth = width * s
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.beginPath()
-      ctx.moveTo(points[0].x * s, points[0].y * s)
-      for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i], p2 = points[i + 1]
-        const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2
-        ctx.quadraticCurveTo(p1.x * s, p1.y * s, mx * s, my * s)
-      }
-      const last = points[points.length - 1]
-      ctx.lineTo(last.x * s, last.y * s)
-      ctx.stroke()
+    rect(x, y, w, h, c, alpha) {
+      ctx.save()
+      if (alpha != null) ctx.globalAlpha = alpha
+      ctx.fillStyle = col(c)
+      ctx.fillRect(x * s, y * s, w * s, h * s)
+      ctx.restore()
+    },
+    image(_data, x, y, w, h) { ctx.drawImage(imgEl, x * s, y * s, w * s, h * s) },
+    bubble(x, y, w, h, fill, edge, alpha = 0.88) {
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.fillStyle = col(fill)
+      ctx.strokeStyle = col(edge)
+      ctx.lineWidth = 0.4 * s
+      roundRect(x, y, w, h, 2.4)
+      ctx.fill(); ctx.stroke()
+      ctx.restore()
     },
     text(str, x, y, o = {}) {
       setFont(o)
@@ -1824,22 +1529,33 @@ function canvasDraw(ctx, s) {
   }
 }
 
-// Vorschaubild einer Variante — dasselbe Bild dient als Thumbnail und in der
-// Lightbox, nur unterschiedlich groß dargestellt.
-export async function renderPosterPreview(data, variant, styleKey, pxPerMm = 3) {
-  const st = getPosterStyle(styleKey || variant?.style || data?.style)
-  const images = await prepareTiles(data, variant)
-  const cv = document.createElement('canvas')
-  cv.width = Math.round(TILE.W * pxPerMm)
-  cv.height = Math.round(TILE.H * pxPerMm)
-  paintPosterTiles(canvasDraw(cv.getContext('2d'), pxPerMm), data || {}, images, st)
-  return cv.toDataURL('image/jpeg', 0.9)
+// Motiv + Bildanalyse einer Variante laden (beides brauchen Vorschau und PDF).
+async function loadSheet(data, variant) {
+  const url = variant?.scene_url || data?.scene_url
+  if (!url) throw new Error('Das Poster-Motiv konnte nicht geladen werden — bitte die Seite neu laden.')
+  const img = await loadImage(url)
+  const el = await toImageEl(img.data)
+  return {
+    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows) },
+    el,
+    data: { ...data, scene_spots: variant?.scene_spots || data?.scene_spots },
+  }
 }
 
-export async function downloadPosterTilesPdf(filename, data, variant, styleKey) {
+export async function renderPosterPreview(data, variant, styleKey, pxPerMm = 2.6) {
   const st = getPosterStyle(styleKey || variant?.style || data?.style)
-  const images = await prepareTiles(data, variant)
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [TILE.W, TILE.H] })
-  paintPosterTiles(pdfDraw(doc), data || {}, images, st)
+  const sheet = await loadSheet(data, variant)
+  const cv = document.createElement('canvas')
+  cv.width = Math.round(P.W * pxPerMm)
+  cv.height = Math.round(P.H * pxPerMm)
+  paintPosterScene(canvasDraw(cv.getContext('2d'), pxPerMm, sheet.el), sheet.data, sheet.bg, st)
+  return cv.toDataURL('image/jpeg', 0.88)
+}
+
+export async function downloadPosterVariantPdf(filename, data, variant, styleKey) {
+  const st = getPosterStyle(styleKey || variant?.style || data?.style)
+  const sheet = await loadSheet(data, variant)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  paintPosterScene(pdfDraw(doc), sheet.data, sheet.bg, st)
   doc.save(filename)
 }

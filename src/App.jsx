@@ -55,7 +55,7 @@ import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
-import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterTilesPdf, POSTER_STYLES } from './lifeworkExtras.js'
+import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -2060,10 +2060,10 @@ Regeln:
     setExtraDl(styleKey ? `poster:${styleKey}` : kind); setErr('')
     try {
       if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
-      // Aktuelles Poster: aus Einzelszenen zusammengesetzt, ein Blatt je Stil.
+      // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.
       else if (Array.isArray(data.variants) && data.variants.length) {
         const v = data.variants.find(x => x.style === styleKey) || data.variants[0]
-        await downloadPosterTilesPdf(`${base}_${v.style}.pdf`, data, v, v.style)
+        await downloadPosterVariantPdf(`${base}_${v.style}.pdf`, data, v, v.style)
       }
       // Ältere Poster bleiben ladbar: ein Gesamtmotiv mit Vektortext darüber …
       else if (data.scene_url || data.scene_path) {
@@ -2277,10 +2277,9 @@ Regeln:
   // Kosten. Deshalb steht der geschätzte Aufwand direkt am Knopf.
   const posterStyleOverlay = posterStyleModal ? (() => {
     const chosen = POSTER_STYLES.filter(s => posterStyleSel.has(s.key))
-    const scenes = 13                                   // Richtwert: so viele Stationen liefert die KI typischerweise
-    const imgs = chosen.length * scenes
+    const imgs = chosen.length            // ein gemaltes Blatt je Stil
     const eur = (imgs * 0.047 * 0.92).toFixed(2).replace('.', ',')
-    const mins = Math.max(1, Math.round(imgs * 18 / 60))
+    const mins = Math.max(1, Math.round(imgs * 1.5))
     const toggle = key => setPosterStyleSel(prev => {
       const n = new Set(prev)
       n.has(key) ? n.delete(key) : n.add(key)
@@ -2292,7 +2291,7 @@ Regeln:
           <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>In welchen Stilen soll das Lebensposter entstehen?</h2>
           <p style={{ ...S.muted, marginBottom:16 }}>
             Die Lebensstationen werden nur einmal gesammelt und gelten für alle Blätter — jeder Stil bekommt aber
-            seinen eigenen Satz gezeichneter Szenen. Mehrere Stile lassen sich hinterher nebeneinander vergleichen.
+            sein eigenes, vollständig gemaltes Blatt. Mehrere Stile lassen sich hinterher nebeneinander vergleichen.
           </p>
           <div style={{ display:'grid', gap:10, marginBottom:14 }}>
             {POSTER_STYLES.map(s => {

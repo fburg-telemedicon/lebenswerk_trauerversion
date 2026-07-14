@@ -19,6 +19,7 @@ const { recordHeartbeat } = require('../_lib/heartbeat')
 const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
 const genprompts = require('../_lib/genprompts')
+const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '240000', 10))
 const MAX_CHAIN = 60
@@ -321,25 +322,154 @@ async function processJson(job, deadline) {
   return 'done'
 }
 
-// ── Das Lebensposter: Szene für Szene, Stil für Stil ──────────────
-// Vorher entstand EIN großes Blatt, auf das der Text hinterher gelegt wurde — wo
-// darin die Szenen lagen, musste geraten (gemessen) werden, und die Beschriftung
-// landete doch wieder auf einem Motiv. Jetzt zeichnet die Bild-KI jede Szene
-// EINZELN; das Blatt setzt der Renderer daraus zusammen (src/lifeworkExtras.js)
-// und kennt damit jede Position — die Beschriftung KANN nicht mehr falsch liegen.
+// Motiv-Prompt für das Poster-Gesamtbild (aus den Stationen). Muss zu
+// posterSceneSystem() in src/lifeworkExtras.js passen — hier serverseitig, weil
+// er erst gebaut werden kann, wenn die Stationen feststehen.
+function sceneSystemFor(data) {
+  const scenes = []
+  for (const sec of (data.sections || [])) {
+    for (const st of (sec.stations || [])) if (st.image_prompt) scenes.push(String(st.image_prompt))
+  }
+  const list = scenes.slice(0, 12).map((s, i) => `${i + 1}. ${s}`).join(String.fromCharCode(10))
+  return `Du bist Illustrator. Beschreibe EIN einziges, weites Illustrationsblatt (Lebenskarte) in ENGLISCH — es zeigt den Lebensweg als mäandernden Pfad, an dem die folgenden Szenen liegen (von links unten nach rechts oben):
+
+${list}
+
+Gib NUR die englische Bildbeschreibung aus (60–110 Wörter), keine Erklärung, kein Markdown, keine Anführungszeichen.
+
+Regeln:
+- Beschreibe Weg, Szenen, Anordnung und Atmosphäre.
+- Verlange ausdrücklich große, ruhige, leere Papierflächen zwischen und um die Szenen (dort wird später Text gedruckt).
+- KEIN Text im Bild, keine Schrift, keine Zahlen, keine Schilder. Keine Gesichter.
+- Nenne kein Medium und keinen Kunststil.`
+}
+
+
+// ── Schrift-Kontrolle des Poster-Motivs ───────────────────────────
+// Bildmodelle malen auf Poster-Motiven trotz Verbot gelegentlich Buchstaben —
+// und verschreiben sich dabei („Goburt in Segen"). Das Poster trägt aber echten
+// Vektortext; gemalte Schrift ist dort IMMER ein Fehler. Deshalb sieht sich das
+// (multimodale) Sprachmodell das fertige Bild an: Erkennt es Schrift, wird das
+// Motiv verworfen und neu gezeichnet.
+async function imageHasLettering(job, storagePath) {
+  try {
+    const { data, error } = await genjobs.supabase.storage.from(IMAGE_BUCKET).download(storagePath)
+    if (error || !data) return false
+    const buf = Buffer.from(await data.arrayBuffer())
+    const b64 = buf.toString('base64')
+    const r = await callWithBackoff({
+      system: 'Du prüfst Illustrationen auf gemalte Schrift. Antworte AUSSCHLIESSLICH mit JSON.',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Enthält dieses Bild irgendwelche Buchstaben, Wörter, Zahlen, Beschriftungen, Schilder mit Text, Titel oder schriftähnliche Kritzel? Antworte NUR: {"text":true} oder {"text":false}. Im Zweifel {"text":true}.' },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
+        ],
+      }],
+    })
+    const parsed = genprompts.tryParseJSON(r.text) || {}
+    if (r.inT || r.outT) {
+      await recordCost({ memorial_id: job.memorial_id, kind: 'poster_text_check', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
+    }
+    return parsed.text === true
+  } catch (e) {
+    console.warn('[generate] Schriftprüfung übersprungen:', e.message)
+    return false   // im Zweifel durchlassen: lieber ein Poster mit Kritzel als gar keins
+  }
+}
+
+
+// ── Wo liegt welche Szene? ────────────────────────────────────────
+// Die Beschriftungen sollen NEBEN der Szene stehen, die sie meinen — nicht
+// irgendwo. Wo das Bildmodell die Szenen platziert hat, weiß nur das Bild selbst.
+// Also fragen wir es ab: Das multimodale Modell bekommt das fertige Motiv und die
+// Liste der Stationen und ordnet jeder Station eine Zelle in einem 8×6-Raster zu.
+// Schlägt das fehl, bleibt es beim bisherigen Verhalten (ruhigste freie Zelle).
+async function locateScenes(job, storagePath, data) {
+  try {
+    const items = []
+    ;(data.sections || []).forEach((sec, si) => (sec.stations || []).forEach((st, ti) => {
+      items.push(`${items.length}: ${st.title} — ${st.image_prompt || ''}`)
+    }))
+    if (!items.length) return null
+    const { data: file, error } = await genjobs.supabase.storage.from(IMAGE_BUCKET).download(storagePath)
+    if (error || !file) return null
+    const b64 = Buffer.from(await file.arrayBuffer()).toString('base64')
+    const r = await callWithBackoff({
+      system: 'Du lokalisierst Bildelemente in einem Raster. Antworte AUSSCHLIESSLICH mit rohem JSON.',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: `Das Bild ist eine illustrierte Lebenskarte. Lege ein Raster mit 8 Spalten (col 0-7, links nach rechts) und 6 Zeilen (row 0-5, oben nach unten) darüber.
+
+Ordne jeder der folgenden Stationen die Rasterzelle zu, in der die zu ihr passende Szene im Bild liegt. Kommt eine Szene im Bild nicht vor, lass sie weg.
+
+Stationen:
+${items.join(String.fromCharCode(10))}
+
+Antworte NUR so: {"spots":[{"i":0,"col":1,"row":4},{"i":1,"col":2,"row":3}]}` },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
+        ],
+      }],
+    })
+    if (r.inT || r.outT) {
+      await recordCost({ memorial_id: job.memorial_id, kind: 'poster_locate', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
+    }
+    const parsed = genprompts.tryParseJSON(r.text) || {}
+    const spots = Array.isArray(parsed.spots) ? parsed.spots : []
+    return spots.length ? spots : null
+  } catch (e) {
+    console.warn('[generate] Szenen-Lokalisierung übersprungen:', e.message)
+    return null
+  }
+}
+
+
+
+// ── Das Lebensposter: EIN gemaltes Blatt je Stil ──────────────────
+// Der Umweg über einzeln gezeichnete Szenen (die das Layout selbst zusammensetzt)
+// hat den Text zwar sicher platziert, aber das Blatt sah aus wie ein Kontaktbogen:
+// Der WEG und die freie, wilde Anordnung entstehen nur, wenn die Bild-KI das ganze
+// Blatt in einem Zug malt. Also wieder so — und der Text bleibt Vektor, denn
+// Bildmodelle verschreiben sich. Wo die Szenen im Bild liegen, misst `locateScenes`
+// nach, damit die Beschriftung zu ihrer Szene findet.
 //
-// Der Stil steckt im Bild, also braucht jeder Stil seinen eigenen Satz Szenen.
-// Die Inhalte (Stationen) entstehen dagegen nur EINMAL und gelten für alle Stile.
+// Inhalte und Motivbeschreibung entstehen EINMAL und gelten für alle Stile; teuer
+// (und stilabhängig) ist nur das Bild.
 const POSTER_STYLE_FALLBACK = ['storybook', 'journal', 'atlas', 'watercolor', 'nouveau']
 
 // Motive rund um Abschied, Krankheit oder Krieg werden vom Bild-Dienst mitunter
-// verweigert — und genau die gehören zu einem Leben. Statt die Szene aufzugeben,
-// wird das Motiv entschärft: belastende Begriffe raus, ruhiger Ton rein. Der Ort
-// und die Gegenstände bleiben, damit die Szene noch dieselbe Erinnerung meint.
-const HEAVY = /\b(funeral|coffin|casket|grave|graveyard|cemetery|corpse|body|death|dead|dying|died|mourning|cancer|tumou?r|surgery|blood|wound|injur\w*|war|bomb\w*|ruin\w*|rubble|weapon|gun|soldier)\w*/gi
+// verweigert — und genau die gehören zu einem Leben. Statt aufzugeben, wird das
+// Motiv entschärft: belastende Begriffe raus, ruhiger Ton rein.
+const HEAVY = /\b(funeral|coffin|casket|grave|graveyard|cemetery|corpse|death|dead|dying|died|mourning|cancer|tumou?r|surgery|blood|wound|injur\w*|war|bomb\w*|weapon|gun|soldier)\w*/gi
 function softenScenePrompt(p) {
   const cleaned = String(p || '').replace(HEAVY, '').replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').trim()
-  return `${cleaned || 'a quiet room with a few personal objects'}, calm and tender atmosphere, nothing distressing`
+  return `${cleaned || 'a quiet sheet with a winding path and a few gentle everyday scenes'}, calm and tender atmosphere, nothing distressing`
+}
+
+// Ein Blatt in einem Stil malen lassen — und prüfen, dass keine Schrift drin ist.
+// Bis zu drei Anläufe; danach das letzte Bild (ein Poster mit einem Kritzel ist
+// besser als gar keins).
+async function drawPosterSheet(job, code, motif, style, note) {
+  let lastPath = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const prompt = attempt === 1 ? motif : softenScenePrompt(motif)
+    try {
+      const { storagePath } = await adminPost('/api/admin/generate-image', {
+        memorialCode: code, prompt, variant: 'scene', posterStyle: style,
+      })
+      lastPath = storagePath
+    } catch (e) {
+      if (attempt === 3) { console.warn(`[generate] Poster-Blatt ${style} fehlgeschlagen: ${e.message}`); return null }
+      await sleep(4000 * attempt)
+      continue
+    }
+    await note('Motiv wird auf gemalte Schrift geprüft')
+    if (!(await imageHasLettering(job, lastPath))) break
+    console.warn(`[generate] Poster-Motiv (${style}) enthält Schrift — Versuch ${attempt} verworfen`)
+    if (attempt < 3) await note(`Motiv enthielt Schrift — wird neu gezeichnet (${attempt + 1}/3)`)
+  }
+  return lastPath
 }
 
 async function processPoster(job, deadline) {
@@ -348,11 +478,12 @@ async function processPoster(job, deadline) {
   const result = job.result && typeof job.result === 'object' ? job.result : {}
   const styles = (Array.isArray(p.posterStyles) && p.posterStyles.length ? p.posterStyles
     : p.posterStyle ? [p.posterStyle] : POSTER_STYLE_FALLBACK).map(String)
+  const total = 2 + styles.length
 
-  // Schritt 1: Inhalte (Stationen, Jahre, Sätze) — gelten für alle Stile.
+  // Schritt 1: Inhalte (Stationen, Jahre, Titel) — gelten für alle Stile.
   if (!result.data) {
     if (await canceled(job.id)) return 'canceled'
-    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 0, total: 1, message: 'Lebensstationen werden gesammelt' }, result })
+    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 0, total, message: 'Lebensstationen werden gesammelt' }, result })
     let data = null
     for (let attempt = 1; attempt <= 2 && !data; attempt++) {
       const raw = await runLLMStep(job, 'life_poster', p.system, p.user || 'Gib jetzt das JSON aus.')
@@ -361,73 +492,56 @@ async function processPoster(job, deadline) {
     }
     if (!data) { await genjobs.failJob(job.id, 'Die KI hat kein gültiges JSON geliefert.'); return 'error' }
     result.data = data
+    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 1, total, message: 'Motiv wird beschrieben' }, result })
   }
 
-  // Die Szenen-Aufträge stehen mit den Inhalten fest (Reihenfolge = Leserichtung
-  // des Blattes). Muss zu posterImageJobs() in src/lifeworkExtras.js passen.
-  const jobs = []
-  ;(Array.isArray(result.data.sections) ? result.data.sections : []).forEach((sec, si) =>
-    (Array.isArray(sec.stations) ? sec.stations : []).forEach((st, ti) => {
-      if (st?.image_prompt) jobs.push({ si, ti, prompt: String(st.image_prompt) })
-    }))
-  if (!jobs.length) { await genjobs.failJob(job.id, 'Das Poster enthält keine Stationen mit Motiv.'); return 'error' }
-
-  const total = 1 + styles.length * jobs.length
-  if (!Array.isArray(result.variants)) result.variants = []
-
-  // Schritt 2…n: je Stil ein kompletter Satz Szenen. Nach JEDER Szene gespeichert
-  // → ein Abbruch (Zeitbudget, Neustart) kostet höchstens das laufende Bild.
-  for (let vi = 0; vi < styles.length; vi++) {
-    if (!result.variants[vi]) result.variants[vi] = { style: styles[vi], tiles: [] }
-    const v = result.variants[vi]
-    while (v.tiles.length < jobs.length) {
-      if (await canceled(job.id)) return 'canceled'
-      const done = result.variants.reduce((a, x) => a + (x.tiles?.length || 0), 0)
-      if (Date.now() > deadline) {
-        await genjobs.releaseJob(job.id, { progress: { phase: 'image', cursor: 1 + done, total }, result })
-        return 'paused'
-      }
-      const j = jobs[v.tiles.length]
-      await genjobs.saveProgress(job.id, {
-        progress: {
-          phase: 'image', cursor: 1 + done, total,
-          message: `Stil ${vi + 1}/${styles.length} · Szene ${v.tiles.length + 1}/${jobs.length}`,
-        },
-        result,
-      })
-      // KEINE Szene darf fehlen — ein Loch im Poster ist schlimmer als ein etwas
-      // braveres Motiv. Die Ausfälle kamen von schweren Motiven (Abschied, Krankheit):
-      // Der Bild-Dienst verweigert sie. Ab dem dritten Anlauf wird das Motiv deshalb
-      // entschärft, ab dem fünften auf eine ruhige Version der Szene zurückgeführt.
-      let path = null
-      for (let attempt = 1; attempt <= 5 && !path; attempt++) {
-        const prompt = attempt <= 2 ? j.prompt
-          : attempt <= 4 ? softenScenePrompt(j.prompt)
-          : `A quiet, empty, peaceful room or landscape, gentle light, no people: ${softenScenePrompt(j.prompt)}`
-        try {
-          const r = await adminPost('/api/admin/generate-image', {
-            memorialCode: code, prompt, variant: 'vignette', posterStyle: v.style,
-          })
-          path = r.storagePath
-        } catch (e) {
-          if (attempt === 5) console.warn(`[generate] Poster-Szene ${v.style} ${j.si}:${j.ti} endgültig fehlgeschlagen: ${e.message}`)
-          else await sleep(3000 * attempt)
-        }
-      }
-      v.tiles.push({ si: j.si, ti: j.ti, image_path: path })
-      await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2 + done, total }, result })
-      await sleep(2500)   // FLUX-Kontingent schonen (viele Bilder in Serie)
+  // Schritt 2: die Bildbeschreibung des ganzen Blattes — stilfrei, also EINE für alle.
+  if (!result.motif) {
+    if (await canceled(job.id)) return 'canceled'
+    try {
+      result.motif = await runLLMStep(job, 'life_poster_scene', sceneSystemFor(result.data), 'Gib jetzt die Bildbeschreibung aus.')
+    } catch (e) {
+      result.motif = 'A winding path across a wide sheet with small scenes of a life along it: a bakery window, a meadow, a hospital ward, a workshop, a garden, a choir; generous empty paper between the scenes.'
     }
   }
 
-  // Ein Stil zählt nur, wenn wenigstens die Hälfte seiner Szenen da ist.
-  const ok = result.variants
-    .map(v => ({ style: v.style, tiles: (v.tiles || []).filter(t => t.image_path) }))
-    .filter(v => v.tiles.length >= Math.ceil(jobs.length / 2))
-  if (!ok.length) { await genjobs.failJob(job.id, 'Es konnten keine Szenenbilder erzeugt werden.'); return 'error' }
+  // Schritt 3…n: je Stil ein Blatt, danach die Szenen darin verorten.
+  if (!Array.isArray(result.variants)) result.variants = []
+  while (result.variants.length < styles.length) {
+    if (await canceled(job.id)) return 'canceled'
+    const idx = result.variants.length
+    if (Date.now() > deadline) {
+      await genjobs.releaseJob(job.id, { progress: { phase: 'image', cursor: 2 + idx, total }, result })
+      return 'paused'
+    }
+    const style = styles[idx]
+    const step = (msg) => genjobs.saveProgress(job.id, {
+      progress: { phase: 'image', cursor: 2 + idx, total, message: `Stil ${idx + 1}/${styles.length}: ${msg}` }, result,
+    })
+    await step('Das Blatt wird gezeichnet')
+    const scenePath = await drawPosterSheet(job, code, result.motif, style, step)
+    let spots = null
+    if (scenePath) {
+      if (await canceled(job.id)) return 'canceled'
+      await step('Szenen im Motiv werden verortet')
+      spots = await locateScenes(job, scenePath, result.data)
+    }
+    result.variants.push({ style, scene_path: scenePath, scene_spots: spots })
+    await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 3 + idx, total }, result })
+    if (result.variants.length < styles.length) await sleep(3000)
+  }
 
+  const ok = result.variants.filter(v => v.scene_path)
+  if (!ok.length) { await genjobs.failJob(job.id, 'Es konnte kein Poster-Motiv erzeugt werden.'); return 'error' }
+
+  // Gespeichert wird EIN Datensatz mit allen Blättern; die Felder scene_path/
+  // scene_spots/style tragen zusätzlich das erste Blatt, damit ältere Poster und
+  // der bestehende PDF-Weg unverändert funktionieren.
   result.data.variants = ok
   result.data.style = ok[0].style
+  result.data.scene_path = ok[0].scene_path
+  result.data.scene_spots = ok[0].scene_spots || undefined
+  result.data.scene_prompt = result.motif
 
   if (await canceled(job.id)) return 'canceled'
   await genjobs.saveMemorialField(code, p.field, result.data)

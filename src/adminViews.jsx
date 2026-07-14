@@ -1759,7 +1759,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
     })()
     return () => { alive = false }
     // Signierte Bild-URLs werden bei jedem Laden neu gemintet → an ihnen hängt die Vorschau.
-  }, [variants.map(v => v.tiles?.[0]?.image_url || v.style).join('|')])
+  }, [variants.map(v => v.scene_url || v.style).join('|')])
 
   if (!variants.length) return null
   return (
@@ -2135,7 +2135,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 { kind:'tree',   field:'family_tree', icon:'🌳', title:'Stammbaum',
                   sub:'KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).' },
                 { kind:'poster', field:'life_poster', icon:'🖼', title:'Lebensposter',
-                  sub:`Ein illustriertes Blatt (A2 quer): zu jeder Lebensstation eine gezeichnete Szene, Beschriftung als scharfer Vektortext. Es entstehen alle ${POSTER_STYLES.length} Stile zur Auswahl — das dauert einige Minuten.` },
+                  sub:'Ein illustriertes Blatt (A2 quer): Die Bild-KI malt den Lebensweg mit allen Szenen in einem Zug, die Beschriftung kommt als scharfer Vektortext darüber. Die Stile wählst du vor der Erzeugung.' },
               ].map(({ kind, field, icon, title, sub }) => {
                 const has  = !!selected[field]
                 // Läuft serverseitig als Job — Fortschritt und Abbrechen wie beim Buch.
