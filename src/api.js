@@ -33,6 +33,28 @@ export async function createMemorial(token, { name, organizer, gender, bookVaria
   return parseResponse(res) // { code }
 }
 
+// ── Buch-Standardwerte ────────────────────────────────────────────
+// Vorbelegung der Anlage-Maske. Lesen: jeder eingeloggte Benutzer (die Maske
+// braucht die Werte). Ändern/Zurücksetzen: nur Admin.
+export async function adminGetBookDefaults(token) {
+  const res = await fetch('/api/admin/settings?key=book_defaults', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { defaults, saved }
+}
+export async function adminSaveBookDefaults(token, defaults) {
+  const res = await fetch('/api/admin/settings?key=book_defaults', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ defaults }),
+  })
+  return parseResponse(res) // { defaults, saved }
+}
+export async function adminResetBookDefaults(token) {
+  const res = await fetch('/api/admin/settings?key=book_defaults', {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { defaults, saved:false }
+}
+
 // ── Fragenkataloge ────────────────────────────────────────────────
 // CRUD ist in api/admin/memorials.js (?catalogs) eingebettet wegen des
 // Vercel-12-Funktionen-Limits. Lesen: jeder eingeloggte Benutzer (gefiltert

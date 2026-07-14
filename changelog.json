@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-14",
+      "items": [
+        "Buchtitel auf dem Druck-Cover deutlich besser lesbar: Der Titelstreifen ist jetzt entweder sehr hell mit schwarzer Schrift oder sehr dunkel mit weißer Schrift – passend zum Farbton des Hintergrundbildes, aber mit deutlich höherem Kontrast als bisher. Vorher war der Streifen immer mittelhell, der Titel wirkte dadurch flau.",
+        "Neue Maske „Standardwerte\" im Dashboard: Die Werte, mit denen die Maske „Neues Buch anlegen\" vorbelegt ist (Namensliste im Buch, Transkript-Anzeige, Foto-Upload, Einführungsvideo, Buch-Variante, Sprachen, Erfassungsfrist, Nachfragen, Grafikstil, Buchlayout und eine feste Sammelbestellungs-Adresse), lassen sich jetzt selbst festlegen. Sie gelten für alle künftig angelegten Bücher; beim Anlegen bleibt jeder Wert einzeln änderbar, bestehende Bücher bleiben unberührt. Mit einem Klick auf den Auslieferungszustand zurücksetzbar."
+      ]
+    },
+    {
       "date": "2026-07-13",
       "items": [
         "Neuer Button „📕 Druck-Cover\": Erzeugt das druckfertige Buchcover als eigenes PDF – Rückseite, Buchrücken und Vorderseite auf einem Bogen, randlos. Der Hintergrund entsteht passend zum Buch und im gewählten Grafikstil; Titelstreifen und Buchrücken greifen automatisch eine ruhige, kontrastsichere Farbe aus dem Hintergrundbild auf. Auf der Rückseite steht das Lebensgeschichten.ai-Logo, auf dem Buchrücken Logo und Buchtitel. Die Rückenstärke ergibt sich aus der Seitenzahl des Druck-PDFs – der Button wird deshalb erst aktiv, wenn das Druck-PDF einmal erzeugt wurde; unter 48 und über 400 Seiten meldet er einen Fehler statt zu raten.",

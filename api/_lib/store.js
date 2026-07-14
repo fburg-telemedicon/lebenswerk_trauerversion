@@ -421,4 +421,6 @@ function createClient(/* url, key — ignoriert, Verbindung kommt aus DATABASE_U
   }
 }
 
-module.exports = { createClient }
+// `pool` für die wenigen Stellen, an denen der supabase-kompatible Query-Builder
+// nicht reicht (z. B. `create table if not exists`).
+module.exports = { createClient, pool }

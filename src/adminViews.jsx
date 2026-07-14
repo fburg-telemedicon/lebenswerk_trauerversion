@@ -315,6 +315,173 @@ export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, p
   )
 }
 
+// Standardwerte der Anlage-Maske („Neues Buch anlegen"). Gilt anwendungsweit für
+// alle künftig angelegten Bücher; bestehende Bücher bleiben unberührt.
+export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm, setView, logout, saveBookDefaults, resetBookDefaults }) {
+  const set = patch => setBdForm(f => ({ ...f, ...patch }))
+  const setAddr = patch => setBdForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
+  const toggleLang = code => setBdForm(f => {
+    const cur = f.languages || []
+    const next = cur.includes(code) ? cur.filter(l => l !== code) : [...cur, code]
+    return { ...f, languages: next.length ? next : cur }   // mindestens eine Sprache
+  })
+  const Check = ({ on, onChange, title, text, hint }) => (
+    <div style={{ marginBottom: 22 }}>
+      <Lbl>{title}</Lbl>
+      <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+        <input type="checkbox" checked={on} onChange={e => onChange(e.target.checked)} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+        <span style={{ fontSize:14 }}>{text}</span>
+      </label>
+      {hint && <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{hint}</p>}
+    </div>
+  )
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position:'sticky', top:0, zIndex:50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+          <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
+        </div>
+        <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+      </div>
+
+      <div style={{ maxWidth:640, margin:'2rem auto', padding:'0 1.5rem' }}>
+        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Standardwerte für neue Bücher</h2>
+        <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
+          Mit diesen Werten ist die Maske „Neues Buch anlegen" vorbelegt. Beim Anlegen lässt sich
+          jeder Wert weiterhin einzeln ändern. Die Standardwerte wirken nur auf <strong>künftige</strong> Bücher –
+          bereits angelegte bleiben unverändert.
+        </p>
+        <Err msg={err} />
+
+        {!bdForm ? <p style={S.muted}>Lädt …</p> : (<>
+          <div style={{ ...S.card, padding:'20px 20px 4px' }}>
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Buch-Variante</Lbl>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8, marginTop:8 }}>
+                {BOOK_VARIANTS.map(v => (
+                  <div
+                    key={v.value}
+                    onClick={() => set({ bookVariant: v.value })}
+                    style={{
+                      ...S.card, cursor:'pointer', padding:'14px',
+                      borderColor: bdForm.bookVariant === v.value ? '#1c1917' : '#e7e5e4',
+                      borderWidth: bdForm.bookVariant === v.value ? 2 : 1,
+                    }}
+                  >
+                    <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
+                    <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Sprachen für Beitragende</Lbl>
+              <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginTop:8 }}>
+                {LANGUAGES.map(l => (
+                  <label key={l.code} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                    <input type="checkbox" checked={(bdForm.languages || []).includes(l.code)} onChange={() => toggleLang(l.code)} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917' }} />
+                    <span style={{ fontSize:14 }}>{l.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Bei mehreren Sprachen wählen die Beitragenden zu Beginn selbst.</p>
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Erfassungsfrist (Tage nach dem Termin)</Lbl>
+              <input
+                type="number" min={0} max={90} step={1} value={bdForm.cutoffDays}
+                onChange={e => { const v = e.target.value; set({ cutoffDays: v === '' ? '' : Math.max(0, Math.min(90, parseInt(v, 10) || 0)) }) }}
+                style={{ width:120 }}
+              />
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Bisheriger Standard: 7 Tage.</p>
+            </div>
+
+            <Check
+              on={bdForm.showContributors !== false}
+              onChange={v => set({ showContributors: v })}
+              title="Namensliste der Beitragenden im Buch"
+              text="Namen der Beitragenden am Ende des Buches drucken"
+              hint="Am Buchende erscheint eine Seite „Mitwirkende“ mit Namen und Beziehung."
+            />
+            <Check
+              on={bdForm.showTranscript !== false}
+              onChange={v => set({ showTranscript: v })}
+              title="Transkript-Anzeige im Sprach-Interview"
+              text="Beitragenden das Transkript ihrer Antworten anzeigen"
+              hint="Deaktiviert: reines Sprach-Interview, die Antwort wird direkt gesendet."
+            />
+            <Check
+              on={bdForm.photoUploadTab === true}
+              onChange={v => set({ photoUploadTab: v })}
+              title="Foto-Upload als Tab im Interview"
+              text="Foto-Upload schon während des Interviews anbieten"
+              hint="Ohne diese Option können Beitragende keine Fotos hochladen."
+            />
+            <Check
+              on={bdForm.showIntroVideo === true}
+              onChange={v => set({ showIntroVideo: v })}
+              title="Einführungsvideo"
+              text="Einführungsvideo vor dem Sprach-Interview anzeigen"
+              hint="Nur in der Kategorie Gedenkbuch wirksam."
+            />
+
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Nachfragen pro Katalogfrage (max.)</Lbl>
+              <input
+                type="number" min={0} max={30} step={1} value={bdForm.followups}
+                onChange={e => { const v = e.target.value; set({ followups: v === '' ? '' : Math.max(0, Math.min(30, parseInt(v, 10) || 0)) }) }}
+                style={{ width:120 }}
+              />
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Gilt nur, wenn beim Anlegen ein Fragenkatalog gewählt wird. Bisheriger Standard: 7.</p>
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Grafikstil der Bilder</Lbl>
+              <ImageStylePicker value={bdForm.imageStyle} onChange={k => set({ imageStyle: k })} />
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
+              <BookLayoutPicker value={bdForm.bookLayout} onChange={k => set({ bookLayout: k })} />
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <Lbl>Sammelbestellungs-Adresse</Lbl>
+              <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
+                Wird in jedes neue Buch übernommen – sinnvoll, wenn die gedruckten Bücher immer an dieselbe Adresse gehen. Leer lassen, wenn nicht gewünscht.
+              </p>
+              <input value={bdForm.pickupAddress?.name || ''} onChange={e => setAddr({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
+              <input value={bdForm.pickupAddress?.addon || ''} onChange={e => setAddr({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
+              <input value={bdForm.pickupAddress?.street || ''} onChange={e => setAddr({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+              <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                <input value={bdForm.pickupAddress?.zip || ''} onChange={e => setAddr({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
+                <input value={bdForm.pickupAddress?.city || ''} onChange={e => setAddr({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+              </div>
+              <input value={bdForm.pickupAddress?.country || ''} onChange={e => setAddr({ country: e.target.value })} placeholder="Land" />
+            </div>
+          </div>
+
+          <div style={{ display:'flex', gap:10, alignItems:'center', margin:'20px 0 40px' }}>
+            <button onClick={saveBookDefaults} disabled={busy} style={{ fontSize:14, padding:'10px 18px' }}>
+              {busy ? 'Wird gespeichert …' : 'Als Standard speichern'}
+            </button>
+            {bdSaved && (
+              <button className="secondary" onClick={resetBookDefaults} disabled={busy} style={{ fontSize:13, padding:'9px 14px' }}>
+                Auf Auslieferungszustand zurücksetzen
+              </button>
+            )}
+            {bdMsg && <span style={{ fontSize:13, color:'#16a34a' }}>✓ {bdMsg}</span>}
+          </div>
+        </>)}
+      </div>
+    </div>
+  )
+}
+
 export function CreatedView({ createdCode, copied, token, logout, copyInvite, copyQR, loadMemorials }) {
     const inviteUrl = `${window.location.origin}/?code=${createdCode}`
     return (
@@ -574,7 +741,7 @@ export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView
   )
 }
 
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, openSettings, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
@@ -642,6 +809,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           )}
           {auth.admin && (
             <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>Fragenkataloge</button>
+          )}
+          {auth.admin && (
+            <button className="secondary" onClick={openBookDefaults} style={{ fontSize: 13, padding: '7px 14px' }}>Standardwerte</button>
           )}
           {auth.admin && (
             <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>Report</button>

@@ -9,6 +9,7 @@ import {
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback, adminSetFeedbackDone, adminDeleteFeedback,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
+  adminGetBookDefaults, adminSaveBookDefaults, adminResetBookDefaults,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
   getInvite, redeemInvite, requestPasswordReset,
@@ -56,7 +57,7 @@ import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSessi
 import { ContributorFlow } from './contributor.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
-import { AuditView, ReportsView, CostsView, SettingsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
+import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
 import { formatEur, costKindLabel } from './shared.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -403,6 +404,13 @@ function Dashboard() {
   const [pwSaved, setPwSaved]         = useState(false)
   const [createdCode, setCreatedCode] = useState('')
   const [catalogs, setCatalogs]       = useState([])    // Fragenkataloge (Auswahl beim Anlegen + Admin-Verwaltung)
+  // Buch-Standardwerte: Vorbelegung der Anlage-Maske, im Dashboard änderbar
+  // (View 'book-defaults'). `bookDefaults` = die geltenden Werte, `bdForm` = der
+  // Bearbeitungsstand in der Maske.
+  const [bookDefaults, setBookDefaults] = useState(null)
+  const [bdForm, setBdForm]             = useState(null)
+  const [bdSaved, setBdSaved]           = useState(false)
+  const [bdMsg, setBdMsg]               = useState('')
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -512,9 +520,54 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       setMemorials(d); setView('list')
-      loadCatalogs(t)   // Kataloge im Hintergrund laden (für Auswahl beim Anlegen)
+      loadCatalogs(t)      // Kataloge im Hintergrund laden (für Auswahl beim Anlegen)
+      loadBookDefaults(t)  // Standardwerte der Anlage-Maske
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
+  }
+
+  // ── Buch-Standardwerte ──
+  // Fehler bewusst still: ohne geladene Werte greifen die Fallbacks aus
+  // EMPTY_CREATE, die Anlage-Maske funktioniert also weiter.
+  async function loadBookDefaults(t = token) {
+    try {
+      const d = await adminGetBookDefaults(t)
+      setBookDefaults(d.defaults || null)
+      setBdSaved(Boolean(d.saved))
+    } catch { /* still */ }
+  }
+
+  async function openBookDefaults() {
+    setErr(''); setBdMsg(''); setView('book-defaults')
+    try {
+      const d = await adminGetBookDefaults(token)
+      setBookDefaults(d.defaults); setBdSaved(Boolean(d.saved))
+      setBdForm({ ...d.defaults, pickupAddress: { ...EMPTY_PICKUP, ...(d.defaults.pickupAddress || {}) } })
+    } catch (e) { setErr(e.message) }
+  }
+
+  async function saveBookDefaults() {
+    if (!bdForm) return
+    setBusy(true); setErr(''); setBdMsg('')
+    try {
+      const d = await adminSaveBookDefaults(token, bdForm)
+      setBookDefaults(d.defaults); setBdSaved(true)
+      setBdForm({ ...d.defaults, pickupAddress: { ...EMPTY_PICKUP, ...(d.defaults.pickupAddress || {}) } })
+      setBdMsg('Gespeichert. Die Werte gelten für alle künftig angelegten Bücher.')
+    } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+
+  async function resetBookDefaults() {
+    if (!window.confirm('Standardwerte auf den Auslieferungszustand zurücksetzen?')) return
+    setBusy(true); setErr(''); setBdMsg('')
+    try {
+      const d = await adminResetBookDefaults(token)
+      setBookDefaults(d.defaults); setBdSaved(false)
+      setBdForm({ ...d.defaults, pickupAddress: { ...EMPTY_PICKUP, ...(d.defaults.pickupAddress || {}) } })
+      setBdMsg('Zurückgesetzt.')
+    } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
   }
 
   // Fragenkataloge laden (für die Auswahl beim Buch-Anlegen und die Verwaltung).
@@ -684,13 +737,27 @@ function Dashboard() {
   // Anzeigename des eingeloggten Benutzers.
   const myName = auth.username || (myUid ? 'Benutzer' : 'Administrator')
 
+  // Leeres Anlage-Formular für eine Kategorie: die Sockelwerte aus EMPTY_CREATE,
+  // überschrieben von den im Dashboard gepflegten Standardwerten (falls geladen).
+  function freshCreateForm(slug) {
+    const d = bookDefaults || {}
+    return {
+      ...EMPTY_CREATE,
+      ...d,
+      productCategory: slug,
+      intake: {},
+      pickupAddress: { ...EMPTY_PICKUP, ...(d.pickupAddress || {}) },
+      languages: d.languages?.length ? [...d.languages] : [DEFAULT_LANGUAGE],
+    }
+  }
+
   // Startet die Neuanlage: bei mehreren erlaubten Kategorien erst Auswahl,
   // sonst direkt das Formular der einzigen Kategorie.
   function startCreate() {
     setErr('')
     if (allowedSlugs.length <= 1) {
       const slug = allowedSlugs[0] || DEFAULT_CATEGORY
-      setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {}, pickupAddress: { ...EMPTY_PICKUP } })
+      setCreateForm(freshCreateForm(slug))
       setView('create')
     } else {
       setView('create-category')
@@ -698,7 +765,7 @@ function Dashboard() {
   }
 
   function chooseCategory(slug) {
-    setCreateForm({ ...EMPTY_CREATE, productCategory: slug, intake: {}, pickupAddress: { ...EMPTY_PICKUP } })
+    setCreateForm(freshCreateForm(slug))
     setView('create')
   }
 
@@ -2330,7 +2397,12 @@ function Dashboard() {
 
   // ── LISTE ──
   if (view === 'list') return (
-    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} openSettings={openSettings} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
+    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
+  )
+
+  // ── BUCH-STANDARDWERTE (nur Admin) ──
+  if (view === 'book-defaults') return (
+    <BookDefaultsView err={err} busy={busy} bdForm={bdForm} bdSaved={bdSaved} bdMsg={bdMsg} setBdForm={setBdForm} setView={setView} logout={logout} saveBookDefaults={saveBookDefaults} resetBookDefaults={resetBookDefaults} />
   )
 
   // ── PRODUKTKATEGORIE WÄHLEN (vor der Anlage) ──
