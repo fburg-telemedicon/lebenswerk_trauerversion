@@ -1656,7 +1656,11 @@ function Dashboard() {
         setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
         const { jobId } = await enqueueGeneration(token, selected.id, key, {
           field: gen.field, resultType: 'text-join', combine: '\n\n', steps,
-          reviewSystem: reviewSystemPrompt(selected), reviewContribContext: contributionsContext(contributions),
+          // Pflegeexzerpt: NUR Faktentreue prüfen. Es geht an die Pflegekräfte, die
+          // diesen Menschen betreuen — sie müssen gerade das Schwierige wissen; eine
+          // Datenschutzprüfung würde genau den Zweck des Dokuments anmahnen.
+          reviewSystem: reviewSystemPrompt(selected, { mode: withHeadings ? 'facts' : 'full' }),
+          reviewContribContext: contributionsContext(contributions),
         })
         genJobRef.current[key] = jobId
         const finalJob = await pollGeneration(key, jobId) // wartet bis done/error/canceled

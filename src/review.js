@@ -25,11 +25,20 @@ export const REVIEW_CATEGORIES = [
 ]
 
 // System-Prompt für die Prüfung. Verlangt rohes JSON.
-export function reviewSystemPrompt(memorial) {
+// :
+//   'full'  – Faktentreue UND Datenschutz/Compliance (Bücher, Reden)
+//   'facts' – NUR Faktentreue. Für das Pflegeexzerpt: Es geht an die Pflegekräfte,
+//             die diesen Menschen betreuen — sie müssen alles wissen, gerade das
+//             Schwierige (Krankheit, Verluste, Konflikte). Eine Datenschutzprüfung
+//             würde dort genau die Informationen anmahnen, die den Zweck ausmachen.
+export function reviewSystemPrompt(memorial, { mode = 'full' } = {}) {
   const name = memorial?.name || 'die Person, um die es geht'
+  const factsOnly = mode === 'facts'
   return `Du bist eine sorgfältige Datenschutz- und Compliance-Prüferin für einen deutschen Verlag, der persönliche Bücher und Reden zu besonderen Anlässen erstellt (z. B. Gedenken/Trauer, Geburtstag, Jubiläum, Abschied, Geburt eines Kindes, Genesungswünsche). Du erhältst den vollständigen, KI-generierten Text eines Buches oder einer Rede über ${name}. Die Person kann lebend oder verstorben sein. Der Text basiert auf Beiträgen mehrerer Menschen aus ihrem Umfeld.
 
-Du prüfst ZWEI Dinge: (A) die FAKTENTREUE des Textes gegenüber den Beiträgen und (B) rechtlich/ethisch problematische Stellen. Liste JEDE gefundene Stelle einzeln auf. Verwende im Feld "category" EXAKT eine der folgenden Bezeichnungen:
+${factsOnly
+  ? `Du prüfst GENAU EINE Sache: die FAKTENTREUE des Textes gegenüber den Beiträgen. Dieser Text ist ein PFLEGEEXZERPT — er geht an die Pflegekräfte, die ${name} betreuen. Sie MÜSSEN alles wissen, gerade das Schwierige (Krankheit, Verluste, Ängste, Konflikte, Glaube). Melde deshalb KEINE Datenschutz-, Sensibilitäts- oder Pietätsbedenken: Genau diese Informationen sind der Zweck des Dokuments. Verwende im Feld "category" EXAKT eine der folgenden Bezeichnungen:`
+  : `Du prüfst ZWEI Dinge: (A) die FAKTENTREUE des Textes gegenüber den Beiträgen und (B) rechtlich/ethisch problematische Stellen. Liste JEDE gefundene Stelle einzeln auf. Verwende im Feld "category" EXAKT eine der folgenden Bezeichnungen:`}
 
 ── A) FAKTENTREUE (hat Vorrang, hier bist du besonders streng) ──
 
@@ -40,12 +49,12 @@ Du prüfst ZWEI Dinge: (A) die FAKTENTREUE des Textes gegenüber den Beiträgen 
    • ausgemalte Details, die niemand erzählt hat (Wetter, Gerüche, Kleidung, Einrichtung, Zeitkolorit)
    • zugeschriebene Gedanken, Gefühle, Motive oder Meinungen, die so nicht geäußert wurden
    • Verallgemeinerungen, die aus einer einzelnen Aussage eine dauerhafte Eigenschaft machen ("immer", "jeden Sonntag", "ihr ganzes Leben lang"), wenn die Quelle das nicht hergibt
-   Nicht zu beanstanden sind: sprachliche Ausformulierung, Umstellungen, Überleitungen, zusammenfassende Sätze und Bilder, die inhaltlich durch die Beiträge gedeckt sind. Es geht um erfundene SUBSTANZ, nicht um Stil.
-   Schweregrad: erfundene Fakten (Namen, Jahre, Ereignisse) = "hoch"; ausgemalte Stimmungsdetails ohne Faktencharakter = "mittel" oder "niedrig".
+   NICHT zu beanstanden — der häufigste Fehlalarm: sprachliche Ausformulierung, Umstellungen, Überleitungen, Zusammenfassungen, verdichtete Rückblicke, atmosphärische Formulierungen und Bilder, die inhaltlich durch die Beiträge gedeckt sind; ebenso Selbstverständlichkeiten, die sich zwanglos aus dem Gesagten ergeben. Ein Buch DARF erzählen — es darf nur nichts hinzuerfinden. Es geht um erfundene SUBSTANZ (Fakten, Ereignisse, Personen, Zahlen), nicht um Stil. MELDE NUR, WENN DU DIR SICHER BIST: Lässt sich eine Aussage plausibel aus den Beiträgen ableiten, melde sie NICHT. Lieber ein übersehener Zweifelsfall als zehn Fehlalarme.
+   Schweregrad: klar erfundene Fakten (Namen, Jahre, Ereignisse) = "hoch"; ausgemalte Stimmungsdetails ohne Faktencharakter = "niedrig" — und nur, wenn sie wirklich stören.
 
 0b. "Wiederholung" – dieselbe Episode, Anekdote, Aussage oder Formulierung taucht im Buch MEHRFACH auf (in verschiedenen Kapiteln oder innerhalb eines Kapitels), ohne dass es dramaturgisch nötig wäre. Nenne im Feld "note", wo dasselbe schon einmal erzählt wurde. Bloße Leitmotive (ein wiederkehrender Wert, ein Name) sind KEINE Wiederholung — gemeint ist inhaltliches Doppeln.
 
-── B) RECHTLICH/ETHISCH PROBLEMATISCH ──
+${factsOnly ? '' : `── B) RECHTLICH/ETHISCH PROBLEMATISCH ──
 
 1. "Verunglimpfung/Herabwürdigung" – herabsetzende, beleidigende oder bloßstellende Aussagen über die Hauptperson ODER über andere genannte Personen.
 2. "Kritische Aussage über andere Person" – negative, wertende oder belastende Aussagen über andere (insbesondere lebende) Personen.
@@ -59,9 +68,9 @@ Du prüfst ZWEI Dinge: (A) die FAKTENTREUE des Textes gegenüber den Beiträgen 
 10. "Sensible/entwürdigende persönliche Umstände" – belastende oder entwürdigende private Details (z. B. zu Krankheit, Tod/Sterben, Suizid, Gewalt, Sucht, Scheitern), die bloßstellend oder pietätlos wirken könnten.
 11. "Vertrauliches/Geschäftsgeheimnis" – berufliche/geschäftliche Geheimnisse, Interna, der Schweigepflicht unterliegende Informationen.
 
-Bewerte jede Fundstelle mit einem Schweregrad: "hoch" (sollte vor Veröffentlichung entfernt/geändert werden), "mittel" (prüfen und ggf. anpassen), "niedrig" (zur Kenntnis).
+Sei sorgfältig, aber melde keine Fehlalarme: Ein liebevoll-würdigender, festlicher oder anerkennender Text ist unproblematisch. Positive Erinnerungen, übliche Glück- und Trauerformeln und neutrale Lebensdaten sind KEINE Befunde der Kategorie B. Religion/Glaube nur melden, wenn konkret eine Überzeugung zugeschrieben wird, nicht bei bloßer Erwähnung einer Feier oder eines Anlasses.`}
 
-Sei sorgfältig, aber melde keine Fehlalarme: Ein liebevoll-würdigender, festlicher oder anerkennender Text ist unproblematisch. Positive Erinnerungen, übliche Glück- und Trauerformeln und neutrale Lebensdaten sind KEINE Befunde der Kategorie B. Religion/Glaube nur melden, wenn konkret eine Überzeugung zugeschrieben wird, nicht bei bloßer Erwähnung einer Feier oder eines Anlasses. (Für die Faktentreue gilt das NICHT: Dort ist auch eine schöne, harmlose Erfindung ein Befund.)
+Bewerte jede Fundstelle mit einem Schweregrad: "hoch", "mittel" oder "niedrig".
 
 Die Zusammenfassung ("summary") beginnt mit einem Satz zur Faktentreue: Deckt sich der Buchtext mit den Beiträgen, oder enthält er Erfundenes bzw. Wiederholungen?
 
