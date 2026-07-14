@@ -1491,49 +1491,66 @@ function freeMask(bg, st) {
 // im Motiv landet — und erst wenn das Blatt wirklich keinen Platz mehr hat,
 // bekommt die Kartusche eine kräftigere Deckung (dann liegt sie sichtbar auf dem
 // Bild, aber lesbar).
-function placeBubble(mask, taken, bw, bh, wishX, wishY) {
+function placeBubble(mask, taken, bh, wishX, wishY) {
   const rows = mask.length, cols = mask[0].length
   const cw = P.W / cols, ch = P.H / rows
-  const need = (x, y) => {
+  // `needPaper=false` erlaubt das Motiv als Untergrund — aber NIE eine andere
+  // Kartusche. Zwei Beschriftungen übereinander sind der eine Fehler, den das
+  // Poster sich nicht leisten kann; auf dem Motiv liegen darf sie zur Not.
+  const fits = (x, y, bw, needPaper) => {
     if (x < 3 || y < P.margin || x + bw > P.W - 3 || y + bh > P.H - 3) return false
     const c0 = Math.floor(x / cw), c1 = Math.ceil((x + bw) / cw) - 1
     const r0 = Math.floor(y / ch), r1 = Math.ceil((y + bh) / ch) - 1
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         if (r < 0 || c < 0 || r >= rows || c >= cols) return false
-        if (!mask[r][c] || taken[r][c]) return false
+        if (taken[r][c]) return false
+        if (needPaper && !mask[r][c]) return false
       }
     }
     return true
   }
-  const claim = (x, y) => {
+  const claim = (x, y, bw) => {
     const c0 = Math.floor(x / cw), c1 = Math.ceil((x + bw) / cw) - 1
     const r0 = Math.floor(y / ch), r1 = Math.ceil((y + bh) / ch) - 1
     for (let r = Math.max(0, r0); r <= Math.min(rows - 1, r1); r++) {
       for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) taken[r][c] = true
     }
   }
-
-  // Ringe um den Wunschort, in 4-mm-Schritten nach außen.
-  for (let rad = 0; rad <= 170; rad += 4) {
-    const steps = rad === 0 ? 1 : Math.max(8, Math.round(rad / 2))
-    let best = null
-    for (let k = 0; k < steps; k++) {
-      const a = (k / steps) * Math.PI * 2
-      const x = wishX - bw / 2 + Math.cos(a) * rad
-      const y = wishY - bh / 2 + Math.sin(a) * rad
-      if (!need(x, y)) continue
-      const dist = Math.hypot(x + bw / 2 - wishX, y + bh / 2 - wishY)
-      if (!best || dist < best.dist) best = { x, y, dist }
+  const search = (bw, needPaper) => {
+    for (let rad = 0; rad <= 200; rad += 4) {
+      const steps = rad === 0 ? 1 : Math.max(10, Math.round(rad / 2))
+      let best = null
+      for (let k = 0; k < steps; k++) {
+        const a = (k / steps) * Math.PI * 2
+        const x = wishX - bw / 2 + Math.cos(a) * rad
+        const y = wishY - bh / 2 + Math.sin(a) * rad
+        if (!fits(x, y, bw, needPaper)) continue
+        const dist = Math.hypot(x + bw / 2 - wishX, y + bh / 2 - wishY)
+        if (!best || dist < best.dist) best = { x, y, dist }
+      }
+      if (best) return best
     }
-    if (best) { claim(best.x, best.y); return { x: best.x, y: best.y, onPaper: true } }
+    return null
   }
 
-  // Nichts frei: direkt unter die Szene, mit deckender Kartusche.
+  // 1) Auf freiem Papier, so nah wie möglich — notfalls mit schmalerer Kartusche.
+  for (const bw of [62, 52, 44]) {
+    const hit = search(bw, true)
+    if (hit) { claim(hit.x, hit.y, bw); return { x: hit.x, y: hit.y, w: bw, onPaper: true } }
+  }
+  // 2) Kein Papier mehr frei: dann eben auf dem Motiv — aber garantiert nicht auf
+  //    einer anderen Kartusche, und mit kräftigerer Deckung (siehe Aufrufer).
+  for (const bw of [62, 52, 44]) {
+    const hit = search(bw, false)
+    if (hit) { claim(hit.x, hit.y, bw); return { x: hit.x, y: hit.y, w: bw, onPaper: false } }
+  }
+  // 3) Das Blatt ist voll (sollte nicht vorkommen): unter der Szene absetzen.
+  const bw = 44
   const x = Math.max(3, Math.min(P.W - bw - 3, wishX - bw / 2))
   const y = Math.max(P.margin, Math.min(P.H - bh - 3, wishY + 14))
-  claim(x, y)
-  return { x, y, onPaper: false }
+  claim(x, y, bw)
+  return { x, y, w: bw, onPaper: false }
 }
 
 function paintPosterScene(d, data, bg, st) {
@@ -1574,7 +1591,6 @@ function paintPosterScene(d, data, bg, st) {
   const spotMap = new Map((data.scene_spots || []).map(x => [Number(x.i), x]))
 
   stations.forEach((s2, i) => {
-    const bw = 62
     const bh = s2.year ? 17 : 12
     const loc = spotMap.get(i)
 
@@ -1594,16 +1610,16 @@ function paintPosterScene(d, data, bg, st) {
       wishY = SCENE.headH + (Math.floor(i / 5) + 0.5) / 3 * (H - SCENE.headH)
     }
 
-    const pos = placeBubble(mask, taken, bw, bh, wishX, wishY)
+    const pos = placeBubble(mask, taken, bh, wishX, wishY)
     // Auf Papier reicht ein zartes Feld; muss die Kartusche ausnahmsweise auf dem
     // Motiv liegen, deckt sie kräftiger — lesbar bleibt sie in jedem Fall.
-    d.bubble(pos.x, pos.y, bw, bh, st.paper, s2.color, pos.onPaper ? 0.9 : 0.97)
+    d.bubble(pos.x, pos.y, pos.w, bh, st.paper, s2.color, pos.onPaper ? 0.9 : 0.97)
     let ty = pos.y + 6.5
     if (s2.year) {
-      d.text(String(s2.year), pos.x + bw / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: bw - 4, maxLines: 1 })
+      d.text(String(s2.year), pos.x + pos.w / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: pos.w - 4, maxLines: 1 })
       ty += 5.5
     }
-    d.text(String(s2.title || ''), pos.x + bw / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: bw - 4, maxLines: 2 })
+    d.text(String(s2.title || ''), pos.x + pos.w / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: pos.w - 4, maxLines: 2 })
   })
 }
 
