@@ -510,6 +510,52 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
   return { pages: totalPages }
 }
 
+// Fließtext (Pflegeexzerpt, Rede …) als A4-PDF. Gleiche Konvention wie beim
+// DOCX-Export: „# " / „## " am Absatzanfang sind Überschriften. Bewusst nüchtern
+// gesetzt — das Pflegeexzerpt wird ausgedruckt und in eine Akte geheftet.
+export function downloadTextPdf(filename, title, text, lang = 'de') {
+  const bt = uiText(lang)
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 22
+  const maxW = pageW - margin * 2
+  let y = margin
+
+  const lh = size => size * 0.3528 * 1.42
+  const ensure = h => { if (y + h > pageH - margin - 8) { doc.addPage(); y = margin } }
+  const write = (str, { size = 11, style = 'normal', color = [40, 40, 40], gapAfter = 3 } = {}) => {
+    doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...color)
+    const lines = doc.splitTextToSize(String(str ?? ''), maxW)
+    for (const line of lines) { ensure(lh(size)); doc.text(line, margin, y); y += lh(size) }
+    y += gapAfter
+  }
+
+  write(title, { size: 18, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
+  doc.setDrawColor(200); ensure(3); doc.line(margin, y, pageW - margin, y); y += 6
+
+  for (const raw of String(text || '').split('\n\n')) {
+    const chunk = raw.trim()
+    if (!chunk) continue
+    if (chunk.startsWith('## '))     write(chunk.slice(3), { size: 13, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
+    else if (chunk.startsWith('# ')) write(chunk.slice(2), { size: 15, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
+    else                             write(chunk, { size: 11, gapAfter: 4 })
+  }
+
+  y += 4
+  write(bt.aiDisclaimerTitle, { size: 9, style: 'bold', color: [120, 113, 108], gapAfter: 1 })
+  write(bt.aiDisclaimer, { size: 8, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
+
+  // Seitenzahlen
+  const total = doc.getNumberOfPages()
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150)
+    doc.text(`${i} / ${total}`, pageW - margin, pageH - 10, { align: 'right' })
+  }
+  doc.save(filename)
+}
+
 export async function downloadAsDocx(filename, title, text, lang = 'de') {
   const bt = uiText(lang)
   const children = [

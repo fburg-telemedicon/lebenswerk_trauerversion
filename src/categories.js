@@ -96,6 +96,24 @@ function v2Scale(contributions, chapterTarget = 1100) {
   return { words, chapters, min, max: Math.max(max, min + 150) }
 }
 
+// ── Umfang ist eine OBERGRENZE, kein Soll ─────────────────────────
+// Die Skalierung leitet aus der Materialmenge ab, wie lang ein Buch WERDEN DARF.
+// Für ein Sprachmodell ist eine Wort-Untergrenze aber eine Aufforderung, sie zu
+// erreichen — notfalls durch Wiederholung oder Erfundenes. Genau das darf hier
+// nie passieren: Ein Gedenk-/Lebensbuch, das Ereignisse erfindet, ist wertlos.
+// Deshalb bekommt jeder Kapitel-Prompt die Länge ausdrücklich als Spanne MIT
+// Vorrang der Wahrheit, plus ein explizites Verbot von Füllmaterial.
+function chapterLengthRule(min, max) {
+  return `Zielumfang ca. ${min}–${max} Wörter. Diese Spanne ist ein RICHTWERT und eine OBERGRENZE, KEIN Soll: Sie gilt nur, soweit das Material sie trägt. Gibt der Stoff dieses Kapitels weniger her, schreibe kürzer — auch deutlich kürzer. Ein kurzes, dichtes Kapitel ist RICHTIG; ein aufgeblähtes ist FALSCH.`
+}
+
+const NO_FILLER_RULE = `KEIN FÜLLMATERIAL (wichtigste Regel, sie schlägt jede Längenangabe):
+  • Erfinde NICHTS. Keine Ereignisse, Orte, Namen, Jahreszahlen, Gespräche, Gedanken oder Gefühle, die nicht aus den Beiträgen hervorgehen. Keine plausiblen Ergänzungen, keine ausgemalten Details, keine erfundene Zeitkolorit-Kulisse.
+  • Wiederhole nichts, um Länge zu erzeugen — weder innerhalb dieses Kapitels noch Inhalte aus anderen Kapiteln.
+  • Keine Leerformeln, keine Betrachtungen über das Leben im Allgemeinen, keine Moral am Schluss, kein Nacherzählen des schon Gesagten mit anderen Worten.
+  • Ist eine Angabe unklar oder lückenhaft, lass sie weg oder halte sie offen — fülle die Lücke NICHT.
+  • Im Zweifel gilt: lieber kürzer und wahr als länger und ausgedacht.`
+
 // ── Wiederholungsschutz ───────────────────────────────────────────
 // Jedes Kapitel wird in einem EIGENEN KI-Aufruf geschrieben, und jeder dieser
 // Aufrufe bekommt ALLE Beiträge zu sehen. Ohne Gegenmaßnahme landet dieselbe
@@ -263,7 +281,8 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
-- "body": ${band.min}–${band.max} Wörter, fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
+- ${NO_FILLER_RULE}
+- "body": fließender Text in Ich-Form aus Sicht der Person ("Ich erinnere mich …"); nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie aus. ${chapterLengthRule(band.min, band.max)} Ein knapper Beitrag ergibt ein kurzes Kapitel — strecke ihn NICHT. Absätze durch \\n\\n trennen
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -278,7 +297,7 @@ function memorialV2Outline(memorial, contributions) {
   const sc = v2Scale(contributions)
   return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du eine Lebensgeschichte (Variante 2: Aufbau nach Lebensstationen).
 
-Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und HÖCHSTENS ${sc.chapters} Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -290,7 +309,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 }
 
 Regeln:
-- Genau ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät)
+- HÖCHSTENS ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät). Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie die Beiträge inhaltlich tragen. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
 - "title" persönlich, würdevoll, bezogen auf ${memorial.name}
@@ -321,7 +340,8 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "body": ${sc.min}–${sc.max} Wörter, warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen ausführlich aus, OHNE etwas zu erfinden; keine "X sagte …"-Zitate, keine Quellenangaben
+- ${NO_FILLER_RULE}
+- "body": warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Lebensabschnitts bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Abschnitts — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Lebensabschnitt
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -458,7 +478,8 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
-- "body": ${band.min}–${band.max} Wörter, ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie ausführlich aus, OHNE etwas zu erfinden; Absätze durch \\n\\n trennen
+- ${NO_FILLER_RULE}
+- "body": ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie aus. ${chapterLengthRule(band.min, band.max)} Ein knapper Beitrag ergibt ein kurzes Kapitel — strecke ihn NICHT. Absätze durch \\n\\n trennen
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -474,11 +495,11 @@ function makeV2Outline(p) {
     const g = genderNote(memorial)
     const sc = v2Scale(contributions)
     const sortRule = p.v2Chronological
-      ? `Genau ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät)`
-      : `Genau ${sc.chapters} Kapitel, thematisch sinnvoll sortiert`
+      ? `HÖCHSTENS ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät). Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie die Beiträge inhaltlich tragen. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.`
+      : `HÖCHSTENS ${sc.chapters} Kapitel, thematisch sinnvoll sortiert. Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie die Beiträge inhaltlich tragen. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.`
     return `Du bist ${p.v2Role}. Aus den folgenden Beiträgen von ${contributions.length} Menschen, die ${memorial.name}${g} ${p.knowVerb}, planst du ${p.v2NounIndef} (Variante 2: ${p.v2Concept}).
 
-Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und HÖCHSTENS ${sc.chapters} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -523,7 +544,8 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "body": ${sc.min}–${sc.max} Wörter, ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen ausführlich aus, OHNE etwas zu erfinden; keine "X sagte …"-Zitate, keine Quellenangaben
+- ${NO_FILLER_RULE}
+- "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -605,7 +627,7 @@ function lifeworkV2Outline(memorial, contributions) {
   const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
   return `Du bist ein erfahrener Biograph. Aus dem folgenden Interview, das ${memorial.name} über das eigene Leben gegeben hat, planst du eine Autobiographie.
 
-Plane jetzt das Gerüst: Titel, Untertitel und genau ${sc.chapters} Kapitel entlang der Lebensstationen (z. B. Kindheit, Jugend und Schulzeit, Aufbruch ins Erwachsenenleben, Beruf, Liebe und Familie, Leidenschaften, Krisen und Wendepunkte, Werte, Vermächtnis). Wähle nur Kapitel, die das Interview inhaltlich tatsächlich hergibt. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und HÖCHSTENS ${sc.chapters} Kapitel entlang der Lebensstationen (z. B. Kindheit, Jugend und Schulzeit, Aufbruch ins Erwachsenenleben, Beruf, Liebe und Familie, Leidenschaften, Krisen und Wendepunkte, Werte, Vermächtnis). Wähle nur Kapitel, die das Interview inhaltlich tatsächlich hergibt. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -617,7 +639,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 }
 
 Regeln:
-- Genau ${sc.chapters} Kapitel, chronologisch sortiert (früh → spät); rein thematische Kapitel (Werte, Vermächtnis) dürfen ans Ende
+- HÖCHSTENS ${sc.chapters} Kapitel, chronologisch sortiert (früh → spät); rein thematische Kapitel (Werte, Vermächtnis) dürfen ans Ende. Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie das Interview inhaltlich trägt. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen hier behandelt werden
 - "title" persönlich und würdevoll, bezogen auf das Leben von ${memorial.name}
@@ -645,7 +667,8 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 }
 
 Regeln:
-- "body": ${sc.min}–${sc.max} Wörter, ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person
+- ${NO_FILLER_RULE}
+- "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(sc.min, sc.max)}
 - Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
 - Alles auf Deutsch (außer image_prompt)

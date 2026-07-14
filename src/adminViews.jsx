@@ -1672,8 +1672,10 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
         {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
             <button onClick={() => requestDownload(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}</button>
-            {gen.kind === 'book' && (
+            {gen.kind === 'book' ? (
               <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}</button>
+            ) : (
+              <button className="secondary" onClick={() => requestDownload(key, 'pdf')} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '⬇ Download .pdf'}</button>
             )}
             {gen.kind === 'book' && (
               <button
@@ -1949,9 +1951,13 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       <button onClick={() => requestDownload(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         {dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}
                       </button>
-                      {gen.kind === 'book' && (
+                      {gen.kind === 'book' ? (
                         <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                           {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}
+                        </button>
+                      ) : (
+                        <button onClick={() => requestDownload(key, 'pdf')} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '⬇ Download .pdf'}
                         </button>
                       )}
                       {gen.kind === 'book' && (

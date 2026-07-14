@@ -21,7 +21,7 @@ import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, con
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
-import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadAsDocx } from './bookExport.js'
+import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
@@ -1709,12 +1709,27 @@ function Dashboard() {
   // Download anstoßen. Sonderfall Pflegeexzerpt (Lebenswerk): Der Text entsteht
   // IMMER auf Deutsch; erst beim Speichern wird die Zielsprache gefragt — es geht
   // in eine Pflegeakte, die Sprache hängt am Pflegeteam, nicht am Buch.
-  function requestDownload(key) {
+  // fmt: 'docx' | 'pdf'
+  function requestDownload(key, fmt = 'docx') {
     if (key === 'eulogy' && selected?.product_category === 'lifework' && selected?.eulogy_text) {
-      setDlLangModal({ key })
+      setDlLangModal({ key, fmt })
       return
     }
+    if (key === 'eulogy' && fmt === 'pdf') { downloadTextAsPdf(selected?.eulogy_text, selected?.languages?.[0] || 'de'); return }
     downloadGenerated(key)
+  }
+
+  // Fließtext-PDF (Pflegeexzerpt/Rede). `lang` steuert nur den KI-Hinweis am Ende.
+  function downloadTextAsPdf(text, lang, suffix = '') {
+    if (!text) return
+    const gen = GENERATORS.eulogy
+    try {
+      downloadTextPdf(
+        `${gen.filename}_${safeName(selected.name)}${suffix}.pdf`,
+        `${gen.label} – ${selected.name}`,
+        text, lang,
+      )
+    } catch (e) { setErr(`PDF fehlgeschlagen: ${e.message}`) }
   }
 
   // Zielsprache des Exzerpts gewählt: Deutsch → direkt laden, sonst erst
@@ -1724,12 +1739,17 @@ function Dashboard() {
     const m = dlLangModal
     setDlLangModal(null)
     if (!m) return
-    if (code === 'de') { downloadGenerated('eulogy'); return }
+    const fmt = m.fmt || 'docx'
+    if (code === 'de') {
+      if (fmt === 'pdf') downloadTextAsPdf(selected?.eulogy_text, 'de')
+      else downloadGenerated('eulogy')
+      return
+    }
 
     const gen = GENERATORS.eulogy
     const source = selected?.eulogy_text
     if (!source) return
-    setDlBusy('eulogy:docx'); setErr('')
+    setDlBusy(`eulogy:${fmt}`); setErr('')
     try {
       const target = LANGUAGES.find(l => l.code === code)?.label || code
       const sys = `Du bist ein professioneller Fachübersetzer für Pflegedokumentation. Übersetze den folgenden deutschen Text („${gen.noun}", Bestandteil einer Pflegeakte) nach ${target} (Sprachcode ${code}).
@@ -1743,8 +1763,12 @@ Regeln:
       const translated = await askLLM(sys, [{ role: 'user', content: String(source) }],
         { memorialCode: selected.id, kind: 'eulogy_translate', token })
       if (!String(translated || '').trim()) throw new Error('Die Übersetzung kam leer zurück.')
-      const filename = `${gen.filename}_${safeName(selected.name)}_${code.toUpperCase()}.docx`
-      await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, translated, code)
+      if (fmt === 'pdf') {
+        downloadTextAsPdf(translated, code, `_${code.toUpperCase()}`)
+      } else {
+        const filename = `${gen.filename}_${safeName(selected.name)}_${code.toUpperCase()}.docx`
+        await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, translated, code)
+      }
     } catch (e) { setErr(`Übersetzung/Download fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
   }
