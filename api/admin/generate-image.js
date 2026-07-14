@@ -57,6 +57,22 @@ const SPREAD_DIRECTIVE =
   'Keep the main focal elements — especially faces — away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
   'Balanced, warm, atmospheric, edge-to-edge and spanning the full width; no text, no lettering, no captions.'
 
+// ── Vignetten für das Lebensposter ────────────────────────────────
+// Ein Poster besteht nicht aus Doppelseiten-Landschaften, sondern aus vielen
+// kleinen, freigestellten Illustrationen, die auf dem Papier „schweben" (siehe
+// die Vorbilder: Haus, Lokomotive, Akkordeon, Vespa …). Deshalb ein eigener
+// Prompt-Aufbau: KEINE SPREAD_DIRECTIVE, KEINE Stil-Direktive des Buchs — der
+// Posterstil ist einheitlich flach-illustrativ, und der Hintergrund ist exakt
+// die Papierfarbe des Posters, damit sich die Vignette nahtlos einfügt.
+const POSTER_PAPER = '#F6EFE1'
+const VIGNETTE_DIRECTIVE =
+  'Flat editorial vector illustration in a warm, hand-drawn storybook style: soft muted earth tones ' +
+  '(terracotta, ochre, sage green, dusty blue, cream), clean confident outlines, gentle shading, no gradients, no photorealism. ' +
+  `Single isolated subject, centred, floating on a completely flat plain background of the exact colour ${POSTER_PAPER} — ` +
+  'the background must be one uniform colour with NO scenery, NO horizon, NO frame, NO border, NO shadow on the ground, NO vignetting. ' +
+  'Generous empty margin around the subject. ' +
+  'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage of any kind anywhere in the image.'
+
 // Das LLM schreibt in image_prompt gern selbst ein Medium hinein ("vintage
 // photograph", "oil painting", "cinematic still"). Steht so ein Wort im Motiv,
 // kaempft es gegen die Stil-Direktive – und jedes Kapitel gewinnt anders. Wir
@@ -255,7 +271,12 @@ module.exports = async function handler(req, res) {
     // Reihenfolge zaehlt: Stil rahmt den Prompt (vorne) UND schliesst ihn ab
     // (hinten, staerkste Gewichtung). Das Motiv selbst wird von Medien-Woertern
     // befreit, damit ein "vintage photo"-Motiv nicht den Aquarell-Stil kippt.
-    const build = (motif) => `${styleDir}\n\nSubject: ${stripMedium(motif)}\n\n${SPREAD_DIRECTIVE}\n\n${anchor}`
+    // Poster-Vignette: eigener Aufbau (freigestellte Illustration auf Papierfarbe,
+    // kein Doppelseiten-Motiv, kein Buch-Grafikstil). Siehe VIGNETTE_DIRECTIVE.
+    const isVignette = variant === 'vignette'
+    const build = isVignette
+      ? (motif) => `${VIGNETTE_DIRECTIVE}\n\nSubject: ${stripMedium(motif)}\n\n${VIGNETTE_DIRECTIVE}`
+      : (motif) => `${styleDir}\n\nSubject: ${stripMedium(motif)}\n\n${SPREAD_DIRECTIVE}\n\n${anchor}`
     const fullPrompt = build(prompt)
     const fallbackPrompt = build(SAFE_FALLBACK_PROMPT)
 
