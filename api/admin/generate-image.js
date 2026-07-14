@@ -99,14 +99,17 @@ const VIGNETTE_STYLES = {
 const sceneDirective = (key) => {
   const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
   return `${s.look} ` +
-    'ONE single wide illustrated "map of a life": a road that WINDS and LOOPS generously across the WHOLE sheet — several bends, not one straight diagonal — ' +
-    'with about fourteen small vignette scenes placed along it (buildings, interiors, tools, vehicles, gardens, landscapes) as described below. ' +
+    'ONE single wide illustrated "map of a life". ' +
+    // Die Szenen liegen in LESERICHTUNG (links→rechts, zeilenweise) — dadurch kann
+    // das Layout sie im fertigen Bild wiederfinden und der i-ten Station zuordnen,
+    // ohne raten zu müssen. Und zwischen ihnen bleiben BREITE Papiergassen, weil
+    // die Beschriftungen dort hineingesetzt werden (nie auf ein Bild).
+    'Arrange about fourteen small vignette scenes (buildings, interiors, tools, vehicles, gardens, landscapes) as a LOOSE GRID in READING ORDER: left to right, row by row, top to bottom. ' +
+    'A road WINDS and LOOPS wildly through the gaps between them — many bends and curves, never a straight line — visiting the scenes in exactly that reading order. ' +
     `The paper is a flat plain background of the exact colour ${s.paper}. ` +
-    // Vorher: „mindestens 40% leer" — das Modell hat daraufhin EINE Ecke bespielt
-    // und die andere Blatthälfte leer gelassen. Jetzt: gleichmäßig verteilen, und
-    // die Ruhezonen sind kleine Lücken NEBEN den Szenen, keine toten Blatthälften.
-    'COVER THE WHOLE SHEET EVENLY: the road and its scenes must reach into all four corners and every area of the image — no empty half, no dead quarter, no large blank region. ' +
-    'Between and beside the scenes leave only SMALL calm gaps of the plain paper colour (roughly the size of one scene each), so short captions can be printed there. ' +
+    'CRUCIAL SPACING: the scenes must be clearly SEPARATED by WIDE alleys of that plain paper colour — each scene stands alone with generous plain space around it; scenes must never touch or merge. ' +
+    'About one third of the sheet stays plain paper, distributed as those alleys between the scenes (NOT as one large empty region). ' +
+    'Every scene is a compact vignette with soft edges fading into the paper — no frames, no borders, no panel outlines. ' +
     'Keep a narrow empty margin of about 4% around the outer edge. ' +
     'No human faces, no portraits — figures only small and from a distance. ' +
     // Bildmodelle malen auf „Poster"-Motiven reflexhaft Schrift (Schilder, Titel,

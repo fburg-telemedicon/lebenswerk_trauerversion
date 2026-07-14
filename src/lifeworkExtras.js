@@ -349,6 +349,18 @@ function pdfDraw(doc) {
       doc.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST')
       if (edge) { doc.setDrawColor(edge[0], edge[1], edge[2]); doc.setLineWidth(0.4); doc.rect(x, y, w, h, 'S'); doc.setLineWidth(0.3) }
     },
+    // Kartusche: halbtransparentes Papierfeld mit feinem Rand — trägt die Schrift
+    // auch über einem vollflächig illustrierten Blatt.
+    bubble(x, y, w, h, fill, edge, alpha = 0.88) {
+      const gs = typeof doc.GState === 'function'
+      if (gs) doc.setGState(new doc.GState({ opacity: alpha }))
+      doc.setFillColor(fill[0], fill[1], fill[2])
+      doc.setDrawColor(edge[0], edge[1], edge[2])
+      doc.setLineWidth(0.4)
+      doc.roundedRect(x, y, w, h, 2.4, 2.4, 'FD')
+      if (gs) doc.setGState(new doc.GState({ opacity: 1 }))
+      doc.setLineWidth(0.3)
+    },
     // Abgerundete Farbfläche: die Abschnitts-Pille.
     pill(x, y, w, h, color) {
       doc.setFillColor(color[0], color[1], color[2])
@@ -1226,6 +1238,114 @@ function placeLabels(grid, count, cols, rows, used) {
   return out
 }
 
+
+// ── Szenen im Bild FINDEN statt raten ─────────────────────────────
+// Die KI-Verortung („in welcher Zelle liegt Szene 3?") war unzuverlässig, und
+// eine „ruhigste Zelle" gibt es nicht mehr, seit das Blatt voll bespielt ist.
+// Also messen wir selbst: Das Bild wird in ein feines Raster zerlegt, jede Zelle
+// bekommt ihre Detaildichte. Zusammenhängende dichte Zellen = eine Szene, ruhige
+// Zellen = die Papiergassen. Weil der Bild-Prompt die Szenen in LESERICHTUNG
+// anordnen lässt, ist die i-te gefundene Szene die i-te Station — ohne Raten.
+const GRID_COLS = 48, GRID_ROWS = 34
+
+function densityMap(imgEl) {
+  const W = GRID_COLS * 8, H = Math.round(W * (imgEl.naturalHeight / imgEl.naturalWidth))
+  const cv = document.createElement('canvas')
+  cv.width = W; cv.height = H
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(imgEl, 0, 0, W, H)
+  const { data } = ctx.getImageData(0, 0, W, H)
+  const g = []
+  for (let r = 0; r < GRID_ROWS; r++) {
+    g.push([])
+    for (let c = 0; c < GRID_COLS; c++) {
+      const x0 = Math.floor(c * W / GRID_COLS), x1 = Math.floor((c + 1) * W / GRID_COLS)
+      const y0 = Math.floor(r * H / GRID_ROWS), y1 = Math.floor((r + 1) * H / GRID_ROWS)
+      let sum = 0, n = 0
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0 + 1; x < x1; x++) {
+          const i = (y * W + x) * 4, j = (y * W + x - 1) * 4
+          const l1 = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+          const l0 = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]
+          sum += Math.abs(l1 - l0); n++
+        }
+      }
+      g[r].push(n ? sum / n : 0)
+    }
+  }
+  return g
+}
+
+// Zusammenhängende dichte Bereiche = Szenen. Sortiert in Leserichtung (zeilenweise).
+function findScenes(grid) {
+  const vals = grid.flat().slice().sort((a, b) => a - b)
+  const thr = vals[Math.floor(vals.length * 0.45)] * 1.6 + 1.5   // „deutlich mehr als ruhig"
+  const seen = Array.from({ length: GRID_ROWS }, () => new Array(GRID_COLS).fill(false))
+  const blobs = []
+  for (let r = 0; r < GRID_ROWS; r++) {
+    for (let c = 0; c < GRID_COLS; c++) {
+      if (seen[r][c] || grid[r][c] < thr) continue
+      const stack = [[r, c]]; seen[r][c] = true
+      let minR = r, maxR = r, minC = c, maxC = c, n = 0
+      while (stack.length) {
+        const [y, x] = stack.pop(); n++
+        minR = Math.min(minR, y); maxR = Math.max(maxR, y)
+        minC = Math.min(minC, x); maxC = Math.max(maxC, x)
+        for (const [dy, dx] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ny = y + dy, nx = x + dx
+          if (ny < 0 || nx < 0 || ny >= GRID_ROWS || nx >= GRID_COLS) continue
+          if (seen[ny][nx] || grid[ny][nx] < thr) continue
+          seen[ny][nx] = true; stack.push([ny, nx])
+        }
+      }
+      if (n >= 6) blobs.push({ minR, maxR, minC, maxC, n })   // Rauschen verwerfen
+    }
+  }
+  // Leserichtung: nach Zeilenband, darin nach x
+  const bandH = 6
+  blobs.sort((a, b) => {
+    const ba = Math.floor(((a.minR + a.maxR) / 2) / bandH)
+    const bb = Math.floor(((b.minR + b.maxR) / 2) / bandH)
+    return ba !== bb ? ba - bb : ((a.minC + a.maxC) / 2) - ((b.minC + b.maxC) / 2)
+  })
+  return blobs
+}
+
+// Freier Platz für eine Beschriftung: unter, über, links oder rechts der Szene —
+// derjenige Kandidat mit der geringsten Detaildichte gewinnt, belegte Plätze sind
+// gesperrt. So steht der Text IMMER in einer Papiergasse an seiner Szene.
+function captionSpot(grid, blob, taken, W, H) {
+  const cw = W / GRID_COLS, ch = H / GRID_ROWS
+  const cx = ((blob.minC + blob.maxC) / 2 + 0.5) * cw
+  const cands = [
+    { x: cx, y: (blob.maxR + 2.2) * ch, cells: [[blob.maxR + 1, blob.minC, blob.maxC], [blob.maxR + 2, blob.minC, blob.maxC]] },
+    { x: cx, y: (blob.minR - 1.6) * ch, cells: [[blob.minR - 1, blob.minC, blob.maxC], [blob.minR - 2, blob.minC, blob.maxC]] },
+    { x: (blob.minC - 2.5) * cw, y: ((blob.minR + blob.maxR) / 2 + 0.5) * ch, cells: [[Math.round((blob.minR + blob.maxR) / 2), blob.minC - 3, blob.minC - 1]] },
+    { x: (blob.maxC + 3.5) * cw, y: ((blob.minR + blob.maxR) / 2 + 0.5) * ch, cells: [[Math.round((blob.minR + blob.maxR) / 2), blob.maxC + 1, blob.maxC + 3]] },
+  ]
+  let best = null
+  for (const c of cands) {
+    if (c.y < 34 || c.y > H - 8 || c.x < 25 || c.x > W - 25) continue
+    let dens = 0, n = 0, blocked = false
+    for (const [r, c0, c1] of c.cells) {
+      if (r < 0 || r >= GRID_ROWS) { blocked = true; break }
+      for (let cc = Math.max(0, c0); cc <= Math.min(GRID_COLS - 1, c1); cc++) {
+        if (taken.has(`${r}:${cc}`)) { blocked = true; break }
+        dens += grid[r][cc]; n++
+      }
+      if (blocked) break
+    }
+    if (blocked || !n) continue
+    const score = dens / n
+    if (!best || score < best.score) best = { ...c, score }
+  }
+  if (!best) return null
+  for (const [r, c0, c1] of best.cells) {
+    for (let cc = Math.max(0, c0); cc <= Math.min(GRID_COLS - 1, c1); cc++) taken.add(`${r}:${cc}`)
+  }
+  return best
+}
+
 function paintPosterScene(d, data, bg, st) {
   const { W, H } = P
   const stations = []
@@ -1238,67 +1358,71 @@ function paintPosterScene(d, data, bg, st) {
 
   // Kopf: NUR Name und Lebensspanne, groß, OHNE Kasten. Ein Poster braucht keine
   // Buchtitelei — der Name trägt es.
+  // Titel-Kartusche: Der Name lag bisher direkt auf dem Motiv (und damit auf dem
+  // gezeichneten Kartenrahmen). Jetzt trägt ihn ein eigenes Papierfeld.
   const who = String(data.person?.name || '').trim()
-  if (who) d.text(who, W / 2, 27, { size: 44, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
+  if (who) {
+    const tw = Math.min(W - 80, 18 + who.length * 7.2)
+    d.bubble((W - tw) / 2, 9, tw, 22, st.paper, st.accents[0], 0.92)
+    d.text(who, W / 2, 24, { size: 26, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: tw - 10, maxLines: 1 })
+  }
 
-  // Beschriftungen: GROSS und NEBEN ihrer Szene.
-  // `scene_spots` sagt (aus der Bildanalyse), in welcher Rasterzelle die Szene
-  // einer Station liegt. Der Text wird in die RUHIGSTE NACHBARZELLE gesetzt — nah
-  // genug für den Bezug, aber nicht auf der Illustration. Fehlt die Zuordnung,
-  // greift wie bisher „ruhigste freie Zelle in der Nähe der Chronologie".
-  // Rastermaße des Rückfall-Layouts (ruhigste freie Zelle) — sie waren beim Umbau
-  // verloren gegangen, wodurch der Download jedes Posters OHNE Szenen-Verortung
-  // mit einem ReferenceError abbrach.
+  // Beschriftungen als KARTUSCHEN: Das Blatt ist vollflächig illustriert — es gibt
+  // keine freien Papiergassen mehr. Statt Schrift ins Motiv zu legen (unlesbar),
+  // bekommt jede Station ein kleines Papierfeld, gesetzt an die RUHIGSTE Stelle in
+  // ihrer Umgebung. Die Chronologie steuert grob die Spalte, damit die Reihenfolge
+  // von links nach rechts lesbar bleibt.
   const cellW = (W - 2 * SCENE.margin) / SCENE.cols
   const cellH = (H - SCENE.headH - SCENE.footH) / SCENE.rows
-  const SPOT_COLS = 8, SPOT_ROWS = 6
-  const spotMap = new Map((data.scene_spots || []).map(s2 => [Number(s2.i), s2]))
-  const gCols = bg.grid[0].length, gRows = bg.grid.length
   const used = new Set()
-  const fallback = placeLabels(bg.grid, stations.length, SCENE.cols, SCENE.rows, used)
+  const spots = placeLabels(bg.grid2, stations.length, SCENE.cols, SCENE.rows, used)
+
+  // Wo liegt die Szene? `scene_spots` kommt aus der Bildanalyse beim Erzeugen
+  // (8×6-Raster). Die Kartusche wird dann DIREKT AN dieser Szene abgesetzt —
+  // in die ruhigste der vier Positionen darum. Ohne Verortung bleibt es bei der
+  // ruhigsten freien Zelle (Rückfall).
+  const spotMap = new Map((data.scene_spots || []).map(x => [Number(x.i), x]))
+  const gCols = bg.grid2[0].length, gRows = bg.grid2.length
 
   stations.forEach((s2, i) => {
-    let x, y
-    const spot = spotMap.get(i)
-    if (spot && Number.isFinite(spot.col) && Number.isFinite(spot.row)) {
-      // Szene liegt bei (col,row) im 8×6-Raster → in Blattkoordinaten umrechnen
-      const sx = (Math.min(SPOT_COLS - 1, Math.max(0, spot.col)) + 0.5) / SPOT_COLS * W
-      const sy = (Math.min(SPOT_ROWS - 1, Math.max(0, spot.row)) + 0.5) / SPOT_ROWS * H
-      // Vier Kandidaten rund um die Szene; der ruhigste gewinnt.
+    const bw = Math.min(cellW - 4, 62)
+    const bh = s2.year ? 17 : 12
+    let bx, by
+    const loc = spotMap.get(i)
+    if (loc && Number.isFinite(loc.col) && Number.isFinite(loc.row)) {
+      const sx = (Math.min(7, Math.max(0, loc.col)) + 0.5) / 8 * W
+      const sy = (Math.min(5, Math.max(0, loc.row)) + 0.5) / 6 * H
       const cands = [
-        { x: sx, y: sy - 30 }, { x: sx, y: sy + 32 },
-        { x: sx - 46, y: sy }, { x: sx + 46, y: sy },
-      ].map(c => ({
-        x: Math.max(40, Math.min(W - 40, c.x)),
-        y: Math.max(SCENE.headH + 10, Math.min(H - SCENE.footH - 10, c.y)),
-      }))
+        { x: sx - bw / 2, y: sy + 20 }, { x: sx - bw / 2, y: sy - 20 - bh },
+        { x: sx - bw - 12, y: sy - bh / 2 }, { x: sx + 12, y: sy - bh / 2 },
+      ]
       let best = null
       for (const c of cands) {
-        const gc = Math.min(gCols - 1, Math.max(0, Math.floor(c.x / W * gCols)))
-        const gr = Math.min(gRows - 1, Math.max(0, Math.floor(c.y / H * gRows)))
+        const x = Math.max(6, Math.min(W - bw - 6, c.x))
+        const y = Math.max(SCENE.headH + 4, Math.min(H - bh - 6, c.y))
+        const gc = Math.min(gCols - 1, Math.max(0, Math.floor((x + bw / 2) / W * gCols)))
+        const gr = Math.min(gRows - 1, Math.max(0, Math.floor((y + bh / 2) / H * gRows)))
         const key = `${gr}:${gc}`
-        const penalty = used.has(key) ? 40 : 0
-        const score = bg.grid[gr][gc] + penalty
-        if (!best || score < best.score) best = { ...c, score, key }
+        const score = bg.grid2[gr][gc] + (used.has(key) ? 60 : 0)
+        if (!best || score < best.score) best = { x, y, score, key }
       }
       used.add(best.key)
-      x = best.x; y = best.y
+      bx = best.x; by = best.y
     } else {
-      const f = fallback[i]
-      if (!f) return
-      x = SCENE.margin + f.c * cellW + cellW / 2
-      y = SCENE.headH + f.r * cellH + cellH / 2
+      const spot = spots[i]
+      if (!spot) return
+      bx = Math.max(6, Math.min(W - bw - 6, SCENE.margin + spot.c * cellW + (cellW - bw) / 2))
+      by = Math.max(SCENE.headH + 4, Math.min(H - bh - 6, SCENE.headH + spot.r * cellH + (cellH - bh) / 2))
     }
 
-    const angle = Math.sin(i * 1.1) * 2.5
-    let ty = y
+    d.bubble(bx, by, bw, bh, st.paper, s2.color)
+    let ty = by + 6.5
     if (s2.year) {
-      d.text(String(s2.year), x, ty, { size: 19, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: 70, maxLines: 1, angle })
-      ty += 8.5
+      d.text(String(s2.year), bx + bw / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: bw - 4, maxLines: 1 })
+      ty += 5.5
     }
-    d.text(String(s2.title || ''), x, ty, { size: 13, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: 80, maxLines: 2, angle })
+    d.text(String(s2.title || ''), bx + bw / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: bw - 4, maxLines: 2 })
   })
-
 }
 
 // `sceneUrl` = signierte URL des Gesamtbildes.
@@ -1310,8 +1434,10 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
     im.onload = () => res(im); im.onerror = () => rej(new Error('Motiv konnte nicht gelesen werden.'))
     im.src = img.data
   })
-  const grid = densityGrid(el, SCENE.cols, SCENE.rows)
+  // grid  = feines Raster (Szenen-Erkennung), grid2 = grobes Raster (Kartuschen-Plätze)
+  const grid = densityMap(el)
+  const grid2 = densityGrid(el, SCENE.cols, SCENE.rows)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid }, st)
+  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2 }, st)
   doc.save(filename)
 }
