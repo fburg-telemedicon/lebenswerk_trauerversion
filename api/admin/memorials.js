@@ -14,6 +14,7 @@ const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
 const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
+const { ALLOWED_LANGS, sanitizeLangs } = require('../_lib/languages')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -454,9 +455,7 @@ module.exports = async function handler(req, res) {
         await ensureLifeworkSchema()
       }
 
-      const ALLOWED_LANGS = ['de', 'pl', 'en']
-      let langs = Array.isArray(languages) ? [...new Set(languages.filter(l => ALLOWED_LANGS.includes(l)))] : []
-      if (langs.length === 0) langs = ['de']
+      let langs = sanitizeLangs(languages)
       // Lebenswerk: Der Admin legt EINE Sprache fest — oder keine, dann wählt der
       // Endnutzer beim ersten Start selbst (dafür müssen alle Sprachen offenstehen).
       const euLang = isLifework && Array.isArray(languages) && languages.length === 1 ? langs[0] : null
@@ -626,10 +625,7 @@ module.exports = async function handler(req, res) {
         if ('photoUploadTab' in meta) update.photo_upload_tab = meta.photoUploadTab === true
         if ('intake' in meta)        update.intake = (meta.intake && typeof meta.intake === 'object') ? meta.intake : null
         if ('languages' in meta) {
-          const ALLOWED_LANGS = ['de', 'pl', 'en']
-          let langs = Array.isArray(meta.languages) ? [...new Set(meta.languages.filter(l => ALLOWED_LANGS.includes(l)))] : []
-          if (langs.length === 0) langs = ['de']
-          update.languages = langs
+          update.languages = sanitizeLangs(meta.languages)
         }
         if ('note' in meta)          update.note = (typeof meta.note === 'string' && meta.note.trim()) ? meta.note.trim() : null
         if ('pickupAddress' in meta) update.pickup_address = sanitizePickupAddress(meta.pickupAddress)

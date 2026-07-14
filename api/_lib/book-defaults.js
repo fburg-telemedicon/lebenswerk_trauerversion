@@ -12,7 +12,7 @@
 const { normalizeStyle, DEFAULT_STYLE } = require('./image-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('./book-layouts')
 
-const ALLOWED_LANGS = ['de', 'pl', 'en']
+const { ALLOWED_LANGS } = require('./languages')
 
 const FALLBACK = {
   bookVariant: 1,

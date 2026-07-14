@@ -1710,13 +1710,24 @@ function paintPosterScene(d, data, bg, st) {
     if (i < cards.length) {
       const c = cards[i]
       const cx = c.x * W, cy = c.y * H, cw = c.w * W, ch = c.h * H
-      const pad = Math.min(3, ch * 0.12)
-      let ty = cy + pad + 4.6
+      // ÜBERMALEN, nicht nur beschriften: Bildmodelle kritzeln in eine leere Karte
+      // reflexhaft Buchstaben hinein („Four Cowip", „Snuchsmornings") — sie können
+      // Schrift nun einmal nicht. Da wir die Karte exakt kennen, wird sie zuerst
+      // mit sauberem Papier überdeckt; erst darauf kommt der echte Vektortext.
+      // Damit ist es egal, ob die Bild-KI die Karte leer gelassen hat oder nicht.
+      d.bubble(cx, cy, cw, ch, st.paper, s2.color, 1)
+      // Schriftgröße folgt der Karte: Eine große Karte soll nicht mit Miniaturschrift
+      // gefüllt werden (und eine kleine nicht überlaufen).
+      const pad = Math.min(3.5, ch * 0.12)
+      const yearSize  = Math.max(9, Math.min(15, ch * 0.30))
+      const titleSize = Math.max(8, Math.min(13, ch * 0.26))
+      const inner = ch - 2 * pad
+      let ty = cy + pad + (inner - (s2.year ? yearSize * 0.75 : 0) - titleSize * 0.5) / 2 + yearSize * 0.35
       if (s2.year) {
-        d.text(String(s2.year), cx + cw / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: cw - 2 * pad, maxLines: 1 })
-        ty += 5.4
+        d.text(String(s2.year), cx + cw / 2, ty, { size: yearSize, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: cw - 2 * pad, maxLines: 1 })
+        ty += yearSize * 0.55 + 0.8
       }
-      d.text(String(s2.title || ''), cx + cw / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: cw - 2 * pad, maxLines: 2 })
+      d.text(String(s2.title || ''), cx + cw / 2, ty, { size: titleSize, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: cw - 2 * pad, maxLines: 2 })
       return
     }
 
