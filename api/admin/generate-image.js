@@ -99,11 +99,15 @@ const VIGNETTE_STYLES = {
 const sceneDirective = (key) => {
   const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
   return `${s.look} ` +
-    'ONE single wide illustrated "map of a life": a winding path or road that meanders across the whole sheet from the lower left to the upper right, ' +
-    'with about ten small vignette scenes placed along it (buildings, interiors, tools, vehicles, gardens, landscapes) as described below. ' +
+    'ONE single wide illustrated "map of a life": a road that WINDS and LOOPS generously across the WHOLE sheet — several bends, not one straight diagonal — ' +
+    'with about fourteen small vignette scenes placed along it (buildings, interiors, tools, vehicles, gardens, landscapes) as described below. ' +
     `The paper is a flat plain background of the exact colour ${s.paper}. ` +
-    'CRUCIAL: leave GENEROUS EMPTY areas of that plain paper colour around and between the scenes — at least 40% of the sheet must remain calm, empty background where captions will be printed later. ' +
-    'Keep the outer 5% margin of the image completely empty. ' +
+    // Vorher: „mindestens 40% leer" — das Modell hat daraufhin EINE Ecke bespielt
+    // und die andere Blatthälfte leer gelassen. Jetzt: gleichmäßig verteilen, und
+    // die Ruhezonen sind kleine Lücken NEBEN den Szenen, keine toten Blatthälften.
+    'COVER THE WHOLE SHEET EVENLY: the road and its scenes must reach into all four corners and every area of the image — no empty half, no dead quarter, no large blank region. ' +
+    'Between and beside the scenes leave only SMALL calm gaps of the plain paper colour (roughly the size of one scene each), so short captions can be printed there. ' +
+    'Keep a narrow empty margin of about 4% around the outer edge. ' +
     'No human faces, no portraits — figures only small and from a distance. ' +
     // Bildmodelle malen auf „Poster"-Motiven reflexhaft Schrift (Schilder, Titel,
     // Jahreszahlen) — und verschreiben sich dabei. Deshalb hier maximal deutlich:

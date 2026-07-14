@@ -1239,9 +1239,7 @@ function paintPosterScene(d, data, bg, st) {
   // Kopf: NUR Name und Lebensspanne, groß, OHNE Kasten. Ein Poster braucht keine
   // Buchtitelei — der Name trägt es.
   const who = String(data.person?.name || '').trim()
-  const years = String(data.person?.years || '').trim()
-  if (who) d.text(who, W / 2, 26, { size: 40, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
-  if (years) d.text(years, W / 2, 38, { size: 17, align: 'center', color: st.soft, font: st.heading, maxW: W - 120, maxLines: 1 })
+  if (who) d.text(who, W / 2, 27, { size: 44, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
 
   // Beschriftungen: GROSS und NEBEN ihrer Szene.
   // `scene_spots` sagt (aus der Bildanalyse), in welcher Rasterzelle die Szene
@@ -1301,15 +1299,6 @@ function paintPosterScene(d, data, bg, st) {
     d.text(String(s2.title || ''), x, ty, { size: 13, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: 80, maxLines: 2, angle })
   })
 
-  // Fuß
-  const fy = H - SCENE.footH + 8
-  d.rect(0, H - SCENE.footH, W, SCENE.footH, st.paper, 0.9)
-  const values = (Array.isArray(data.values) ? data.values : []).slice(0, 8)
-  const places = (Array.isArray(data.places) ? data.places : []).slice(0, 6)
-  const colW = (W - 2 * SCENE.margin) / 3 - 8
-  if (values.length) d.text(values.join('  ·  '), SCENE.margin, fy, { size: 10, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
-  if (places.length) d.text(places.join('  ·  '), SCENE.margin + colW + 12, fy, { size: 10, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
-  if (data.quote) d.text(`„${data.quote}"`, SCENE.margin + 2 * (colW + 12), fy - 1, { size: 12, italic: true, color: st.ink, font: st.heading, maxW: colW + 8, maxLines: 2 })
 }
 
 // `sceneUrl` = signierte URL des Gesamtbildes.
