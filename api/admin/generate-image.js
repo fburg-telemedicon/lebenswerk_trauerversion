@@ -120,12 +120,17 @@ const sceneDirective = (key) => {
     'The sheet must be entirely free of any glyph, character or symbol resembling a letter or digit.'
 }
 
+// Eine Szene = eine Kachel des Posters. Der Renderer setzt die Kacheln direkt
+// aneinander, also muss die Szene ihre Fläche FÜLLEN (früher schwebte sie in der
+// Mitte, das Blatt wirkte dadurch leer). Nur die äußersten Ränder laufen weich in
+// die Papierfarbe aus, damit benachbarte Kacheln zu einem Blatt verschmelzen.
 const vignetteDirective = (key) => {
   const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
   return `${s.look} ` +
-    `A small SCENE: a place with a few objects and atmosphere, set on a plain background of the exact colour ${s.paper} — ` +
-    'the scene occupies the centre and fades into that flat colour towards the edges: NO frame, NO border, NO drop shadow, NO vignetting, no hard cut-out edges. ' +
-    'Leave a calm margin around the scene; nothing important may touch the edges. ' +
+    'A SCENE: a place with objects, light and atmosphere. ' +
+    'The scene FILLS the whole frame from edge to edge — a full illustrated picture, not a small motif floating in space. ' +
+    `Only the outermost few percent of the frame soften and fade into the flat paper colour ${s.paper}, so the picture blends into the paper: ` +
+    'NO frame, NO border, NO outline, NO drop shadow, no hard cut-out edges, no white box around the picture. ' +
     'No human faces and no portraits — show objects, places, tools, vehicles, animals or figures seen from a distance/from behind. ' +
     'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage anywhere in the image.'
 }

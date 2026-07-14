@@ -2,8 +2,9 @@
 // Jede View bekommt State + Handler als GLEICHNAMIGE Props -> Body verbatim,
 // verhaltensneutral. Modul-Helfer (S/Back/Err) werden importiert.
 
-import { Fragment, useState } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
+import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
@@ -1698,7 +1699,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
         {eulogyStyleOverlay}
         {genLangOverlay}
         {dlLangOverlay}
-        {posterStyleOverlay}
+        {posterZoomOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}
@@ -1708,7 +1709,69 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
     )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, requestPoster, posterStyleOverlay }) {
+// Die fünf Poster-Stile als Vorschau. Das Blatt wird im Browser aus den Szenen
+// zusammengesetzt (dieselbe Layoutfunktion, die auch das PDF zeichnet) — Thumbnail
+// und Lightbox zeigen deshalb exakt das, was heruntergeladen wird.
+function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
+  const [previews, setPreviews] = useState({})
+  const [failed, setFailed] = useState({})
+  const variants = Array.isArray(poster?.variants) ? poster.variants : []
+
+  useEffect(() => {
+    let alive = true
+    setPreviews({}); setFailed({})
+    ;(async () => {
+      for (const v of variants) {
+        try {
+          const url = await renderPosterPreview(poster, v, v.style)
+          if (!alive) return
+          setPreviews(p => ({ ...p, [v.style]: url }))
+        } catch (e) {
+          if (!alive) return
+          setFailed(f => ({ ...f, [v.style]: e.message }))
+        }
+      }
+    })()
+    return () => { alive = false }
+    // Signierte Bild-URLs werden bei jedem Laden neu gemintet → an ihnen hängt die Vorschau.
+  }, [variants.map(v => v.tiles?.[0]?.image_url || v.style).join('|')])
+
+  if (!variants.length) return null
+  return (
+    <div style={{ marginTop:14, display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:14 }}>
+      {variants.map(v => {
+        const st = getPosterStyle(v.style)
+        const url = previews[v.style]
+        const busy = extraDl === `poster:${v.style}`
+        return (
+          <div key={v.style} style={{ border:'1px solid #e7e5e4', borderRadius:8, overflow:'hidden', background:'#fafaf9' }}>
+            <div
+              onClick={() => url && onZoom({ url, label: st.label })}
+              style={{ aspectRatio:'594 / 420', background:'#f5f5f4', display:'flex', alignItems:'center', justifyContent:'center', cursor: url ? 'zoom-in' : 'default' }}
+            >
+              {url
+                ? <img src={url} alt={st.label} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                : <span style={{ fontSize:12, color:'#a8a29e' }}>{failed[v.style] ? '⚠ Vorschau fehlgeschlagen' : 'Vorschau wird gezeichnet …'}</span>}
+            </div>
+            <div style={{ padding:'8px 10px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+              <span style={{ fontSize:12.5, fontWeight:600 }}>{st.label}</span>
+              <button
+                onClick={() => onDownload(v.style)}
+                disabled={!!extraDl}
+                className="secondary"
+                style={{ fontSize:12, padding:'5px 10px', whiteSpace:'nowrap' }}
+              >
+                {busy ? '⏳ …' : '⬇ PDF'}
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const isLifework = selected?.product_category === 'lifework'
@@ -2047,11 +2110,12 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 { kind:'tree',   field:'family_tree', icon:'🌳', title:'Stammbaum',
                   sub:'KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).' },
                 { kind:'poster', field:'life_poster', icon:'🖼', title:'Lebensposter',
-                  sub:'Ein illustriertes Blatt (A2 quer): KI-Motiv mit Lebensweg, Beschriftung als scharfer Vektortext.' },
+                  sub:`Ein illustriertes Blatt (A2 quer): zu jeder Lebensstation eine gezeichnete Szene, Beschriftung als scharfer Vektortext. Es entstehen alle ${POSTER_STYLES.length} Stile zur Auswahl — das dauert einige Minuten.` },
               ].map(({ kind, field, icon, title, sub }) => {
                 const has  = !!selected[field]
                 // Läuft serverseitig als Job — Fortschritt und Abbrechen wie beim Buch.
                 const busy = !!generating[kind] && genOwner[kind] === selected.id
+                const hasVariants = kind === 'poster' && Array.isArray(selected.life_poster?.variants) && selected.life_poster.variants.length > 0
                 return (
                   <div key={kind} style={{ ...S.card }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
@@ -2062,13 +2126,24 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Erzeugt</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      <button onClick={() => kind === 'poster' ? requestPoster() : generateExtra(kind)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                      <button onClick={() => generateExtra(kind)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
                         {busy ? 'Wird erzeugt …' : has ? '↻ Neu erzeugen' : '✨ Erzeugen'}
                       </button>
-                      <button onClick={() => downloadExtra(kind)} disabled={!has || busy || !!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                        {extraDl === kind ? '⏳ PDF wird erstellt …' : '⬇ Download PDF'}
-                      </button>
+                      {/* Beim Poster hängt der Download an der einzelnen Stil-Vorschau unten. */}
+                      {!hasVariants && (
+                        <button onClick={() => downloadExtra(kind)} disabled={!has || busy || !!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                          {extraDl === kind ? '⏳ PDF wird erstellt …' : '⬇ Download PDF'}
+                        </button>
+                      )}
                     </div>
+                    {hasVariants && !busy && (
+                      <PosterGallery
+                        poster={selected.life_poster}
+                        onZoom={setPosterZoom}
+                        onDownload={styleKey => downloadExtra('poster', selected, styleKey)}
+                        extraDl={extraDl}
+                      />
+                    )}
                     {busy && (
                       <div style={{ marginTop:10 }}>
                         {genPct[kind] != null && (
@@ -2306,7 +2381,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
         {eulogyStyleOverlay}
         {genLangOverlay}
         {dlLangOverlay}
-        {posterStyleOverlay}
+        {posterZoomOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}

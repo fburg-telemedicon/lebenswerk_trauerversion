@@ -55,7 +55,7 @@ import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
-import { treeSystem, posterSystem, posterSceneSystem, posterImageJobs, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
+import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterTilesPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -423,7 +423,7 @@ function Dashboard() {
   // Sprachwahl BEIM SPEICHERN (Pflegeexzerpt): { key } | null
   const [dlLangModal, setDlLangModal]   = useState(null)
   // Stilwahl vor dem Erzeugen des Lebensposters
-  const [posterStyleModal, setPosterStyleModal] = useState(false)
+  const [posterZoom, setPosterZoom] = useState(null)   // { url, label } — Poster groß
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1975,16 +1975,10 @@ Regeln:
   // freigestellte Vignette (FLUX im Modus 'vignette', im gewählten Poster-Stil).
   // Ein einzelnes fehlgeschlagenes Bild ist NICHT fatal — die Station bekommt dann
   // nur einen leeren Kreis, das Poster entsteht trotzdem.
-  function requestPoster() {
-    if (!selected) return
-    if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
-    setPosterStyleModal(true)
-  }
-
   // Beide Nebenprodukte laufen SERVERSEITIG als Job (wie Buch und Rede): Der
   // Browser stellt den Auftrag ein und pollt nur noch den Fortschritt. Schließt
   // man den Tab, läuft die Erzeugung weiter — und sie lässt sich abbrechen.
-  async function generateExtra(kind, posterStyle = DEFAULT_POSTER_STYLE) {
+  async function generateExtra(kind) {
     if (!selected) return
     const isTree = kind === 'tree'
     const field = isTree ? 'family_tree' : 'life_poster'
@@ -2002,7 +1996,11 @@ Regeln:
       const params = isTree
         ? { resultType: 'json', field, kind: 'family_tree', memorialCode: selected.id, label: 'Familie wird gelesen',
             system: treeSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
-        : { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id, posterStyle,
+        // Poster: EIN Satz Inhalte, aber alle fünf Stile — welcher zu einem Leben
+        // passt, sieht man erst am fertigen Blatt. Der Worker zeichnet je Stil die
+        // Szenen einzeln; die Detailansicht zeigt die fünf Blätter zur Auswahl.
+        : { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id,
+            posterStyles: POSTER_STYLES.map(s => s.key),
             system: posterSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId
@@ -2027,37 +2025,30 @@ Regeln:
   // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
   // Dauert trotzdem spürbar: Beim Poster werden bis zu 20 Vignetten geladen und
   // ein mehrere MB großes PDF gezeichnet. Deshalb ein eigener Busy-Zustand.
-  async function downloadExtra(kind, mem = selected) {
+  async function downloadExtra(kind, mem = selected, styleKey = null) {
     const isTree = kind === 'tree'
     const data = isTree ? mem?.family_tree : mem?.life_poster
     if (!data) { setErr(isTree ? 'Es gibt noch keinen Stammbaum.' : 'Es gibt noch kein Lebensposter.'); return }
     const base = `${isTree ? 'Stammbaum' : 'Lebensposter'}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
-    setExtraDl(kind); setErr('')
+    setExtraDl(styleKey ? `poster:${styleKey}` : kind); setErr('')
     try {
       if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
-      // Poster: die signierten URLs der Vignetten einsammeln (sie stehen frisch am
-      // gerade geladenen Datensatz, nicht im gespeicherten JSON).
-      // Poster: ein illustriertes Blatt + Vektortext darüber.
+      // Aktuelles Poster: aus Einzelszenen zusammengesetzt, ein Blatt je Stil.
+      else if (Array.isArray(data.variants) && data.variants.length) {
+        const v = data.variants.find(x => x.style === styleKey) || data.variants[0]
+        await downloadPosterTilesPdf(`${base}_${v.style}.pdf`, data, v, v.style)
+      }
+      // Ältere Poster bleiben ladbar: ein Gesamtmotiv mit Vektortext darüber …
       else if (data.scene_url || data.scene_path) {
         if (!data.scene_url) throw new Error('Das Poster-Motiv konnte nicht geladen werden — bitte die Seite neu laden.')
         await downloadPosterScenePdf(`${base}.pdf`, data, data.scene_url, data.style)
       }
-      // Ältere Poster (Vignetten je Station) weiterhin zeichenbar.
+      // … bzw. die allererste Fassung mit einer Vignette je Station.
       else {
         const urls = {}
         ;(data.sections || []).forEach((sec, si) => {
           ;(sec.stations || []).forEach((st, ti) => { if (st?.image_url) urls[`${si}:${ti}`] = st.image_url })
         })
-        // Bevorzugt die KI-Komposition (freies SVG). Ist sie fehlerhaft, fällt der
-        // Download auf das feste Layout zurück, statt gar kein Poster zu liefern.
-        if (data.svg) {
-          try {
-            await downloadPosterSvgPdf(`${base}.pdf`, data.svg, urls)
-            return
-          } catch (e) {
-            console.warn('KI-Komposition nicht renderbar — festes Layout:', e.message)
-          }
-        }
         await downloadPosterPdf(`${base}.pdf`, data, urls, data.style)
       }
     } catch (e) { setErr(e.message) }
@@ -2243,44 +2234,17 @@ Regeln:
     </div>
   ) : null
 
-  // Stilwahl fürs Lebensposter. Der Stil bestimmt Papier, Farben und Typografie
-  // des Layouts UND den Illustrationsstil aller Vignetten — deshalb muss er VOR
-  // der Erzeugung feststehen (die Bilder entstehen in genau diesem Stil).
-  const posterStyleOverlay = posterStyleModal ? (
-    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
-      <div style={{ ...S.card, maxWidth: 620, width:'100%' }}>
-        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>In welchem Stil soll das Lebensposter entstehen?</h2>
-        <p style={{ ...S.muted, marginBottom:16 }}>
-          Der Stil bestimmt Papier, Farben, Schrift — und den Zeichenstil aller Illustrationen auf dem Poster.
-          Zu jeder Lebensstation wird ein eigenes Motiv gezeichnet; das dauert einige Minuten.
-        </p>
-        <div style={{ display:'grid', gap:10, marginBottom:14 }}>
-          {POSTER_STYLES.map(s => (
-            <div
-              key={s.key}
-              onClick={() => { setPosterStyleModal(false); generateExtra('poster', s.key) }}
-              style={{ ...S.card, cursor:'pointer', padding:'12px 14px', display:'flex', alignItems:'center', gap:12 }}
-            >
-              <div style={{ display:'flex', gap:3, flexShrink:0 }}>
-                {[...Array(4)].map((_, i) => {
-                  const c = s.accents[i % s.accents.length]
-                  return <span key={i} style={{ width:12, height:26, borderRadius:3, background:`rgb(${c[0]},${c[1]},${c[2]})`, display:'inline-block' }} />
-                })}
-                <span style={{ width:12, height:26, borderRadius:3, background:`rgb(${s.paper[0]},${s.paper[1]},${s.paper[2]})`, border:'1px solid #e7e5e4', display:'inline-block' }} />
-              </div>
-              <div>
-                <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>{s.label}</div>
-                <div style={{ fontSize:12.5, color:'#78716c', lineHeight:1.5 }}>{s.description}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
-          <button className="ghost" onClick={() => setPosterStyleModal(false)} style={{ fontSize:14 }}>Abbrechen</button>
-        </div>
-      </div>
+  // Lightbox: ein Poster-Stil groß. Das Vorschaubild ist dasselbe, das schon als
+  // Thumbnail gerendert wurde — hier nur formatfüllend dargestellt.
+  const posterZoomOverlay = posterZoom ? (
+    <div
+      onClick={() => setPosterZoom(null)}
+      style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.82)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:120, padding:'1.5rem', cursor:'zoom-out' }}
+    >
+      <img src={posterZoom.url} alt={posterZoom.label} style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', boxShadow:'0 20px 60px rgba(0,0,0,.5)', borderRadius:4 }} />
     </div>
   ) : null
+
 
   // Sprachwahl BEIM SPEICHERN des Pflegeexzerpts. Der Text liegt auf Deutsch am
   // Buch; wird eine andere Sprache gewählt, übersetzt die KI die Datei — das
@@ -2773,7 +2737,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

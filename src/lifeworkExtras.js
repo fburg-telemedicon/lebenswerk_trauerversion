@@ -272,6 +272,9 @@ function pdfDraw(doc) {
       doc.circle(cx, cy, r, 'F')
     },
     image(data, x, y, w, h) { doc.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST') },
+    // Szenenkachel des Posters: kommt bereits zugeschnitten als JPEG (13 Szenen als
+    // PNG blähten die Datei auf ein Vielfaches auf) und füllt ihre Zelle exakt.
+    tile(img, x, y, w, h) { doc.addImage(img.data, 'JPEG', x, y, w, h, undefined, 'FAST') },
 
     // ── Primitive für den Stammbaum ──
     // Karte mit Füllung und farbigem Rand.
@@ -1439,5 +1442,179 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
   const grid2 = densityGrid(el, SCENE.cols, SCENE.rows)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2 }, st)
+  doc.save(filename)
+}
+
+// ════════════════════════════════════════════════════════════════
+// 6) LEBENSPOSTER aus EINZELSZENEN — der aktuelle Weg
+// ════════════════════════════════════════════════════════════════
+//
+// Alle Vorgänger scheiterten am selben Punkt: Wir ließen EIN großes Blatt malen
+// und mussten hinterher RATEN, wo darin die Szenen liegen, um die Beschriftung
+// danebenzusetzen. Jede Messung war eine Näherung — und der Text landete doch
+// wieder auf einem Motiv.
+//
+// Jetzt andersherum: Die Szenen entstehen EINZELN (Bildmodus 'vignette', je Szene
+// ein Bild), und das Blatt setzen WIR zusammen. Damit ist die Lage jeder Szene
+// bekannt, und ihre Beschriftung steht per Konstruktion in der Papierzeile
+// darunter — sie KANN nicht mehr auf einer Grafik liegen. Die Szenen füllen ihre
+// Zellen randlos (Cover-Zuschnitt), sodass das Blatt trotzdem dicht bespielt ist.
+const TILE = { W: 594, H: 420, margin: 15, headH: 38, gapX: 5, gapY: 4, capH: 30, foot: 8 }
+
+function layoutTiles(data) {
+  const stations = []
+  ;(Array.isArray(data?.sections) ? data.sections : []).forEach((sec, si) =>
+    (Array.isArray(sec.stations) ? sec.stations : []).forEach((s, ti) =>
+      stations.push({ ...s, si, ti, key: `${si}:${ti}`, weight: Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1)) })))
+  if (!stations.length) return null
+
+  const n = stations.length
+  const rows = n <= 6 ? 2 : n <= 15 ? 3 : 4
+  const base = Math.floor(n / rows), rem = n % rows
+  const counts = Array.from({ length: rows }, (_, r) => base + (r < rem ? 1 : 0))
+  const bodyW = TILE.W - 2 * TILE.margin
+  const bodyH = TILE.H - TILE.headH - TILE.foot
+  const rowH = bodyH / rows
+
+  const out = []
+  let i = 0
+  counts.forEach((cols, r) => {
+    const row = stations.slice(i, i + cols); i += cols
+    // Bedeutende Stationen bekommen mehr Breite — das nimmt dem Raster das
+    // Mechanische, ohne dass sich je zwei Zellen überlappen könnten.
+    const ks = row.map(s => 1 + 0.28 * (s.weight - 1))
+    const sum = ks.reduce((a, b) => a + b, 0)
+    let x = TILE.margin
+    row.forEach((s, c) => {
+      const cellW = bodyW * ks[c] / sum
+      const w = cellW - TILE.gapX
+      const h = rowH - TILE.capH - TILE.gapY
+      const jitter = (((s.si * 3 + s.ti * 7) % 5) - 2) * 0.9      // ±1,8 mm, deterministisch
+      const y = TILE.headH + r * rowH + jitter
+      out.push({ ...s, x: x + TILE.gapX / 2, y, w, h, capY: y + h + 5.5 })
+      x += cellW
+    })
+  })
+  return { stations: out, rows }
+}
+
+// `images` = { "si:ti": { data, el } } — bereits auf das Zellformat zugeschnitten.
+function paintPosterTiles(d, data, images, st) {
+  const L = layoutTiles(data)
+  if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
+  const { W, H } = TILE
+
+  d.rect(0, 0, W, H, st.paper)
+
+  const who = String(data.person?.name || data.title || '').trim()
+  if (who) d.text(st.titleUpper ? who.toUpperCase() : who, W / 2, 26, { size: 40, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 80, maxLines: 1 })
+
+  L.stations.forEach(s => {
+    const color = st.accents[s.si % st.accents.length]
+    const img = images[s.key]
+    if (img) d.tile(img, s.x, s.y, s.w, s.h)
+
+    // Beschriftung: immer in der Papierzeile UNTER ihrer Szene, linksbündig an
+    // deren Kante — kein Kasten, kein Text auf einer Grafik.
+    let y = s.capY
+    if (s.year) {
+      d.text(String(s.year), s.x, y, { size: 13, bold: true, color, font: st.heading, maxW: s.w, maxLines: 1 })
+      y += 5.8
+    }
+    y += d.text(String(s.title || ''), s.x, y, { size: 14, bold: true, color: st.ink, font: st.heading, maxW: s.w, maxLines: 2 })
+    if (s.text) d.text(String(s.text), s.x, y + 1.4, { size: 9.5, color: st.soft, font: st.body, maxW: s.w, maxLines: 2 })
+  })
+
+  d.text('Lebenswerk · Lebensgeschichten.ai', W - TILE.margin, H - 3.5, { size: 6.5, align: 'right', color: st.soft, font: st.body })
+}
+
+// Bild formatfüllend auf ein Seitenverhältnis zuschneiden (mittig), damit die
+// Szene ihre Zelle randlos füllt statt mit Rändern darin zu schwimmen.
+async function coverCrop(img, aspect) {
+  const el = await new Promise((res, rej) => {
+    const im = new Image()
+    im.onload = () => res(im); im.onerror = () => rej(new Error('Szene konnte nicht gelesen werden.'))
+    im.src = img.data
+  })
+  let sw = img.w, sh = img.h
+  if (img.w / img.h > aspect) sw = img.h * aspect
+  else sh = img.w / aspect
+  const cv = document.createElement('canvas')
+  cv.width = Math.round(sw); cv.height = Math.round(sh)
+  cv.getContext('2d').drawImage(el, (img.w - sw) / 2, (img.h - sh) / 2, sw, sh, 0, 0, cv.width, cv.height)
+  const data = cv.toDataURL('image/jpeg', 0.92)
+  const el2 = await new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = data })
+  return { data, el: el2 }
+}
+
+// Die Szenen einer Variante laden und auf ihre Zellen zuschneiden.
+async function prepareTiles(data, variant) {
+  const L = layoutTiles(data)
+  if (!L) throw new Error('Das Poster enthält keine Stationen.')
+  const images = {}
+  await Promise.all((Array.isArray(variant?.tiles) ? variant.tiles : []).map(async t => {
+    if (!t.image_url) return
+    const s = L.stations.find(x => x.si === t.si && x.ti === t.ti)
+    if (!s) return
+    try { images[`${t.si}:${t.ti}`] = await coverCrop(await loadImage(t.image_url), s.w / s.h) } catch { /* Szene fehlt */ }
+  }))
+  return images
+}
+
+// Zeichenbackend für die Bildschirm-Vorschau: dieselbe Layoutfunktion, anderes
+// Ziel. So zeigt die Detailansicht die fünf Stile als Thumbnails, ohne dass ein
+// zweites Layout gepflegt werden müsste.
+function canvasDraw(ctx, s) {
+  const col = c => `rgb(${c[0]},${c[1]},${c[2]})`
+  const setFont = o => {
+    const px = (o.size || 10) * 0.3528 * s
+    const fam = o.font === 'times' ? 'Georgia, "Times New Roman", serif' : 'Helvetica, Arial, sans-serif'
+    ctx.font = `${o.bold ? '700 ' : o.italic ? 'italic ' : ''}${px}px ${fam}`
+  }
+  const wrap = (str, o) => {
+    if (!o.maxW) return [String(str)]
+    const words = String(str).split(/\s+/)
+    const lines = []; let cur = ''
+    for (const w of words) {
+      const t = cur ? `${cur} ${w}` : w
+      if (!cur || ctx.measureText(t).width <= o.maxW * s) cur = t
+      else { lines.push(cur); cur = w }
+    }
+    if (cur) lines.push(cur)
+    return lines
+  }
+  return {
+    rect(x, y, w, h, c) { ctx.fillStyle = col(c); ctx.fillRect(x * s, y * s, w * s, h * s) },
+    tile(img, x, y, w, h) { ctx.drawImage(img.el, x * s, y * s, w * s, h * s) },
+    text(str, x, y, o = {}) {
+      setFont(o)
+      ctx.fillStyle = col(o.color || [0, 0, 0])
+      ctx.textAlign = o.align || 'left'
+      ctx.textBaseline = 'alphabetic'
+      const lines = wrap(str, o).slice(0, o.maxLines || 99)
+      const lh = (o.size || 10) * 0.3528 * 1.25
+      lines.forEach((ln, i) => ctx.fillText(ln, x * s, (y + i * lh) * s))
+      return lines.length * lh
+    },
+  }
+}
+
+// Vorschaubild einer Variante — dasselbe Bild dient als Thumbnail und in der
+// Lightbox, nur unterschiedlich groß dargestellt.
+export async function renderPosterPreview(data, variant, styleKey, pxPerMm = 3) {
+  const st = getPosterStyle(styleKey || variant?.style || data?.style)
+  const images = await prepareTiles(data, variant)
+  const cv = document.createElement('canvas')
+  cv.width = Math.round(TILE.W * pxPerMm)
+  cv.height = Math.round(TILE.H * pxPerMm)
+  paintPosterTiles(canvasDraw(cv.getContext('2d'), pxPerMm), data || {}, images, st)
+  return cv.toDataURL('image/jpeg', 0.9)
+}
+
+export async function downloadPosterTilesPdf(filename, data, variant, styleKey) {
+  const st = getPosterStyle(styleKey || variant?.style || data?.style)
+  const images = await prepareTiles(data, variant)
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [TILE.W, TILE.H] })
+  paintPosterTiles(pdfDraw(doc), data || {}, images, st)
   doc.save(filename)
 }

@@ -151,11 +151,17 @@ async function signMemorialImages(memorials) {
   }
 }
 
-// Bildpfade des Lebensposters: je Station eine Vignette.
+// Bildpfade des Lebensposters. Aktuell: je Stil (variants) ein Satz Szenenbilder.
+// `scene_path` (ein Gesamtmotiv) und Stationsbilder stammen aus früheren Fassungen
+// und werden weiter signiert, damit ältere Poster darstellbar bleiben.
 function posterImagePaths(poster) {
   const out = []
-  // Gesamtmotiv des Posters (ein illustriertes Blatt).
   if (poster?.scene_path) out.push(String(poster.scene_path).replace(/^\/+/, ''))
+  for (const v of (Array.isArray(poster?.variants) ? poster.variants : [])) {
+    for (const t of (Array.isArray(v.tiles) ? v.tiles : [])) {
+      if (t?.image_path) out.push(String(t.image_path).replace(/^\/+/, ''))
+    }
+  }
   for (const sec of (Array.isArray(poster?.sections) ? poster.sections : [])) {
     for (const st of (Array.isArray(sec.stations) ? sec.stations : [])) {
       if (st?.image_path) out.push(String(st.image_path).replace(/^\/+/, ''))
@@ -170,6 +176,13 @@ function applyPosterUrls(poster, urlMap) {
   if (poster?.scene_path) {
     const k = String(poster.scene_path).replace(/^\/+/, '')
     if (urlMap[k]) poster.scene_url = urlMap[k]
+  }
+  for (const v of (Array.isArray(poster?.variants) ? poster.variants : [])) {
+    for (const t of (Array.isArray(v.tiles) ? v.tiles : [])) {
+      if (!t?.image_path) continue
+      const key = String(t.image_path).replace(/^\/+/, '')
+      if (urlMap[key]) t.image_url = urlMap[key]
+    }
   }
   for (const sec of (Array.isArray(poster?.sections) ? poster.sections : [])) {
     for (const st of (Array.isArray(sec.stations) ? sec.stations : [])) {
