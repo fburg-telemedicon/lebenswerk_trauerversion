@@ -46,6 +46,19 @@ export async function updateOwnMemorial(token, code, { imageStyle, bookLayout } 
   return parseResponse(res) // { ok }
 }
 
+// Namen nachtragen: Beim Lebenswerk ist der Name bei der Anlage optional. Fehlt er,
+// gibt ihn der Endnutzer beim Start selbst ein — er gehört ans BUCH (Titel, Poster,
+// Stammbaum), nicht nur an den Beitrag. Der Server nimmt ihn nur an, solange das
+// Feld leer ist.
+export async function claimMemorialName(code, name) {
+  const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  return parseResponse(res) // { ok, name }
+}
+
 // ── Buch-Standardwerte ────────────────────────────────────────────
 // Vorbelegung der Anlage-Maske. Lesen: jeder eingeloggte Benutzer (die Maske
 // braucht die Werte). Ändern/Zurücksetzen: nur Admin.

@@ -423,9 +423,11 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'POST') {
       const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail } = req.body || {}
-      if (!name) return res.status(400).json({ error: 'Name ist ein Pflichtfeld.' })
-
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
+      // Der Name ist Pflicht — außer beim Lebenswerk: Kennt der Manager den Namen
+      // des Endnutzers nicht, trägt dieser ihn beim ersten Start selbst nach
+      // (PATCH /api/memorial). Bis dahin bleibt das Feld leer.
+      if (!name && category !== LIFEWORK) return res.status(400).json({ error: 'Name ist ein Pflichtfeld.' })
       if (!canAccessCategory(req.auth, category)) {
         return res.status(403).json({ error: 'Keine Berechtigung für diese Produktkategorie.' })
       }
@@ -434,8 +436,8 @@ module.exports = async function handler(req, res) {
       // Lebenswerk hat keinen Organisator (der Endnutzer erzählt sein eigenes
       // Leben); die Spalte bekommt seinen Namen. Alle anderen Kategorien sammeln
       // Beiträge Dritter — dort bleibt der Organisator Pflicht.
-      const organizerName = isLifework ? String(name).trim() : String(organizer || '').trim()
-      if (!organizerName) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
+      const organizerName = isLifework ? String(name || '').trim() : String(organizer || '').trim()
+      if (!organizerName && !isLifework) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
       // E-Mail-Adresse ist OPTIONAL: Mit Adresse bekommt der Endnutzer ein eigenes
       // Konto samt Einladung; ohne Adresse entsteht kein Konto und der Zugang läuft
       // über den Einladungslink (?code=…) wie bei den anderen Kategorien.
@@ -469,14 +471,17 @@ module.exports = async function handler(req, res) {
       let days = parseInt(cutoffDays, 10)
       if (!Number.isFinite(days) || days < 0) days = 7
       const insertRow = {
-        id: code, name, organizer: organizerName, gender: gender || null, book_variant: variant,
+        id: code, name: String(name || '').trim() || null, organizer: organizerName || null,
+        gender: gender || null, book_variant: variant,
         // Lebenswerk: kein Anlass-Datum, keine Erfassungsfrist — der Endnutzer
         // bestimmt selbst, wie schnell er erzählt.
         funeral_date: isLifework ? null : (funeralDate || null),
         cutoff_days: isLifework ? 0 : days,
         show_intro_video: isLifework ? false : showIntroVideo !== false,
-        // Transkript-Umschalter bleibt sichtbar, startet aber ausgeschaltet.
-        show_transcript: isLifework ? false : showTranscript !== false,
+        // Die Checkbox entscheidet, ob der Transkript-SCHALTER angeboten wird — auch
+        // beim Lebenswerk (vorher war das Feld dort fest auf false, die Checkbox lief
+        // also ins Leere). Eingeschaltet startet das Interview trotzdem ohne Transkript.
+        show_transcript: showTranscript !== false,
         // Es gibt nur einen Erzähler — eine Mitwirkenden-Liste ergibt keinen Sinn.
         show_contributors: isLifework ? false : showContributors !== false,
         photo_upload_tab: isLifework ? true : photoUploadTab === true,

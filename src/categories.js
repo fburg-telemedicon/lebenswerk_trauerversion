@@ -1142,8 +1142,8 @@ export const CATEGORIES = {
     description: 'Autobiographie: Der Mensch erzählt sein eigenes Leben – mit eigenem Zugang, im eigenen Tempo.',
     nounBook: 'Lebenswerk',
     intake: {
-      subjectLabel: 'Name des Endnutzers *',
-      subjectPlaceholder: 'Vollständiger Name',
+      subjectLabel: 'Name des Endnutzers (optional)',
+      subjectPlaceholder: 'Vollständiger Name – leer lassen, wenn unbekannt',
       // Geschlecht und Anredeform werden hier erfasst, wenn sie bekannt sind — der
       // Endnutzer wird beim Start dann nur noch nach dem gefragt, was fehlt.
       useGender: true,

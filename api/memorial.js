@@ -11,6 +11,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { checkAuth } = require('./_lib/auth')
 const { normalizeStyle } = require('./_lib/image-styles')
 const { normalizeLayout } = require('./_lib/book-layouts')
+const { LIFEWORK } = require('./_lib/lifework')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -44,6 +45,26 @@ async function handleEnduserPatch(req, res, code) {
   return res.json({ ok: true, ...update })
 }
 
+// Der Endnutzer trägt seinen Namen nach. Beim Lebenswerk ist der Name bei der
+// Anlage OPTIONAL — kennt der Manager ihn nicht, gibt ihn der Endnutzer beim
+// Start selbst ein, und er gehört ans Buch (Titel, Poster, Stammbaum), nicht nur
+// an den Beitrag. Deshalb dieser eine schmale Schreibpfad ohne Login: Er greift
+// NUR bei einem Lebenswerk, NUR solange kein Name gesetzt ist, und schreibt sonst
+// nichts. Berechtigung ist – wie beim Absenden von Beiträgen – der Buch-Code.
+async function handleNameClaim(req, res, code, name) {
+  const clean = String(name || '').trim().slice(0, 120)
+  if (!clean) return res.status(400).json({ error: 'Name fehlt.' })
+  const { data: m } = await supabase
+    .from('memorials').select('id, name, product_category').eq('id', code).maybeSingle()
+  if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
+  if (m.product_category !== LIFEWORK) return res.status(403).json({ error: 'Kein Zugriff.' })
+  if (String(m.name || '').trim()) return res.status(409).json({ error: 'Der Name steht bereits fest.' })
+  // Beim Lebenswerk trägt auch die Organisator-Spalte den Namen des Endnutzers.
+  const { error } = await supabase.from('memorials').update({ name: clean, organizer: clean }).eq('id', code)
+  if (error) throw error
+  return res.json({ ok: true, name: clean })
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
@@ -51,6 +72,10 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const code = (req.query.code || '').toUpperCase().trim()
       if (!code) return res.status(400).json({ error: 'Code fehlt.' })
+      if (req.body && req.body.name !== undefined && req.body.imageStyle === undefined && req.body.bookLayout === undefined) {
+        if (!(await enforce(req, res, { name: 'memorial-name', limit: 10, windowSeconds: 600 }))) return
+        return await handleNameClaim(req, res, code, req.body.name)
+      }
       return await handleEnduserPatch(req, res, code)
     }
 

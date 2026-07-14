@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimMemorialName } from './api.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE } from './i18n.js'
 import { getCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -759,6 +759,15 @@ export function ContributorFlow({ code, endUserToken = null }) {
 
   function startInterview() {
     unlockAudio()
+    // Lebenswerk ohne Namen in der Anlage: Der Endnutzer hat ihn hier gerade
+    // eingegeben — er gehört ans Buch, nicht nur an den Beitrag (Titel, Poster,
+    // Stammbaum lesen ihn dort). Schlägt das fehl, läuft das Interview trotzdem.
+    if (isSelf && !memorial?.name && contribForm.name.trim()) {
+      const claimed = contribForm.name.trim()
+      claimMemorialName(code, claimed)
+        .then(() => setMemorial(m => (m ? { ...m, name: claimed } : m)))
+        .catch(e => console.warn('Name konnte nicht ans Buch geschrieben werden:', e.message))
+    }
     // Zeitpunkt der Einwilligung festhalten (einmalig, beim Start).
     const ts = consentAt || new Date().toISOString()
     if (!consentAt) setConsentAt(ts)

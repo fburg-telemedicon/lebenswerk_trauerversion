@@ -900,7 +900,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                   const leaveRow   = () => setHoveredRow(null)
                   return (
                     <tr key={m.id}>
-                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name}</td>
+                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name || <span style={{ color:'#a8a29e', fontWeight:400 }}>Name folgt</span>}</td>
                       {showCategoryColumn && (
                         <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}>
@@ -1020,7 +1020,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     const isLifework = createForm.productCategory === 'lifework'
     const euMail = (createForm.enduserEmail || '').trim()
     const emailOk = !isLifework || !euMail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(euMail)
-    const canSubmit = createForm.name && (isLifework || createForm.organizer) && (!ci.useGender || createForm.gender) && emailOk && !busy
+    const canSubmit = (isLifework || createForm.name) && (isLifework || createForm.organizer) && (!ci.useGender || createForm.gender) && emailOk && !busy
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     const [expertMode, setExpertMode] = useState(false)
@@ -1212,10 +1212,10 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <Lbl>Transkript-Schalter im Sprach-Interview</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
             <input type="checkbox" checked={createForm.showTranscript !== false} onChange={e => setCreateForm({ ...createForm, showTranscript: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-            <span style={{ fontSize:14 }}>Beitragende dürfen das Transkript einblenden</span>
+            <span style={{ fontSize:14 }}>{isLifework ? 'Endnutzer darf das Transkript einblenden' : 'Beitragende dürfen das Transkript einblenden'}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: aktiv. Das Interview startet immer als reines Sprach-Gespräch (kein Transkript). Ist diese Option aktiv, sehen Beitragende einen Schalter, mit dem sie das Transkript ihrer Antworten einblenden und Antworten löschen oder neu einsprechen können. Deaktiviert: kein Schalter, reines Sprach-Interview.
+            Standard: aktiv. Das Interview startet immer als reines Sprach-Gespräch (kein Transkript). Ist diese Option aktiv, {isLifework ? 'sieht der Endnutzer' : 'sehen Beitragende'} einen Schalter, mit dem das Transkript der Antworten eingeblendet und einzelne Antworten gelöscht oder neu eingesprochen werden können. Deaktiviert: kein Schalter, reines Sprach-Interview.
           </p>
         </div>
         {/* Beim Lebenswerk erzählt nur der Endnutzer selbst — eine Namensliste der
@@ -1817,7 +1817,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
             <div>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name}</span>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name || 'Name folgt'}</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
