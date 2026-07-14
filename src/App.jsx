@@ -465,9 +465,28 @@ function Dashboard() {
   const [copied, setCopied]           = useState('')
   const [err, setErr]                 = useState('')
   const [hoveredRow, setHoveredRow]   = useState(null) // { id, zone: 'main' | 'cost' }
-  const [sort, setSort]               = useState({ key: 'cutoff', dir: 'asc' }) // Sortierung der Buchliste
-  const [filters, setFilters]         = useState({}) // { colKey: [erlaubte Werte] } – fehlt = keine Filterung
+  // Sortierung und Filter der Buchliste überdauern die Sitzung: Sie sind eine
+  // Arbeitseinstellung des Menschen vor dem Bildschirm, keine Eigenschaft der
+  // Daten — deshalb localStorage (pro Browser) und nicht die Datenbank. Ein
+  // kaputter Eintrag darf das Dashboard nicht blockieren → im Zweifel Standard.
+  const LIST_PREFS_KEY = 'lw_list_prefs'
+  const loadListPrefs = () => {
+    try {
+      const p = JSON.parse(localStorage.getItem(LIST_PREFS_KEY) || 'null')
+      return {
+        sort: p?.sort?.key ? { key: String(p.sort.key), dir: p.sort.dir === 'desc' ? 'desc' : 'asc' } : { key: 'cutoff', dir: 'asc' },
+        filters: p?.filters && typeof p.filters === 'object' ? p.filters : {},
+      }
+    } catch { return { sort: { key: 'cutoff', dir: 'asc' }, filters: {} } }
+  }
+  const [listPrefs] = useState(loadListPrefs)
+  const [sort, setSort]               = useState(listPrefs.sort)   // Sortierung der Buchliste
+  const [filters, setFilters]         = useState(listPrefs.filters) // { colKey: [erlaubte Werte] } – fehlt = keine Filterung
   const [filterCol, setFilterCol]     = useState(null) // welches Spalten-Filtermenü offen ist
+
+  useEffect(() => {
+    try { localStorage.setItem(LIST_PREFS_KEY, JSON.stringify({ sort, filters })) } catch { /* privater Modus */ }
+  }, [sort, filters])
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
 
