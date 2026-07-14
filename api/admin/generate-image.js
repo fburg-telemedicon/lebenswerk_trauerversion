@@ -105,7 +105,10 @@ const sceneDirective = (key) => {
     // ohne raten zu müssen. Und zwischen ihnen bleiben BREITE Papiergassen, weil
     // die Beschriftungen dort hineingesetzt werden (nie auf ein Bild).
     'Arrange about fourteen small vignette scenes (buildings, interiors, tools, vehicles, gardens, landscapes) as a LOOSE GRID in READING ORDER: left to right, row by row, top to bottom. ' +
-    'A road WINDS and LOOPS wildly through the gaps between them — many bends and curves, never a straight line — visiting the scenes in exactly that reading order. ' +
+    // Ohne diese Ansage malt FLUX gerahmte Kacheln mit abgerundeten Ecken — das
+    // Blatt sieht dann aus wie ein Fotoalbum statt wie eine gemalte Landkarte.
+    'Each scene is an ORGANIC, IRREGULAR shape whose painted edges dissolve softly into the bare paper — like a watercolour blot. NEVER a rectangle, NEVER a rounded rectangle, no panels, no cards, no frames, no borders, no drop shadows, no photo tiles. ' +
+    'A road WINDS and LOOPS wildly ACROSS THE WHOLE SHEET, from the bottom left corner to the top right, through the gaps between the scenes — many bends and curves, never a straight line — passing EVERY scene in reading order. It reaches all four regions of the sheet, not just one half. ' +
     `The paper is a flat plain background of the exact colour ${s.paper}. ` +
     'CRUCIAL SPACING: the scenes must be clearly SEPARATED by WIDE alleys of that plain paper colour — each scene stands alone with generous plain space around it; scenes must never touch or merge. ' +
     'About one third of the sheet stays plain paper, distributed as those alleys between the scenes (NOT as one large empty region). ' +
@@ -117,7 +120,7 @@ const sceneDirective = (key) => {
     // Bild-KI hier gleich die Schilder mit — nur eben LEER. Sie sind im fertigen
     // Bild die einzigen hellen, ruhigen Rechtecke und deshalb sicher auffindbar.
     'IMPORTANT — LABEL PLAQUES: directly beneath (or beside) EACH scene, paint a small EMPTY label plaque: a plain light paper strip, tag, ribbon banner or wooden signboard with rounded corners, clearly lighter than everything around it, with a thin outline. ' +
-    'Each plaque is horizontal, about twice as wide as tall, roughly one third as wide as its scene, and it visibly BELONGS to that scene (touching it or right next to it). ' +
+    'Each plaque is horizontal, about three times as wide as tall, and GENEROUSLY SIZED: roughly as wide as its scene and at least one twelfth of the sheet width — big enough to carry two lines of writing later. It visibly BELONGS to that scene (touching it or right next to it), and it lies on bare paper, not on top of the scene. ' +
     'The plaques are COMPLETELY BLANK and EMPTY — a flat, clean, uniform light surface, no writing, no lines, no ornament, no scribbles, nothing on them at all. ' +
     // Bildmodelle malen auf „Poster"-Motiven reflexhaft Schrift (Schilder, Titel,
     // Jahreszahlen) — und verschreiben sich dabei. Deshalb hier maximal deutlich:

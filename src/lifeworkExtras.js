@@ -1363,23 +1363,30 @@ function plaqueRect(loc, bg) {
   if (w <= 0.02 || h <= 0.012 || w > 0.42 || h > 0.16) return null      // kein Schild
   if (x < 0 || y < 0 || x + w > 1 || y + h > 1) return null
 
-  // Etwas Luft am Rand des Schildes, damit der Text nicht auf dem Rähmchen sitzt.
-  const rx = (x + w * 0.06) * W, rw = w * 0.88 * W
-  const ry = (y + h * 0.08) * H, rh = h * 0.84 * H
-  if (rw < 22 || rh < 7) return null                                     // zu klein zum Lesen
-
+  // 1) Ist an der gemeldeten Stelle wirklich ein Schild? Geprüft wird das GEMALTE
+  //    Rechteck (nicht das später vergrößerte): Ein Schild ist eine ruhige, leere
+  //    Fläche. Liegt dort Motiv, hat das Modell danebengegriffen.
+  const px = x * W, py = y * H, pw = w * W, ph = h * H
   const rows = bg.grid.length, cols = bg.grid[0].length
   let sum = 0, n = 0
-  for (let r = Math.floor(ry / H * rows); r <= Math.min(rows - 1, Math.floor((ry + rh) / H * rows)); r++) {
-    for (let c = Math.floor(rx / W * cols); c <= Math.min(cols - 1, Math.floor((rx + rw) / W * cols)); c++) {
+  for (let r = Math.floor(py / H * rows); r <= Math.min(rows - 1, Math.floor((py + ph) / H * rows)); r++) {
+    for (let c = Math.floor(px / W * cols); c <= Math.min(cols - 1, Math.floor((px + pw) / W * cols)); c++) {
       if (r < 0 || c < 0) continue
       sum += bg.grid[r][c]; n++
     }
   }
   if (!n) return null
   const all = bg.grid.flat().slice().sort((a, b) => a - b)
-  const calm = all[Math.floor(all.length * 0.45)] * 1.9 + 2   // „deutlich ruhiger als der Rest"
-  if (sum / n > calm) return null                             // dort ist Motiv, kein Schild
+  const calm = all[Math.floor(all.length * 0.5)] * 2.2 + 3   // „ruhiger als der Rest"
+  if (sum / n > calm) return null                            // dort ist Motiv, kein Schild
+
+  // 2) LESBARKEIT GEHT VOR TREUE ZUM SCHILD: Der Text wird nicht in das gemalte
+  //    Schild gezwängt — das Schild sagt nur, WO er hingehört. Darüber liegt eine
+  //    eigene Kartusche in fester Mindestgröße, mittig auf dem Schild.
+  const MIN_W = 54, MIN_H = 17
+  const rw = Math.max(MIN_W, pw), rh = Math.max(MIN_H, ph)
+  const rx = Math.max(4, Math.min(W - rw - 4, px + pw / 2 - rw / 2))
+  const ry = Math.max(P.margin, Math.min(H - rh - 4, py + ph / 2 - rh / 2))
   return { x: rx, y: ry, w: rw, h: rh }
 }
 
@@ -1434,18 +1441,17 @@ function paintPosterScene(d, data, bg, st) {
     // wirklich eine ruhige Fläche liegt (sonst hat das Modell danebengegriffen).
     if (loc && plaqueRect(loc, bg)) {
       const r = plaqueRect(loc, bg)
-      // Ein Hauch Papierwäsche hebt den Text vom gemalten Schild ab, ohne es zu
-      // überdecken — das Schild bleibt sichtbar, die Schrift wird lesbar.
-      d.rect(r.x, r.y, r.w, r.h, st.paper, 0.35)
-      const pad = Math.min(2.5, r.h * 0.14)
-      const yearSize = Math.max(7, Math.min(11, r.h * 0.32))
-      const titleSize = Math.max(6.5, Math.min(10, r.h * 0.3))
-      let ty = r.y + pad + yearSize * 0.32 + 2
+      // Der Text steht NICHT im gemalten Schild — das Schild sagt nur, WO er
+      // hingehört. Darüber liegt eine eigene Kartusche in fester, lesbarer Größe.
+      // (Vorher habe ich die Schrift auf die Schildhöhe skaliert; malte die KI ein
+      // Mini-Schild, wurde die Beschriftung mikroskopisch und klebte im Motiv.)
+      d.bubble(r.x, r.y, r.w, r.h, st.paper, s2.color, 0.93)
+      let ty = r.y + 6.5
       if (s2.year) {
-        d.text(String(s2.year), r.x + r.w / 2, ty, { size: yearSize, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: r.w - 2 * pad, maxLines: 1 })
-        ty += yearSize * 0.55
+        d.text(String(s2.year), r.x + r.w / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: r.w - 4, maxLines: 1 })
+        ty += 5.5
       }
-      d.text(String(s2.title || ''), r.x + r.w / 2, ty, { size: titleSize, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: r.w - 2 * pad, maxLines: 2 })
+      d.text(String(s2.title || ''), r.x + r.w / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: r.w - 4, maxLines: 2 })
       return
     }
 
