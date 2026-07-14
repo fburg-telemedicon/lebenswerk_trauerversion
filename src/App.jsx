@@ -1371,11 +1371,22 @@ function Dashboard() {
       } else {
         // Gezielt nur die Stelle umformulieren -> KI liefert den Ersatztext.
         const ctxPara = String(target).split('\n\n').find(p => p.includes(quote)) || quote
-        const sys = 'Du bist ein sorgfältiger Lektor. Formuliere NUR die markierte Stelle neutral um, sodass der beanstandete Inhalt entfällt, der Ton aber erhalten bleibt und sie sich nahtlos in den umgebenden Text einfügt. Gib AUSSCHLIESSLICH den Ersatztext zurück – ohne Anführungszeichen, ohne Erklärung, ohne Markdown.'
+        // Faktentreue-Befunde brauchen eine ANDERE Korrektur als Datenschutz-
+        // Befunde: Eine Erfindung darf nicht „neutral umformuliert", sondern muss
+        // auf das zurückgeschnitten werden, was tatsächlich belegt ist — notfalls
+        // ersatzlos. „Neutralisieren" würde die erfundene Substanz stehen lassen.
+        const factual = f => ['Nicht belegt/erfunden', 'Wiederholung'].includes(String(f?.category || ''))
+        const sys = factual(finding)
+          ? 'Du bist ein sorgfältiger Lektor. Die markierte Stelle enthält Inhalt, der durch die Quellen NICHT gedeckt ist (erfunden) oder an anderer Stelle bereits erzählt wurde. Streiche den nicht belegten bzw. doppelten Inhalt ERSATZLOS und gib nur so viel Text zurück, wie nötig ist, damit der Absatz sprachlich weiterläuft — im Zweifel einen kürzeren Satz oder gar nichts (leere Antwort ist erlaubt, wenn die Stelle komplett entfallen kann). Erfinde KEINEN Ersatzinhalt und formuliere die Behauptung nicht bloß vorsichtiger („vielleicht", „womöglich") — sie muss weg. Gib AUSSCHLIESSLICH den Ersatztext zurück – ohne Anführungszeichen, ohne Erklärung, ohne Markdown.'
+          : 'Du bist ein sorgfältiger Lektor. Formuliere NUR die markierte Stelle neutral um, sodass der beanstandete Inhalt entfällt, der Ton aber erhalten bleibt und sie sich nahtlos in den umgebenden Text einfügt. Gib AUSSCHLIESSLICH den Ersatztext zurück – ohne Anführungszeichen, ohne Erklärung, ohne Markdown.'
         const user = `UMGEBENDER ABSATZ:\n${ctxPara}\n\nZU ERSETZENDE STELLE:\n${quote}\n\nHINWEIS DER PRÜFUNG:\n${finding.note || ''}`
         newText = String(await askLLM(sys, [{ role: 'user', content: user }], { memorialCode: selected.id, kind: 'review_fix', token })).trim().replace(/^[„"»«\s]+|[„"»«\s]+$/g, '')
-        if (!newText) throw new Error('Leere Antwort der KI.')
-        corrected = target.replace(quote, newText)
+        // Bei Faktentreue-Befunden ist eine leere Antwort ein gültiges Ergebnis:
+        // Die erfundene/doppelte Stelle entfällt ersatzlos.
+        if (!newText && !factual(finding)) throw new Error('Leere Antwort der KI.')
+        corrected = newText
+          ? target.replace(quote, newText)
+          : target.replace(quote, '').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').replace(/\n{3,}/g, '\n\n').trim()
       }
 
       const newValue = isBook
@@ -2475,7 +2486,7 @@ Regeln:
         </div>
         {reportModal.report?.checked_at && (
           <p style={{ ...S.muted, fontSize:12, marginTop:0, marginBottom:12 }}>
-            Automatische Inhalts-/Datenschutzprüfung vom {new Date(reportModal.report.checked_at).toLocaleString('de-DE')}.
+            Automatische Prüfung auf Faktentreue (Erfundenes/Wiederholungen) und Datenschutz vom {new Date(reportModal.report.checked_at).toLocaleString('de-DE')}.
             Hinweis: KI-gestützt, ersetzt keine juristische Prüfung.
           </p>
         )}
@@ -2490,10 +2501,13 @@ Regeln:
               {reportModal.report.findings.map((f, i) => {
                 const resolved = f.status === 'resolved'
                 const applying = applyingFinding === `${reportModal.field}:${i}`
+                // Faktentreue-Befunde (Erfundenes/Wiederholung) sind die gravierendsten:
+                // Sie stellen den Inhalt des Buches selbst infrage, nicht seine Form.
+                const isFact = ['Nicht belegt/erfunden', 'Wiederholung'].includes(String(f.category || ''))
                 return (
-                <div key={i} style={{ border:'1px solid', borderColor: resolved ? '#bbf7d0' : '#e7e5e4', background: resolved ? '#f0fdf4' : '#fff', borderRadius:8, padding:'10px 12px' }}>
+                <div key={i} style={{ border:'1px solid', borderColor: resolved ? '#bbf7d0' : (isFact ? '#fecaca' : '#e7e5e4'), background: resolved ? '#f0fdf4' : (isFact ? '#fef2f2' : '#fff'), borderRadius:8, padding:'10px 12px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
-                    <span style={{ fontWeight:600, fontSize:13 }}>{f.category || 'Befund'}</span>
+                    <span style={{ fontWeight:600, fontSize:13 }}>{isFact ? '⚠ ' : ''}{f.category || 'Befund'}</span>
                     <span style={{ ...sevStyle(f.severity), fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6, textTransform:'uppercase' }}>{f.severity || '—'}</span>
                   </div>
                   {f.location && <p style={{ fontSize:12, color:'#78716c', margin:'0 0 6px' }}>📍 {f.location}</p>}

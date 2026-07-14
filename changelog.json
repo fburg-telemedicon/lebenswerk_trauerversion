@@ -4,6 +4,7 @@
     {
       "date": "2026-07-14",
       "items": [
+        "Die Inhaltsprüfung prüft jetzt auch die Faktentreue: Sie hält jede konkrete Behauptung des Buches gegen die Original-Beiträge und meldet alles, was dort keine Quelle hat – erfundene Jahreszahlen, Namen, Ereignisse, Dialoge, ausgemalte Details oder zugeschriebene Gedanken – und zusätzlich Inhalte, die doppelt erzählt werden. Solche Befunde erscheinen im Prüfbericht rot hervorgehoben; „Umformulieren\" streicht den nicht belegten Inhalt dort ersatzlos, statt ihn nur vorsichtiger zu formulieren.",
         "Schutz gegen aufgeblähte Bücher: Die Umfangsvorgaben sind jetzt ausdrücklich Obergrenzen statt Zielmarken. Die KI wird angewiesen, ein Kapitel lieber kurz zu lassen, als es mit Wiederholungen, Leerformeln oder – im schlimmsten Fall – erfundenen Details zu füllen; auch die Kapitelanzahl ist eine Obergrenze („lieber wenige volle als viele dünne Kapitel\"). Ein knapper Beitrag ergibt damit ein knappes Kapitel und wird nicht gestreckt.",
         "Pflegeexzerpt lässt sich jetzt auch als PDF herunterladen (A4, mit Seitenzahlen) – ebenfalls mit Sprachwahl und Übersetzung beim Speichern.",
         "Buchtitel auf dem Druck-Cover deutlich besser lesbar: Der Titelstreifen ist jetzt entweder sehr hell mit schwarzer Schrift oder sehr dunkel mit weißer Schrift – passend zum Farbton des Hintergrundbildes, aber mit deutlich höherem Kontrast als bisher. Vorher war der Streifen immer mittelhell, der Titel wirkte dadurch flau.",
