@@ -456,29 +456,37 @@ async function processPoster(job, deadline) {
     await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Das Poster wird gezeichnet' }, result })
   }
 
-  // Schritt 3: je Station eine freigestellte Vignette. Viele kleine Bilder statt
-  // eines grossen: nur so weiss das Layout, WO jedes Motiv liegt — und kann die
-  // Beschriftung daneben setzen statt irgendwohin.
-  const jobs = []
-  ;(result.data.sections || []).forEach((sec, si) => (sec.stations || []).forEach((stn, ti) => {
-    if (stn.image_prompt && !stn.image_path) jobs.push({ si, ti, prompt: stn.image_prompt })
-  }))
-  for (let i = 0; i < jobs.length; i++) {
-    if (Date.now() > deadline) { await genjobs.releaseJob(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: `Illustration ${i + 1} von ${jobs.length}` }, result }); return 'paused' }
+  // Schritt 3: das Blatt zeichnen lassen — und prüfen, dass keine Schrift drin ist.
+  // Bis zu drei Anläufe; danach nehmen wir das letzte Bild (ein Poster mit einem
+  // Kritzel ist besser als gar keins) und vermerken es im Job.
+  let lastPath = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
     if (await canceled(job.id)) return 'canceled'
-    const j = jobs[i]
-    await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: `Illustration ${i + 1} von ${jobs.length}` }, result })
     try {
       const { storagePath } = await adminPost('/api/admin/generate-image', {
-        memorialCode: code, prompt: j.prompt, variant: 'vignette', posterStyle: result.data.style,
+        memorialCode: code, prompt: result.motif, variant: 'scene', posterStyle: result.data.style,
       })
-      result.data.sections[j.si].stations[j.ti].image_path = storagePath
+      lastPath = storagePath
     } catch (e) {
-      console.warn(`[generate] Vignette ${j.si}:${j.ti} fehlgeschlagen:`, e.message)
+      if (attempt === 3) { await genjobs.failJob(job.id, `Das Poster-Motiv konnte nicht erzeugt werden: ${e.message}`); return 'error' }
+      await sleep(4000 * attempt)
+      continue
     }
-    await sleep(3500)   // FLUX-Minutenkontingent nicht reissen
+    if (await canceled(job.id)) return 'canceled'
+    await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Motiv wird auf gemalte Schrift geprüft' }, result })
+    const bad = await imageHasLettering(job, lastPath)
+    if (!bad) break
+    console.warn(`[generate] Poster-Motiv enthält Schrift — Versuch ${attempt} verworfen`)
+    if (attempt < 3) await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: `Motiv enthielt Schrift — wird neu gezeichnet (${attempt + 1}/3)` }, result })
   }
+  result.data.scene_path = lastPath
+  result.data.scene_prompt = result.motif
 
+  // Wo liegt welche Szene? -> Beschriftungen finden damit ihren Bezugspunkt.
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Szenen im Motiv werden verortet' }, result })
+  const spots = await locateScenes(job, lastPath, result.data)
+  if (spots) result.data.scene_spots = spots
   if (await canceled(job.id)) return 'canceled'
   await genjobs.saveMemorialField(code, p.field, result.data)
   await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: 3, total: 3 }, result: { saved: true } })

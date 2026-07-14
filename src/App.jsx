@@ -55,7 +55,7 @@ import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
-import { treeSystem, posterSystem, downloadTreePdf, downloadPosterMapPdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
+import { treeSystem, posterSystem, posterSceneSystem, posterImageJobs, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, POSTER_STYLES, DEFAULT_POSTER_STYLE } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -2037,14 +2037,28 @@ Regeln:
       if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
       // Poster: die signierten URLs der Vignetten einsammeln (sie stehen frisch am
       // gerade geladenen Datensatz, nicht im gespeicherten JSON).
-      // Poster = Lebenskarte: gezeichnete Straße, viele freigestellte Vignetten,
-      // Beschriftung direkt an ihrem Bild.
+      // Poster: ein illustriertes Blatt + Vektortext darüber.
+      else if (data.scene_url || data.scene_path) {
+        if (!data.scene_url) throw new Error('Das Poster-Motiv konnte nicht geladen werden — bitte die Seite neu laden.')
+        await downloadPosterScenePdf(`${base}.pdf`, data, data.scene_url, data.style)
+      }
+      // Ältere Poster (Vignetten je Station) weiterhin zeichenbar.
       else {
         const urls = {}
         ;(data.sections || []).forEach((sec, si) => {
           ;(sec.stations || []).forEach((st, ti) => { if (st?.image_url) urls[`${si}:${ti}`] = st.image_url })
         })
-        await downloadPosterMapPdf(`${base}.pdf`, data, urls, data.style)
+        // Bevorzugt die KI-Komposition (freies SVG). Ist sie fehlerhaft, fällt der
+        // Download auf das feste Layout zurück, statt gar kein Poster zu liefern.
+        if (data.svg) {
+          try {
+            await downloadPosterSvgPdf(`${base}.pdf`, data.svg, urls)
+            return
+          } catch (e) {
+            console.warn('KI-Komposition nicht renderbar — festes Layout:', e.message)
+          }
+        }
+        await downloadPosterPdf(`${base}.pdf`, data, urls, data.style)
       }
     } catch (e) { setErr(e.message) }
     finally { setExtraDl('') }
