@@ -800,7 +800,12 @@ function Dashboard() {
       const cat = getCategory(createForm.productCategory)
       const { code } = await createMemorial(token, {
         name: createForm.name.trim(),
-        organizer: createForm.organizer.trim(),
+        // Lebenswerk kennt keinen Organisator: Der Endnutzer erzählt sein eigenes
+        // Leben. Damit die Spalte (Pflichtfeld, u. a. in der Buchliste sichtbar)
+        // etwas Sinnvolles enthält, steht dort sein Name.
+        organizer: createForm.productCategory === 'lifework'
+          ? createForm.name.trim()
+          : createForm.organizer.trim(),
         gender: cat.intake.useGender ? (createForm.gender || null) : null,
         bookVariant: createForm.bookVariant,
         funeralDate: cat.intake.useDate ? (createForm.funeralDate || null) : null,

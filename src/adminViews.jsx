@@ -1016,7 +1016,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     // Sprache (oder bewusst keine — dann wählt der Endnutzer beim ersten Start).
     const isLifework = createForm.productCategory === 'lifework'
     const emailOk = !isLifework || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((createForm.enduserEmail || '').trim())
-    const canSubmit = createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && emailOk && !busy
+    const canSubmit = createForm.name && (isLifework || createForm.organizer) && (!ci.useGender || createForm.gender) && emailOk && !busy
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     const [expertMode, setExpertMode] = useState(false)
@@ -1111,10 +1111,14 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             />
           </div>
         ))}
+        {/* Lebenswerk: Es gibt keinen Organisator — der Endnutzer erzählt sein
+            eigenes Leben, es sammelt niemand Beiträge Dritter ein. */}
+        {!isLifework && (
         <div style={{ marginBottom: 14 }}>
           <Lbl>Ihr Name (Organisator) *</Lbl>
           <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
         </div>
+        )}
         {ci.useDate && (
           <div style={{ marginBottom: 14 }}>
             <Lbl>{ci.dateLabel}</Lbl>

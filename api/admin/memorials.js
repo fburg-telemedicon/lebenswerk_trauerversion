@@ -384,7 +384,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'POST') {
       const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail, aiQuestions } = req.body || {}
-      if (!name || !organizer) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
+      if (!name) return res.status(400).json({ error: 'Name ist ein Pflichtfeld.' })
 
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       if (!canAccessCategory(req.auth, category)) {
@@ -392,6 +392,11 @@ module.exports = async function handler(req, res) {
       }
 
       const isLifework = category === LIFEWORK
+      // Lebenswerk hat keinen Organisator (der Endnutzer erzählt sein eigenes
+      // Leben); die Spalte bekommt seinen Namen. Alle anderen Kategorien sammeln
+      // Beiträge Dritter — dort bleibt der Organisator Pflicht.
+      const organizerName = isLifework ? String(name).trim() : String(organizer || '').trim()
+      if (!organizerName) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
       const email = String(enduserEmail || '').trim()
       if (isLifework) {
         if (!email) return res.status(400).json({ error: 'Für ein Lebenswerk wird die E-Mail-Adresse des Endnutzers benötigt.' })
@@ -418,7 +423,7 @@ module.exports = async function handler(req, res) {
       let days = parseInt(cutoffDays, 10)
       if (!Number.isFinite(days) || days < 0) days = 7
       const insertRow = {
-        id: code, name, organizer, gender: gender || null, book_variant: variant,
+        id: code, name, organizer: organizerName, gender: gender || null, book_variant: variant,
         // Lebenswerk: kein Anlass-Datum, keine Erfassungsfrist — der Endnutzer
         // bestimmt selbst, wie schnell er erzählt.
         funeral_date: isLifework ? null : (funeralDate || null),
