@@ -1279,6 +1279,36 @@ function densityMap(imgEl) {
   return g
 }
 
+// Mittlere Farbe je Rasterzelle. Detailarm heißt NICHT Papier: Eine dunkle,
+// glatte Fläche (Krankenhausflur bei Nacht) ist genauso ruhig wie ein leeres
+// Schild — deshalb reicht die Detaildichte allein nicht, um eine Textfläche zu
+// erkennen. Die Farbe entscheidet.
+function colorMap(imgEl) {
+  const W = GRID_COLS * 8, H = Math.round(W * (imgEl.naturalHeight / imgEl.naturalWidth))
+  const cv = document.createElement('canvas')
+  cv.width = W; cv.height = H
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(imgEl, 0, 0, W, H)
+  const { data } = ctx.getImageData(0, 0, W, H)
+  const g = []
+  for (let r = 0; r < GRID_ROWS; r++) {
+    g.push([])
+    for (let c = 0; c < GRID_COLS; c++) {
+      const x0 = Math.floor(c * W / GRID_COLS), x1 = Math.floor((c + 1) * W / GRID_COLS)
+      const y0 = Math.floor(r * H / GRID_ROWS), y1 = Math.floor((r + 1) * H / GRID_ROWS)
+      let sr = 0, sg = 0, sb = 0, n = 0
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * W + x) * 4
+          sr += data[i]; sg += data[i + 1]; sb += data[i + 2]; n++
+        }
+      }
+      g[r].push(n ? [sr / n, sg / n, sb / n] : [0, 0, 0])
+    }
+  }
+  return g
+}
+
 // Zusammenhängende dichte Bereiche = Szenen. Sortiert in Leserichtung (zeilenweise).
 function findScenes(grid) {
   const vals = grid.flat().slice().sort((a, b) => a - b)
@@ -1355,7 +1385,21 @@ function captionSpot(grid, blob, taken, W, H) {
 // feine Detaildichte-Raster (`bg.grid`) verrät, ob dort wirklich eine ruhige Fläche
 // liegt; ein Schild ist per Definition leer. Greift das Modell daneben, fällt die
 // Beschriftung auf die bisherige Kartuschen-Logik zurück, statt im Motiv zu landen.
-function plaqueRect(loc, bg) {
+// Wie weit ist die Bildfarbe an dieser Stelle vom Papier entfernt? Dient als
+// Aufschlag bei der Platzsuche: helle, papiernahe Flächen sind billig, dunkle oder
+// kräftig gefärbte teuer.
+function notPaperPenalty(xMm, yMm, bg, st) {
+  if (!bg.colors || !st) return 0
+  const rows = bg.colors.length, cols = bg.colors[0].length
+  const r = Math.min(rows - 1, Math.max(0, Math.floor(yMm / P.H * rows)))
+  const c = Math.min(cols - 1, Math.max(0, Math.floor(xMm / P.W * cols)))
+  const col = bg.colors[r][c]
+  const dist = Math.hypot(col[0] - st.paper[0], col[1] - st.paper[1], col[2] - st.paper[2])
+  const luma = 0.299 * col[0] + 0.587 * col[1] + 0.114 * col[2]
+  return dist / 6 + Math.max(0, 190 - luma) / 3
+}
+
+function plaqueRect(loc, bg, st) {
   const { W, H } = P
   const num = v => (Number.isFinite(v) ? v : NaN)
   let x = num(loc.x), y = num(loc.y), w = num(loc.w), h = num(loc.h)
@@ -1364,21 +1408,34 @@ function plaqueRect(loc, bg) {
   if (x < 0 || y < 0 || x + w > 1 || y + h > 1) return null
 
   // 1) Ist an der gemeldeten Stelle wirklich ein Schild? Geprüft wird das GEMALTE
-  //    Rechteck (nicht das später vergrößerte): Ein Schild ist eine ruhige, leere
-  //    Fläche. Liegt dort Motiv, hat das Modell danebengegriffen.
+  //    Rechteck (nicht die später gezeichnete Kartusche) — auf ZWEI Dinge:
+  //    ruhig (kaum Details) UND hell/papierfarben. Die Detaildichte allein reicht
+  //    nicht: Ein dunkler, glatter Krankenhausflur ist genauso „ruhig" wie ein
+  //    leeres Schild — und genau dort ist die Beschriftung zuletzt gelandet.
   const px = x * W, py = y * H, pw = w * W, ph = h * H
   const rows = bg.grid.length, cols = bg.grid[0].length
-  let sum = 0, n = 0
+  let sum = 0, n = 0, cr = 0, cg = 0, cb = 0
   for (let r = Math.floor(py / H * rows); r <= Math.min(rows - 1, Math.floor((py + ph) / H * rows)); r++) {
     for (let c = Math.floor(px / W * cols); c <= Math.min(cols - 1, Math.floor((px + pw) / W * cols)); c++) {
       if (r < 0 || c < 0) continue
-      sum += bg.grid[r][c]; n++
+      sum += bg.grid[r][c]
+      const col = bg.colors?.[r]?.[c]
+      if (col) { cr += col[0]; cg += col[1]; cb += col[2] }
+      n++
     }
   }
   if (!n) return null
   const all = bg.grid.flat().slice().sort((a, b) => a - b)
   const calm = all[Math.floor(all.length * 0.5)] * 2.2 + 3   // „ruhiger als der Rest"
   if (sum / n > calm) return null                            // dort ist Motiv, kein Schild
+
+  if (bg.colors && st) {
+    const paper = st.paper
+    const dist = Math.hypot(cr / n - paper[0], cg / n - paper[1], cb / n - paper[2])
+    const luma = 0.299 * (cr / n) + 0.587 * (cg / n) + 0.114 * (cb / n)
+    // Ein Schild ist hell und liegt nah an der Papierfarbe. Alles andere ist Motiv.
+    if (luma < 175 || dist > 70) return null
+  }
 
   // 2) LESBARKEIT GEHT VOR TREUE ZUM SCHILD: Der Text wird nicht in das gemalte
   //    Schild gezwängt — das Schild sagt nur, WO er hingehört. Darüber liegt eine
@@ -1439,8 +1496,9 @@ function paintPosterScene(d, data, bg, st) {
     // irgendwo auf dem Motiv, sondern in einer Fläche, die eigens dafür da ist — und
     // gehört sichtbar zu SEINER Szene. Vertraut wird der Angabe nur, wenn dort auch
     // wirklich eine ruhige Fläche liegt (sonst hat das Modell danebengegriffen).
-    if (loc && plaqueRect(loc, bg)) {
-      const r = plaqueRect(loc, bg)
+    const plaque = loc ? plaqueRect(loc, bg, st) : null
+    if (plaque) {
+      const r = plaque
       // Der Text steht NICHT im gemalten Schild — das Schild sagt nur, WO er
       // hingehört. Darüber liegt eine eigene Kartusche in fester, lesbarer Größe.
       // (Vorher habe ich die Schrift auf die Schildhöhe skaliert; malte die KI ein
@@ -1469,7 +1527,10 @@ function paintPosterScene(d, data, bg, st) {
         const gc = Math.min(gCols - 1, Math.max(0, Math.floor((x + bw / 2) / W * gCols)))
         const gr = Math.min(gRows - 1, Math.max(0, Math.floor((y + bh / 2) / H * gRows)))
         const key = `${gr}:${gc}`
-        const score = bg.grid2[gr][gc] + (used.has(key) ? 60 : 0)
+        // Papierstrafe: Eine ruhige, aber DUNKLE Zelle (glatte Wand, Nachthimmel)
+        // ist keine gute Textfläche — dort saß die Kartusche zuletzt mitten im
+        // Motiv. Je weiter die Farbe vom Papier weg ist, desto teurer der Platz.
+        const score = bg.grid2[gr][gc] + (used.has(key) ? 60 : 0) + notPaperPenalty(x + bw / 2, y + bh / 2, bg, st)
         if (!best || score < best.score) best = { x, y, score, key }
       }
       used.add(best.key)
@@ -1500,11 +1561,13 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
     im.onload = () => res(im); im.onerror = () => rej(new Error('Motiv konnte nicht gelesen werden.'))
     im.src = img.data
   })
-  // grid  = feines Raster (Szenen-Erkennung), grid2 = grobes Raster (Kartuschen-Plätze)
+  // grid = feines Raster (Detaildichte), grid2 = grobes Raster (Kartuschen-Plätze),
+  // colors = mittlere Farbe je Zelle (ruhig ist nicht gleich Papier).
   const grid = densityMap(el)
   const grid2 = densityGrid(el, SCENE.cols, SCENE.rows)
+  const colors = colorMap(el)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2 }, st)
+  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2, colors }, st)
   doc.save(filename)
 }
 
@@ -1599,7 +1662,7 @@ async function loadSheet(data, variant) {
   const img = await loadImage(url)
   const el = await toImageEl(img.data)
   return {
-    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows) },
+    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows), colors: colorMap(el) },
     el,
     data: { ...data, scene_spots: variant?.scene_spots || data?.scene_spots },
   }
