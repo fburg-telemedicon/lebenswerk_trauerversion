@@ -441,12 +441,12 @@ export const POSTER_STYLES = [
     heading: 'times', body: 'helvetica', titleUpper: false,
   },
   {
-    key: 'editorial',
-    label: 'Editorial & klar',
-    description: 'Helles Papier, kräftige Farbflächen, serifenlose Typografie – ruhig, modern, aufgeräumt.',
-    paper: [250, 249, 246], ink: [24, 24, 27], soft: [113, 113, 122],
-    accents: [[220, 90, 60], [34, 110, 120], [45, 90, 160], [230, 160, 40], [120, 80, 160], [60, 130, 90]],
-    heading: 'helvetica', body: 'helvetica', titleUpper: true,
+    key: 'journal',
+    label: 'Reisetagebuch & Skizze',
+    description: 'Notizbuchpapier, Tintenlinien mit laviertem Aquarell – wie ein über Jahrzehnte geführtes Skizzenbuch.',
+    paper: [247, 242, 229], ink: [38, 44, 58], soft: [122, 126, 138],
+    accents: [[58, 78, 128], [172, 96, 62], [104, 122, 78], [186, 148, 66], [80, 116, 118], [126, 84, 104]],
+    heading: 'times', body: 'helvetica', titleUpper: false,
   },
   {
     key: 'atlas',
@@ -465,12 +465,12 @@ export const POSTER_STYLES = [
     heading: 'times', body: 'helvetica', titleUpper: false,
   },
   {
-    key: 'bauhaus',
-    label: 'Geometrisch & grafisch',
-    description: 'Reduzierte Formen, kräftige Grundfarben, strenge Typografie – ein Plakat, kein Album.',
-    paper: [244, 241, 234], ink: [20, 20, 20], soft: [110, 110, 110],
-    accents: [[214, 69, 47], [37, 84, 150], [240, 178, 30], [40, 40, 40], [46, 128, 108], [150, 62, 120]],
-    heading: 'helvetica', body: 'helvetica', titleUpper: true,
+    key: 'nouveau',
+    label: 'Jugendstil & Ornament',
+    description: 'Elfenbein und tiefe Buntglasfarben, geschwungene Konturen, goldene Linien – festlich und dekorativ.',
+    paper: [243, 236, 220], ink: [40, 34, 28], soft: [132, 116, 92],
+    accents: [[46, 106, 92], [40, 84, 118], [150, 66, 78], [176, 138, 60], [96, 68, 108], [136, 96, 56]],
+    heading: 'times', body: 'times', titleUpper: false,
   },
 ]
 export const DEFAULT_POSTER_STYLE = 'storybook'

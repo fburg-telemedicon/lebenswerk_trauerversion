@@ -73,9 +73,9 @@ const VIGNETTE_STYLES = {
     paper: '#F6EFE1',
     look: 'Warm hand-drawn storybook illustration: soft muted earth tones (terracotta, ochre, sage green, dusty blue, cream), confident inked outlines, gentle flat shading, a little paper texture. No photorealism.',
   },
-  editorial: {
-    paper: '#FAF9F6',
-    look: 'Modern flat editorial vector illustration: clean geometric shapes, bold saturated colour fields (vermilion, teal, cobalt, amber), minimal detail, crisp edges, no outlines, no gradients, no photorealism.',
+  journal: {
+    paper: '#F7F2E5',
+    look: 'Hand-kept travel sketchbook page: loose confident ink pen lines with visible sketchy hatching, filled in with translucent watercolour washes that run slightly outside the lines — indigo, terracotta, olive, ochre, muted teal on warm notebook paper. Unpolished and hand-made, like decades of sketches on one page. No photorealism.',
   },
   atlas: {
     paper: '#F0E5CD',
@@ -85,9 +85,9 @@ const VIGNETTE_STYLES = {
     paper: '#FCFAF7',
     look: 'Delicate watercolour illustration: translucent washes, soft bleeding edges, airy pastel palette (rose, sage, dusty blue, sand), visible paper grain, plenty of white space. No harsh outlines, no photorealism.',
   },
-  bauhaus: {
-    paper: '#F4F1EA',
-    look: 'Reduced geometric poster illustration in Bauhaus spirit: primary shapes (circle, triangle, rectangle), bold flat primary colours (red, blue, yellow, black), strict simplification, no shading, no texture, no photorealism.',
+  nouveau: {
+    paper: '#F3ECDC',
+    look: 'Ornamental art nouveau / stained-glass illustration on ivory paper: flowing sinuous contour lines like leading in a window, deep jewel colours (emerald, peacock blue, deep rose, aubergine) with warm gold accents, stylised organic plant forms curling around each scene, decorative and festive. Flat luminous colour, no photorealism.',
   },
 }
 
