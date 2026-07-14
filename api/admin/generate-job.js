@@ -56,12 +56,14 @@ module.exports = async function handler(req, res) {
       if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
       if (!ALLOWED_KINDS.has(kind)) return res.status(400).json({ error: 'Ungültige Generierungsart.' })
       if (!(await accessibleMemorial(req, code))) return res.status(403).json({ error: 'Kein Zugriff auf dieses Buchprojekt.' })
-      // Rede nutzt params.steps, Buch params.chapterSteps – eines von beiden muss da sein.
-      const hasSteps = params && (
+      // Rede nutzt params.steps, Buch params.chapterSteps, Stammbaum/Poster einen
+      // einzelnen params.system-Prompt — eines davon muss da sein.
+      const hasWork = params && (
         (Array.isArray(params.steps) && params.steps.length > 0) ||
-        (Array.isArray(params.chapterSteps) && params.chapterSteps.length > 0)
+        (Array.isArray(params.chapterSteps) && params.chapterSteps.length > 0) ||
+        (typeof params.system === 'string' && params.system.trim().length > 0)
       )
-      if (!hasSteps) return res.status(400).json({ error: 'params.steps/chapterSteps fehlt.' })
+      if (!hasWork) return res.status(400).json({ error: 'params.steps/chapterSteps/system fehlt.' })
       // Nur EIN aktiver Job pro (Buch, Art): laufende zuerst abbrechen.
       await genjobs.supabase.from('generation_jobs')
         .update({ status: 'canceled', locked_at: null })
