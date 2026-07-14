@@ -1248,6 +1248,11 @@ function paintPosterScene(d, data, bg, st) {
   // einer Station liegt. Der Text wird in die RUHIGSTE NACHBARZELLE gesetzt — nah
   // genug für den Bezug, aber nicht auf der Illustration. Fehlt die Zuordnung,
   // greift wie bisher „ruhigste freie Zelle in der Nähe der Chronologie".
+  // Rastermaße des Rückfall-Layouts (ruhigste freie Zelle) — sie waren beim Umbau
+  // verloren gegangen, wodurch der Download jedes Posters OHNE Szenen-Verortung
+  // mit einem ReferenceError abbrach.
+  const cellW = (W - 2 * SCENE.margin) / SCENE.cols
+  const cellH = (H - SCENE.headH - SCENE.footH) / SCENE.rows
   const SPOT_COLS = 8, SPOT_ROWS = 6
   const spotMap = new Map((data.scene_spots || []).map(s2 => [Number(s2.i), s2]))
   const gCols = bg.grid[0].length, gRows = bg.grid.length
