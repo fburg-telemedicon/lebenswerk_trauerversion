@@ -383,7 +383,9 @@ function pdfDraw(doc) {
       const lines = o.maxW ? doc.splitTextToSize(String(str), o.maxW) : [String(str)]
       const lh = (o.size || 10) * 0.3528 * 1.25
       lines.slice(0, o.maxLines || 99).forEach((ln, i) => {
-        doc.text(ln, x, y + i * lh, { align: o.align || 'left' })
+        // `angle` erlaubt leicht schräg gesetzte Beschriftungen — auf dem Poster
+        // nimmt das der Typografie das Amtliche und passt zum gezeichneten Blatt.
+        doc.text(ln, x, y + i * lh, { align: o.align || 'left', ...(o.angle ? { angle: o.angle } : {}) })
       })
       return lines.length * lh
     },
@@ -1237,7 +1239,7 @@ function paintPosterScene(d, data, bg, st) {
   // Kopf: Titel auf einem hellen Band, damit er auf jedem Motiv steht.
   d.rect(0, 0, W, SCENE.headH, st.paper, 0.86)
   const title = String(data.title || 'Ein Leben')
-  d.text(st.titleUpper ? title.toUpperCase() : title, W / 2, 20, { size: 26, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
+  d.text(st.titleUpper ? title.toUpperCase() : title, W / 2, 21, { size: 30, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 60, maxLines: 1 })
   if (data.subtitle) d.text(String(data.subtitle), W / 2, 30, { size: 11, italic: true, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
   const who = [data.person?.name, data.person?.years].filter(Boolean).join('   ·   ')
   if (who) d.text(who, W / 2, 38, { size: 9, align: 'center', color: st.soft, font: st.body, maxW: W - 90, maxLines: 1 })
@@ -1248,21 +1250,26 @@ function paintPosterScene(d, data, bg, st) {
   const used = new Set()
   const spots = placeLabels(bg.grid, stations.length, SCENE.cols, SCENE.rows, used)
 
+  // Beschriftung: WENIG Text, GROSS, OHNE Kasten. Ein Poster liest man aus zwei
+  // Metern Entfernung — dort zählt nur Jahr und Station. Die Sätze standen früher
+  // in halbleeren Panels; sie sind ersatzlos entfallen (der Inhalt steckt im Buch).
   stations.forEach((s2, i) => {
     const spot = spots[i]
     if (!spot) return
-    const x = SCENE.margin + spot.c * cellW
-    const y = SCENE.headH + spot.r * cellH
-    const pad = 3
-    const bw = cellW - 4
-    // Halbtransparentes Papier-Panel: hält den Text auch über Illustrationen lesbar.
-    d.rect(x + 2, y + 2, bw, cellH - 6, st.paper, 0.82)
-    d.thickLine(x + 2, y + 2, x + 2, y + cellH - 4, s2.color, 1.2)
-
-    let ty = y + 8
-    if (s2.year) { d.text(String(s2.year), x + pad + 3, ty, { size: 8.5, bold: true, color: s2.color, font: st.heading, maxW: bw - 8, maxLines: 1 }); ty += 4.6 }
-    ty += d.text(String(s2.title || ''), x + pad + 3, ty, { size: 8, bold: true, color: st.ink, font: st.heading, maxW: bw - 8, maxLines: 2 })
-    d.text(String(s2.text || ''), x + pad + 3, ty + 1, { size: 6.2, color: st.soft, font: st.body, maxW: bw - 8, maxLines: 5 })
+    // Frei angeordnet statt zentriert im Raster: Versatz und leichte Neigung sind
+    // deterministisch aus dem Index abgeleitet (gleiches Poster = gleiches Bild),
+    // wirken aber von Hand gesetzt. Der Text bleibt in seiner ruhigen Zelle.
+    const jitterX = Math.sin(i * 2.3) * cellW * 0.16
+    const jitterY = Math.cos(i * 1.7) * cellH * 0.14
+    const angle = Math.sin(i * 1.1) * 3.5
+    const cx = SCENE.margin + spot.c * cellW + cellW / 2 + jitterX
+    const cy = SCENE.headH + spot.r * cellH + cellH / 2 + jitterY
+    let ty = cy - 4
+    if (s2.year) {
+      d.text(String(s2.year), cx, ty, { size: 16, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: cellW + 10, maxLines: 1, angle })
+      ty += 7.5
+    }
+    d.text(String(s2.title || ''), cx, ty, { size: 11.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: cellW + 12, maxLines: 2, angle })
   })
 
   // Fuß
@@ -1271,9 +1278,9 @@ function paintPosterScene(d, data, bg, st) {
   const values = (Array.isArray(data.values) ? data.values : []).slice(0, 8)
   const places = (Array.isArray(data.places) ? data.places : []).slice(0, 6)
   const colW = (W - 2 * SCENE.margin) / 3 - 8
-  if (values.length) d.text('WERTE:  ' + values.join('  ·  '), SCENE.margin, fy, { size: 7.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
-  if (places.length) d.text('ORTE:  ' + places.join('  ·  '), SCENE.margin + colW + 12, fy, { size: 7.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
-  if (data.quote) d.text(`„${data.quote}"`, SCENE.margin + 2 * (colW + 12), fy, { size: 9, italic: true, color: st.ink, font: st.heading, maxW: colW + 8, maxLines: 2 })
+  if (values.length) d.text(values.join('  ·  '), SCENE.margin, fy, { size: 10, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
+  if (places.length) d.text(places.join('  ·  '), SCENE.margin + colW + 12, fy, { size: 10, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
+  if (data.quote) d.text(`„${data.quote}"`, SCENE.margin + 2 * (colW + 12), fy - 1, { size: 12, italic: true, color: st.ink, font: st.heading, maxW: colW + 8, maxLines: 2 })
 }
 
 // `sceneUrl` = signierte URL des Gesamtbildes.
