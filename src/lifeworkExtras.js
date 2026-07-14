@@ -1447,6 +1447,97 @@ function plaqueRect(loc, bg, st) {
   return { x: rx, y: ry, w: rw, h: rh }
 }
 
+// ── Die leeren Beschriftungskarten im Bild FINDEN ─────────────────
+// Die Bild-KI malt inzwischen unter jede Szene genau eine leere Karte (ein helles
+// Rechteck mit dünner Kontur — die einzigen Rechtecke auf dem Blatt). Wo sie
+// liegen, muss niemand raten: Man sieht es dem Bild an.
+//
+// Der Trick ist die KONTUR. Karteninneres und Papier sind beide hell, aber die
+// Konturlinie trennt sie. Wer also alle „hellen, glatten" Pixel zu Flächen
+// zusammenfasst, bekommt das Papier als eine große Fläche (die den Bildrand
+// berührt) und jede Karte als eigene, vom Papier abgeschnittene Fläche. Karten
+// sind dann: rechteckig gefüllt, liegend, mittelgroß, ohne Randberührung.
+function detectCards(imgEl) {
+  const W = 900
+  const H = Math.round(W * (imgEl.naturalHeight / imgEl.naturalWidth))
+  const cv = document.createElement('canvas')
+  cv.width = W; cv.height = H
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(imgEl, 0, 0, W, H)
+  const { data } = ctx.getImageData(0, 0, W, H)
+
+  const lum = new Float32Array(W * H)
+  for (let i = 0; i < W * H; i++) {
+    lum[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]
+  }
+  // Papierhelligkeit = oberes Perzentil (das Blatt ist überwiegend Papier).
+  const sorted = Float32Array.from(lum).sort()
+  const paperLum = sorted[Math.floor(sorted.length * 0.9)]
+
+  // „Glatt und hell": Kandidat für Papier ODER Karteninneres.
+  const flat = new Uint8Array(W * H)
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x
+      const gx = Math.abs(lum[i + 1] - lum[i - 1])
+      const gy = Math.abs(lum[i + W] - lum[i - W])
+      flat[i] = (lum[i] > paperLum - 42 && gx < 16 && gy < 16) ? 1 : 0
+    }
+  }
+
+  // Flächen bilden. Alles, was den Bildrand berührt, ist Papier — nicht Karte.
+  const label = new Int32Array(W * H).fill(-1)
+  const cards = []
+  const stack = new Int32Array(W * H)
+  let next = 0
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const start = y * W + x
+      if (!flat[start] || label[start] >= 0) continue
+      const id = next++
+      let sp = 0
+      stack[sp++] = start
+      label[start] = id
+      let minX = x, maxX = x, minY = y, maxY = y, n = 0, touches = false
+      while (sp > 0) {
+        const p = stack[--sp]
+        const px = p % W, py = (p / W) | 0
+        n++
+        if (px < minX) minX = px
+        if (px > maxX) maxX = px
+        if (py < minY) minY = py
+        if (py > maxY) maxY = py
+        if (px <= 1 || py <= 1 || px >= W - 2 || py >= H - 2) touches = true
+        const nb = [p - 1, p + 1, p - W, p + W]
+        for (const q of nb) {
+          if (q < 0 || q >= W * H) continue
+          if (!flat[q] || label[q] >= 0) continue
+          label[q] = id
+          stack[sp++] = q
+        }
+      }
+      if (touches) continue                      // das ist das Papier selbst
+      const bw = maxX - minX + 1, bh = maxY - minY + 1
+      const fill = n / (bw * bh)
+      const areaPct = (bw * bh) / (W * H)
+      const aspect = bw / bh
+      // Eine Karte ist: rechteckig gefüllt, deutlich liegend, mittelgroß.
+      if (fill > 0.82 && aspect > 1.7 && aspect < 8 && areaPct > 0.004 && areaPct < 0.06) {
+        cards.push({ x: minX / W, y: minY / H, w: bw / W, h: bh / H, area: areaPct })
+      }
+    }
+  }
+
+  // Leserichtung: zeilenweise (Bänder), darin von links nach rechts — dieselbe
+  // Reihenfolge, in der die Bild-KI die Szenen anordnet.
+  const band = 0.12
+  cards.sort((a, b) => {
+    const ba = Math.floor((a.y + a.h / 2) / band), bb = Math.floor((b.y + b.h / 2) / band)
+    return ba !== bb ? ba - bb : a.x - b.x
+  })
+  return cards
+}
+
 // ── Wo ist wirklich Papier? ───────────────────────────────────────
 // Zwei Anläufe sind daran gescheitert, „frei" zu schätzen: einmal über die
 // Detaildichte (eine dunkle, glatte Wand ist genauso ruhig wie leeres Papier),
@@ -1595,7 +1686,29 @@ function paintPosterScene(d, data, bg, st) {
 
   const spotMap = new Map((data.scene_spots || []).map(x => [Number(x.i), x]))
 
+  // DER BESTE FALL: Die Bild-KI hat unter jede Szene eine leere Beschriftungskarte
+  // gemalt, und die Bilderkennung hat sie gefunden (detectCards — pixelgenau, ohne
+  // KI und ohne Raten). Dann wird der Text einfach HINEINGESETZT: keine Kartusche
+  // nötig, die Karte IST die Kartusche, und sie gehört sichtbar zu ihrer Szene.
+  // Karten und Stationen stehen beide in Leserichtung — die i-te Karte gehört zur
+  // i-ten Station.
+  const cards = bg.cards || []
+  const useCards = cards.length >= stations.length
+
   stations.forEach((s2, i) => {
+    if (useCards) {
+      const c = cards[i]
+      const cx = c.x * W, cy = c.y * H, cw = c.w * W, ch = c.h * H
+      const pad = Math.min(3, ch * 0.12)
+      let ty = cy + pad + 4.6
+      if (s2.year) {
+        d.text(String(s2.year), cx + cw / 2, ty, { size: 10, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: cw - 2 * pad, maxLines: 1 })
+        ty += 5.4
+      }
+      d.text(String(s2.title || ''), cx + cw / 2, ty, { size: 8.5, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: cw - 2 * pad, maxLines: 2 })
+      return
+    }
+
     const bh = s2.year ? 17 : 12
     const loc = spotMap.get(i)
 
@@ -1642,8 +1755,9 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
   const grid = densityMap(el)
   const grid2 = densityGrid(el, SCENE.cols, SCENE.rows)
   const colors = colorMap(el)
+  const cards = detectCards(el)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2, colors }, st)
+  paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2, colors, cards }, st)
   doc.save(filename)
 }
 
@@ -1738,7 +1852,7 @@ async function loadSheet(data, variant) {
   const img = await loadImage(url)
   const el = await toImageEl(img.data)
   return {
-    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows), colors: colorMap(el) },
+    bg: { data: img.data, w: img.w, h: img.h, grid: densityMap(el), grid2: densityGrid(el, SCENE.cols, SCENE.rows), colors: colorMap(el), cards: detectCards(el) },
     el,
     data: { ...data, scene_spots: variant?.scene_spots || data?.scene_spots },
   }
