@@ -1698,6 +1698,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
         {eulogyStyleOverlay}
         {genLangOverlay}
         {dlLangOverlay}
+        {posterStyleOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}
@@ -1707,7 +1708,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
     )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraBusy, extraMsg, requestDownload, dlLangOverlay }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraBusy, extraMsg, requestDownload, dlLangOverlay, requestPoster, posterStyleOverlay }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const isLifework = selected?.product_category === 'lifework'
@@ -2060,7 +2061,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Erzeugt</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      <button onClick={() => generateExtra(kind)} disabled={!!extraBusy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                      <button onClick={() => kind === 'poster' ? requestPoster() : generateExtra(kind)} disabled={!!extraBusy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
                         {busy ? 'Wird erzeugt …' : has ? '↻ Neu erzeugen' : '✨ Erzeugen'}
                       </button>
                       <button onClick={() => downloadExtra(kind)} disabled={!has || !!extraBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
@@ -2287,6 +2288,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
         {eulogyStyleOverlay}
         {genLangOverlay}
         {dlLangOverlay}
+        {posterStyleOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}

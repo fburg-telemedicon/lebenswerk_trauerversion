@@ -64,14 +64,42 @@ const SPREAD_DIRECTIVE =
 // Prompt-Aufbau: KEINE SPREAD_DIRECTIVE, KEINE Stil-Direktive des Buchs — der
 // Posterstil ist einheitlich flach-illustrativ, und der Hintergrund ist exakt
 // die Papierfarbe des Posters, damit sich die Vignette nahtlos einfügt.
-const POSTER_PAPER = '#F6EFE1'
-const VIGNETTE_DIRECTIVE =
-  'Flat editorial vector illustration in a warm, hand-drawn storybook style: soft muted earth tones ' +
-  '(terracotta, ochre, sage green, dusty blue, cream), clean confident outlines, gentle shading, no gradients, no photorealism. ' +
-  `Single isolated subject, centred, floating on a completely flat plain background of the exact colour ${POSTER_PAPER} — ` +
-  'the background must be one uniform colour with NO scenery, NO horizon, NO frame, NO border, NO shadow on the ground, NO vignetting. ' +
-  'Generous empty margin around the subject. ' +
-  'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage of any kind anywhere in the image.'
+// Fünf Illustrationsstile — sie korrespondieren 1:1 mit POSTER_STYLES in
+// src/lifeworkExtras.js (Schlüssel identisch), damit Vignetten und Layout
+// zusammenpassen. Die Papierfarbe steht im Prompt, damit die Vignette optisch
+// mit dem Poster verschmilzt.
+const VIGNETTE_STYLES = {
+  storybook: {
+    paper: '#F6EFE1',
+    look: 'Warm hand-drawn storybook illustration: soft muted earth tones (terracotta, ochre, sage green, dusty blue, cream), confident inked outlines, gentle flat shading, a little paper texture. No photorealism.',
+  },
+  editorial: {
+    paper: '#FAF9F6',
+    look: 'Modern flat editorial vector illustration: clean geometric shapes, bold saturated colour fields (vermilion, teal, cobalt, amber), minimal detail, crisp edges, no outlines, no gradients, no photorealism.',
+  },
+  atlas: {
+    paper: '#F0E5CD',
+    look: 'Antique atlas engraving: fine sepia and ink line work, cross-hatching, aged copperplate feel, restrained washes of faded brown and olive. Looks drawn into an old map. No photorealism.',
+  },
+  watercolor: {
+    paper: '#FCFAF7',
+    look: 'Delicate watercolour illustration: translucent washes, soft bleeding edges, airy pastel palette (rose, sage, dusty blue, sand), visible paper grain, plenty of white space. No harsh outlines, no photorealism.',
+  },
+  bauhaus: {
+    paper: '#F4F1EA',
+    look: 'Reduced geometric poster illustration in Bauhaus spirit: primary shapes (circle, triangle, rectangle), bold flat primary colours (red, blue, yellow, black), strict simplification, no shading, no texture, no photorealism.',
+  },
+}
+
+const vignetteDirective = (key) => {
+  const s = VIGNETTE_STYLES[key] || VIGNETTE_STYLES.storybook
+  return `${s.look} ` +
+    `ONE single isolated subject, centred, floating on a completely flat plain background of the exact colour ${s.paper} — ` +
+    'the background must be one uniform colour: NO scenery, NO horizon, NO ground, NO frame, NO border, NO drop shadow, NO vignetting. ' +
+    'Generous empty margin around the subject; the subject must not touch the edges. ' +
+    'No human faces and no portraits — show objects, places, tools, vehicles, animals or figures seen from a distance/from behind. ' +
+    'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage anywhere in the image.'
+}
 
 // Das LLM schreibt in image_prompt gern selbst ein Medium hinein ("vintage
 // photograph", "oil painting", "cinematic still"). Steht so ein Wort im Motiv,
@@ -274,8 +302,12 @@ module.exports = async function handler(req, res) {
     // Poster-Vignette: eigener Aufbau (freigestellte Illustration auf Papierfarbe,
     // kein Doppelseiten-Motiv, kein Buch-Grafikstil). Siehe VIGNETTE_DIRECTIVE.
     const isVignette = variant === 'vignette'
+    const vigDir = isVignette ? vignetteDirective(req.body?.posterStyle) : null
     const build = isVignette
-      ? (motif) => `${VIGNETTE_DIRECTIVE}\n\nSubject: ${stripMedium(motif)}\n\n${VIGNETTE_DIRECTIVE}`
+      // Bei Vignetten wird das Motiv NICHT von Medium-Wörtern befreit — der Stil
+      // steckt hier gerade in der Direktive, und das Motiv ist ohnehin ein reines
+      // Objekt ("an old accordion"). Direktive rahmt vorne und hinten.
+      ? (motif) => `${vigDir}\n\nSubject: ${motif}\n\n${vigDir}`
       : (motif) => `${styleDir}\n\nSubject: ${stripMedium(motif)}\n\n${SPREAD_DIRECTIVE}\n\n${anchor}`
     const fullPrompt = build(prompt)
     const fallbackPrompt = build(SAFE_FALLBACK_PROMPT)

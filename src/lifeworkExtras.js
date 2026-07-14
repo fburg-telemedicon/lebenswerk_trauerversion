@@ -189,6 +189,43 @@ function pdfDraw(doc) {
       doc.circle(cx, cy, r, 'F')
     },
     image(data, x, y, w, h) { doc.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST') },
+
+    // ── Primitive fürs Poster ──
+    // Dicke Linie mit runden Enden: der Lebenspfad.
+    thickLine(x1, y1, x2, y2, color, w) {
+      doc.setDrawColor(color[0], color[1], color[2])
+      doc.setLineWidth(w)
+      doc.setLineCap('round')
+      doc.line(x1, y1, x2, y2)
+      doc.setLineCap('butt')
+      doc.setLineWidth(0.3)
+    },
+    // Abgerundete Farbfläche: die Abschnitts-Pille.
+    pill(x, y, w, h, color) {
+      doc.setFillColor(color[0], color[1], color[2])
+      doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F')
+    },
+    // Farbiger Ring um eine Vignette.
+    ring(cx, cy, r, color, lw) {
+      doc.setDrawColor(color[0], color[1], color[2])
+      doc.setLineWidth(lw)
+      doc.circle(cx, cy, r, 'S')
+      doc.setLineWidth(0.3)
+    },
+    // Bild kreisförmig beschnitten einsetzen. jsPDF kann Bilder nicht maskieren,
+    // deshalb: Clipping-Pfad (Kreis) setzen, Bild formatfüllend hineinzeichnen,
+    // Zustand zurücknehmen. Ohne Clipping würde das quadratische Bild über den
+    // Ring hinausstehen und das Poster unruhig machen.
+    circleImage(data, iw, ih, cx, cy, r) {
+      const s = Math.max((2 * r) / iw, (2 * r) / ih)
+      const w = iw * s, h = ih * s
+      doc.saveGraphicsState()
+      doc.circle(cx, cy, r, null)   // Pfad ohne Malen …
+      doc.clip(); doc.discardPath()  // … als Maske verwenden
+      doc.addImage(data, 'PNG', cx - w / 2, cy - h / 2, w, h, undefined, 'FAST')
+      doc.restoreGraphicsState()
+    },
+
     text(str, x, y, o = {}) {
       const c = o.color || [0, 0, 0]
       doc.setTextColor(c[0], c[1], c[2])
@@ -215,158 +252,258 @@ export function downloadTreePdf(filename, data, memorial) {
 // ════════════════════════════════════════════════════════════════
 // 2) LEBENSPOSTER (DIN A2 quer, 594 × 420 mm)
 // ════════════════════════════════════════════════════════════════
+//
+// Das Poster ist eine ILLUSTRIERTE LEBENSKARTE: Ein Pfad mäandert in Serpentinen
+// über das Blatt, unterwegs liegen die Lebensabschnitte (farbige Pillen), an ihm
+// hängen die Stationen — jede mit einer freigestellten Vignette (FLUX, Bildmodus
+// 'vignette') und wenigen Worten.
+//
+// WARUM VEKTOR + VIGNETTEN statt EINES großen KI-Bildes: Ein Bildmodell kann
+// Schrift nicht zuverlässig setzen (in den Vorlagen steht „Goburt in Segen" und
+// „Röckkohr zur Musik"). Jahreszahlen und Namen eines echten Lebens dürfen aber
+// nicht falsch sein. Also: die GRAFIK von der KI, die SCHRIFT vom Layout.
+
+// ── Die fünf Poster-Stile ─────────────────────────────────────────
+// Jeder Stil bestimmt Papier, Palette und Typografie — UND den Illustrationsstil
+// der Vignetten (`key` geht als `posterStyle` an api/admin/generate-image.js, wo
+// die passende Bild-Direktive liegt). So passen Grafik und Layout zusammen.
+export const POSTER_STYLES = [
+  {
+    key: 'storybook',
+    label: 'Erzählt & handgezeichnet',
+    description: 'Warmes Cremepapier, weiche Erdtöne, gezeichnete Szenen – wie ein illustriertes Bilderbuch.',
+    paper: [246, 239, 225], ink: [43, 38, 33], soft: [124, 112, 99],
+    accents: [[176, 92, 60], [92, 122, 84], [70, 106, 128], [186, 146, 62], [128, 88, 120], [96, 108, 116]],
+    heading: 'times', body: 'helvetica', titleUpper: false,
+  },
+  {
+    key: 'editorial',
+    label: 'Editorial & klar',
+    description: 'Helles Papier, kräftige Farbflächen, serifenlose Typografie – ruhig, modern, aufgeräumt.',
+    paper: [250, 249, 246], ink: [24, 24, 27], soft: [113, 113, 122],
+    accents: [[220, 90, 60], [34, 110, 120], [45, 90, 160], [230, 160, 40], [120, 80, 160], [60, 130, 90]],
+    heading: 'helvetica', body: 'helvetica', titleUpper: true,
+  },
+  {
+    key: 'atlas',
+    label: 'Alter Atlas',
+    description: 'Gealtertes Kartenpapier, Sepia und Tinte – die Lebensreise als antike Landkarte.',
+    paper: [240, 229, 205], ink: [58, 44, 30], soft: [130, 108, 82],
+    accents: [[140, 82, 45], [100, 92, 60], [72, 92, 96], [160, 118, 60], [110, 70, 60], [92, 104, 78]],
+    heading: 'times', body: 'times', titleUpper: false,
+  },
+  {
+    key: 'watercolor',
+    label: 'Aquarell & luftig',
+    description: 'Viel Weißraum, zarte Wasserfarben, leichte Anmutung – poetisch und zurückhaltend.',
+    paper: [252, 250, 247], ink: [50, 52, 58], soft: [140, 142, 150],
+    accents: [[168, 122, 132], [122, 152, 158], [150, 166, 130], [198, 168, 116], [136, 132, 168], [176, 146, 128]],
+    heading: 'times', body: 'helvetica', titleUpper: false,
+  },
+  {
+    key: 'bauhaus',
+    label: 'Geometrisch & grafisch',
+    description: 'Reduzierte Formen, kräftige Grundfarben, strenge Typografie – ein Plakat, kein Album.',
+    paper: [244, 241, 234], ink: [20, 20, 20], soft: [110, 110, 110],
+    accents: [[214, 69, 47], [37, 84, 150], [240, 178, 30], [40, 40, 40], [46, 128, 108], [150, 62, 120]],
+    heading: 'helvetica', body: 'helvetica', titleUpper: true,
+  },
+]
+export const DEFAULT_POSTER_STYLE = 'storybook'
+export const getPosterStyle = k => POSTER_STYLES.find(s => s.key === k) || POSTER_STYLES[0]
 
 export function posterSystem(memorial, contributions) {
   const lines = contributions.flatMap(c => (c.messages || []).map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`))
-  return `Du bist Kurator und Informationsdesigner. Aus dem folgenden autobiographischen Interview mit ${memorial.name} destillierst du ein LEBENSPOSTER (DIN A2 quer): eine Landkarte dieses Lebens — Stationen, Themen, Orte, Werte, Sätze, die bleiben.
+  return `Du bist Kurator und Informationsdesigner. Aus dem folgenden autobiographischen Interview mit ${memorial.name} entwickelst du ein LEBENSPOSTER (DIN A2 quer): eine illustrierte Landkarte dieses Lebens. Ein Pfad führt durch die Lebensabschnitte; an ihm liegen einzelne Stationen, jede mit einer kleinen Illustration und wenigen Worten.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 {
-  "title": "Titel des Posters, kurz und stark (max. 5 Wörter)",
-  "subtitle": "Untertitel, max. 12 Wörter",
-  "person": { "name": "${memorial.name}", "years": "z. B. 1943 – heute, leer wenn unbekannt" },
-  "milestones": [
-    { "year": "1943", "title": "max. 4 Wörter", "text": "EIN Satz, konkret, max. 16 Wörter" }
+  "title": "Titel des Posters, kurz und stark (max. 6 Wörter)",
+  "subtitle": "Untertitel, max. 14 Wörter",
+  "person": { "name": "${memorial.name}", "years": "z. B. 1948 – heute; leer, wenn unbekannt" },
+  "sections": [
+    {
+      "heading": "Name des Lebensabschnitts (max. 4 Wörter)",
+      "period": "Zeitraum, z. B. 1948–1964 oder 'ab 1985'",
+      "stations": [
+        {
+          "year": "Jahr oder Zeitraum, z. B. 1965; leer, wenn unbekannt",
+          "title": "Überschrift der Station, max. 5 Wörter",
+          "text": "1 Satz, konkret, max. 22 Wörter",
+          "image_prompt": "English, 8-16 words: ONE single concrete object or small scene symbolising this station (e.g. a red brick bakery shop front; an old steam locomotive; a nurse cap with a stethoscope). No faces, no portraits, no text."
+        }
+      ]
+    }
   ],
-  "themes": [
-    { "title": "max. 3 Wörter", "text": "1–2 Sätze, was dieses Thema im Leben bedeutet, max. 28 Wörter" }
-  ],
-  "values": ["max. 2 Wörter je Eintrag"],
+  "values": ["Wert, max. 2 Wörter"],
   "places": ["Ort"],
-  "quotes": ["wörtlicher oder eng am Wortlaut liegender Satz der Person, max. 20 Wörter"],
-  "background_prompt": "English, 15–30 words: one atmospheric scene that captures this life as a whole (landscape, no text, no people portraits); describe ONLY motif, scene and era — no medium, no technique, no art style"
+  "quote": "EIN Satz der Person, wörtlich oder sehr nah am Wortlaut, max. 18 Wörter"
 }
 
-Regeln:
-- "milestones": 10–16 Stück, CHRONOLOGISCH aufsteigend, mit Jahreszahl. Nur Stationen, die das Interview wirklich hergibt (Geburt, Kindheit, Schule, Ausbildung, erster Job, Liebe, Hochzeit, Kinder, Umzüge, Wendepunkte, Verluste, Erfolge, Ruhestand …).
-- "themes": 4–6 Stück — die roten Fäden dieses Lebens (z. B. Handwerk, Musik, Glaube, Fürsorge, Aufbruch).
-- "values": 6–10 Stück. "places": 3–8 Stück. "quotes": 2–3 Stück.
-- Erfinde NICHTS: keine Jahre, keine Orte, keine Sätze, die nicht im Interview stehen. Lieber weniger Einträge.
+Regeln zum AUFBAU:
+- "sections": 4–6 Lebensabschnitte, CHRONOLOGISCH (z. B. Wurzeln & Kindheit, Jugend & Ausbildung, Beruf, Familie & Liebe, Späte Jahre, Werte & Vermächtnis).
+- Jeder Abschnitt hat 3–4 "stations" — insgesamt 14–20 Stationen. Nicht mehr, sonst wird das Poster unlesbar.
+- "image_prompt" ist das Herz der Grafik: EIN klar erkennbares Symbol, kein Wimmelbild, KEINE Gesichter/Porträts (die Illustration steht frei auf dem Papier). Denke in Gegenständen und Orten: Werkstatt, Akkordeon, Fahrrad, Klinikflur, Kirchturm, Küchentisch, Koffer, Garten.
+- "values": 5–8 Stück. "places": 3–6 Stück. "quote": genau EIN Satz.
+
+Regeln zur WAHRHEIT (die wichtigsten):
+- Erfinde NICHTS. Keine Jahreszahl, kein Ort, kein Ereignis, kein Zitat, das nicht im Interview steht. Lieber eine Station weniger.
+- Ist ein Jahr unklar, lass "year" leer, statt zu raten.
+- Der "quote" muss so oder fast so im Interview gefallen sein. Gibt das Interview keinen Satz her, gib "" zurück.
+
+Sonstiges:
 - Kurz, konkret, bildhaft — dies ist ein Poster, kein Fließtext.
-- Alles auf Deutsch (außer "background_prompt").
+- Alles auf Deutsch, NUR "image_prompt" auf Englisch.
 - Gültiges JSON, keine trailing commas.
 
 Interview:\n\n${lines.join('\n')}`
 }
 
-const P = {
-  W: 594, H: 420,             // DIN A2 quer
-  margin: 24,
-  ink: [24, 22, 20], white: [255, 255, 255], soft: [120, 113, 108],
-  accent: [21, 128, 61], sand: [250, 250, 249], rule: [214, 211, 209],
+// Alle Bild-Aufträge des Posters, in Reihenfolge. Schlüssel "si:ti" = Abschnitt/Station.
+export function posterImageJobs(data) {
+  const jobs = []
+  ;(Array.isArray(data?.sections) ? data.sections : []).slice(0, 6).forEach((sec, si) => {
+    ;(Array.isArray(sec.stations) ? sec.stations : []).slice(0, 4).forEach((st, ti) => {
+      if (st?.image_prompt) jobs.push({ key: `${si}:${ti}`, si, ti, prompt: st.image_prompt })
+    })
+  })
+  return jobs
 }
 
-// Bild formatfüllend rechnen (nie verzerren, Überstand wird beschnitten).
-function coverFit(iw, ih, bw, bh) {
-  const s = Math.max(bw / iw, bh / ih)
-  const w = iw * s, h = ih * s
-  return { x: (bw - w) / 2, y: (bh - h) / 2, w, h }
+const P = { W: 594, H: 420, margin: 22 }
+
+// ── Layout ────────────────────────────────────────────────────────
+// Serpentine: Die Stationen laufen Bahn für Bahn abwechselnd nach rechts und
+// nach links. Jede Station bekommt eine Zelle: oben die runde Vignette, darunter
+// Jahr, Titel und ein Satz. Die Abschnitts-Pille sitzt über der ersten Station
+// ihrer Gruppe.
+function layoutPoster(data, st) {
+  const sections = (Array.isArray(data?.sections) ? data.sections : []).slice(0, 6)
+  const stations = []
+  sections.forEach((sec, si) => {
+    ;(Array.isArray(sec.stations) ? sec.stations : []).slice(0, 4).forEach((s, ti) => {
+      stations.push({ ...s, si, ti, first: ti === 0, section: sec })
+    })
+  })
+  if (stations.length === 0) return null
+
+  const headH = 72
+  const footH = 40
+  const bodyH = P.H - headH - footH
+  const lanes = stations.length > 12 ? 4 : 3
+  const laneH = bodyH / lanes
+  const perLane = Math.ceil(stations.length / lanes)
+  const usableW = P.W - 2 * P.margin
+  const cellW = usableW / perLane
+
+  stations.forEach((s, i) => {
+    const lane = Math.floor(i / perLane)
+    const idxInLane = i % perLane
+    const pos = lane % 2 === 0 ? idxInLane : (perLane - 1 - idxInLane)  // Serpentine
+    s.lane = lane
+    s.cx = P.margin + pos * cellW + cellW / 2
+    s.cy = headH + lane * laneH + laneH / 2
+    s.cellW = cellW
+    s.laneH = laneH
+    s.color = st.accents[s.si % st.accents.length]
+  })
+  return { sections, stations, lanes, perLane, cellW, laneH, headH, footH }
 }
 
-// Das Poster: oben ein vollflächiges Motiv mit Titel darauf, darunter die
-// Zeitleiste (Stationen abwechselnd über/unter der Achse), unten die Themen,
-// Werte, Orte und Zitate. Alles aus dem JSON — nichts wird erfunden.
-function paintPoster(d, data, images) {
+// `images` = { "si:ti": { data, w, h } }
+function paintPoster(d, data, images, st) {
+  const L = layoutPoster(data, st)
+  if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
   const { W, H, margin } = P
-  const M = Array.isArray(data.milestones) ? data.milestones.slice(0, 16) : []
-  const themes = Array.isArray(data.themes) ? data.themes.slice(0, 6) : []
-  const values = Array.isArray(data.values) ? data.values.slice(0, 10) : []
-  const places = Array.isArray(data.places) ? data.places.slice(0, 8) : []
-  const quotes = Array.isArray(data.quotes) ? data.quotes.slice(0, 3) : []
 
-  // Grundfläche
-  d.rect(0, 0, W, H, P.sand)
+  d.rect(0, 0, W, H, st.paper)
 
-  // ── Kopfzone mit Motiv (Höhe 150 mm) ──
-  const headH = 150
-  if (images.bg) {
-    const fit = coverFit(images.bg.w, images.bg.h, W, headH)
-    d.image(images.bg.data, fit.x, fit.y, fit.w, fit.h)
-    if (d.alpha) {
-      // Verlauf simulieren: mehrere halbtransparente Streifen, unten am dunkelsten,
-      // damit die Typografie auf jedem Motiv sicher lesbar bleibt.
-      for (let i = 0; i < 14; i++) {
-        const t = i / 13
-        d.rect(0, headH - (i + 1) * (headH / 14), W, headH / 14 + 0.4, [10, 10, 10], 0.06 + t * 0.5)
-      }
+  // ── Kopf ──
+  const title = String(data.title || 'Ein Leben')
+  d.text(st.titleUpper ? title.toUpperCase() : title, W / 2, 30, {
+    size: 34, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 2 * margin, maxLines: 1,
+  })
+  if (data.subtitle) {
+    d.text(String(data.subtitle), W / 2, 42, { size: 13, italic: true, align: 'center', color: st.soft, font: st.body, maxW: W - 140, maxLines: 1 })
+  }
+  const who = [data.person?.name, data.person?.years].filter(Boolean).join('   ·   ')
+  if (who) d.text(who, W / 2, 52, { size: 10, align: 'center', color: st.soft, font: st.body, maxW: W - 140, maxLines: 1 })
+  d.line(W / 2 - 36, 57, W / 2 + 36, 57, st.soft)
+
+  // ── Pfad (liegt hinter allem anderen) ──
+  const py = s => s.cy - 8
+  for (let i = 0; i < L.stations.length - 1; i++) {
+    const a = L.stations[i], b = L.stations[i + 1]
+    if (a.lane === b.lane) {
+      d.thickLine(a.cx, py(a), b.cx, py(b), a.color, 2.4)
     } else {
-      // Ohne Transparenz nur ein deckendes Band unter der Typografie — sonst würde
-      // ein „Verlauf" aus deckenden Streifen das ganze Motiv zudecken.
-      d.rect(0, headH - 58, W, 58, [16, 15, 14])
+      // Bahnwechsel: am Blattrand herumschwingen
+      const edge = (a.lane % 2 === 0) ? W - margin + 6 : margin - 6
+      d.thickLine(a.cx, py(a), edge, py(a), a.color, 2.4)
+      d.thickLine(edge, py(a), edge, py(b), a.color, 2.4)
+      d.thickLine(edge, py(b), b.cx, py(b), b.color, 2.4)
     }
-  } else {
-    d.rect(0, 0, W, headH, P.ink)
   }
 
-  const title = String(data.title || 'Ein Leben')
-  d.text(title.toUpperCase(), margin, headH - 42, { size: 54, bold: true, color: P.white, maxW: W - 2 * margin, maxLines: 1 })
-  if (data.subtitle) d.text(String(data.subtitle), margin, headH - 26, { size: 16, italic: true, color: [235, 235, 235], maxW: W - 2 * margin, maxLines: 1 })
-  const who = [data.person?.name, data.person?.years].filter(Boolean).join('  ·  ')
-  if (who) d.text(who, margin, headH - 12, { size: 12, color: [225, 225, 225], maxW: W - 2 * margin, maxLines: 1 })
+  // ── Stationen ──
+  for (const s of L.stations) {
+    const img = images[`${s.si}:${s.ti}`]
+    const vign = Math.min(36, s.cellW * 0.66)
+    const cy = s.cy - 8
 
-  // ── Zeitleiste ──
-  const axisY = headH + 78
-  d.line(margin, axisY, W - margin, axisY, P.accent)
-  const usable = W - 2 * margin
-  const step = M.length > 1 ? usable / (M.length - 1) : 0
-  M.forEach((m, i) => {
-    const x = M.length > 1 ? margin + i * step : W / 2
-    const up = i % 2 === 0                       // abwechselnd über/unter der Achse
-    d.circle(x, axisY, 2.2, P.accent)
-    d.line(x, axisY, x, up ? axisY - 12 : axisY + 12, P.rule)
-    // Der nächste Nachbar sitzt auf der ANDEREN Achsenseite; kollidieren kann ein
-    // Textblock also erst mit dem übernächsten — er darf entsprechend breit sein.
-    const boxW = step ? Math.min(72, Math.max(30, step * 2 - 8)) : 72
-    const tx = Math.max(margin, Math.min(W - margin - boxW, x - boxW / 2))
-    if (up) {
-      d.text(String(m.year || ''), tx, axisY - 32, { size: 13, bold: true, color: P.accent, maxW: boxW, maxLines: 1 })
-      d.text(String(m.title || ''), tx, axisY - 25, { size: 9.5, bold: true, color: P.ink, maxW: boxW, maxLines: 2 })
-      d.text(String(m.text || ''), tx, axisY - 15, { size: 7.5, color: P.soft, maxW: boxW, maxLines: 3 })
-    } else {
-      d.text(String(m.year || ''), tx, axisY + 20, { size: 13, bold: true, color: P.accent, maxW: boxW, maxLines: 1 })
-      d.text(String(m.title || ''), tx, axisY + 27, { size: 9.5, bold: true, color: P.ink, maxW: boxW, maxLines: 2 })
-      d.text(String(m.text || ''), tx, axisY + 37, { size: 7.5, color: P.soft, maxW: boxW, maxLines: 3 })
+    // Abschnitts-Pille über der ersten Station der Gruppe
+    if (s.first) {
+      const head = String(s.section.heading || '').trim()
+      const per = String(s.section.period || '').trim()
+      const label = per ? `${head}  ·  ${per}` : head
+      if (label) {
+        const pillW = Math.min(s.cellW + 30, 10 + label.length * 1.95)
+        const px = Math.max(margin, Math.min(W - margin - pillW, s.cx - pillW / 2))
+        const pyy = s.cy - s.laneH / 2 + 1
+        d.pill(px, pyy, pillW, 8.6, s.color)
+        d.text(label, px + pillW / 2, pyy + 5.9, { size: 7.4, bold: true, align: 'center', color: [255, 255, 255], font: st.heading, maxW: pillW - 5, maxLines: 1 })
+      }
     }
-  })
 
-  // ── Themen (Karten) ──
-  const cardsY = axisY + 62
-  const cardH = 54
-  const n = Math.max(1, themes.length)
-  const cardW = (usable - (n - 1) * 6) / n
-  themes.forEach((t, i) => {
-    const x = margin + i * (cardW + 6)
-    d.box(x, cardsY, cardW, cardH, P.rule, 0.3)
-    d.rect(x, cardsY, cardW, 3, P.accent)
-    d.text(String(t.title || ''), x + 5, cardsY + 13, { size: 12, bold: true, color: P.ink, maxW: cardW - 10, maxLines: 1 })
-    d.text(String(t.text || ''), x + 5, cardsY + 21, { size: 8, color: P.soft, maxW: cardW - 10, maxLines: 5 })
-  })
+    // Vignette (Bild im Kreis + Ring in der Abschnittsfarbe)
+    if (img) d.circleImage(img.data, img.w, img.h, s.cx, cy, vign / 2)
+    else     d.circle(s.cx, cy, vign / 2, st.paper)
+    d.ring(s.cx, cy, vign / 2, s.color, 0.9)
 
-  // ── Fußzone: Werte + Orte links, Zitate rechts ──
-  const footY = cardsY + cardH + 16
-  const colW = usable * 0.46
+    // Text
+    let ty = cy + vign / 2 + 6
+    if (s.year) {
+      d.text(String(s.year), s.cx, ty, { size: 9, bold: true, align: 'center', color: s.color, font: st.heading, maxW: s.cellW - 6, maxLines: 1 })
+      ty += 4.6
+    }
+    ty += d.text(String(s.title || ''), s.cx, ty, { size: 8.6, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: s.cellW - 8, maxLines: 2 })
+    d.text(String(s.text || ''), s.cx, ty + 1.2, { size: 6.9, align: 'center', color: st.soft, font: st.body, maxW: s.cellW - 8, maxLines: 4 })
+  }
+
+  // ── Fuß: Werte · Orte · Zitat ──
+  const fy = H - L.footH + 10
+  d.line(margin, fy - 8, W - margin, fy - 8, st.soft)
+  const values = (Array.isArray(data.values) ? data.values : []).slice(0, 8)
+  const places = (Array.isArray(data.places) ? data.places : []).slice(0, 6)
+  const colW = (W - 2 * margin) / 3 - 8
+
   if (values.length) {
-    d.text('WERTE', margin, footY, { size: 9, bold: true, color: P.accent })
-    d.text(values.join('   ·   '), margin, footY + 8, { size: 11, color: P.ink, maxW: colW, maxLines: 2 })
+    d.text('WERTE', margin, fy, { size: 7, bold: true, color: st.accents[0], font: st.heading })
+    d.text(values.join('  ·  '), margin, fy + 6, { size: 9, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
   }
   if (places.length) {
-    d.text('ORTE', margin, footY + 24, { size: 9, bold: true, color: P.accent })
-    d.text(places.join('   ·   '), margin, footY + 32, { size: 11, color: P.ink, maxW: colW, maxLines: 2 })
+    const x = margin + colW + 12
+    d.text('ORTE', x, fy, { size: 7, bold: true, color: st.accents[1 % st.accents.length], font: st.heading })
+    d.text(places.join('  ·  '), x, fy + 6, { size: 9, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
   }
-  if (quotes.length) {
-    const qx = margin + usable - colW
-    let qy = footY
-    for (const q of quotes) {
-      qy += d.text(`„${q}"`, qx, qy + 6, { size: 11, italic: true, color: P.ink, maxW: colW, maxLines: 2 }) + 4
-    }
+  if (data.quote) {
+    const x = margin + 2 * (colW + 12)
+    d.text(`„${data.quote}"`, x, fy + 2, { size: 10.5, italic: true, color: st.ink, font: st.heading, maxW: colW + 8, maxLines: 3 })
   }
-
-  // Fußnote
-  d.line(margin, H - 14, W - margin, H - 14, P.rule)
-  d.text('Lebenswerk · Lebensgeschichten.ai', margin, H - 7, { size: 8, color: P.soft })
+  d.text('Lebenswerk · Lebensgeschichten.ai', W - margin, H - 5, { size: 6.5, align: 'right', color: st.soft, font: st.body })
 }
 
-// Bild als DataURL + natürliche Maße laden (für das Poster-Motiv).
+// Bild als DataURL + natürliche Maße laden.
 async function loadImage(url) {
   const r = await fetch(url)
   if (!r.ok) throw new Error(`Bild konnte nicht geladen werden (HTTP ${r.status}).`)
@@ -385,12 +522,16 @@ async function loadImage(url) {
   return { data, ...dims }
 }
 
-// `bgUrl` ist optional: Ohne Motiv bekommt das Poster einen dunklen Kopf statt
-// eines Bildes — es bleibt vollständig, nur weniger prächtig.
-export async function downloadPosterPdf(filename, data, bgUrl) {
-  let bg = null
-  if (bgUrl) { try { bg = await loadImage(bgUrl) } catch { /* ohne Motiv weiter */ } }
+// `urls` = { "si:ti": signierte URL }. Ein fehlendes Bild ist nicht fatal — die
+// Station bekommt dann einen leeren Kreis in ihrer Abschnittsfarbe.
+export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
+  const st = getPosterStyle(styleKey || data?.style)
+  const images = {}
+  await Promise.all(Object.entries(urls).map(async ([k, url]) => {
+    if (!url) return
+    try { images[k] = await loadImage(url) } catch { /* Station bleibt ohne Bild */ }
+  }))
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  paintPoster(pdfDraw(doc), data || {}, { bg })
+  paintPoster(pdfDraw(doc), data || {}, images, st)
   doc.save(filename)
 }

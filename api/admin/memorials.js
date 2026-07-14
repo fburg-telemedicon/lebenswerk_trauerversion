@@ -119,8 +119,8 @@ async function signMemorialImages(memorials) {
   for (const m of memorials) {
     collectImagePaths(m.book_v1).forEach(p => paths.add(p))
     collectImagePaths(m.book_v2).forEach(p => paths.add(p))
-    // Motiv der Poster-Kopfzone (Lebenswerk) – liegt im selben Bucket.
-    if (m.life_poster?.image_path) paths.add(String(m.life_poster.image_path).replace(/^\/+/, ''))
+    // Vignetten des Lebensposters – je Station eine, im selben Bucket.
+    for (const p of posterImagePaths(m.life_poster)) paths.add(p)
   }
   if (paths.size === 0) return
   const pathList = [...paths]
@@ -147,9 +147,29 @@ async function signMemorialImages(memorials) {
   for (const m of memorials) {
     applySignedUrls(m.book_v1, urlMap)
     applySignedUrls(m.book_v2, urlMap)
-    if (m.life_poster?.image_path) {
-      const key = String(m.life_poster.image_path).replace(/^\/+/, '')
-      if (urlMap[key]) m.life_poster = { ...m.life_poster, image_url: urlMap[key] }
+    applyPosterUrls(m.life_poster, urlMap)
+  }
+}
+
+// Bildpfade des Lebensposters: je Station eine Vignette.
+function posterImagePaths(poster) {
+  const out = []
+  for (const sec of (Array.isArray(poster?.sections) ? poster.sections : [])) {
+    for (const st of (Array.isArray(sec.stations) ? sec.stations : [])) {
+      if (st?.image_path) out.push(String(st.image_path).replace(/^\/+/, ''))
+    }
+  }
+  return out
+}
+
+// image_url je Station setzen (wie bei den Kapitelbildern: image_path ist die
+// gespeicherte Referenz, image_url wird bei jedem Laden frisch signiert).
+function applyPosterUrls(poster, urlMap) {
+  for (const sec of (Array.isArray(poster?.sections) ? poster.sections : [])) {
+    for (const st of (Array.isArray(sec.stations) ? sec.stations : [])) {
+      if (!st?.image_path) continue
+      const key = String(st.image_path).replace(/^\/+/, '')
+      if (urlMap[key]) st.image_url = urlMap[key]
     }
   }
 }
