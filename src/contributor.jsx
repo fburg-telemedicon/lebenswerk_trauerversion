@@ -850,13 +850,11 @@ export function ContributorFlow({ code, endUserToken = null }) {
       {needLang && view !== 'error' && (
         <>
           <PartnerBanner logoUrl={memorial?.owner_logo} category={memorial?.product_category} />
+          {/* Keine Überschrift: Die Sprachnamen stehen in ihrer eigenen Sprache da,
+              das erklärt sich selbst. Die Liste scrollt in sich — so bleibt der
+              Screen tragfähig, wenn später deutlich mehr Sprachen dazukommen. */}
           <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
-            <div style={{ marginBottom:20 }}>
-              {langs.map(code => (
-                <p key={code} style={{ ...S.muted, margin:'2px 0', fontSize:15 }}>{uiText(code).langPickTitle}</p>
-              ))}
-            </div>
-            <div style={{ display:'grid', gap:10, maxWidth:320, margin:'0 auto' }}>
+            <div style={{ display:'grid', gap:10, maxWidth:320, margin:'0 auto', maxHeight:'60vh', overflowY:'auto', padding:'2px' }}>
               {langs.map(code => {
                 const meta = LANGUAGES.find(x => x.code === code) || { code, label: code }
                 return (
