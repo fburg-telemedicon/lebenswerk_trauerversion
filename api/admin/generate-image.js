@@ -105,7 +105,12 @@ const sceneDirective = (key) => {
     'CRUCIAL: leave GENEROUS EMPTY areas of that plain paper colour around and between the scenes — at least 40% of the sheet must remain calm, empty background where captions will be printed later. ' +
     'Keep the outer 5% margin of the image completely empty. ' +
     'No human faces, no portraits — figures only small and from a distance. ' +
-    'Absolutely NO text, NO letters, NO numbers, NO captions, NO labels, NO signage, NO titles anywhere in the image.'
+    // Bildmodelle malen auf „Poster"-Motiven reflexhaft Schrift (Schilder, Titel,
+    // Jahreszahlen) — und verschreiben sich dabei. Deshalb hier maximal deutlich:
+    // Jede Fläche, die im Trainingsbild Text getragen hätte, bleibt leer.
+    'ABSOLUTELY NO TEXT OF ANY KIND. No letters, no words, no numbers, no dates, no captions, no labels, no titles, no headings, no legends, no signage, no shop signs, no book covers with lettering, no newspapers, no posters within the picture, no handwriting, no scribbles that resemble writing, no calligraphy, no watermark, no signature. ' +
+    'Signs, boards, book spines and papers that would normally carry writing must be left completely BLANK. ' +
+    'The sheet must be entirely free of any glyph, character or symbol resembling a letter or digit.'
 }
 
 const vignetteDirective = (key) => {

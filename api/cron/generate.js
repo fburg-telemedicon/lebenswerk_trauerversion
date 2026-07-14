@@ -19,6 +19,7 @@ const { recordHeartbeat } = require('../_lib/heartbeat')
 const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
 const genprompts = require('../_lib/genprompts')
+const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '240000', 10))
 const MAX_CHAIN = 60
@@ -343,6 +344,40 @@ Regeln:
 - Nenne kein Medium und keinen Kunststil.`
 }
 
+
+// ── Schrift-Kontrolle des Poster-Motivs ───────────────────────────
+// Bildmodelle malen auf Poster-Motiven trotz Verbot gelegentlich Buchstaben —
+// und verschreiben sich dabei („Goburt in Segen"). Das Poster trägt aber echten
+// Vektortext; gemalte Schrift ist dort IMMER ein Fehler. Deshalb sieht sich das
+// (multimodale) Sprachmodell das fertige Bild an: Erkennt es Schrift, wird das
+// Motiv verworfen und neu gezeichnet.
+async function imageHasLettering(job, storagePath) {
+  try {
+    const { data, error } = await genjobs.supabase.storage.from(IMAGE_BUCKET).download(storagePath)
+    if (error || !data) return false
+    const buf = Buffer.from(await data.arrayBuffer())
+    const b64 = buf.toString('base64')
+    const r = await callWithBackoff({
+      system: 'Du prüfst Illustrationen auf gemalte Schrift. Antworte AUSSCHLIESSLICH mit JSON.',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Enthält dieses Bild irgendwelche Buchstaben, Wörter, Zahlen, Beschriftungen, Schilder mit Text, Titel oder schriftähnliche Kritzel? Antworte NUR: {"text":true} oder {"text":false}. Im Zweifel {"text":true}.' },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
+        ],
+      }],
+    })
+    const parsed = genprompts.tryParseJSON(r.text) || {}
+    if (r.inT || r.outT) {
+      await recordCost({ memorial_id: job.memorial_id, kind: 'poster_text_check', provider: r.provider, model: r.model, input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
+    }
+    return parsed.text === true
+  } catch (e) {
+    console.warn('[generate] Schriftprüfung übersprungen:', e.message)
+    return false   // im Zweifel durchlassen: lieber ein Poster mit Kritzel als gar keins
+  }
+}
+
 async function processPoster(job, deadline) {
   const p = job.params || {}
   const code = p.memorialCode || job.memorial_id
@@ -375,18 +410,31 @@ async function processPoster(job, deadline) {
     await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Das Poster wird gezeichnet' }, result })
   }
 
-  // Schritt 3: das Blatt zeichnen lassen
-  if (await canceled(job.id)) return 'canceled'
-  try {
-    const { storagePath } = await adminPost('/api/admin/generate-image', {
-      memorialCode: code, prompt: result.motif, variant: 'scene', posterStyle: result.data.style,
-    })
-    result.data.scene_path = storagePath
-    result.data.scene_prompt = result.motif
-  } catch (e) {
-    await genjobs.failJob(job.id, `Das Poster-Motiv konnte nicht erzeugt werden: ${e.message}`)
-    return 'error'
+  // Schritt 3: das Blatt zeichnen lassen — und prüfen, dass keine Schrift drin ist.
+  // Bis zu drei Anläufe; danach nehmen wir das letzte Bild (ein Poster mit einem
+  // Kritzel ist besser als gar keins) und vermerken es im Job.
+  let lastPath = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (await canceled(job.id)) return 'canceled'
+    try {
+      const { storagePath } = await adminPost('/api/admin/generate-image', {
+        memorialCode: code, prompt: result.motif, variant: 'scene', posterStyle: result.data.style,
+      })
+      lastPath = storagePath
+    } catch (e) {
+      if (attempt === 3) { await genjobs.failJob(job.id, `Das Poster-Motiv konnte nicht erzeugt werden: ${e.message}`); return 'error' }
+      await sleep(4000 * attempt)
+      continue
+    }
+    if (await canceled(job.id)) return 'canceled'
+    await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: 'Motiv wird auf gemalte Schrift geprüft' }, result })
+    const bad = await imageHasLettering(job, lastPath)
+    if (!bad) break
+    console.warn(`[generate] Poster-Motiv enthält Schrift — Versuch ${attempt} verworfen`)
+    if (attempt < 3) await genjobs.saveProgress(job.id, { progress: { phase: 'image', cursor: 2, total: 3, message: `Motiv enthielt Schrift — wird neu gezeichnet (${attempt + 1}/3)` }, result })
   }
+  result.data.scene_path = lastPath
+  result.data.scene_prompt = result.motif
   if (await canceled(job.id)) return 'canceled'
   await genjobs.saveMemorialField(code, p.field, result.data)
   await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: 3, total: 3 }, result: { saved: true } })
