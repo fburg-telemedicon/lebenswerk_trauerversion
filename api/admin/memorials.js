@@ -22,7 +22,9 @@ const SIGNED_URL_TTL = 3600 // 1 h
 // Spalten der Buch-Liste. LEGACY = ohne show_contributors, falls
 // db/show-contributors.sql noch nicht gelaufen ist (siehe GET-Handler).
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors`
+// family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
+// (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster`
 
 // Optionale Sammelbestellungs-/Abholadresse säubern. Nur bekannte Felder,
 // getrimmt, max. Länge je Feld. Sind alle Felder leer -> null (Adresse ist
@@ -117,6 +119,8 @@ async function signMemorialImages(memorials) {
   for (const m of memorials) {
     collectImagePaths(m.book_v1).forEach(p => paths.add(p))
     collectImagePaths(m.book_v2).forEach(p => paths.add(p))
+    // Motiv der Poster-Kopfzone (Lebenswerk) – liegt im selben Bucket.
+    if (m.life_poster?.image_path) paths.add(String(m.life_poster.image_path).replace(/^\/+/, ''))
   }
   if (paths.size === 0) return
   const pathList = [...paths]
@@ -143,6 +147,10 @@ async function signMemorialImages(memorials) {
   for (const m of memorials) {
     applySignedUrls(m.book_v1, urlMap)
     applySignedUrls(m.book_v2, urlMap)
+    if (m.life_poster?.image_path) {
+      const key = String(m.life_poster.image_path).replace(/^\/+/, '')
+      if (urlMap[key]) m.life_poster = { ...m.life_poster, image_url: urlMap[key] }
+    }
   }
 }
 
@@ -299,7 +307,7 @@ module.exports = async function handler(req, res) {
       // show_contributors evtl. noch nicht migriert (db/show-contributors.sql) →
       // ohne die Spalte erneut lesen. Eine fehlende Migration darf niemals das
       // gesamte Dashboard lahmlegen; der Default (an) greift dann im Frontend.
-      if (error && /show_contributors|column/i.test(error.message || '')) {
+      if (error && /show_contributors|family_tree|life_poster|column/i.test(error.message || '')) {
         ;({ data, error } = await listQuery(SELECT_COLS_LEGACY))
       }
       if (error) throw error
@@ -581,10 +589,13 @@ module.exports = async function handler(req, res) {
         return res.json({ ok: true })
       }
 
-      const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text', 'content_reports'])
+      // family_tree / life_poster: die extrahierten Strukturen der beiden
+      // grafischen Nebenprodukte des Lebenswerks (Stammbaum, Lebensposter).
+      const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text', 'content_reports', 'family_tree', 'life_poster'])
       if (!allowedFields.has(field)) {
         return res.status(400).json({ error: 'Ungültiges Feld.' })
       }
+      if (field === 'family_tree' || field === 'life_poster') await ensureLifeworkSchema()
 
       // content_reports atomar ZUSAMMENFÜHREN statt überschreiben. Sonst würde
       // beim parallelen Generieren beider Varianten der Prüf-Report der jeweils

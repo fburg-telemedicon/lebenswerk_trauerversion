@@ -182,6 +182,13 @@ async function ensureLifeworkSchema() {
       add column if not exists enduser_memorial varchar(6),
       add column if not exists lang             text
   `)
+  // Die beiden grafischen Nebenprodukte des Lebenswerks werden als extrahiertes
+  // JSON am Buch gespeichert (gezeichnet wird daraus im Browser).
+  await pool().query(`
+    alter table memorials
+      add column if not exists family_tree jsonb,
+      add column if not exists life_poster jsonb
+  `)
   schemaReady = true
 }
 

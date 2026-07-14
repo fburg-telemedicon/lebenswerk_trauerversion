@@ -1695,7 +1695,10 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
     )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraBusy, extraMsg }) {
+    // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
+    // zusätzlich Stammbaum und Lebensposter.
+    const isLifework = selected?.product_category === 'lifework'
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
@@ -1901,9 +1904,15 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
             })()}
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
-                { key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' },
-                { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub:'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
-                { key:'eulogy',  icon:'🕯', title:GENERATORS.eulogy.label,  sub:`KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.` },
+                // Lebenswerk kennt nur Variante 2 (eine Autobiographie), und das
+                // Nebenprodukt heißt hier Pflegeexzerpt statt Rede.
+                ...(isLifework ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' }]),
+                { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                  ? 'KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.'
+                  : 'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
+                { key:'eulogy',  icon: isLifework ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
+                  ? 'Zweiseitige Zusammenfassung für die Pflegeakte – Sprache wird beim Erzeugen abgefragt.'
+                  : `KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.` },
               ].map(({ key, icon, title, sub }) => {
                 const gen   = GENERATORS[key]
                 const has   = !!selected[gen.field]
@@ -2010,6 +2019,39 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         )}
                       </div>
                     )}
+                  </div>
+                )
+              })}
+
+              {/* Grafische Nebenprodukte des Lebenswerks. Beide entstehen aus dem
+                  Interview als strukturierte Daten und werden daraus gezeichnet —
+                  erneutes Laden kostet deshalb keine KI. */}
+              {isLifework && [
+                { kind:'tree',   field:'family_tree', icon:'🌳', title:'Stammbaum',
+                  sub:'KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 quer).' },
+                { kind:'poster', field:'life_poster', icon:'🖼', title:'Lebensposter',
+                  sub:'Lebensstationen, Themen, Orte und Sätze auf einem Poster (PDF, A2 quer) – mit eigenem Motiv.' },
+              ].map(({ kind, field, icon, title, sub }) => {
+                const has  = !!selected[field]
+                const busy = extraBusy === kind
+                return (
+                  <div key={kind} style={{ ...S.card }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+                      <div>
+                        <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
+                        <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
+                      </div>
+                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Erzeugt</span>}
+                    </div>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      <button onClick={() => generateExtra(kind)} disabled={!!extraBusy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                        {busy ? 'Wird erzeugt …' : has ? '↻ Neu erzeugen' : '✨ Erzeugen'}
+                      </button>
+                      <button onClick={() => downloadExtra(kind)} disabled={!has || !!extraBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                        ⬇ Download PDF
+                      </button>
+                    </div>
+                    {busy && <p style={{ fontSize:12, color:'#78716c', margin:'10px 0 0' }}>{extraMsg || 'Wird erzeugt …'}</p>}
                   </div>
                 )
               })}

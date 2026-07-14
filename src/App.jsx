@@ -55,6 +55,7 @@ import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
+import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -413,6 +414,9 @@ function Dashboard() {
   const [bdForm, setBdForm]             = useState(null)
   const [bdSaved, setBdSaved]           = useState(false)
   const [bdMsg, setBdMsg]               = useState('')
+  // Lebenswerk-Nebenprodukte (Stammbaum / Lebensposter): '' | 'tree' | 'poster'
+  const [extraBusy, setExtraBusy]       = useState('')
+  const [extraMsg, setExtraMsg]         = useState('')
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1839,14 +1843,84 @@ function Dashboard() {
   // automatisch beibehalten (siehe generate()); gezielt einzelne Bilder neu
   // erzeugen geht über „Bilder überarbeiten".
   function requestGenerate(key, extraArg) {
-    const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
+    const langs = genLangs(key)
     if (langs.length > 1) { setGenLangModal({ key, extraArg }); return }
     generate(key, extraArg, { lang: langs[0], skipConfirm: extraArg !== undefined })
+  }
+  // Zur Auswahl stehende Sprachen einer Erzeugung. Sonderfall Pflegeexzerpt: Es
+  // geht in eine Pflegeakte und wird oft in einer anderen Sprache gebraucht als
+  // das Buch — deshalb hier IMMER alle Sprachen zur Wahl stellen.
+  function genLangs(key) {
+    const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
+    if (key === 'eulogy' && selected?.product_category === 'lifework') return LANGUAGE_CODES
+    return langs
   }
   function pickGenLang(code) {
     const m = genLangModal
     setGenLangModal(null)
     if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined })
+  }
+
+  // ── Lebenswerk-Nebenprodukte: Stammbaum + Lebensposter ──
+  // Ablauf identisch für beide: KI liest das Interview und liefert STRUKTURIERTES
+  // JSON, das am Buch gespeichert wird; gezeichnet (und als PDF geladen) wird es
+  // im Browser aus genau diesem JSON (src/lifeworkExtras.js). Beim Poster kommt
+  // noch ein FLUX-Motiv für die Kopfzone dazu — schlägt es fehl, entsteht das
+  // Poster trotzdem, nur mit dunklem statt bebildertem Kopf.
+  async function generateExtra(kind) {
+    if (!selected) return
+    const isTree = kind === 'tree'
+    const field  = isTree ? 'family_tree' : 'life_poster'
+    if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
+    if (selected[field] && !window.confirm(`${isTree ? 'Der Stammbaum' : 'Das Lebensposter'} wird neu erzeugt und ersetzt die bisherige Fassung. Fortfahren?`)) return
+
+    setExtraBusy(kind); setErr(''); setExtraMsg(isTree ? 'Familie wird aus dem Interview gelesen …' : 'Lebensstationen werden gesammelt …')
+    try {
+      const sys = isTree ? treeSystem(selected, contributions) : posterSystem(selected, contributions)
+      let data = null
+      for (let attempt = 1; attempt <= 2 && !data; attempt++) {
+        const raw = await askLLM(sys, [{ role: 'user', content: 'Gib jetzt das JSON aus.' }],
+          { memorialCode: selected.id, kind: isTree ? 'family_tree' : 'life_poster', token })
+        data = tryParseJSON(raw)
+        if (!data && attempt < 2) await new Promise(r => setTimeout(r, 1200))
+      }
+      if (!data) throw new Error('Die KI hat kein gültiges JSON geliefert. Bitte erneut versuchen.')
+
+      // Poster: Motiv für die Kopfzone erzeugen (im Grafikstil des Buchs).
+      if (!isTree && data.background_prompt) {
+        setExtraMsg('Motiv für das Poster wird erzeugt …')
+        try {
+          const img = await generateImageWithRetry(selected.id, data.background_prompt, { variant: 'poster' })
+          if (img?.path) { data.image_path = img.path; data.image_url = img.url || null }
+        } catch (e) { console.warn('Poster-Motiv fehlgeschlagen (Poster entsteht ohne Bild):', e.message) }
+      }
+
+      setExtraMsg('Wird gespeichert …')
+      await adminSaveMemorialText(token, selected.id, field, data)
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) { setSelected(u); await downloadExtra(kind, u); return }
+      }
+      setSelected(s => ({ ...s, [field]: data }))
+      await downloadExtra(kind, { ...selected, [field]: data })
+    } catch (e) { setErr(e.message) }
+    finally { setExtraBusy(''); setExtraMsg('') }
+  }
+
+  // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
+  async function downloadExtra(kind, mem = selected) {
+    const isTree = kind === 'tree'
+    const data = isTree ? mem?.family_tree : mem?.life_poster
+    if (!data) { setErr(isTree ? 'Es gibt noch keinen Stammbaum.' : 'Es gibt noch kein Lebensposter.'); return }
+    const base = `${isTree ? 'Stammbaum' : 'Lebensposter'}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
+    try {
+      if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
+      // image_url ist eine frisch signierte URL aus dem Memorials-GET; sie steht
+      // nur am gerade geladenen Datensatz, nicht im gespeicherten JSON.
+      else await downloadPosterPdf(`${base}.pdf`, data, data.image_url || null)
+    } catch (e) { setErr(e.message) }
   }
 
   // ── Bilder überarbeiten: gezielt einzelne Kapitelbilder neu generieren ──
@@ -2005,10 +2079,18 @@ function Dashboard() {
   const genLangOverlay = genLangModal ? (
     <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
       <div style={{ ...S.card, maxWidth: 420, width:'100%' }}>
-        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>In welcher Sprache soll das Buch erstellt werden?</h2>
-        <p style={{ ...S.muted, marginBottom:16 }}>Für dieses Buch sind mehrere Sprachen freigeschaltet.</p>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>
+          {genLangModal.key === 'eulogy'
+            ? `In welcher Sprache soll ${GENERATORS.eulogy.noun ? 'das ' + GENERATORS.eulogy.noun : 'der Text'} erstellt werden?`
+            : 'In welcher Sprache soll das Buch erstellt werden?'}
+        </h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>
+          {genLangModal.key === 'eulogy' && selected?.product_category === 'lifework'
+            ? 'Das Pflegeexzerpt wird in der hier gewählten Sprache geschrieben – unabhängig von der Sprache des Buches.'
+            : 'Für dieses Buch sind mehrere Sprachen freigeschaltet.'}
+        </p>
         <div style={{ display:'grid', gap:10, marginBottom:14 }}>
-          {((selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]).map(code => {
+          {genLangs(genLangModal.key).map(code => {
             const meta = LANGUAGES.find(x => x.code === code) || { code, label: code }
             return <button key={code} onClick={() => pickGenLang(code)} style={{ fontSize:15, padding:'12px 16px' }}>{meta.label}</button>
           })}
@@ -2483,7 +2565,7 @@ function Dashboard() {
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraBusy={extraBusy} extraMsg={extraMsg} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
