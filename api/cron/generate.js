@@ -134,7 +134,11 @@ async function processTextJoin(job, deadline) {
     try {
       const text = await runLLMStep(job, p.kind, step.system, step.user)
       if (!text) throw new Error('leere Antwort')
-      result.parts.push(text)
+      // `prefix` (z. B. "## Gewohnheiten und Tagesstruktur"): Der Abschnitts-Prompt
+      // verlangt reinen Text OHNE Überschrift — die setzt das Layout, damit sie in
+      // jeder Fassung gleich lautet. Nur Dokumente, die gegliedert sein sollen
+      // (Pflegeexzerpt), schicken einen prefix; eine Rede bleibt ohne.
+      result.parts.push(step.prefix ? `${step.prefix}\n\n${text}` : text)
     } catch (e) {
       result.errors.push(`${step.label || `Schritt ${cursor + 1}`}: ${isContentFilter(e.message) ? 'auch nach entschärftem Prompt vom KI-Inhaltsfilter blockiert (Azure Content-Policy)' : e.message}`)
     }

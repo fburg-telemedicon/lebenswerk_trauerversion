@@ -36,11 +36,13 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 Regeln:
 - "root" ist IMMER die Hauptperson (${memorial.name}).
 - Nimm nur Personen auf, die das Interview WIRKLICH nennt: Eltern, Großeltern, Geschwister, Partner/Partnerin, Kinder, Enkel. Keine Freunde, Kollegen, Bekannte.
-- Erfinde NICHTS. Unbekannter Vorname/Nachname: nimm, was dasteht („Mutter", „Opa Karl"). Unbekanntes Jahr: leerer String.
-- "role": kurz und eindeutig, z. B. "Hauptperson", "Mutter", "Vater", "Ehefrau", "Ehemann", "Tochter", "Sohn", "Schwester", "Bruder", "Großmutter", "Enkel".
+- Erfinde NICHTS. Kein Name, kein Jahr, keine Angabe, die nicht im Interview steht.
+- "name": Nennt das Interview keinen Namen, gib einen LEEREN String zurück (das Blatt schreibt dann „Name nicht genannt"). Erfinde NIEMALS einen Namen. Kosenamen/Teilnamen („Opa Karl") sind erlaubt, wenn sie so vorkommen.
+- "role": kurz und eindeutig, z. B. "Hauptperson", "Mutter", "Vater", "Ehefrau", "Ehemann", "Tochter", "Sohn", "Schwester", "Bruder", "Großmutter", "Enkelin".
+- "born"/"died": nur belegte Jahreszahlen, sonst leerer String. Niemals schätzen.
+- "note": höchstens 8 Wörter — Beruf, Wesenszug oder ein Detail, das das Interview hergibt (z. B. „Schreiner, ruhig und humorvoll"); sonst leerer String.
 - "couples": Paare (Ehe/Partnerschaft), je Paar EIN Eintrag.
 - "parents": jede Eltern-Kind-Beziehung EINZELN (ein Elternteil + ein Kind pro Eintrag).
-- "note": höchstens 6 Wörter, nur wenn das Interview etwas hergibt; sonst leerer String.
 - Höchstens 24 Personen. Gibt das Interview keine Familie her, gib eine leere "people"-Liste zurück.
 - Namen und Rollen auf Deutsch.
 - Gültiges JSON, keine trailing commas.
@@ -100,43 +102,80 @@ function layoutTree(data) {
     }
     rows.set(g, ordered)
   }
-  return { rows: [...rows.entries()].sort((a, b) => a[0] - b[0]), couples, parents, byId, root }
+  return { rows: [...rows.entries()].sort((a, b) => a[0] - b[0]), couples, parents, byId, root, gen }
 }
 
+// Gestaltung: eine gerahmte Urkunde im Hochformat statt eines nüchternen
+// Organigramms — cremefarbenes Papier, Doppelrahmen mit Eckvignetten, farbig
+// hinterlegte Karten (Hauptperson in Gold, Vorfahren/Partner in Blau, Geschwister
+// und Kinder in Salbeigrün), Herz-Symbol auf der Paarlinie, Kreuz bei
+// Verstorbenen, Legende am Fuß.
 const TREE = {
-  W: 420, H: 297,            // DIN A3 quer
-  margin: 18,
-  boxW: 52, boxH: 22, gapX: 10, gapY: 34,
-  ink: [28, 25, 23], line: [168, 162, 158], soft: [120, 113, 108], accent: [21, 128, 61],
+  W: 297, H: 420,             // DIN A3 HOCHformat
+  margin: 14, frame: 8,       // Papierrand + Rahmenabstand
+  boxW: 52, boxH: 26, gapX: 7, gapY: 30,
+  paper: [252, 249, 241],
+  ink: [30, 41, 59], soft: [110, 116, 128],
+  gold: [176, 141, 62], goldSoft: [222, 199, 138],
+  line: [96, 116, 140],
+  rootFill: [253, 246, 228], rootEdge: [176, 141, 62],
+  blueFill: [231, 238, 247], blueEdge: [122, 151, 185],
+  sageFill: [235, 240, 229], sageEdge: [150, 172, 132],
 }
 
-// Zeichnet den Baum. `draw` kapselt die wenigen Primitive, die Vorschau (Canvas)
-// und PDF gemeinsam brauchen — so ist die Vorschau garantiert das PDF.
+// Blau = Vorfahren und Partner (die Linie, aus der man kommt bzw. mit der man
+// geht), Salbei = Geschwister und Nachkommen. Rein optische Gliederung.
+function cardColors(p, layout) {
+  if (p.id === layout.root) return { fill: TREE.rootFill, edge: TREE.rootEdge, lw: 0.9 }
+  const partnerOfRoot = layout.couples.some(c => (c.a === layout.root && c.b === p.id) || (c.b === layout.root && c.a === p.id))
+  const isAncestor = layout.gen.get(p.id) < 0
+  if (isAncestor || partnerOfRoot) return { fill: TREE.blueFill, edge: TREE.blueEdge, lw: 0.5 }
+  return { fill: TREE.sageFill, edge: TREE.sageEdge, lw: 0.5 }
+}
+
 function paintTree(d, layout, memorial) {
-  const { W, H, margin, boxW, boxH, gapX, gapY } = TREE
+  const { W, H, margin, frame, boxW, boxH, gapX, gapY } = TREE
   const rows = layout.rows
-  const usableH = H - 2 * margin - 16
+
+  // Papier + doppelter Zierrahmen mit Eckvignetten
+  d.rect(0, 0, W, H, TREE.paper)
+  d.frameRect(margin, margin, W - 2 * margin, H - 2 * margin, TREE.gold, 0.7)
+  d.frameRect(margin + 2.2, margin + 2.2, W - 2 * margin - 4.4, H - 2 * margin - 4.4, TREE.goldSoft, 0.3)
+  d.corners(margin + 2.2, margin + 2.2, W - 2 * margin - 4.4, H - 2 * margin - 4.4, 7, TREE.gold)
+
+  // Kopf
+  const top = margin + frame + 6
+  d.text('Stammbaum', W / 2, top + 4, { size: 9, align: 'center', color: TREE.gold, font: 'times', bold: true })
+  d.text(memorial.name || '', W / 2, top + 14, { size: 19, bold: true, align: 'center', color: TREE.ink, font: 'times', maxW: W - 2 * (margin + frame), maxLines: 1 })
+  d.text('Auf Grundlage der im Interview erwähnten Beziehungen.', W / 2, top + 21, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
+  d.text('Fehlende Namen sind als „Name nicht genannt" markiert.', W / 2, top + 25, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
+  d.line(W / 2 - 26, top + 30, W / 2 + 26, top + 30, TREE.goldSoft)
+
+  // Zeilen (Generationen) vertikal verteilen
+  const bodyTop = top + 38
+  const bodyBottom = H - margin - frame - 22       // Platz für die Legende
+  const usableH = bodyBottom - bodyTop
   const rowH = Math.min(boxH + gapY, usableH / Math.max(1, rows.length))
+  const usableW = W - 2 * (margin + frame)
+  // Der Baum sitzt VERTIKAL ZENTRIERT in der Fläche: Bei wenigen Generationen
+  // klebte er sonst oben und die untere Blatthälfte blieb leer.
+  const contentH = rows.length * rowH - (rowH - boxH)
+  const yOffset = Math.max(0, (usableH - contentH) / 2)
   const pos = new Map()
 
-  d.text(`Stammbaum ${memorial.name}`, W / 2, margin + 2, { size: 15, bold: true, align: 'center', color: TREE.ink })
-
-  rows.forEach(([g, list], ri) => {
-    const y = margin + 12 + ri * rowH
-    const totalW = list.length * boxW + (list.length - 1) * gapX
+  rows.forEach(([, list], ri) => {
+    // Karten schrumpfen, wenn eine Generation sehr breit ist (viele Geschwister).
+    const bw = Math.min(boxW, (usableW - (list.length - 1) * gapX) / Math.max(1, list.length))
+    const totalW = list.length * bw + (list.length - 1) * gapX
     const x0 = (W - totalW) / 2
+    const y = bodyTop + yOffset + ri * rowH
     list.forEach((p, i) => {
-      const x = x0 + i * (boxW + gapX)
-      pos.set(p.id, { x, y, cx: x + boxW / 2, cy: y + boxH / 2 })
+      const x = x0 + i * (bw + gapX)
+      pos.set(p.id, { x, y, w: bw, cx: x + bw / 2, cy: y + boxH / 2 })
     })
   })
 
-  // Verbindungen zuerst (liegen hinter den Kästen).
-  for (const c of layout.couples) {
-    const a = pos.get(c.a), b = pos.get(c.b)
-    if (!a || !b) continue
-    d.line(Math.min(a.x + boxW, b.x + boxW), a.cy, Math.max(a.x, b.x), b.cy, TREE.line)
-  }
+  // Verbindungen (hinter den Karten)
   for (const rel of layout.parents) {
     const p = pos.get(rel.parent), c = pos.get(rel.child)
     if (!p || !c) continue
@@ -145,19 +184,50 @@ function paintTree(d, layout, memorial) {
     d.line(p.cx, midY, c.cx, midY, TREE.line)
     d.line(c.cx, midY, c.cx, c.y, TREE.line)
   }
+  // Paarlinie mit Herz in der Mitte
+  for (const c of layout.couples) {
+    const a = pos.get(c.a), b = pos.get(c.b)
+    if (!a || !b) continue
+    const left = a.x < b.x ? a : b
+    const right = a.x < b.x ? b : a
+    const x1 = left.x + left.w, x2 = right.x
+    const y = left.cy
+    if (x2 > x1) {
+      d.line(x1, y, x2, y, TREE.line)
+      d.heart((x1 + x2) / 2, y, 2.4, TREE.gold)
+    }
+  }
 
-  // Kästen
+  // Karten
   for (const [, list] of rows) {
     for (const p of list) {
       const at = pos.get(p.id)
-      const isRoot = p.id === layout.root
-      d.box(at.x, at.y, boxW, boxH, isRoot ? TREE.accent : TREE.line, isRoot ? 0.8 : 0.3)
-      const years = [p.born, p.died].filter(Boolean).join(' – ')
-      d.text(p.name || '—', at.cx, at.y + 8, { size: 8.5, bold: true, align: 'center', color: TREE.ink, maxW: boxW - 4 })
-      d.text(p.role || '', at.cx, at.y + 13, { size: 6.5, align: 'center', color: TREE.soft, maxW: boxW - 4 })
-      if (years) d.text(years, at.cx, at.y + 17.5, { size: 6.5, align: 'center', color: TREE.soft, maxW: boxW - 4 })
+      const col = cardColors(p, layout)
+      d.card(at.x, at.y, at.w, boxH, col.fill, col.edge, col.lw)
+
+      const name = String(p.name || '').trim() || 'Name nicht genannt'
+      const unnamed = !String(p.name || '').trim()
+      const years = [p.born ? `* ${p.born}` : '', p.died ? `† ${p.died}` : ''].filter(Boolean).join('   ')
+
+      let ty = at.y + 6.5
+      d.text(String(p.role || ''), at.cx, ty, { size: 6, bold: true, align: 'center', color: TREE.gold, font: 'times', maxW: at.w - 4, maxLines: 1 })
+      ty += 4.6
+      ty += d.text(name, at.cx, ty, {
+        size: unnamed ? 7 : 8.6, bold: !unnamed, italic: unnamed, align: 'center',
+        color: unnamed ? TREE.soft : TREE.ink, font: 'times', maxW: at.w - 4, maxLines: 2,
+      })
+      if (years) { d.text(years, at.cx, ty + 0.4, { size: 6.4, align: 'center', color: TREE.soft, font: 'times', maxW: at.w - 4, maxLines: 1 }); ty += 4 }
+      if (p.note) d.text(String(p.note), at.cx, ty + 0.8, { size: 5.8, italic: true, align: 'center', color: TREE.soft, font: 'times', maxW: at.w - 5, maxLines: 2 })
     }
   }
+
+  // Legende. Das Herz wird als Vektor GEZEICHNET, nicht gesetzt: Die
+  // jsPDF-Standardschriften (WinAnsi) kennen kein ♥ und drucken statt dessen Müll.
+  const ly = H - margin - frame - 8
+  d.line(margin + frame + 20, ly - 7, W - margin - frame - 20, ly - 7, TREE.goldSoft)
+  const legend = '*  geboren        †  verstorben              Ehe/Partnerschaft        „Name nicht genannt" = im Interview kein Name gefallen'
+  d.text(legend, W / 2, ly, { size: 6.2, align: 'center', color: TREE.soft, font: 'times' })
+  d.heart(W / 2 - 14, ly - 1.4, 1.8, TREE.gold)
 }
 
 // jsPDF-Adapter für paintTree/paintPoster.
@@ -189,6 +259,43 @@ function pdfDraw(doc) {
       doc.circle(cx, cy, r, 'F')
     },
     image(data, x, y, w, h) { doc.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST') },
+
+    // ── Primitive für den Stammbaum ──
+    // Karte mit Füllung und farbigem Rand.
+    card(x, y, w, h, fill, edge, lw) {
+      doc.setFillColor(fill[0], fill[1], fill[2])
+      doc.setDrawColor(edge[0], edge[1], edge[2])
+      doc.setLineWidth(lw)
+      doc.roundedRect(x, y, w, h, 2.6, 2.6, 'FD')
+      doc.setLineWidth(0.3)
+    },
+    // Rahmenlinie ohne Füllung.
+    frameRect(x, y, w, h, color, lw) {
+      doc.setDrawColor(color[0], color[1], color[2])
+      doc.setLineWidth(lw)
+      doc.rect(x, y, w, h, 'S')
+      doc.setLineWidth(0.3)
+    },
+    // Eckvignetten: kurze Doppelstriche, die sich in den Ecken kreuzen — eine
+    // dezente Urkunden-Anmutung ohne Ornament-Grafik.
+    corners(x, y, w, h, len, color) {
+      doc.setDrawColor(color[0], color[1], color[2])
+      doc.setLineWidth(0.6)
+      const pts = [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]
+      for (const [px, py, sx, sy] of pts) {
+        doc.line(px + sx * 2, py + sy * 2, px + sx * (2 + len), py + sy * 2)
+        doc.line(px + sx * 2, py + sy * 2, px + sx * 2, py + sy * (2 + len))
+        doc.circle(px + sx * 2, py + sy * 2, 0.7, 'S')
+      }
+      doc.setLineWidth(0.3)
+    },
+    // Herz auf der Paarlinie: zwei Kreise + Dreieck.
+    heart(cx, cy, r, color) {
+      doc.setFillColor(color[0], color[1], color[2])
+      doc.circle(cx - r * 0.5, cy - r * 0.25, r * 0.55, 'F')
+      doc.circle(cx + r * 0.5, cy - r * 0.25, r * 0.55, 'F')
+      doc.triangle(cx - r, cy - r * 0.05, cx + r, cy - r * 0.05, cx, cy + r, 'F')
+    },
 
     // ── Primitive fürs Poster ──
     // Dicke Linie mit runden Enden: der Lebenspfad.
@@ -244,7 +351,8 @@ function pdfDraw(doc) {
 export function downloadTreePdf(filename, data, memorial) {
   const layout = layoutTree(data)
   if (!layout) throw new Error('Der Stammbaum enthält keine Personen — das Interview gibt (noch) keine Familie her.')
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [TREE.W, TREE.H] })
+  // Hochformat (A3): Ein Stammbaum wächst nach unten, nicht in die Breite.
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [TREE.W, TREE.H] })
   paintTree(pdfDraw(doc), layout, memorial)
   doc.save(filename)
 }
@@ -396,12 +504,15 @@ function layoutPoster(data, st) {
   const usableW = P.W - 2 * P.margin
   const cellW = usableW / perLane
 
+  // LESERICHTUNG, nicht Serpentine: Jede Bahn läuft links → rechts, wie Text.
+  // Eine echte Serpentine (Bahn 2 rückwärts) sah zwar nach „Weg" aus, ließ die
+  // Jahreszahlen dort aber rückwärts lesen — der häufigste Fehler bei solchen
+  // Postern. Der Pfad springt stattdessen am Zeilenende sichtbar zurück.
   stations.forEach((s, i) => {
     const lane = Math.floor(i / perLane)
     const idxInLane = i % perLane
-    const pos = lane % 2 === 0 ? idxInLane : (perLane - 1 - idxInLane)  // Serpentine
     s.lane = lane
-    s.cx = P.margin + pos * cellW + cellW / 2
+    s.cx = P.margin + idxInLane * cellW + cellW / 2
     s.cy = headH + lane * laneH + laneH / 2
     s.cellW = cellW
     s.laneH = laneH
@@ -431,24 +542,30 @@ function paintPoster(d, data, images, st) {
   d.line(W / 2 - 36, 57, W / 2 + 36, 57, st.soft)
 
   // ── Pfad (liegt hinter allem anderen) ──
+  // Innerhalb einer Bahn eine kräftige Linie; am Bahnende ein Rücksprung, der
+  // rechts aus dem Blatt läuft und links wieder hereinkommt — er ist bewusst
+  // dünner und heller, damit er als Übergang gelesen wird und nicht als Station.
   const py = s => s.cy - 8
   for (let i = 0; i < L.stations.length - 1; i++) {
     const a = L.stations[i], b = L.stations[i + 1]
     if (a.lane === b.lane) {
       d.thickLine(a.cx, py(a), b.cx, py(b), a.color, 2.4)
     } else {
-      // Bahnwechsel: am Blattrand herumschwingen
-      const edge = (a.lane % 2 === 0) ? W - margin + 6 : margin - 6
-      d.thickLine(a.cx, py(a), edge, py(a), a.color, 2.4)
-      d.thickLine(edge, py(a), edge, py(b), a.color, 2.4)
-      d.thickLine(edge, py(b), b.cx, py(b), b.color, 2.4)
+      // Der Rücksprung muss UNTER den Textblöcken der Bahn durchlaufen, sonst
+      // streicht er quer durch die Sätze. Die Bahn-Unterkante liegt darunter.
+      const yMid = a.cy + a.laneH / 2 - 2
+      d.thickLine(a.cx, py(a), W - margin + 4, py(a), a.color, 1.2)
+      d.thickLine(W - margin + 4, py(a), W - margin + 4, yMid, a.color, 1.2)
+      d.thickLine(margin - 4, yMid, W - margin + 4, yMid, b.color, 1.2)
+      d.thickLine(margin - 4, yMid, margin - 4, py(b), b.color, 1.2)
+      d.thickLine(margin - 4, py(b), b.cx, py(b), b.color, 1.2)
     }
   }
 
   // ── Stationen ──
   for (const s of L.stations) {
     const img = images[`${s.si}:${s.ti}`]
-    const vign = Math.min(36, s.cellW * 0.66)
+    const vign = Math.min(46, s.cellW * 0.78)
     const cy = s.cy - 8
 
     // Abschnitts-Pille über der ersten Station der Gruppe

@@ -684,11 +684,15 @@ Interview:\n\n${blocks(contributions)}`
 // wahren? Reine Anekdoten ohne Pflegerelevanz gehören NICHT hinein.
 const LIFEWORK_CARE_STYLES = [
   {
-    key: 'sachlich', title: 'Sachlich-strukturiert', sub: 'Knapp, für die Akte',
-    instruction: 'Sachlich-strukturiert: nüchterne, dichte Fachsprache für die Pflegeakte. Kurze Sätze, Aufzählungscharakter im Fließtext, keine Ausschmückung — jede Zeile muss praktisch verwertbar sein.',
+    key: 'stichworte', title: 'Stichwort-Liste', sub: 'Aufzählung, schnell erfassbar',
+    instruction: 'STICHWORT-AUFZÄHLUNG (kein Fließtext!): Gib den Abschnitt ausschließlich als Liste kurzer Stichpunkte aus. Jede Zeile beginnt mit „• " und steht für sich; 4–8 Stichpunkte pro Abschnitt. Kein einleitender Satz, keine Überleitungen, keine ausformulierten Absätze. Halte jeden Stichpunkt knapp (Telegrammstil, max. ~15 Wörter) und praktisch verwertbar, z. B. „• Steht seit jeher um 5:30 Uhr auf (Vater war Bäcker)". Belegte Details in Klammern anhängen.',
   },
   {
-    key: 'personenzentriert', title: 'Personenzentriert', sub: 'Sachlich, aber mit Menschenbild',
+    key: 'sachlich', title: 'Sachlich-strukturiert', sub: 'Knapper Fließtext für die Akte',
+    instruction: 'Sachlich-strukturiert: nüchterne, dichte Fachsprache für die Pflegeakte. Kurze Sätze, keine Ausschmückung — jede Zeile muss praktisch verwertbar sein. Fließtext, aber so gedrängt wie möglich.',
+  },
+  {
+    key: 'personenzentriert', title: 'Personenzentriert', sub: 'Fließtext mit Menschenbild',
     instruction: 'Personenzentriert: sachlich und knapp, aber so formuliert, dass die Pflegekraft den Menschen dahinter erkennt. Fakten zuerst, jeweils mit dem kurzen biografischen Grund, warum das für die Pflege zählt.',
   },
 ]

@@ -1638,10 +1638,16 @@ function Dashboard() {
         // arbeitet sie robust ab und speichert selbst — bricht die Browser-
         // Verbindung ab, läuft der Job weiter; das UI pollt nur den Status.
         const sections = gen.sections || []
+        // Das Pflegeexzerpt ist ein GEGLIEDERTES Dokument: Jeder Abschnitt bekommt
+        // seine Überschrift (in ALLEN Stilvarianten identisch — sie kommt vom
+        // Layout, nicht von der KI). Eine Rede dagegen wird am Stück vorgelesen und
+        // bleibt ohne Zwischenüberschriften.
+        const withHeadings = selected?.product_category === 'lifework'
         const steps = sections.map(section => ({
           system: gen.sectionSystem(selected, contributions, section, extraArg) + dir,
           user: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.`,
           label: `Abschnitt: ${section.label}`,
+          ...(withHeadings ? { prefix: `## ${section.label}` } : {}),
         }))
         stepsTotal = steps.length
         setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
@@ -1996,12 +2002,17 @@ Regeln:
           try {
             const img = await generateImageWithRetry(selected.id, j.prompt, {
               meta: { variant: 'vignette', posterStyle },
+              onWait: (sec, rate) => setExtraMsg(`Illustration ${i + 1} von ${jobs.length}${rate ? ` — Bild-KI ausgelastet, warte ${sec} s` : ` — neuer Versuch in ${sec} s`} …`),
             })
             const path = img?.storagePath || img?.path
             if (path) data.sections[j.si].stations[j.ti].image_path = path
           } catch (e) {
             console.warn(`Vignette ${j.key} fehlgeschlagen (Station bleibt ohne Bild):`, e.message)
           }
+          // Drosseln: 20 Bilder in Serie laufen sonst in das Minutenkontingent von
+          // FLUX („exceeded rate limit") — dann fehlen dem Poster die letzten
+          // Illustrationen. Eine kurze Pause hält uns unter dem Limit.
+          if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 4000))
         }
       }
 
