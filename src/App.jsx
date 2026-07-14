@@ -424,6 +424,8 @@ function Dashboard() {
   const [dlLangModal, setDlLangModal]   = useState(null)
   // Stilwahl vor dem Erzeugen des Lebensposters
   const [posterZoom, setPosterZoom] = useState(null)   // { url, label } — Poster groß
+  const [posterStyleModal, setPosterStyleModal] = useState(false)
+  const [posterStyleSel, setPosterStyleSel] = useState(new Set())
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -1976,7 +1978,16 @@ Regeln:
   // Beide Nebenprodukte laufen SERVERSEITIG als Job (wie Buch und Rede): Der
   // Browser stellt den Auftrag ein und pollt nur noch den Fortschritt. Schließt
   // man den Tab, läuft die Erzeugung weiter — und sie lässt sich abbrechen.
-  async function generateExtra(kind) {
+  // Vor der Poster-Erzeugung wählt der Nutzer die Stile (1–5). Jeder Stil kostet
+  // einen eigenen Satz Szenenbilder — die Auswahl bestimmt also Dauer und Kosten.
+  function requestPoster() {
+    if (!selected) return
+    if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
+    setPosterStyleSel(new Set(POSTER_STYLES.map(s => s.key)))
+    setPosterStyleModal(true)
+  }
+
+  async function generateExtra(kind, posterStyles = POSTER_STYLES.map(s => s.key)) {
     if (!selected) return
     const isTree = kind === 'tree'
     const field = isTree ? 'family_tree' : 'life_poster'
@@ -1994,11 +2005,10 @@ Regeln:
       const params = isTree
         ? { resultType: 'json', field, kind: 'family_tree', memorialCode: selected.id, label: 'Familie wird gelesen',
             system: treeSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
-        // Poster: EIN Satz Inhalte, aber alle fünf Stile — welcher zu einem Leben
-        // passt, sieht man erst am fertigen Blatt. Der Worker zeichnet je Stil die
-        // Szenen einzeln; die Detailansicht zeigt die fünf Blätter zur Auswahl.
+        // Poster: EIN Satz Inhalte, daraus je gewähltem Stil ein Blatt. Der Worker
+        // zeichnet die Szenen einzeln; die Detailansicht zeigt die Blätter nebeneinander.
         : { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id,
-            posterStyles: POSTER_STYLES.map(s => s.key),
+            posterStyles,
             system: posterSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId
@@ -2242,6 +2252,76 @@ Regeln:
       <img src={posterZoom.url} alt={posterZoom.label} style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', boxShadow:'0 20px 60px rgba(0,0,0,.5)', borderRadius:4 }} />
     </div>
   ) : null
+
+  // Stilwahl vor der Erzeugung: 1–5 Stile ankreuzen. Jeder Stil braucht einen
+  // eigenen Satz Szenenbilder — die Auswahl bestimmt also unmittelbar Dauer und
+  // Kosten. Deshalb steht der geschätzte Aufwand direkt am Knopf.
+  const posterStyleOverlay = posterStyleModal ? (() => {
+    const chosen = POSTER_STYLES.filter(s => posterStyleSel.has(s.key))
+    const scenes = 13                                   // Richtwert: so viele Stationen liefert die KI typischerweise
+    const imgs = chosen.length * scenes
+    const eur = (imgs * 0.047 * 0.92).toFixed(2).replace('.', ',')
+    const mins = Math.max(1, Math.round(imgs * 18 / 60))
+    const toggle = key => setPosterStyleSel(prev => {
+      const n = new Set(prev)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
+    return (
+      <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+        <div style={{ ...S.card, maxWidth: 620, width:'100%' }}>
+          <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>In welchen Stilen soll das Lebensposter entstehen?</h2>
+          <p style={{ ...S.muted, marginBottom:16 }}>
+            Die Lebensstationen werden nur einmal gesammelt und gelten für alle Blätter — jeder Stil bekommt aber
+            seinen eigenen Satz gezeichneter Szenen. Mehrere Stile lassen sich hinterher nebeneinander vergleichen.
+          </p>
+          <div style={{ display:'grid', gap:10, marginBottom:14 }}>
+            {POSTER_STYLES.map(s => {
+              const on = posterStyleSel.has(s.key)
+              return (
+                <label
+                  key={s.key}
+                  style={{ ...S.card, cursor:'pointer', padding:'12px 14px', display:'flex', alignItems:'center', gap:12,
+                           borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}
+                >
+                  <input
+                    type="checkbox" checked={on} onChange={() => toggle(s.key)}
+                    style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }}
+                  />
+                  <div style={{ display:'flex', gap:3, flexShrink:0 }}>
+                    {[...Array(4)].map((_, i) => {
+                      const c = s.accents[i % s.accents.length]
+                      return <span key={i} style={{ width:12, height:26, borderRadius:3, background:`rgb(${c[0]},${c[1]},${c[2]})`, display:'inline-block' }} />
+                    })}
+                    <span style={{ width:12, height:26, borderRadius:3, background:`rgb(${s.paper[0]},${s.paper[1]},${s.paper[2]})`, border:'1px solid #e7e5e4', display:'inline-block' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>{s.label}</div>
+                    <div style={{ fontSize:12.5, color:'#78716c', lineHeight:1.5 }}>{s.description}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          <p style={{ fontSize:12.5, color:'#78716c', marginBottom:12 }}>
+            {chosen.length === 0
+              ? 'Bitte mindestens einen Stil wählen.'
+              : `${chosen.length} ${chosen.length === 1 ? 'Stil' : 'Stile'} · rund ${imgs} Bilder, ca. ${eur} € und etwa ${mins} Minuten.`}
+          </p>
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:8, borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+            <button className="ghost" onClick={() => setPosterStyleModal(false)} style={{ fontSize:14 }}>Abbrechen</button>
+            <button
+              disabled={chosen.length === 0}
+              onClick={() => { setPosterStyleModal(false); generateExtra('poster', chosen.map(s => s.key)) }}
+              style={{ fontSize:14 }}
+            >
+              ✨ Erzeugen
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  })() : null
 
 
   // Sprachwahl BEIM SPEICHERN des Pflegeexzerpts. Der Text liegt auf Deutsch am
@@ -2735,7 +2815,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
