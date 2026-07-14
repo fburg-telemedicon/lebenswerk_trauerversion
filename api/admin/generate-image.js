@@ -112,6 +112,13 @@ const sceneDirective = (key) => {
     'Every scene is a compact vignette with soft edges fading into the paper — no frames, no borders, no panel outlines. ' +
     'Keep a narrow empty margin of about 4% around the outer edge. ' +
     'No human faces, no portraits — figures only small and from a distance. ' +
+    // Der Text kommt später als Vektor ins Bild (Bildmodelle verschreiben sich).
+    // Damit er zu SEINER Szene gehört und nicht irgendwo im Motiv liegt, malt die
+    // Bild-KI hier gleich die Schilder mit — nur eben LEER. Sie sind im fertigen
+    // Bild die einzigen hellen, ruhigen Rechtecke und deshalb sicher auffindbar.
+    'IMPORTANT — LABEL PLAQUES: directly beneath (or beside) EACH scene, paint a small EMPTY label plaque: a plain light paper strip, tag, ribbon banner or wooden signboard with rounded corners, clearly lighter than everything around it, with a thin outline. ' +
+    'Each plaque is horizontal, about twice as wide as tall, roughly one third as wide as its scene, and it visibly BELONGS to that scene (touching it or right next to it). ' +
+    'The plaques are COMPLETELY BLANK and EMPTY — a flat, clean, uniform light surface, no writing, no lines, no ornament, no scribbles, nothing on them at all. ' +
     // Bildmodelle malen auf „Poster"-Motiven reflexhaft Schrift (Schilder, Titel,
     // Jahreszahlen) — und verschreiben sich dabei. Deshalb hier maximal deutlich:
     // Jede Fläche, die im Trainingsbild Text getragen hätte, bleibt leer.

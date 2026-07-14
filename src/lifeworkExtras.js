@@ -1349,6 +1349,40 @@ function captionSpot(grid, blob, taken, W, H) {
   return best
 }
 
+// Das gemalte Schild einer Station als Rechteck in mm — oder null, wenn die
+// Angabe unbrauchbar ist. Geprüft wird beides: die Maße (ein Schild ist ein
+// liegender Streifen, kein halbes Blatt) und der BILDINHALT an dieser Stelle. Das
+// feine Detaildichte-Raster (`bg.grid`) verrät, ob dort wirklich eine ruhige Fläche
+// liegt; ein Schild ist per Definition leer. Greift das Modell daneben, fällt die
+// Beschriftung auf die bisherige Kartuschen-Logik zurück, statt im Motiv zu landen.
+function plaqueRect(loc, bg) {
+  const { W, H } = P
+  const num = v => (Number.isFinite(v) ? v : NaN)
+  let x = num(loc.x), y = num(loc.y), w = num(loc.w), h = num(loc.h)
+  if ([x, y, w, h].some(Number.isNaN)) return null
+  if (w <= 0.02 || h <= 0.012 || w > 0.42 || h > 0.16) return null      // kein Schild
+  if (x < 0 || y < 0 || x + w > 1 || y + h > 1) return null
+
+  // Etwas Luft am Rand des Schildes, damit der Text nicht auf dem Rähmchen sitzt.
+  const rx = (x + w * 0.06) * W, rw = w * 0.88 * W
+  const ry = (y + h * 0.08) * H, rh = h * 0.84 * H
+  if (rw < 22 || rh < 7) return null                                     // zu klein zum Lesen
+
+  const rows = bg.grid.length, cols = bg.grid[0].length
+  let sum = 0, n = 0
+  for (let r = Math.floor(ry / H * rows); r <= Math.min(rows - 1, Math.floor((ry + rh) / H * rows)); r++) {
+    for (let c = Math.floor(rx / W * cols); c <= Math.min(cols - 1, Math.floor((rx + rw) / W * cols)); c++) {
+      if (r < 0 || c < 0) continue
+      sum += bg.grid[r][c]; n++
+    }
+  }
+  if (!n) return null
+  const all = bg.grid.flat().slice().sort((a, b) => a - b)
+  const calm = all[Math.floor(all.length * 0.45)] * 1.9 + 2   // „deutlich ruhiger als der Rest"
+  if (sum / n > calm) return null                             // dort ist Motiv, kein Schild
+  return { x: rx, y: ry, w: rw, h: rh }
+}
+
 function paintPosterScene(d, data, bg, st) {
   const { W, H } = P
   const stations = []
@@ -1392,6 +1426,29 @@ function paintPosterScene(d, data, bg, st) {
     const bh = s2.year ? 17 : 12
     let bx, by
     const loc = spotMap.get(i)
+
+    // BESTER FALL: Die Bild-KI hat an der Szene ein LEERES SCHILD mitgemalt, und die
+    // Bildanalyse hat es vermessen (relative Koordinaten). Dann steht der Text nicht
+    // irgendwo auf dem Motiv, sondern in einer Fläche, die eigens dafür da ist — und
+    // gehört sichtbar zu SEINER Szene. Vertraut wird der Angabe nur, wenn dort auch
+    // wirklich eine ruhige Fläche liegt (sonst hat das Modell danebengegriffen).
+    if (loc && plaqueRect(loc, bg)) {
+      const r = plaqueRect(loc, bg)
+      // Ein Hauch Papierwäsche hebt den Text vom gemalten Schild ab, ohne es zu
+      // überdecken — das Schild bleibt sichtbar, die Schrift wird lesbar.
+      d.rect(r.x, r.y, r.w, r.h, st.paper, 0.35)
+      const pad = Math.min(2.5, r.h * 0.14)
+      const yearSize = Math.max(7, Math.min(11, r.h * 0.32))
+      const titleSize = Math.max(6.5, Math.min(10, r.h * 0.3))
+      let ty = r.y + pad + yearSize * 0.32 + 2
+      if (s2.year) {
+        d.text(String(s2.year), r.x + r.w / 2, ty, { size: yearSize, bold: true, align: 'center', color: s2.color, font: st.heading, maxW: r.w - 2 * pad, maxLines: 1 })
+        ty += yearSize * 0.55
+      }
+      d.text(String(s2.title || ''), r.x + r.w / 2, ty, { size: titleSize, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: r.w - 2 * pad, maxLines: 2 })
+      return
+    }
+
     if (loc && Number.isFinite(loc.col) && Number.isFinite(loc.row)) {
       const sx = (Math.min(7, Math.max(0, loc.col)) + 0.5) / 8 * W
       const sy = (Math.min(5, Math.max(0, loc.row)) + 0.5) / 6 * H

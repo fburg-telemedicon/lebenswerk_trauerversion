@@ -396,18 +396,23 @@ async function locateScenes(job, storagePath, data) {
     if (error || !file) return null
     const b64 = Buffer.from(await file.arrayBuffer()).toString('base64')
     const r = await callWithBackoff({
-      system: 'Du lokalisierst Bildelemente in einem Raster. Antworte AUSSCHLIESSLICH mit rohem JSON.',
+      system: 'Du lokalisierst Bildelemente. Antworte AUSSCHLIESSLICH mit rohem JSON.',
       messages: [{
         role: 'user',
         content: [
-          { type: 'text', text: `Das Bild ist eine illustrierte Lebenskarte. Lege ein Raster mit 8 Spalten (col 0-7, links nach rechts) und 6 Zeilen (row 0-5, oben nach unten) darüber.
+          { type: 'text', text: `Das Bild ist eine illustrierte Lebenskarte. An (fast) jeder Szene wurde ein LEERES Schild mitgemalt: ein heller, glatter, unbeschrifteter Streifen, Anhänger, Banner oder ein Holzschild. Dort wird gleich der Text gedruckt.
 
-Ordne jeder der folgenden Stationen die Rasterzelle zu, in der die zu ihr passende Szene im Bild liegt. Kommt eine Szene im Bild nicht vor, lass sie weg.
+Ordne jeder der folgenden Stationen ihr Schild zu und gib dessen Rechteck in RELATIVEN Koordinaten an: x/y = linke obere Ecke, w/h = Breite/Höhe, jeweils 0.0–1.0 (Ursprung oben links, x nach rechts, y nach unten).
+
+Zusätzlich: das Raster der Szene selbst (8 Spalten col 0–7, 6 Zeilen row 0–5) — als Rückfall, falls kein Schild da ist.
+
+Findest du zu einer Station weder Szene noch Schild, lass sie ganz weg. Erfinde nichts.
 
 Stationen:
 ${items.join(String.fromCharCode(10))}
 
-Antworte NUR so: {"spots":[{"i":0,"col":1,"row":4},{"i":1,"col":2,"row":3}]}` },
+Antworte NUR so:
+{"spots":[{"i":0,"col":1,"row":4,"x":0.12,"y":0.66,"w":0.10,"h":0.045},{"i":1,"col":3,"row":2}]}` },
           { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
         ],
       }],
