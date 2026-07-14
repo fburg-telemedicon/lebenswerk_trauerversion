@@ -542,7 +542,9 @@ async function processPoster(job, deadline) {
       await step('Beschriftungsfeld wird gezeichnet')
       try {
         const r = await adminPost('/api/admin/generate-image', {
-          memorialCode: code, prompt: 'a blank label plaque', variant: 'bubble', posterStyle: style,
+          // Das Motiv-Wort darf KEINEN Textbezug haben: Mit dem Auftrag „a blank label
+          // plaque" hat FLUX prompt das Wort „label" hineingemalt.
+          memorialCode: code, prompt: 'an empty wooden tag on plain paper', variant: 'bubble', posterStyle: style,
         })
         bubblePath = r.storagePath
       } catch (e) {

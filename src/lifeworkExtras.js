@@ -1459,7 +1459,14 @@ function plaqueRect(loc, bg, st) {
 // zusammenfasst, bekommt das Papier als eine große Fläche (die den Bildrand
 // berührt) und jede Karte als eigene, vom Papier abgeschnittene Fläche. Karten
 // sind dann: rechteckig gefüllt, liegend, mittelgroß, ohne Randberührung.
-function detectCards(imgEl) {
+function detectCards(imgEl, opts = {}) {
+  // Grenzen sind Parameter, weil zwei sehr verschiedene Dinge gesucht werden: die
+  // kleinen Karten IM Blatt (wenige Prozent Fläche) und die freistehende Bubble in
+  // ihrem eigenen Bild (fast das halbe Bild). Mit den Karten-Grenzen wurde die
+  // Bubble stillschweigend verworfen — und der Zuschnitt lag daneben.
+  const minArea = opts.minArea ?? 0.004
+  const maxArea = opts.maxArea ?? 0.06
+  const minFill = opts.minFill ?? 0.82
   const W = 900
   const H = Math.round(W * (imgEl.naturalHeight / imgEl.naturalWidth))
   const cv = document.createElement('canvas')
@@ -1524,7 +1531,7 @@ function detectCards(imgEl) {
       const areaPct = (bw * bh) / (W * H)
       const aspect = bw / bh
       // Eine Karte ist: rechteckig gefüllt, deutlich liegend, mittelgroß.
-      if (fill > 0.82 && aspect > 1.7 && aspect < 8 && areaPct > 0.004 && areaPct < 0.06) {
+      if (fill > minFill && aspect > 1.4 && aspect < 8 && areaPct > minArea && areaPct < maxArea) {
         cards.push({ x: minX / W, y: minY / H, w: bw / W, h: bh / H, area: areaPct })
       }
     }
@@ -1739,9 +1746,12 @@ function paintPosterScene(d, data, bg, st) {
     // Das gemalte Beschriftungsfeld (eigene Grafik im Stil des Blattes) gibt die
     // Höhe vor — es soll nicht verzerrt werden. Ohne Feld bleibt es beim schlichten
     // Vektor-Papierfeld wie bisher.
+    // Höhe fest, Breite aus dem Seitenverhältnis der gemalten Bubble — so wird sie
+    // nie gestaucht, egal wie die Bild-KI sie proportioniert hat.
     const bubbleImg = bg.bubble
-    const BW = 66
-    const bh = bubbleImg ? Math.max(15, Math.min(30, BW / bubbleImg.aspect)) : (s2.year ? 17 : 12)
+    const BUBBLE_H = 26
+    const BW = bubbleImg ? Math.max(44, Math.min(84, BUBBLE_H * bubbleImg.aspect)) : 62
+    const bh = bubbleImg ? BW / bubbleImg.aspect : (s2.year ? 17 : 12)
     const loc = spotMap.get(i)
 
     // Wunschort = die Szene selbst. Erst das gemalte Schild (falls die Bild-KI
@@ -1900,16 +1910,82 @@ function canvasDraw(ctx, s, imgEl) {
 // derselben Erkennung wie zuvor die Karten im Blatt (hellste, glatte, geschlossene
 // Fläche) — findet sie nichts, wird das Bild mittig beschnitten.
 async function cropBubble(imgEl) {
-  const found = detectCards(imgEl).sort((a, b) => b.area - a.area)[0]
+  const found = detectCards(imgEl, { minArea: 0.04, maxArea: 0.92, minFill: 0.75 }).sort((a, b) => b.area - a.area)[0]
   const box = found || { x: 0.12, y: 0.3, w: 0.76, h: 0.4 }
   // Etwas Luft rundherum, damit Kontur und Schatten nicht abgeschnitten werden.
-  const pad = 0.03
+  const pad = 0.045
   const x = Math.max(0, box.x - pad), y = Math.max(0, box.y - pad)
   const w = Math.min(1 - x, box.w + 2 * pad), h = Math.min(1 - y, box.h + 2 * pad)
   const W = Math.round(imgEl.naturalWidth * w), H = Math.round(imgEl.naturalHeight * h)
   const cv = document.createElement('canvas')
   cv.width = W; cv.height = H
-  cv.getContext('2d').drawImage(imgEl, Math.round(imgEl.naturalWidth * x), Math.round(imgEl.naturalHeight * y), W, H, 0, 0, W, H)
+  const ctx = cv.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(imgEl, Math.round(imgEl.naturalWidth * x), Math.round(imgEl.naturalHeight * y), W, H, 0, 0, W, H)
+
+  const im = ctx.getImageData(0, 0, W, H)
+  const px = im.data
+
+  // 1) HINTERGRUND TRANSPARENT: Alles, was vom Rand aus dieselbe Farbe hat wie die
+  //    Ecken (das Papier, auf dem die Bild-KI das Feld gemalt hat), wird durch-
+  //    sichtig — sonst klebte ein farbiges Rechteck auf dem Poster.
+  const at = (X, Y) => (Y * W + X) * 4
+  const corner = [at(2, 2), at(W - 3, 2), at(2, H - 3), at(W - 3, H - 3)]
+  const bg = [0, 1, 2].map(k => corner.reduce((a, i) => a + px[i + k], 0) / corner.length)
+  const near = (i, c, tol) => Math.abs(px[i] - c[0]) < tol && Math.abs(px[i + 1] - c[1]) < tol && Math.abs(px[i + 2] - c[2]) < tol
+  const seen = new Uint8Array(W * H)
+  const stack = []
+  for (let X = 0; X < W; X++) { stack.push([X, 0], [X, H - 1]) }
+  for (let Y = 0; Y < H; Y++) { stack.push([0, Y], [W - 1, Y]) }
+  while (stack.length) {
+    const [X, Y] = stack.pop()
+    if (X < 0 || Y < 0 || X >= W || Y >= H) continue
+    const p = Y * W + X
+    if (seen[p]) continue
+    const i = p * 4
+    if (!near(i, bg, 34)) continue
+    seen[p] = 1
+    px[i + 3] = 0
+    stack.push([X + 1, Y], [X - 1, Y], [X, Y + 1], [X, Y - 1])
+  }
+
+  // 2) GEKRITZEL WEG: Bildmodelle schreiben in ein leeres Feld reflexhaft etwas
+  //    hinein (im Test stand dort „label"). Die Innenfläche wird deshalb mit ihrer
+  //    eigenen Grundfarbe überstrichen — die gemalte Kontur, der Schatten und die
+  //    handgemachte Silhouette bleiben erhalten, nur die Schrift verschwindet.
+  const ix = Math.round((box.x - x) / w * W), iy = Math.round((box.y - y) / h * H)
+  const iw = Math.round(box.w / w * W), ih = Math.round(box.h / h * H)
+  const inset = Math.round(Math.min(iw, ih) * 0.06)
+  const rx = ix + inset, ry = iy + inset, rw = iw - 2 * inset, rh = ih - 2 * inset
+  const light = []
+  for (let Y = ry; Y < ry + rh; Y += 3) {
+    for (let X = rx; X < rx + rw; X += 3) {
+      const i = at(X, Y)
+      light.push(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])
+    }
+  }
+  light.sort((a, b) => a - b)
+  const medL = light[Math.floor(light.length * 0.72)] || 240   // helle Grundfläche, nicht die Schrift
+  let sr = 0, sg = 0, sb = 0, n = 0
+  for (let Y = ry; Y < ry + rh; Y += 3) {
+    for (let X = rx; X < rx + rw; X += 3) {
+      const i = at(X, Y)
+      const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]
+      if (Math.abs(l - medL) < 12) { sr += px[i]; sg += px[i + 1]; sb += px[i + 2]; n++ }
+    }
+  }
+  const fill = n ? [sr / n, sg / n, sb / n] : [245, 240, 228]
+  ctx.putImageData(im, 0, 0)
+  ctx.fillStyle = `rgb(${Math.round(fill[0])},${Math.round(fill[1])},${Math.round(fill[2])})`
+  const r = Math.min(rw, rh) * 0.28
+  ctx.beginPath()
+  ctx.moveTo(rx + r, ry)
+  ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r)
+  ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r)
+  ctx.arcTo(rx, ry + rh, rx, ry, r)
+  ctx.arcTo(rx, ry, rx + rw, ry, r)
+  ctx.closePath()
+  ctx.fill()
+
   const dataUrl = cv.toDataURL('image/png')
   return { data: dataUrl, el: await toImageEl(dataUrl), aspect: W / H }
 }
