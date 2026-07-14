@@ -294,7 +294,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
       <div style={{ borderBottom: '1px solid #e7e5e4', padding: '12px 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
-          <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
+          {/* Beim Lebenswerk erzählt die Person über sich selbst — „Name · Ich selbst"
+              wäre nur die Zeile darüber ein zweites Mal. */}
+          {memorial?.product_category !== 'lifework' && (
+            <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
+          )}
         </div>
         <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
       </div>
@@ -439,7 +443,9 @@ function TextInterview({ memorial, contribForm, onDone }) {
       <div style={{ flexShrink:0, borderBottom:'1px solid #e7e5e4', padding:'12px 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
         <div>
           <div style={{ fontWeight:600, fontSize:15 }}>{memorial.name}</div>
-          <div style={{ fontSize:12, color:'#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
+          {memorial?.product_category !== 'lifework' && (
+            <div style={{ fontSize:12, color:'#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
+          )}
         </div>
         {round >= 5 && <button onClick={finish} disabled={saving} style={{ fontSize:13, padding:'8px 16px' }}>{saving?'Wird gespeichert …':'✓ Abschließen'}</button>}
       </div>
