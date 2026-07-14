@@ -332,6 +332,16 @@ async function processJson(job, deadline) {
 // Die Inhalte (Stationen) entstehen dagegen nur EINMAL und gelten für alle Stile.
 const POSTER_STYLE_FALLBACK = ['storybook', 'journal', 'atlas', 'watercolor', 'nouveau']
 
+// Motive rund um Abschied, Krankheit oder Krieg werden vom Bild-Dienst mitunter
+// verweigert — und genau die gehören zu einem Leben. Statt die Szene aufzugeben,
+// wird das Motiv entschärft: belastende Begriffe raus, ruhiger Ton rein. Der Ort
+// und die Gegenstände bleiben, damit die Szene noch dieselbe Erinnerung meint.
+const HEAVY = /\b(funeral|coffin|casket|grave|graveyard|cemetery|corpse|body|death|dead|dying|died|mourning|cancer|tumou?r|surgery|blood|wound|injur\w*|war|bomb\w*|ruin\w*|rubble|weapon|gun|soldier)\w*/gi
+function softenScenePrompt(p) {
+  const cleaned = String(p || '').replace(HEAVY, '').replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').trim()
+  return `${cleaned || 'a quiet room with a few personal objects'}, calm and tender atmosphere, nothing distressing`
+}
+
 async function processPoster(job, deadline) {
   const p = job.params || {}
   const code = p.memorialCode || job.memorial_id
@@ -385,16 +395,23 @@ async function processPoster(job, deadline) {
         },
         result,
       })
+      // KEINE Szene darf fehlen — ein Loch im Poster ist schlimmer als ein etwas
+      // braveres Motiv. Die Ausfälle kamen von schweren Motiven (Abschied, Krankheit):
+      // Der Bild-Dienst verweigert sie. Ab dem dritten Anlauf wird das Motiv deshalb
+      // entschärft, ab dem fünften auf eine ruhige Version der Szene zurückgeführt.
       let path = null
-      for (let attempt = 1; attempt <= 3 && !path; attempt++) {
+      for (let attempt = 1; attempt <= 5 && !path; attempt++) {
+        const prompt = attempt <= 2 ? j.prompt
+          : attempt <= 4 ? softenScenePrompt(j.prompt)
+          : `A quiet, empty, peaceful room or landscape, gentle light, no people: ${softenScenePrompt(j.prompt)}`
         try {
           const r = await adminPost('/api/admin/generate-image', {
-            memorialCode: code, prompt: j.prompt, variant: 'vignette', posterStyle: v.style,
+            memorialCode: code, prompt, variant: 'vignette', posterStyle: v.style,
           })
           path = r.storagePath
         } catch (e) {
-          if (attempt === 3) console.warn(`[generate] Poster-Szene ${v.style} ${j.si}:${j.ti} fehlgeschlagen: ${e.message}`)
-          else await sleep(4000 * attempt)
+          if (attempt === 5) console.warn(`[generate] Poster-Szene ${v.style} ${j.si}:${j.ti} endgültig fehlgeschlagen: ${e.message}`)
+          else await sleep(3000 * attempt)
         }
       }
       v.tiles.push({ si: j.si, ti: j.ti, image_path: path })

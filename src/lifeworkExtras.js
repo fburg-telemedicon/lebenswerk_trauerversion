@@ -1457,15 +1457,34 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
 // Jetzt andersherum: Die Szenen entstehen EINZELN (Bildmodus 'vignette', je Szene
 // ein Bild), und das Blatt setzen WIR zusammen. Damit ist die Lage jeder Szene
 // bekannt, und ihre Beschriftung steht per Konstruktion in der Papierzeile
-// darunter — sie KANN nicht mehr auf einer Grafik liegen. Die Szenen füllen ihre
-// Zellen randlos (Cover-Zuschnitt), sodass das Blatt trotzdem dicht bespielt ist.
-const TILE = { W: 594, H: 420, margin: 15, headH: 38, gapX: 5, gapY: 4, capH: 30, foot: 8 }
+// darunter — sie KANN nicht mehr auf einer Grafik liegen.
+//
+// Damit daraus kein Kontaktbogen wird (erster Anlauf: gleich große Rechtecke mit
+// harten Kanten in einem starren Raster), kommen drei Dinge dazu:
+//   • Die Szenen werden mit WEICHEN Rändern maskiert und dürfen einander
+//     überlappen — sie fließen ineinander statt aneinanderzustoßen.
+//   • Die Größen schwanken (Bedeutung + Streuung), die Höhen sind versetzt.
+//   • Der LEBENSWEG läuft als geschwungene Straße HINTER den Szenen durch und
+//     wird in den Lücken sichtbar — die Szenen liegen an ihm wie Stationen.
+const TILE = { W: 594, H: 420, margin: 12, headH: 36, capH: 29, gapY: 3, foot: 7 }
 
-function layoutTiles(data) {
+// Deterministische Streuung: gleiche Station → gleicher Wert. Kein Zufall, damit
+// Vorschau und PDF identisch sind und ein zweiter Download nicht anders aussieht.
+function jitter(s, salt) {
+  const h = Math.sin((s.si + 1) * 12.9898 + (s.ti + 1) * 78.233 + salt * 3.1) * 43758.5453
+  return (h - Math.floor(h)) * 2 - 1        // −1 … +1
+}
+
+function layoutTiles(data, available) {
   const stations = []
   ;(Array.isArray(data?.sections) ? data.sections : []).forEach((sec, si) =>
-    (Array.isArray(sec.stations) ? sec.stations : []).forEach((s, ti) =>
-      stations.push({ ...s, si, ti, key: `${si}:${ti}`, weight: Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1)) })))
+    (Array.isArray(sec.stations) ? sec.stations : []).forEach((s, ti) => {
+      const key = `${si}:${ti}`
+      // Szenen ohne Bild (die Bild-KI kann eine einzelne verweigern) fallen ganz
+      // raus, statt ein Loch im Blatt zu hinterlassen.
+      if (available && !available.has(key)) return
+      stations.push({ ...s, si, ti, key, weight: Math.min(3, Math.max(1, parseInt(s.weight, 10) || 1)) })
+    }))
   if (!stations.length) return null
 
   const n = stations.length
@@ -1475,95 +1494,163 @@ function layoutTiles(data) {
   const bodyW = TILE.W - 2 * TILE.margin
   const bodyH = TILE.H - TILE.headH - TILE.foot
   const rowH = bodyH / rows
+  const maxH = rowH - TILE.capH - TILE.gapY
 
   const out = []
   let i = 0
   counts.forEach((cols, r) => {
     const row = stations.slice(i, i + cols); i += cols
-    // Bedeutende Stationen bekommen mehr Breite — das nimmt dem Raster das
-    // Mechanische, ohne dass sich je zwei Zellen überlappen könnten.
-    const ks = row.map(s => 1 + 0.28 * (s.weight - 1))
+    // Breite nach Bedeutung PLUS Streuung. Die Zellen bleiben überschneidungsfrei;
+    // die Szenen darin dürfen über ihre Zelle hinausragen (siehe `bleed`) und sich
+    // an den weichen Rändern überlagern.
+    const ks = row.map(s => (1 + 0.3 * (s.weight - 1)) * (1 + 0.12 * jitter(s, 1)))
     const sum = ks.reduce((a, b) => a + b, 0)
     let x = TILE.margin
     row.forEach((s, c) => {
       const cellW = bodyW * ks[c] / sum
-      const w = cellW - TILE.gapX
-      const h = rowH - TILE.capH - TILE.gapY
-      const jitter = (((s.si * 3 + s.ti * 7) % 5) - 2) * 0.9      // ±1,8 mm, deterministisch
-      const y = TILE.headH + r * rowH + jitter
-      out.push({ ...s, x: x + TILE.gapX / 2, y, w, h, capY: y + h + 5.5 })
+      const bleed = 4                                  // Überlappung an den weichen Rändern
+      const w = cellW + bleed
+      const h = Math.min(maxH, maxH * (0.84 + 0.16 * (s.weight - 1) / 2) * (1 + 0.05 * jitter(s, 2)))
+      // Höhenversatz nur innerhalb des Spielraums der Zeile — so bricht die Zeile
+      // optisch auf, aber keine Szene rutscht je in die Textzeile darunter.
+      const slack = (maxH - h) / 2
+      const top = TILE.headH + r * rowH + slack + slack * jitter(s, 3)
+      out.push({
+        ...s, row: r,
+        x: x - bleed / 2, y: top, w, h,
+        cx: x + cellW / 2, cy: top + h / 2,            // Straßenpunkt = Mitte der Szene
+        capX: x, capW: cellW - 2,
+        capY: TILE.headH + r * rowH + maxH + 5.5,      // Textzeile: FEST je Zeile, nie versetzt
+      })
       x += cellW
     })
   })
-  return { stations: out, rows }
+  return { stations: out, rows, rowH }
 }
 
-// `images` = { "si:ti": { data, el } } — bereits auf das Zellformat zugeschnitten.
+// Die Straße: je Zeile ein geschwungener Zug, der links aus dem Blatt kommt, durch
+// die Mittelpunkte der Szenen läuft und rechts wieder hinausführt (die nächste
+// Zeile nimmt ihn wieder auf — wie eine umbrechende Textzeile). So bleibt der Weg
+// durchgehend lesbar, ohne je eine Textzeile zu kreuzen.
+function roadRows(L) {
+  const rows = []
+  for (let r = 0; r < L.rows; r++) {
+    const inRow = L.stations.filter(s => s.row === r)
+    if (!inRow.length) continue
+    const pts = []
+    pts.push({ x: -8, y: inRow[0].cy + 6 })
+    inRow.forEach((s, i) => {
+      // Der Weg schlängelt um die Szenenmitte herum, mal darüber, mal darunter.
+      pts.push({ x: s.cx - s.w * 0.22, y: s.cy + (i % 2 ? -1 : 1) * s.h * 0.26 })
+      pts.push({ x: s.cx + s.w * 0.22, y: s.cy + (i % 2 ? 1 : -1) * s.h * 0.22 })
+    })
+    pts.push({ x: TILE.W + 8, y: inRow[inRow.length - 1].cy - 6 })
+    rows.push({ pts, color: inRow[0] })
+  }
+  return rows
+}
+
+// `images` = { "si:ti": { data, el } } — bereits maskiert und auf die Zelle gebracht.
 function paintPosterTiles(d, data, images, st) {
-  const L = layoutTiles(data)
+  const L = layoutTiles(data, new Set(Object.keys(images)))
   if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
   const { W, H } = TILE
 
   d.rect(0, 0, W, H, st.paper)
 
   const who = String(data.person?.name || data.title || '').trim()
-  if (who) d.text(st.titleUpper ? who.toUpperCase() : who, W / 2, 26, { size: 40, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 80, maxLines: 1 })
+  if (who) d.text(st.titleUpper ? who.toUpperCase() : who, W / 2, 25, { size: 38, bold: true, align: 'center', color: st.ink, font: st.heading, maxW: W - 80, maxLines: 1 })
+
+  // Erst die Straße — die Szenen legen sich darüber, der Weg bleibt in den Lücken
+  // und an den weichen Rändern sichtbar.
+  for (const road of roadRows(L)) {
+    const c = st.accents[road.color.si % st.accents.length]
+    d.curveThrough(road.pts, () => c, 5.5)
+    d.curveThrough(road.pts, () => st.paper, 1.1)   // heller Mittelstreifen
+  }
 
   L.stations.forEach(s => {
     const color = st.accents[s.si % st.accents.length]
     const img = images[s.key]
     if (img) d.tile(img, s.x, s.y, s.w, s.h)
 
-    // Beschriftung: immer in der Papierzeile UNTER ihrer Szene, linksbündig an
-    // deren Kante — kein Kasten, kein Text auf einer Grafik.
     let y = s.capY
     if (s.year) {
-      d.text(String(s.year), s.x, y, { size: 13, bold: true, color, font: st.heading, maxW: s.w, maxLines: 1 })
+      d.text(String(s.year), s.capX, y, { size: 13, bold: true, color, font: st.heading, maxW: s.capW, maxLines: 1 })
       y += 5.8
     }
-    y += d.text(String(s.title || ''), s.x, y, { size: 14, bold: true, color: st.ink, font: st.heading, maxW: s.w, maxLines: 2 })
-    if (s.text) d.text(String(s.text), s.x, y + 1.4, { size: 9.5, color: st.soft, font: st.body, maxW: s.w, maxLines: 2 })
+    y += d.text(String(s.title || ''), s.capX, y, { size: 13.5, bold: true, color: st.ink, font: st.heading, maxW: s.capW, maxLines: 2 })
+    if (s.text) d.text(String(s.text), s.capX, y + 1.4, { size: 9.5, color: st.soft, font: st.body, maxW: s.capW, maxLines: 2 })
   })
 
-  d.text('Lebenswerk · Lebensgeschichten.ai', W - TILE.margin, H - 3.5, { size: 6.5, align: 'right', color: st.soft, font: st.body })
+  d.text('Lebenswerk · Lebensgeschichten.ai', W - TILE.margin, H - 3, { size: 6.5, align: 'right', color: st.soft, font: st.body })
 }
 
-// Bild formatfüllend auf ein Seitenverhältnis zuschneiden (mittig), damit die
-// Szene ihre Zelle randlos füllt statt mit Rändern darin zu schwimmen.
-async function coverCrop(img, aspect) {
+// Szene auf die Zelle bringen — formatfüllend zugeschnitten UND mit weichen
+// Rändern maskiert. Der harte Zuschnitt war der Grund für die Kontaktbogen-Optik:
+// Er hat genau die auslaufenden Ränder weggeschnitten, die die Bild-KI malt.
+// Deshalb PNG (Alpha) statt JPEG.
+async function prepareTile(img, wMm, hMm) {
   const el = await new Promise((res, rej) => {
     const im = new Image()
     im.onload = () => res(im); im.onerror = () => rej(new Error('Szene konnte nicht gelesen werden.'))
     im.src = img.data
   })
+  const PX = 6                                     // px pro mm ≈ 150 dpi auf A2
+  const W = Math.round(wMm * PX), H = Math.round(hMm * PX)
+  const cv = document.createElement('canvas')
+  cv.width = W; cv.height = H
+  const ctx = cv.getContext('2d')
+
+  const aspect = W / H
   let sw = img.w, sh = img.h
   if (img.w / img.h > aspect) sw = img.h * aspect
   else sh = img.w / aspect
-  const cv = document.createElement('canvas')
-  cv.width = Math.round(sw); cv.height = Math.round(sh)
-  cv.getContext('2d').drawImage(el, (img.w - sw) / 2, (img.h - sh) / 2, sw, sh, 0, 0, cv.width, cv.height)
-  const data = cv.toDataURL('image/jpeg', 0.92)
+  ctx.drawImage(el, (img.w - sw) / 2, (img.h - sh) / 2, sw, sh, 0, 0, W, H)
+
+  // Weiche Ränder: an allen vier Seiten läuft die Deckkraft aus, dazu die Ecken
+  // per radialer Maske. Dadurch verschmelzen benachbarte Szenen und der Weg
+  // darunter scheint durch, statt an einer Kante abzureißen.
+  ctx.globalCompositeOperation = 'destination-out'
+  const fx = Math.round(W * 0.12), fy = Math.round(H * 0.14)
+  const edge = (x0, y0, x1, y1, rect) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1)
+    g.addColorStop(0, 'rgba(0,0,0,1)')
+    g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(...rect)
+  }
+  edge(0, 0, fx, 0, [0, 0, fx, H])
+  edge(W, 0, W - fx, 0, [W - fx, 0, fx, H])
+  edge(0, 0, 0, fy, [0, 0, W, fy])
+  edge(0, H, 0, H - fy, [0, H - fy, W, fy])
+  ctx.globalCompositeOperation = 'source-over'
+
+  const data = cv.toDataURL('image/png')
   const el2 = await new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = data })
   return { data, el: el2 }
 }
 
-// Die Szenen einer Variante laden und auf ihre Zellen zuschneiden.
+// Die Szenen einer Variante laden und auf ihre Zellen bringen. Erst ohne Bilder
+// layouten (um die Zellmaße zu kennen), dann mit den tatsächlich vorhandenen
+// Szenen noch einmal — fehlende Szenen verschieben das Layout also selbst.
 async function prepareTiles(data, variant) {
-  const L = layoutTiles(data)
-  if (!L) throw new Error('Das Poster enthält keine Stationen.')
+  const tiles = (Array.isArray(variant?.tiles) ? variant.tiles : []).filter(t => t.image_url)
+  const have = new Set(tiles.map(t => `${t.si}:${t.ti}`))
+  const L = layoutTiles(data, have)
+  if (!L) throw new Error('Das Poster enthält keine Stationen mit Szene.')
   const images = {}
-  await Promise.all((Array.isArray(variant?.tiles) ? variant.tiles : []).map(async t => {
-    if (!t.image_url) return
+  await Promise.all(tiles.map(async t => {
     const s = L.stations.find(x => x.si === t.si && x.ti === t.ti)
     if (!s) return
-    try { images[`${t.si}:${t.ti}`] = await coverCrop(await loadImage(t.image_url), s.w / s.h) } catch { /* Szene fehlt */ }
+    try { images[`${t.si}:${t.ti}`] = await prepareTile(await loadImage(t.image_url), s.w, s.h) } catch { /* Szene fehlt */ }
   }))
   return images
 }
 
 // Zeichenbackend für die Bildschirm-Vorschau: dieselbe Layoutfunktion, anderes
-// Ziel. So zeigt die Detailansicht die fünf Stile als Thumbnails, ohne dass ein
-// zweites Layout gepflegt werden müsste.
+// Ziel. So zeigt die Detailansicht die Stile als Thumbnails, ohne dass ein zweites
+// Layout gepflegt werden müsste.
 function canvasDraw(ctx, s) {
   const col = c => `rgb(${c[0]},${c[1]},${c[2]})`
   const setFont = o => {
@@ -1586,6 +1673,23 @@ function canvasDraw(ctx, s) {
   return {
     rect(x, y, w, h, c) { ctx.fillStyle = col(c); ctx.fillRect(x * s, y * s, w * s, h * s) },
     tile(img, x, y, w, h) { ctx.drawImage(img.el, x * s, y * s, w * s, h * s) },
+    curveThrough(points, colorAt, width) {
+      if (points.length < 2) return
+      ctx.strokeStyle = col(colorAt(0))
+      ctx.lineWidth = width * s
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      ctx.moveTo(points[0].x * s, points[0].y * s)
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i], p2 = points[i + 1]
+        const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2
+        ctx.quadraticCurveTo(p1.x * s, p1.y * s, mx * s, my * s)
+      }
+      const last = points[points.length - 1]
+      ctx.lineTo(last.x * s, last.y * s)
+      ctx.stroke()
+    },
     text(str, x, y, o = {}) {
       setFont(o)
       ctx.fillStyle = col(o.color || [0, 0, 0])
