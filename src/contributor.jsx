@@ -893,13 +893,23 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   }
 
   function startFresh() {
+    // Eine bereits erteilte Einwilligung (aus der lokalen Sitzung) übernehmen: Sie
+    // deckt die Verarbeitung, nicht die einzelne Sitzung → beim Neubeginn nicht
+    // erneut abfragen. Ohne vorige Einwilligung bleibt der Haken nötig.
+    const priorConsent = resumePrompt?.consentAt || consentAt || null
     clearLocalSession(code)
     setResumePrompt(null)
     setContribId(genContribId())
     setInitialMessages([])
-    setContribForm({ name:'', gender:'', relationship:'', address:'Sie' })
-    setConsentChecked(false)
-    setConsentAt(null)
+    // Beim Lebenswerk die schon am Buch bekannten Stammdaten wieder vorbelegen —
+    // der isSelf-Effekt läuft hier NICHT erneut (memorial bleibt gleich), sonst
+    // wären ausgeblendete Pflichtfelder (Name/Geschlecht/Anrede) leer und der
+    // „Interview beginnen"-Button bliebe inaktiv.
+    setContribForm(isSelf
+      ? { name: memorial?.name || '', gender: memorial?.gender || '', relationship: SELF_REL, address: memorial?.intake?.address || 'Sie' }
+      : { name:'', gender:'', relationship:'', address:'Sie' })
+    if (priorConsent) { setConsentAt(priorConsent); setConsentChecked(true) }
+    else { setConsentAt(null); setConsentChecked(false) }
     setView('info')
   }
 
@@ -1159,7 +1169,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
               </span>
             </label>
           </div>
-          <button disabled={!contribForm.name||!contribForm.gender||(!isSelf && !contribForm.relationship)||!contribForm.address||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
+          <button disabled={(askName && !contribForm.name)||(askGender && !contribForm.gender)||(!isSelf && !contribForm.relationship)||(askAddress && !contribForm.address)||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             {ct.interviewButton}
           </button>
           </div>
