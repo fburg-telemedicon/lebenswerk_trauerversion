@@ -54,13 +54,20 @@ export async function updateOwnMemorial(token, code, { imageStyle, bookLayout } 
 // gibt ihn der Endnutzer beim Start selbst ein — er gehört ans BUCH (Titel, Poster,
 // Stammbaum), nicht nur an den Beitrag. Der Server nimmt ihn nur an, solange das
 // Feld leer ist.
-export async function claimMemorialName(code, name) {
+// Endnutzer trägt beim Start seine Stammdaten nach (Lebenswerk): Name, Geschlecht
+// und Anredeform (Du/Sie). Der Server übernimmt jedes Feld nur, solange es am Buch
+// leer ist. Nur die tatsächlich gefüllten Felder werden gesendet.
+export async function claimEnduserStart(code, { name, gender, address } = {}) {
+  const body = {}
+  if (name)    body.name = name
+  if (gender)  body.gender = gender
+  if (address) body.address = address
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(body),
   })
-  return parseResponse(res) // { ok, name }
+  return parseResponse(res) // { ok, name?, gender?, intake? }
 }
 
 // Optionale Server-Ablage des im Browser erzeugten Druck-PDFs (Checkbox in der

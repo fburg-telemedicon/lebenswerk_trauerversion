@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimMemorialName, pinMemorialLang } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang } from './api.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -905,14 +905,27 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
 
   function startInterview() {
     unlockAudio()
-    // Lebenswerk ohne Namen in der Anlage: Der Endnutzer hat ihn hier gerade
-    // eingegeben — er gehört ans Buch, nicht nur an den Beitrag (Titel, Poster,
-    // Stammbaum lesen ihn dort). Schlägt das fehl, läuft das Interview trotzdem.
-    if (isSelf && !memorial?.name && contribForm.name.trim()) {
-      const claimed = contribForm.name.trim()
-      claimMemorialName(code, claimed)
-        .then(() => setMemorial(m => (m ? { ...m, name: claimed } : m)))
-        .catch(e => console.warn('Name konnte nicht ans Buch geschrieben werden:', e.message))
+    // Lebenswerk: Was der Manager bei der Anlage NICHT gesetzt hat (Name,
+    // Geschlecht, Anredeform), gibt der Endnutzer hier ein — es gehört ans BUCH
+    // (Titel/Poster/Stammbaum lesen den Namen, das Geschlecht steuert die KI-
+    // Formulierungen, die Detailseite zeigt beides an), nicht nur an den Beitrag.
+    // Jeweils nur die Felder senden, die am Buch noch leer sind. Fehlschlag
+    // unkritisch – das Interview läuft trotzdem.
+    if (isSelf) {
+      const patch = {}
+      if (!memorial?.name && contribForm.name.trim()) patch.name = contribForm.name.trim()
+      if (!memorial?.gender && contribForm.gender) patch.gender = contribForm.gender
+      if (!memorial?.intake?.address && contribForm.address) patch.address = contribForm.address
+      if (Object.keys(patch).length) {
+        claimEnduserStart(code, patch)
+          .then(() => setMemorial(m => m ? {
+            ...m,
+            ...(patch.name ? { name: patch.name } : {}),
+            ...(patch.gender ? { gender: patch.gender } : {}),
+            ...(patch.address ? { intake: { ...(m.intake || {}), address: patch.address } } : {}),
+          } : m))
+          .catch(e => console.warn('Stammdaten konnten nicht ans Buch geschrieben werden:', e.message))
+      }
     }
     // Zeitpunkt der Einwilligung festhalten (einmalig, beim Start).
     const ts = consentAt || new Date().toISOString()
