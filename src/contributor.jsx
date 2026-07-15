@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage } from './api.js'
 import { generateProofBook } from './enduserProof.js'
+import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory, defaultTextStyle } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -899,6 +900,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const bookRef   = useRef(null)
 
   const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
+  const P = proofT(lang, du)
   const isPrint = !!book?.print
   const zwRemaining = Math.max(0, proofMax - proofUsed)
   const imgTotalMax = proofMax + 1
@@ -925,14 +927,14 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   async function loadContribution() {
     const c = await getContribution(contribId, code)
     if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) {
-      throw new Error(du ? 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworte zuerst ein paar Fragen.' : 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworten Sie zuerst ein paar Fragen.')
+      throw new Error(P.noAnswers)
     }
     return c
   }
 
   // ── Zwischenstand (Text; verbraucht eine Vorschau) ──
   async function generateInterim() {
-    setConfirmZw(false); setErr(''); setBusy(true); setPct(0); setProgress('Wird vorbereitet …'); cancelRef.current = false
+    setConfirmZw(false); setErr(''); setBusy(true); setPct(0); setProgress(P.preparing); cancelRef.current = false
     try {
       await ensureLock()
       const cons = await consumeProof(code, token); setProofUsed(cons.used); setProofMax(cons.max)
@@ -946,12 +948,12 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
 
   // ── Vorläufige Druckversion (schließt Interview, Text + Bilder) ──
   async function createPrint() {
-    setConfirmPrint(false); setErr(''); setBusy(true); setPct(0); setProgress('Interview wird abgeschlossen …'); cancelRef.current = false
+    setConfirmPrint(false); setErr(''); setBusy(true); setPct(0); setProgress(P.progInterview); cancelRef.current = false
     try {
       const sp = await startPrintVersion(code, token)   // schließt Interview endgültig + Lock
       lockRef.current = sp.token; startHeartbeat()
       const c = await loadContribution()
-      setProgress('Buchtext wird erstellt …')
+      setProgress(P.progText)
       const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(Math.round(p.pct * 0.4)); setProgress(p.text) } })
       nb.print = true
       await saveEnduserBook(code, token, lockRef.current, nb)
@@ -960,7 +962,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       for (let i = 0; i < chs.length; i++) {
         if (cancelRef.current) break
         setPct(40 + Math.round(55 * i / Math.max(1, chs.length)))
-        setProgress(`Bild ${i + 1} von ${chs.length} …`)
+        setProgress(P.progImg(i + 1, chs.length))
         const ch = chs[i]
         const prompt = ch.image_prompt || `${ch.heading}. ${String(ch.body || '').slice(0, 300)}`
         try {
@@ -1006,7 +1008,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   function setChapter(idx, patch) { const nb = { ...bookRef.current, chapters: bookRef.current.chapters.map((c, j) => j === idx ? { ...c, ...patch } : c) }; applyBook(nb); setDirty(true) }
   async function saveText() {
     setErr('')
-    try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current); setDirty(false); setSaved('Gespeichert.'); setTimeout(() => setSaved(''), 2500) }
+    try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current); setDirty(false); setSaved(P.saved); setTimeout(() => setSaved(''), 2500) }
     catch (e) { setErr(e.message) }
   }
 
@@ -1026,7 +1028,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const heading = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
       <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{t.tabProof || 'Probedruck'}</h2>
-      {!isPrint && !finalized && <span style={{ fontSize: 12, color: '#78716c' }}>Noch {zwRemaining} von {proofMax} Vorschauen</span>}
+      {!isPrint && !finalized && <span style={{ fontSize: 12, color: '#78716c' }}>{P.remaining(zwRemaining, proofMax)}</span>}
     </div>
   )
 
@@ -1039,7 +1041,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
         <div style={{ width: `${pct}%`, height: '100%', background: '#1c1917', transition: 'width .3s' }} />
       </div>
       <p style={{ ...S.muted, margin: 0 }}>{pct}% · {progress}</p>
-      <button className="secondary" onClick={() => { cancelRef.current = true }} style={{ marginTop: 16, fontSize: 13 }}>Abbrechen</button>
+      <button className="secondary" onClick={() => { cancelRef.current = true }} style={{ marginTop: 16, fontSize: 13 }}>{P.cancel}</button>
     </div>
   )
 
@@ -1048,7 +1050,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     <div style={page}>
       {heading}
       <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 14, color: '#166534' }}>
-        ✓ {du ? 'Dein Buch ist abgeschlossen und wird gedruckt.' : 'Ihr Buch ist abgeschlossen und wird gedruckt.'} Eine Bearbeitung ist nicht mehr möglich.
+        ✓ {P.finalizedBanner}
       </div>
       <BookRead book={book} imgUrl={imgUrl} />
     </div>
@@ -1059,37 +1061,37 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     <div style={page}>
       {heading}
       <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
-        Der Interview-Teil ist abgeschlossen. Dies ist die vorläufige Druckversion — {du ? 'du kannst' : 'Sie können'} Text und Bilder bearbeiten und das Buch anschließend abschließen.
+        {P.printBanner}
       </div>
       <Err msg={err} />
       {saved && <p style={{ fontSize: 13, color: '#16a34a' }}>{saved}</p>}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button onClick={saveText} disabled={!dirty} style={{ fontSize: 14, padding: '8px 16px' }}>✓ Speichern</button>
-        <button onClick={() => setFinalizeOpen(true)} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>✅ Abschließen</button>
+        <button onClick={saveText} disabled={!dirty} style={{ fontSize: 14, padding: '8px 16px' }}>{P.save}</button>
+        <button onClick={() => setFinalizeOpen(true)} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>{P.finalizeBtn}</button>
       </div>
-      <input value={book.title || ''} onChange={e => setField({ title: e.target.value })} placeholder="Titel" style={{ width: '100%', fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, textAlign: 'center', border: '1px solid #f0efec', borderRadius: 8, padding: 10, marginBottom: 6 }} />
-      <input value={book.subtitle || ''} onChange={e => setField({ subtitle: e.target.value })} placeholder="Untertitel (optional)" style={{ width: '100%', fontFamily: 'Georgia, serif', fontStyle: 'italic', textAlign: 'center', color: '#78716c', border: '1px solid #f0efec', borderRadius: 8, padding: 8, marginBottom: 8 }} />
+      <input value={book.title || ''} onChange={e => setField({ title: e.target.value })} placeholder={P.fieldTitle} style={{ width: '100%', fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, textAlign: 'center', border: '1px solid #f0efec', borderRadius: 8, padding: 10, marginBottom: 6 }} />
+      <input value={book.subtitle || ''} onChange={e => setField({ subtitle: e.target.value })} placeholder={P.fieldSubtitle} style={{ width: '100%', fontFamily: 'Georgia, serif', fontStyle: 'italic', textAlign: 'center', color: '#78716c', border: '1px solid #f0efec', borderRadius: 8, padding: 8, marginBottom: 8 }} />
       {(book.chapters || []).map((c, i) => {
         const used = imageRegen[String(c.number)] || (c.image_path ? 1 : 0)
         const left = Math.max(0, imgTotalMax - used)
         const hist = (c.image_history || []).filter(p => p !== c.image_path)
         return (
           <section key={i} style={{ marginTop: 24, borderTop: '1px solid #f0efec', paddingTop: 16 }}>
-            <div style={{ fontSize: 12, color: '#a8a29e', marginBottom: 6 }}>Kapitel {c.number}</div>
+            <div style={{ fontSize: 12, color: '#a8a29e', marginBottom: 6 }}>{P.chapter(c.number)}</div>
             {c.image_path && imgUrl(c.image_path) ? (
               <img src={imgUrl(c.image_path)} alt="" style={{ width: '100%', borderRadius: 10, display: 'block', marginBottom: 8, background: '#f5f5f4' }} />
             ) : (
-              <div style={{ background: '#f5f5f4', borderRadius: 10, padding: '30px 12px', textAlign: 'center', color: '#a8a29e', marginBottom: 8, fontSize: 13 }}>Noch kein Bild</div>
+              <div style={{ background: '#f5f5f4', borderRadius: 10, padding: '30px 12px', textAlign: 'center', color: '#a8a29e', marginBottom: 8, fontSize: 13 }}>{P.imgNone}</div>
             )}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
               <button onClick={() => regenImage(i)} disabled={regenCh != null || left <= 0} className="secondary" style={{ fontSize: 13, padding: '6px 12px' }}>
-                {regenCh === c.number ? '⏳ Wird erzeugt …' : (c.image_path ? '↻ Neu generieren' : '🖼 Bild erzeugen')}
+                {regenCh === c.number ? P.imgBusy : (c.image_path ? P.imgRegen : P.imgCreate)}
               </button>
-              <span style={{ fontSize: 12, color: left <= 0 ? '#b91c1c' : '#78716c' }}>{left <= 0 ? 'keine Neugenerierung mehr' : `noch ${left}×`}</span>
+              <span style={{ fontSize: 12, color: left <= 0 ? '#b91c1c' : '#78716c' }}>{left <= 0 ? P.imgNoneLeft : P.imgLeft(left)}</span>
             </div>
             {hist.length > 0 && (
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 12, color: '#78716c', marginBottom: 4 }}>Frühere Bilder (zum Zurückwechseln antippen):</div>
+                <div style={{ fontSize: 12, color: '#78716c', marginBottom: 4 }}>{P.imgHistory}</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {hist.map(p => (imgUrl(p) &&
                     <img key={p} src={imgUrl(p)} alt="" onClick={() => pickImage(i, p)} style={{ width: 72, height: 48, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #e7e5e4' }} />
@@ -1097,7 +1099,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
                 </div>
               </div>
             )}
-            <input value={c.heading || ''} onChange={e => setChapter(i, { heading: e.target.value })} placeholder="Überschrift" style={{ fontWeight: 700, marginBottom: 8 }} />
+            <input value={c.heading || ''} onChange={e => setChapter(i, { heading: e.target.value })} placeholder={P.headingPh} style={{ fontWeight: 700, marginBottom: 8 }} />
             <textarea value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 180, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
           </section>
         )
@@ -1105,14 +1107,12 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
 
       {finalizeOpen && (
         <PModal onClose={() => setFinalizeOpen(false)}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Buch endgültig abschließen?</h3>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
-            Danach ist <b>keine weitere Bearbeitung</b> mehr möglich. {du ? 'Dein' : 'Ihr'} Buch geht in den Druck. Zum Bestätigen bitte <b>OK</b> eintippen.
-          </p>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>{P.finalizeTitle}</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>{P.finalizeText}</p>
           <input value={okText} onChange={e => setOkText(e.target.value)} placeholder="OK" style={{ width: '100%', marginBottom: 14 }} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="secondary" onClick={() => { setFinalizeOpen(false); setOkText('') }} style={{ fontSize: 14 }}>Abbrechen</button>
-            <button onClick={doFinalize} disabled={okText.trim().toUpperCase() !== 'OK'} style={{ fontSize: 14 }}>Abschließen</button>
+            <button className="secondary" onClick={() => { setFinalizeOpen(false); setOkText('') }} style={{ fontSize: 14 }}>{P.cancel}</button>
+            <button onClick={doFinalize} disabled={okText.trim().toUpperCase() !== 'OK'} style={{ fontSize: 14 }}>{P.finalize}</button>
           </div>
         </PModal>
       )}
@@ -1124,12 +1124,12 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     <div style={page}>
       {heading}
       <Err msg={err} />
-      {lockedByOther && !book && <p style={{ fontSize: 13, color: '#b45309' }}>Das Buch wird gerade an anderer Stelle bearbeitet.</p>}
+      {lockedByOther && !book && <p style={{ fontSize: 13, color: '#b45309' }}>{P.lockedByOther}</p>}
 
       {book && !isPrint && (
         <div style={{ marginBottom: 22 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-            <button onClick={() => setConfirmZw(true)} className="secondary" disabled={zwRemaining <= 0} style={{ fontSize: 14, padding: '8px 16px' }}>↻ Zwischenstand neu erzeugen</button>
+            <button onClick={() => setConfirmZw(true)} className="secondary" disabled={zwRemaining <= 0} style={{ fontSize: 14, padding: '8px 16px' }}>{P.zwRegen}</button>
           </div>
           <BookRead book={book} imgUrl={imgUrl} />
           <hr style={{ border: 0, borderTop: '1px solid #e7e5e4', margin: '24px 0' }} />
@@ -1139,47 +1139,37 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       <div style={{ display: 'grid', gap: 12 }}>
         {!book && (
           <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>📖 Zwischenstand</div>
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#57534e', marginTop: 0 }}>
-              {du ? 'Eine erste Textfassung aus deinen bisherigen Antworten — nur zum Ansehen. Du kannst danach jederzeit weiter erzählen.' : 'Eine erste Textfassung aus Ihren bisherigen Antworten — nur zum Ansehen. Sie können danach jederzeit weiter erzählen.'}
-            </p>
-            <button onClick={() => setConfirmZw(true)} disabled={zwRemaining <= 0} style={{ fontSize: 15, padding: '10px 18px' }}>📖 Zwischenstand ansehen</button>
-            {zwRemaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>{du ? `Du hast alle ${proofMax} Vorschauen aufgebraucht.` : `Sie haben alle ${proofMax} Vorschauen aufgebraucht.`}</p>}
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{P.zwCardTitle}</div>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#57534e', marginTop: 0 }}>{P.zwCardText}</p>
+            <button onClick={() => setConfirmZw(true)} disabled={zwRemaining <= 0} style={{ fontSize: 15, padding: '10px 18px' }}>{P.zwCardBtn}</button>
+            {zwRemaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>{P.zwUsedUp(proofMax)}</p>}
           </div>
         )}
         <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>📕 Vorläufige Druckversion</div>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#57534e', marginTop: 0 }}>
-            Das fertige Buch <b>mit Bildern</b> zum Ansehen und für den Feinschliff (Text bearbeiten, Bilder neu generieren). <b>Achtung:</b> Der Interview-Teil wird damit <b>endgültig abgeschlossen</b> und kann nicht mehr genutzt werden.
-          </p>
-          <button onClick={() => setConfirmPrint(true)} style={{ fontSize: 15, padding: '10px 18px' }}>📕 Druckversion erstellen</button>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>{P.endCardTitle}</div>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#57534e', marginTop: 0 }}>{P.endCardText}</p>
+          <button onClick={() => setConfirmPrint(true)} style={{ fontSize: 15, padding: '10px 18px' }}>{P.endCardBtn}</button>
         </div>
       </div>
 
       {confirmZw && (
         <PModal onClose={() => setConfirmZw(false)}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Zwischenstand erstellen?</h3>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
-            {du
-              ? <>Dein Buch wird jetzt aus deinen bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das zählt zu deinen Vorschauen: danach noch <b>{Math.max(0, zwRemaining - 1)} von {proofMax}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird ersetzt' : ''}.</>
-              : <>Ihr Buch wird jetzt aus Ihren bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das zählt zu Ihren Vorschauen: danach noch <b>{Math.max(0, zwRemaining - 1)} von {proofMax}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird ersetzt' : ''}.</>}
-          </p>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>{P.zwConfirmTitle}</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>{P.zwConfirmText(Math.max(0, zwRemaining - 1), proofMax, !!book)}</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-            <button className="secondary" onClick={() => setConfirmZw(false)} style={{ fontSize: 14 }}>Abbrechen</button>
-            <button onClick={generateInterim} style={{ fontSize: 14 }}>Jetzt erstellen</button>
+            <button className="secondary" onClick={() => setConfirmZw(false)} style={{ fontSize: 14 }}>{P.cancel}</button>
+            <button onClick={generateInterim} style={{ fontSize: 14 }}>{P.createNow}</button>
           </div>
         </PModal>
       )}
 
       {confirmPrint && (
         <PModal onClose={() => setConfirmPrint(false)}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Druckversion erstellen?</h3>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
-            {du ? 'Damit wird dein Interview endgültig abgeschlossen und kann nicht mehr genutzt werden.' : 'Damit wird Ihr Interview endgültig abgeschlossen und kann nicht mehr genutzt werden.'} Anschließend entsteht das Buch mit Bildern, das {du ? 'du' : 'Sie'} noch bearbeiten {du ? 'kannst' : 'können'}. Das kann einige Minuten dauern.
-          </p>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>{P.printWarnTitle}</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>{P.printWarnText}</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-            <button className="secondary" onClick={() => setConfirmPrint(false)} style={{ fontSize: 14 }}>Abbrechen</button>
-            <button onClick={createPrint} style={{ fontSize: 14 }}>Ja, abschließen &amp; erstellen</button>
+            <button className="secondary" onClick={() => setConfirmPrint(false)} style={{ fontSize: 14 }}>{P.cancel}</button>
+            <button onClick={createPrint} style={{ fontSize: 14 }}>{P.printWarnBtn}</button>
           </div>
         </PModal>
       )}
