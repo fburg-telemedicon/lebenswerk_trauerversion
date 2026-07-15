@@ -182,11 +182,16 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     ;(async () => {
       setAiLoading(true)
       try {
-        const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
-        const userTurn = companionOn
-          ? '[Der Erzähler hat gerade den BEGLEITETEN MODUS eingeschaltet: Ab jetzt führt eine anwesende Begleitperson (z. B. eine Pflegekraft) das Gespräch mit. Bestätige das in EINEM kurzen, warmen Satz, tritt selbst zurück und stelle KEINE neue Frage.]'
-          : '[Der begleitete Modus wurde wieder AUSgeschaltet: Du übernimmst die Gesprächsführung wieder. Melde dich in einem kurzen, warmen Satz zurück und stelle dann die nächste passende Frage – berücksichtige, was in der Zwischenzeit gesprochen wurde.]'
-        const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current, { role: 'user', content: userTurn }], { memorialCode: memorial?.id, kind: 'interview' })
+        // WICHTIG: Die Modus-Anweisung gehört in den SYSTEM-Prompt, nicht in eine
+        // User-Nachricht. Als imperative User-Nachricht ("Bestätige …, stelle KEINE
+        // Frage") stuft Azures Jailbreak-/Prompt-Shield-Filter sie als Angriff ein
+        // und der Call schlägt fehl (500) — dann wurde die alte Frage einfach wieder
+        // vorgelesen und die Bestätigung kam nie.
+        const modeDirective = companionOn
+          ? '\n\n[MODUSWECHSEL: Der Erzähler hat gerade den begleiteten Modus eingeschaltet — ab jetzt führt eine anwesende Begleitperson (z. B. eine Pflegekraft) das Gespräch mit. Bestätige das in EINEM kurzen, warmen Satz, tritt selbst zurück und stelle KEINE neue Frage.]'
+          : '\n\n[MODUSWECHSEL: Der begleitete Modus wurde wieder ausgeschaltet — du übernimmst die Gesprächsführung wieder. Melde dich in einem kurzen, warmen Satz zurück und stelle dann die nächste passende Frage; berücksichtige, was in der Zwischenzeit gesprochen wurde.]'
+        const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang) + modeDirective
+        const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current], { memorialCode: memorial?.id, kind: 'interview' })
         if (cancelled) return
         const finalMsgs = [...messagesRef.current, { role: 'assistant', content: reply }]
         applyMessages(finalMsgs)
@@ -199,6 +204,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   function playText(text) {
     stopSpeaking()
+    // Spricht die KI (auch beim Zurückübernehmen nach dem Begleitmodus), ist die
+    // aktive Person wieder der Erzähler → Schallwelle/Untertitel zurück auf ROT.
+    setRecSpeaker('self')
     setIsPlaying(true); setTtsLoading(true); setErr('')
     speakText(text, {
       memorialCode: memorial?.id,
@@ -488,7 +496,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             )}
             {micState === 'recording' && micStream && (
               <div style={{ maxWidth:320, margin:'0 auto 10px' }}>
-                <Waveform stream={micStream} color={recSpeaker === 'companion' ? '#3b82f6' : '#dc2626'} />
+                <Waveform stream={micStream} color={(micState==='recording' && recSpeaker === 'companion') ? '#3b82f6' : '#dc2626'} />
               </div>
             )}
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
