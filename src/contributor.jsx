@@ -974,6 +974,9 @@ export function ContributorFlow({ code, endUserToken = null }) {
                   memorial?.product_category === 'memorial' ? t.consentSpecialMemorial : t.consentSpecialOther
                 )}
                 <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8' }}>{t.consentLink}</a>.
+                {/* Rechtstexte liegen nur auf Deutsch vor und sind rechtlich
+                    maßgeblich — in jeder Sprache ein kurzer Hinweis darauf. */}
+                {t.legalGermanNote ? <><br /><span style={{ fontSize:12, color:'#78716c' }}>{t.legalGermanNote}</span></> : null}
               </span>
             </label>
           </div>
