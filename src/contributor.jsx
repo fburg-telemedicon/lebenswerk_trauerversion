@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimMemorialName } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimMemorialName, pinMemorialLang } from './api.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -891,10 +891,18 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
               Screen tragfähig, wenn später deutlich mehr Sprachen dazukommen. */}
           <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
             <div style={{ display:'grid', gap:10, maxWidth:320, margin:'0 auto', maxHeight:'60vh', overflowY:'auto', padding:'2px' }}>
-              {langs.map(code => {
-                const meta = LANGUAGES.find(x => x.code === code) || { code, label: code }
+              {langs.map(lc => {
+                const meta = LANGUAGES.find(x => x.code === lc) || { code: lc, label: lc }
                 return (
-                  <button key={code} onClick={() => setLang(code)} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>
+                  <button key={lc} onClick={() => {
+                    setLang(lc)
+                    // Lebenswerk: die Wahl festschreiben (Buch auf diese eine Sprache
+                    // pinnen), damit die Sprachauswahl nicht bei jedem Start erneut
+                    // erscheint – weder beim Endnutzer-Login noch über den Code-Link.
+                    if (memorial?.product_category === 'lifework' && memorial?.id) {
+                      pinMemorialLang(memorial.id, lc).catch(() => { /* nicht kritisch */ })
+                    }
+                  }} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>
                 )
               })}
             </div>

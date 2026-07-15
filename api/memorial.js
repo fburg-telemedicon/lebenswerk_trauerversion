@@ -12,6 +12,7 @@ const { checkAuth } = require('./_lib/auth')
 const { normalizeStyle } = require('./_lib/image-styles')
 const { normalizeLayout } = require('./_lib/book-layouts')
 const { LIFEWORK } = require('./_lib/lifework')
+const { ALLOWED_LANGS } = require('./_lib/languages')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -77,6 +78,27 @@ async function handleNameClaim(req, res, code, name) {
   return res.json({ ok: true, name: clean })
 }
 
+// Sprachwahl des Endnutzers festschreiben: Beim Lebenswerk erzählt EINE Person.
+// Bietet der Manager mehrere Sprachen an („Endnutzer wählt selbst"), wählt der
+// Endnutzer die Sprache einmal — danach wird das Buch fest auf diese eine Sprache
+// gepinnt (`languages = [wahl]`), damit die Sprachauswahl nicht bei jedem Start
+// erneut erscheint (weder beim Endnutzer-Login noch über den `?code=`-Link).
+// Berechtigung wie beim Namen-Nachtragen: der Buch-Code genügt, NUR beim Lebenswerk.
+async function handleLangPin(req, res, code, lang) {
+  const l = String(lang || '').trim()
+  if (!ALLOWED_LANGS.includes(l)) return res.status(400).json({ error: 'Unbekannte Sprache.' })
+  const { data: m } = await supabase
+    .from('memorials').select('id, product_category, languages').eq('id', code).maybeSingle()
+  if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
+  if (m.product_category !== LIFEWORK) return res.status(403).json({ error: 'Kein Zugriff.' })
+  const offered = Array.isArray(m.languages) ? m.languages : []
+  if (offered.length === 1) return res.json({ ok: true, languages: offered })   // schon gepinnt
+  if (offered.length && !offered.includes(l)) return res.status(400).json({ error: 'Sprache nicht angeboten.' })
+  const { error } = await supabase.from('memorials').update({ languages: [l] }).eq('id', code)
+  if (error) throw error
+  return res.json({ ok: true, languages: [l] })
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
@@ -87,6 +109,10 @@ module.exports = async function handler(req, res) {
       if (req.body && req.body.name !== undefined && req.body.imageStyle === undefined && req.body.bookLayout === undefined) {
         if (!(await enforce(req, res, { name: 'memorial-name', limit: 10, windowSeconds: 600 }))) return
         return await handleNameClaim(req, res, code, req.body.name)
+      }
+      if (req.body && req.body.language !== undefined) {
+        if (!(await enforce(req, res, { name: 'memorial-lang', limit: 10, windowSeconds: 600 }))) return
+        return await handleLangPin(req, res, code, req.body.language)
       }
       return await handleEnduserPatch(req, res, code)
     }

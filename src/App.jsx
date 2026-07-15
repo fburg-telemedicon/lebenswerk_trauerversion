@@ -2866,9 +2866,26 @@ Regeln:
 // Ein neu angelegter Benutzer vergibt sich hier beim ersten Aufruf selbst ein
 // Passwort. Bei Erfolg wird er direkt eingeloggt und ins Admin-Dashboard
 // weitergeleitet.
+// Lokalisierung des Einlöse-Bildschirms (Selbst-Registrierung). Der Endnutzer wählt
+// beim Lebenswerk seine Sprache VOR der Passwortvergabe — dann sind Passwort-Screen
+// UND Bestätigungsmail in seiner Sprache. Manager sehen Deutsch (Default).
+const INV_L10N = {
+  de: { pickLang:'Bitte wählen Sie Ihre Sprache', welcome:n=>`Willkommen${n?`, ${n}`:''}`, pwIntro:'Bitte vergeben Sie ein Passwort für Ihr Konto.', pwNew:'Neues Passwort', pwRepeat:'Passwort wiederholen', submit:'Passwort festlegen & anmelden', saving:'Wird gespeichert …', checking:'Einladung wird geprüft …', invalidTitle:'Einladung ungültig', invalidBody:'Bitte fordern Sie bei Ihrem Administrator einen neuen Einladungslink an.', mismatch:'Die beiden Passwörter stimmen nicht überein.' },
+  en: { pickLang:'Please choose your language', welcome:n=>`Welcome${n?`, ${n}`:''}`, pwIntro:'Please set a password for your account.', pwNew:'New password', pwRepeat:'Repeat password', submit:'Set password & sign in', saving:'Saving …', checking:'Checking invitation …', invalidTitle:'Invitation invalid', invalidBody:'Please ask your administrator for a new invitation link.', mismatch:'The two passwords do not match.' },
+  pl: { pickLang:'Wybierz swój język', welcome:n=>`Witamy${n?`, ${n}`:''}`, pwIntro:'Ustaw hasło dla swojego konta.', pwNew:'Nowe hasło', pwRepeat:'Powtórz hasło', submit:'Ustaw hasło i zaloguj', saving:'Zapisywanie …', checking:'Sprawdzanie zaproszenia …', invalidTitle:'Zaproszenie nieważne', invalidBody:'Poproś administratora o nowy link z zaproszeniem.', mismatch:'Oba hasła nie są zgodne.' },
+  es: { pickLang:'Elija su idioma', welcome:n=>`Bienvenido${n?`, ${n}`:''}`, pwIntro:'Establezca una contraseña para su cuenta.', pwNew:'Nueva contraseña', pwRepeat:'Repetir contraseña', submit:'Establecer contraseña e iniciar sesión', saving:'Guardando …', checking:'Comprobando la invitación …', invalidTitle:'Invitación no válida', invalidBody:'Solicite a su administrador un nuevo enlace de invitación.', mismatch:'Las dos contraseñas no coinciden.' },
+  it: { pickLang:'Scelga la sua lingua', welcome:n=>`Benvenuto${n?`, ${n}`:''}`, pwIntro:'Imposti una password per il suo account.', pwNew:'Nuova password', pwRepeat:'Ripeti password', submit:'Imposta password e accedi', saving:'Salvataggio …', checking:'Verifica dell’invito …', invalidTitle:'Invito non valido', invalidBody:'Chieda al suo amministratore un nuovo link di invito.', mismatch:'Le due password non coincidono.' },
+  eu: { pickLang:'Aukeratu zure hizkuntza', welcome:n=>`Ongi etorri${n?`, ${n}`:''}`, pwIntro:'Ezarri pasahitz bat zure konturako.', pwNew:'Pasahitz berria', pwRepeat:'Errepikatu pasahitza', submit:'Ezarri pasahitza eta hasi saioa', saving:'Gordetzen …', checking:'Gonbidapena egiaztatzen …', invalidTitle:'Gonbidapena baliogabea', invalidBody:'Eskatu zure administratzaileari gonbidapen-esteka berri bat.', mismatch:'Bi pasahitzak ez datoz bat.' },
+  he: { pickLang:'בחר את השפה שלך', welcome:n=>`ברוך הבא${n?`, ${n}`:''}`, pwIntro:'אנא הגדר סיסמה לחשבונך.', pwNew:'סיסמה חדשה', pwRepeat:'חזור על הסיסמה', submit:'הגדר סיסמה והתחבר', saving:'שומר …', checking:'בודק את ההזמנה …', invalidTitle:'ההזמנה אינה תקפה', invalidBody:'אנא בקש מהמנהל קישור הזמנה חדש.', mismatch:'שתי הסיסמאות אינן תואמות.' },
+  ar: { pickLang:'اختر لغتك', welcome:n=>`مرحباً${n?`، ${n}`:''}`, pwIntro:'يرجى تعيين كلمة مرور لحسابك.', pwNew:'كلمة مرور جديدة', pwRepeat:'أعد كلمة المرور', submit:'تعيين كلمة المرور وتسجيل الدخول', saving:'جارٍ الحفظ …', checking:'جارٍ التحقق من الدعوة …', invalidTitle:'الدعوة غير صالحة', invalidBody:'يرجى طلب رابط دعوة جديد من المسؤول.', mismatch:'كلمتا المرور غير متطابقتين.' },
+}
+
 function InviteFlow({ token }) {
   const [status, setStatus]     = useState('loading') // loading|ready|invalid
   const [username, setUsername] = useState('')
+  const [langs, setLangs]       = useState([])        // beim Endnutzer angebotene Sprachen
+  const [chosenLang, setChosenLang] = useState(null)
+  const [step, setStep]         = useState('pw')      // 'lang' | 'pw'
   const [pw, setPw]             = useState('')
   const [pw2, setPw2]           = useState('')
   const [err, setErr]           = useState('')
@@ -2877,19 +2894,32 @@ function InviteFlow({ token }) {
   useEffect(() => {
     let alive = true
     getInvite(token)
-      .then(d => { if (alive) { setUsername(d.username || ''); setStatus('ready') } })
+      .then(d => {
+        if (!alive) return
+        setUsername(d.username || '')
+        const ls = Array.isArray(d.langs) ? d.langs : []
+        setLangs(ls)
+        // Endnutzer mit echter Auswahl (mehrere Sprachen, noch nicht festgelegt) →
+        // erst Sprache wählen. Sonst steht die Sprache fest → direkt Passwort.
+        if (d.enduser && ls.length > 1 && !d.lang) { setStep('lang') }
+        else { setChosenLang(d.lang || (ls.length === 1 ? ls[0] : null)); setStep('pw') }
+        setStatus('ready')
+      })
       .catch(e => { if (alive) { setErr(e.message); setStatus('invalid') } })
     return () => { alive = false }
   }, [token])
+
+  const T = INV_L10N[chosenLang] || INV_L10N.de
+  const dir = (chosenLang === 'he' || chosenLang === 'ar') ? 'rtl' : 'ltr'
 
   async function submit(e) {
     e.preventDefault()
     const pErr = passwordError(pw)
     if (pErr) { setErr(pErr); return }
-    if (pw !== pw2) { setErr('Die beiden Passwörter stimmen nicht überein.'); return }
+    if (pw !== pw2) { setErr(T.mismatch); return }
     setErr(''); setBusy(true)
     try {
-      const d = await redeemInvite(token, pw)
+      const d = await redeemInvite(token, pw, chosenLang)
       sessionStorage.setItem('lw_admin_token', d.token)
       sessionStorage.setItem('lw_admin_auth', JSON.stringify({
         admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username,
@@ -2904,38 +2934,54 @@ function InviteFlow({ token }) {
   const card = { width: '100%', maxWidth: 380, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }
   const wrap = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }
 
-  if (status === 'loading') return <div style={wrap}><div style={card}><p style={{ ...S.muted, margin: 0 }}>Einladung wird geprüft …</p></div></div>
+  if (status === 'loading') return <div style={wrap}><div style={card}><p style={{ ...S.muted, margin: 0 }}>{INV_L10N.de.checking}</p></div></div>
 
   if (status === 'invalid') return (
     <div style={wrap}>
       <div style={card}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Einladung ungültig</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{INV_L10N.de.invalidTitle}</h1>
         <Err msg={err} />
-        <p style={{ ...S.muted, marginTop: 12, marginBottom: 0 }}>Bitte fordern Sie bei Ihrem Administrator einen neuen Einladungslink an.</p>
+        <p style={{ ...S.muted, marginTop: 12, marginBottom: 0 }}>{INV_L10N.de.invalidBody}</p>
+      </div>
+    </div>
+  )
+
+  // Sprachwahl VOR der Passwortvergabe (Endnutzer). Überschrift bewusst zweisprachig,
+  // da die Sprache hier ja gerade erst gewählt wird.
+  if (step === 'lang') return (
+    <div style={wrap}>
+      <div style={card}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>Sprache wählen · Choose language</h1>
+        <div style={{ display: 'grid', gap: 10, maxHeight: '60vh', overflowY: 'auto', padding: 2 }}>
+          {langs.map(lc => {
+            const meta = LANGUAGES.find(x => x.code === lc) || { code: lc, label: lc }
+            return <button key={lc} onClick={() => { setChosenLang(lc); setStep('pw') }} style={{ padding: '14px', fontSize: 16 }}>{meta.label}</button>
+          })}
+        </div>
       </div>
     </div>
   )
 
   const okPw = !passwordError(pw)
   return (
-    <div style={wrap}>
+    <div style={wrap} dir={dir}>
       <form onSubmit={submit} style={card}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Willkommen{username ? `, ${username}` : ''}</h1>
-        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Bitte vergeben Sie ein Passwort für Ihr Konto.</p>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{T.welcome(username)}</h1>
+        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>{T.pwIntro}</p>
         <Err msg={err} />
         <div style={{ marginBottom: 12 }}>
-          <Lbl>Neues Passwort</Lbl>
+          <Lbl>{T.pwNew}</Lbl>
           <input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus />
         </div>
         <div style={{ marginBottom: 8 }}>
-          <Lbl>Passwort wiederholen</Lbl>
+          <Lbl>{T.pwRepeat}</Lbl>
           <input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} />
         </div>
         <p style={{ fontSize: 12, lineHeight: 1.4, marginBottom: 16, color: !pw ? '#78716c' : (okPw ? '#15803d' : '#b91c1c') }}>
           {!pw ? '' : (okPw ? '✓ ' : '• ')}{PASSWORD_RULES_TEXT}
         </p>
         <button type="submit" disabled={busy || !okPw || pw !== pw2} style={{ width: '100%', padding: 12, fontSize: 15 }}>
-          {busy ? 'Wird gespeichert …' : 'Passwort festlegen & anmelden'}
+          {busy ? T.saving : T.submit}
         </button>
       </form>
     </div>

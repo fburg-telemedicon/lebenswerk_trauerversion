@@ -11,8 +11,9 @@ const { createClient } = require('../_lib/store')
 const { verifyCredentials, issueToken, isConfigured, verifyPassword, hashPassword, validatePasswordPolicy, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { enforce } = require('../_lib/ratelimit')
 const { audit } = require('../_lib/audit')
-const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
+const { sendAccessMail, inviteLink, baseUrl } = require('../_lib/invitemail')
 const { ensureLifeworkSchema } = require('../_lib/lifework')
+const { ALLOWED_LANGS } = require('../_lib/languages')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -94,10 +95,21 @@ async function handleInvite(req, res, tok) {
   }
 
   if (req.method === 'GET') {
-    return res.json({ username: user.username })
+    // Für den Endnutzer: die angebotenen Sprachen seines Lebenswerks mitgeben,
+    // damit die Sprachwahl VOR der Passwortvergabe erfolgen kann. Ist das Buch
+    // bereits auf eine Sprache gepinnt (oder der Admin hat eine gesetzt), steht
+    // `lang` fest und die Wahl entfällt.
+    let langs = [], lang = user.lang || null
+    if (user.is_enduser && user.enduser_memorial) {
+      const { data: mem } = await supabase
+        .from('memorials').select('languages').eq('id', user.enduser_memorial).maybeSingle()
+      langs = (mem?.languages && mem.languages.length) ? mem.languages : ['de']
+      if (langs.length === 1) lang = langs[0]
+    }
+    return res.json({ username: user.username, enduser: Boolean(user.is_enduser), langs, lang })
   }
   if (req.method === 'POST') {
-    const { password } = req.body || {}
+    const { password, lang } = req.body || {}
     const pol = validatePasswordPolicy(password)
     if (!pol.ok) return res.status(400).json({ error: pol.error })
     const { hash, salt } = hashPassword(password)
@@ -109,7 +121,29 @@ async function handleInvite(req, res, tok) {
       console.error('/api/admin/login invite redeem error:', error)
       return res.status(500).json({ error: error.message })
     }
+    // Endnutzer: die (vor der Passwortvergabe) getroffene Sprachwahl festschreiben —
+    // am Konto UND am Buch (Pin auf eine Sprache), damit die Sprachauswahl nicht bei
+    // jedem Start erneut kommt. Danach steht die Sprache auch für die Bestätigungsmail.
+    let confirmLang = user.lang || 'de'
+    if (user.is_enduser && user.enduser_memorial) {
+      const chosen = ALLOWED_LANGS.includes(String(lang)) ? String(lang) : (user.lang || null)
+      if (chosen) {
+        await supabase.from('app_users').update({ lang: chosen }).eq('id', user.id)
+        await supabase.from('memorials').update({ languages: [chosen] }).eq('id', user.enduser_memorial)
+        confirmLang = chosen
+        user.lang = chosen
+      }
+    }
     await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'user.invite_redeem' })
+    // Bestätigungsmail: dem Nutzer bestätigen, dass sein Konto eingerichtet ist,
+    // mit Link zum Login-Screen (BCC an den Betreiber). Ein Fehlschlag darf das
+    // erfolgreiche Einlösen nicht kippen.
+    try {
+      await sendAccessMail({ to: user.username, url: `${baseUrl(req)}/`, kind: 'confirm', lang: confirmLang })
+      await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'user.confirm_sent', detail: { to: user.username } })
+    } catch (e) {
+      console.error('/api/admin/login confirm mail:', e)
+    }
     return res.json(sessionFor(user))
   }
   return res.status(405).end()

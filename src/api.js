@@ -63,6 +63,18 @@ export async function claimMemorialName(code, name) {
   return parseResponse(res) // { ok, name }
 }
 
+// Sprachwahl des Endnutzers festschreiben: Beim Lebenswerk wird das Buch fest auf
+// die gewählte Sprache gepinnt, damit die Sprachauswahl nicht bei jedem Start
+// erneut erscheint. Nur beim Lebenswerk erlaubt; Code genügt (kein Login nötig).
+export async function pinMemorialLang(code, language) {
+  const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language }),
+  })
+  return parseResponse(res) // { ok, languages }
+}
+
 // ── Buch-Standardwerte ────────────────────────────────────────────
 // Vorbelegung der Anlage-Maske. Lesen: jeder eingeloggte Benutzer (die Maske
 // braucht die Werte). Ändern/Zurücksetzen: nur Admin.
@@ -136,15 +148,17 @@ export async function adminCreateUser(token, { username, allowed_categories, is_
 // Beides läuft über den öffentlichen Login-Endpunkt (siehe api/admin/login.js).
 export async function getInvite(inviteToken) {
   const res = await fetch(`/api/admin/login?invite=${encodeURIComponent(inviteToken)}`)
-  return parseResponse(res) // { username }
+  return parseResponse(res) // { username, enduser, langs, lang }
 }
-export async function redeemInvite(inviteToken, password) {
+// lang (optional): beim Endnutzer die VOR der Passwortvergabe gewählte Sprache —
+// der Server schreibt sie fest und pinnt das Buch darauf.
+export async function redeemInvite(inviteToken, password, lang = null) {
   const res = await fetch('/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ invite: inviteToken, password }),
+    body: JSON.stringify({ invite: inviteToken, password, ...(lang ? { lang } : {}) }),
   })
-  return parseResponse(res) // { token, admin, cats, uid, username }
+  return parseResponse(res) // { token, admin, cats, uid, username, enduser, code, lang }
 }
 // Passwort-Reset anfordern: schickt (falls die Adresse existiert) einen Reset-Link
 // per E-Mail. Antwort ist bewusst immer generisch { ok:true }.

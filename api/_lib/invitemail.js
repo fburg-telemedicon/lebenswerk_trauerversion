@@ -121,12 +121,83 @@ const TEXTS = {
       footer: 'الرابط صالح لفترة محدودة. إذا لم تكن تتوقع ذلك، يمكنك تجاهل هذه الرسالة.',
     },
   },
+  // Bestätigung nach dem Einlösen (Passwort gesetzt) – mit Link zum Login-Screen.
+  // Für Manager (Standard) deutsch; für Endnutzer in ihrer gewählten Sprache.
+  confirm: {
+    de: {
+      subject: 'Ihr Konto ist eingerichtet – Lebensgeschichten',
+      heading: 'Ihr Konto ist eingerichtet',
+      intro: 'Ihr Passwort wurde erfolgreich gesetzt. Sie können sich ab jetzt jederzeit über den folgenden Link anmelden:',
+      button: 'Zum Login',
+      fallback: 'Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:',
+      footer: 'Wenn Sie dies nicht waren, wenden Sie sich bitte an support@lebensgeschichten.ai.',
+    },
+    pl: {
+      subject: 'Twoje konto jest gotowe – Lebensgeschichten',
+      heading: 'Twoje konto jest gotowe',
+      intro: 'Twoje hasło zostało pomyślnie ustawione. Od teraz możesz zalogować się w każdej chwili, korzystając z poniższego linku:',
+      button: 'Przejdź do logowania',
+      fallback: 'Jeśli przycisk nie działa, skopiuj ten link do przeglądarki:',
+      footer: 'Jeśli to nie Ty, skontaktuj się z support@lebensgeschichten.ai.',
+    },
+    en: {
+      subject: 'Your account is ready – Lebensgeschichten',
+      heading: 'Your account is ready',
+      intro: 'Your password has been set successfully. From now on you can sign in any time using the link below:',
+      button: 'Go to login',
+      fallback: 'If the button does not work, copy this link into your browser:',
+      footer: 'If this wasn’t you, please contact support@lebensgeschichten.ai.',
+    },
+    es: {
+      subject: 'Su cuenta está lista – Lebensgeschichten',
+      heading: 'Su cuenta está lista',
+      intro: 'Su contraseña se ha establecido correctamente. A partir de ahora puede iniciar sesión en cualquier momento con el siguiente enlace:',
+      button: 'Ir al inicio de sesión',
+      fallback: 'Si el botón no funciona, copie este enlace en su navegador:',
+      footer: 'Si no fue usted, póngase en contacto con support@lebensgeschichten.ai.',
+    },
+    it: {
+      subject: 'Il suo account è pronto – Lebensgeschichten',
+      heading: 'Il suo account è pronto',
+      intro: 'La sua password è stata impostata correttamente. Da ora può accedere in qualsiasi momento tramite il link seguente:',
+      button: 'Vai al login',
+      fallback: 'Se il pulsante non funziona, copi questo link nel suo browser:',
+      footer: 'Se non è stato lei, contatti support@lebensgeschichten.ai.',
+    },
+    eu: {
+      subject: 'Zure kontua prest dago – Lebensgeschichten',
+      heading: 'Zure kontua prest dago',
+      intro: 'Zure pasahitza ondo ezarri da. Hemendik aurrera edozein unetan has dezakezu saioa hurrengo estekaren bidez:',
+      button: 'Joan saioa hastera',
+      fallback: 'Botoiak ez badu funtzionatzen, kopiatu esteka hau zure nabigatzailean:',
+      footer: 'Zu ez bazinen, jarri harremanetan support@lebensgeschichten.ai helbidearekin.',
+    },
+    he: {
+      subject: 'החשבון שלך מוכן – Lebensgeschichten',
+      heading: 'החשבון שלך מוכן',
+      intro: 'הסיסמה שלך הוגדרה בהצלחה. מעכשיו תוכל להתחבר בכל עת באמצעות הקישור הבא:',
+      button: 'למסך ההתחברות',
+      fallback: 'אם הכפתור אינו פועל, העתק קישור זה לדפדפן:',
+      footer: 'אם זה לא היית אתה, פנה אל support@lebensgeschichten.ai.',
+    },
+    ar: {
+      subject: 'حسابك جاهز – Lebensgeschichten',
+      heading: 'حسابك جاهز',
+      intro: 'تم تعيين كلمة المرور بنجاح. يمكنك من الآن تسجيل الدخول في أي وقت عبر الرابط التالي:',
+      button: 'إلى تسجيل الدخول',
+      fallback: 'إذا لم يعمل الزر، فانسخ هذا الرابط إلى متصفحك:',
+      footer: 'إذا لم تكن أنت، فيرجى التواصل مع support@lebensgeschichten.ai.',
+    },
+  },
 }
 
 // Schweizer Hochdeutsch = Deutsch ohne ß. Wird für die Endnutzer-Mail abgeleitet,
 // damit kein zweites Wörterbuch gepflegt werden muss.
 TEXTS.enduser['de-CH'] = Object.fromEntries(
   Object.entries(TEXTS.enduser.de).map(([k, v]) => [k, String(v).replace(/ß/g, 'ss')])
+)
+TEXTS.confirm['de-CH'] = Object.fromEntries(
+  Object.entries(TEXTS.confirm.de).map(([k, v]) => [k, String(v).replace(/ß/g, 'ss')])
 )
 
 // Rechts-nach-links (Hebräisch, Arabisch): Mail-Body braucht dir="rtl".
