@@ -79,8 +79,58 @@ const TEXTS = {
       fallback: 'If the button does not work, copy this link into your browser:',
       footer: 'The link is valid for a limited time. If you were not expecting this, you can ignore this email.',
     },
+    // Schweizer Hochdeutsch: wie Deutsch, nur ohne ß (unten programmatisch abgeleitet).
+    es: {
+      subject: 'Su obra de vida: su acceso personal',
+      heading: 'Bienvenido a su obra de vida',
+      intro: 'Se ha creado para usted un acceso personal con el que podrá contar la historia de su propia vida. Un entrevistador con IA le acompañará con calma por sus recuerdos: usted decide cuándo y durante cuánto tiempo habla, y sus respuestas se guardan automáticamente. Al final surgirá de ellas su autobiografía. A través del siguiente enlace, establezca primero su contraseña:',
+      button: 'Establecer contraseña y empezar',
+      fallback: 'Si el botón no funciona, copie este enlace en su navegador:',
+      footer: 'El enlace tiene una validez limitada. Si no esperaba este mensaje, puede ignorarlo.',
+    },
+    it: {
+      subject: 'La sua opera di una vita – il suo accesso personale',
+      heading: 'Benvenuto nella sua opera di una vita',
+      intro: 'È stato creato per lei un accesso personale con cui raccontare la storia della sua vita. Un intervistatore con IA la accompagnerà con calma tra i suoi ricordi: decide lei quando e per quanto tempo parlare, e le sue risposte vengono salvate automaticamente. Alla fine ne nascerà la sua autobiografia. Con il link seguente imposti prima la sua password:',
+      button: 'Imposta la password e inizia',
+      fallback: 'Se il pulsante non funziona, copi questo link nel suo browser:',
+      footer: 'Il link ha una validità limitata. Se non se lo aspettava, può ignorare questa e-mail.',
+    },
+    eu: {
+      subject: 'Zure bizitza-lana – zure sarbide pertsonala',
+      heading: 'Ongi etorri zure bizitza-lanera',
+      intro: 'Sarbide pertsonal bat sortu dizugu, zure bizitzaren istorioa kontatzeko. IA elkarrizketatzaile batek lasai lagunduko dizu zure oroitzapenetan zehar: zuk erabakitzen duzu noiz eta zenbat denboraz hitz egin, eta zure erantzunak automatikoki gordetzen dira. Amaieran zure autobiografia sortuko da. Hurrengo estekaren bidez, ezarri lehenik zure pasahitza:',
+      button: 'Ezarri pasahitza eta hasi',
+      fallback: 'Botoiak ez badu funtzionatzen, kopiatu esteka hau zure nabigatzailean:',
+      footer: 'Estekak iraupen mugatua du. Ez bazenuen espero, mezu hau ez ikusi egin dezakezu.',
+    },
+    he: {
+      subject: 'מפעל חייך – הגישה האישית שלך',
+      heading: 'ברוך הבא למפעל חייך',
+      intro: 'נוצרה עבורך גישה אישית שדרכה תוכל לספר את סיפור חייך. מראיין מבוסס בינה מלאכותית ילווה אותך בנחת בין זיכרונותיך – אתה מחליט מתי וכמה זמן לספר, והתשובות נשמרות אוטומטית. בסופו של דבר תיווצר מהן האוטוביוגרפיה שלך. בקישור הבא קבע תחילה את הסיסמה שלך:',
+      button: 'הגדרת סיסמה והתחלה',
+      fallback: 'אם הכפתור אינו פועל, העתק קישור זה לדפדפן:',
+      footer: 'תוקף הקישור מוגבל בזמן. אם לא ציפית לכך, אפשר להתעלם מהודעה זו.',
+    },
+    ar: {
+      subject: 'عمل حياتك – وصولك الشخصي',
+      heading: 'مرحباً بك في عمل حياتك',
+      intro: 'أُنشئ لك حساب شخصي تروي من خلاله قصة حياتك. سيرافقك محاور بالذكاء الاصطناعي بهدوء عبر ذكرياتك — أنت من يقرر متى وكم من الوقت تتحدث، وتُحفظ إجاباتك تلقائياً. وفي النهاية تنشأ منها سيرتك الذاتية. عبر الرابط التالي، عيّن كلمة المرور أولاً:',
+      button: 'تعيين كلمة المرور والبدء',
+      fallback: 'إذا لم يعمل الزر، فانسخ هذا الرابط إلى متصفحك:',
+      footer: 'الرابط صالح لفترة محدودة. إذا لم تكن تتوقع ذلك، يمكنك تجاهل هذه الرسالة.',
+    },
   },
 }
+
+// Schweizer Hochdeutsch = Deutsch ohne ß. Wird für die Endnutzer-Mail abgeleitet,
+// damit kein zweites Wörterbuch gepflegt werden muss.
+TEXTS.enduser['de-CH'] = Object.fromEntries(
+  Object.entries(TEXTS.enduser.de).map(([k, v]) => [k, String(v).replace(/ß/g, 'ss')])
+)
+
+// Rechts-nach-links (Hebräisch, Arabisch): Mail-Body braucht dir="rtl".
+const RTL_MAIL_LANGS = new Set(['he', 'ar'])
 
 function pickText(kind, lang) {
   const byLang = TEXTS[kind] || TEXTS.invite
@@ -89,7 +139,8 @@ function pickText(kind, lang) {
 
 function buildHtml({ heading, intro, url, button, fallback, footer, lang }) {
   const safeUrl = esc(url)
-  return `<!doctype html><html lang="${esc(lang)}"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+  const dir = RTL_MAIL_LANGS.has(lang) ? 'rtl' : 'ltr'
+  return `<!doctype html><html lang="${esc(lang)}" dir="${dir}"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;" dir="${dir}">
   <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
     <h1 style="font-size:20px;font-weight:700;margin:0 0 14px;">${esc(heading)}</h1>
     <p style="font-size:15px;line-height:1.6;margin:0 0 20px;color:#44403c;">${esc(intro)}</p>

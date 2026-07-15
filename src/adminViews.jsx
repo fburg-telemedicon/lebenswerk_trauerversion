@@ -9,7 +9,7 @@ import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, c
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
-import { LANGUAGES, uiText } from './i18n.js'
+import { LANGUAGES, uiText, canPrintPdf } from './i18n.js'
 import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
@@ -1699,7 +1699,16 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
             <button onClick={() => requestDownload(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}</button>
             {gen.kind === 'book' ? (
-              <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}</button>
+              // Druck-PDF nur für Sprachen, deren Schrift jsPDF setzen kann. Bei
+              // Rechts-nach-links (Hebräisch/Arabisch) fehlen die Buchstaben-
+              // verbindungen — dort führt nur der Weg über DOCX (Word formt selbst).
+              canPrintPdf(data?.language) ? (
+                <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}</button>
+              ) : (
+                <span style={{ fontSize:12, color:'#78716c', alignSelf:'center', maxWidth:280, lineHeight:1.4 }}>
+                  🖨 Druck-PDF ist für diese Schreibrichtung nicht verfügbar — bitte den DOCX-Export nutzen (Word setzt die Schrift korrekt).
+                </span>
+              )
             ) : (
               <button className="secondary" onClick={() => requestDownload(key, 'pdf')} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '⬇ Download .pdf'}</button>
             )}
@@ -2017,6 +2026,9 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
               ].map(({ key, icon, title, sub }) => {
                 const gen   = GENERATORS[key]
                 const has   = !!selected[gen.field]
+                // Druck-PDF entfällt bei Rechts-nach-links-Sprachen (jsPDF formt
+                // keine arabischen Ligaturen); DOCX geht dort weiter.
+                const pdfOk = canPrintPdf(selected[gen.field]?.language)
                 const busy  = !!generating[key] && genOwner[key] === selected.id
                 const report = selected.content_reports?.[gen.field]
                 const totalFindings = report?.findings?.length || 0
@@ -2041,9 +2053,11 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         {dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}
                       </button>
                       {gen.kind === 'book' ? (
-                        <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                          {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}
-                        </button>
+                        pdfOk ? (
+                          <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                            {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}
+                          </button>
+                        ) : null
                       ) : (
                         <button onClick={() => requestDownload(key, 'pdf')} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                           {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '⬇ Download .pdf'}

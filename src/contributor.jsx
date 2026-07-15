@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimMemorialName } from './api.js'
-import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE } from './i18n.js'
+import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
@@ -834,6 +834,15 @@ export function ContributorFlow({ code, endUserToken = null }) {
       address: memorial.intake?.address || f.address || 'Sie',
     }))
   }, [isSelf, memorial])
+  // Schreibrichtung: Hebräisch/Arabisch laufen von rechts nach links. Wir setzen
+  // die Richtung auf das ganze Dokument (nicht nur einen Container), damit auch
+  // Eingabefelder, Chat-Blasen und die Buchansicht korrekt spiegeln. Beim Verlassen
+  // des Beitragenden-Flows wird wieder auf links-nach-rechts zurückgestellt.
+  useEffect(() => {
+    document.documentElement.dir = isRTL(L) ? 'rtl' : 'ltr'
+    return () => { document.documentElement.dir = 'ltr' }
+  }, [L])
+
   // Ohne Firmenlogo trägt ein Lebenswerk das Lebenswerk-Logo statt des Standard-Logos.
   const bannerLogo = memorial?.owner_logo || (isSelf ? '/lebenswerk-logo.png' : null)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`

@@ -6,7 +6,7 @@ import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Tex
 import jsPDF from 'jspdf'
 import { getCategory } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
-import { uiText, bookDisclaimer, imageFacts } from './i18n.js'
+import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
 
 // Disclaimer zur Entstehung & Haftung – wird ans Ende jedes Buchs/jeder Rede
 // gesetzt (HTML-Ansicht + DOCX) und im Impressum/Datenschutz referenziert.
@@ -204,6 +204,10 @@ async function prepareLogoForExport(dataUrl) {
 export async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
   const showContributors = opts.showContributors !== false
   const bt = uiText(book.language)
+  // Rechts-nach-links (Hebräisch/Arabisch): Word setzt die Absätze rechtsläufig,
+  // sobald `bidirectional` gesetzt ist — die Buchstabenverbindungen formt Word
+  // selbst (deshalb geht DOCX, wo das Druck-PDF passen muss).
+  const rtl = isRTL(book.language)
   const HF = layout.heading.docx, BF = layout.body.docx
   const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
   const sections = []
@@ -243,7 +247,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
       ...(chName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
         children: [new TextRun({ text: chRel ? `${chName} – ${chRel}` : chName, font: BF, size: 24, italics: true, color: '78716c' })] })] : []),
       ...String(ch.body || '').split('\n\n').map(r => r.trim()).filter(Boolean).map(chunk =>
-        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: BF, size: 24 })] })),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, bidirectional: rtl, spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: BF, size: 24 })] })),
     ]
     sections.push(docxSection(content, SectionType.EVEN_PAGE))
   }
@@ -274,7 +278,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
         children: [new ImageRun({ data: dataUrlToUint8(docxLogo.dataUrl), transformation: { width: w, height: h } })] }))
     } catch { /* defektes Logo darf den Export nicht abbrechen */ }
   }
-  endChildren.push(new Paragraph({ spacing: { after: 200 },
+  endChildren.push(new Paragraph({ spacing: { after: 200 }, bidirectional: rtl,
     children: [new TextRun({ text: bookDisclaimer(book.language || 'de', { ...imageFacts(book), selfNarrated: opts.selfNarrated === true }), font: BF, size: 18, italics: true, color: '78716c' })] }))
   sections.push(docxSection(endChildren, SectionType.NEXT_PAGE))
 
