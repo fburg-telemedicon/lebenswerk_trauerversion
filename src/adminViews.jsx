@@ -16,6 +16,7 @@ import { dedupeContributors } from './bookExport.js'
 import { useAdminT, AdminLangToggle } from './adminI18n.jsx'
 
 export function AuditView({ auditData, auditLoading, err, logout, loadAudit, setView }) {
+    const t = useAdminT()
     const fmtTime = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
     const th = { textAlign:'left', padding:'8px 10px', fontSize:12, color:'#78716c', fontWeight:600, borderBottom:'1px solid #e7e5e4', whiteSpace:'nowrap' }
     const td = { padding:'8px 10px', fontSize:12, borderBottom:'1px solid #f5f5f4', verticalAlign:'top' }
@@ -26,24 +27,27 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
       <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
         <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
             <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
           </div>
-          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <AdminLangToggle />
+            <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+          </div>
         </div>
         <div style={{ maxWidth:1000, margin:'2rem auto', padding:'0 1.5rem' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
-            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Audit-Log</h2>
-            <button className="secondary" onClick={loadAudit} disabled={auditLoading} style={{ fontSize:12, padding:'6px 12px' }}>{auditLoading ? 'Lädt…' : 'Aktualisieren'}</button>
+            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{t('Audit-Log', 'Audit log')}</h2>
+            <button className="secondary" onClick={loadAudit} disabled={auditLoading} style={{ fontSize:12, padding:'6px 12px' }}>{auditLoading ? t('Lädt…', 'Loading…') : t('Aktualisieren', 'Refresh')}</button>
           </div>
-          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>Sicherheitsrelevante Aktionen (neueste zuerst, max. 200). Aufbewahrung 365 Tage.</p>
+          <p style={{ ...S.muted, marginBottom:'1.5rem' }}>{t('Sicherheitsrelevante Aktionen (neueste zuerst, max. 200). Aufbewahrung 365 Tage.', 'Security-relevant actions (newest first, max. 200). Retention 365 days.')}</p>
           <Err msg={err} />
           <div style={{ ...S.card, padding:0, overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr>
-                  <th style={th}>Zeit</th><th style={th}>Aktion</th><th style={th}>Akteur</th>
-                  <th style={th}>Ziel</th><th style={th}>IP</th><th style={th}>Detail</th>
+                  <th style={th}>{t('Zeit', 'Time')}</th><th style={th}>{t('Aktion', 'Action')}</th><th style={th}>{t('Akteur', 'Actor')}</th>
+                  <th style={th}>{t('Ziel', 'Target')}</th><th style={th}>IP</th><th style={th}>{t('Detail', 'Detail')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -51,7 +55,7 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
                   <tr key={e.id}>
                     <td style={{ ...td, whiteSpace:'nowrap', color:'#78716c' }}>{fmtTime(e.created_at)}</td>
                     <td style={{ ...td, fontWeight:600, color:actionColor(e.action) }}>{e.action}</td>
-                    <td style={td}>{e.actor_name || (e.actor_uid ? e.actor_uid.slice(0,8) : '—')}{e.is_admin ? ' (Admin)' : ''}</td>
+                    <td style={td}>{e.actor_name || (e.actor_uid ? e.actor_uid.slice(0,8) : '—')}{e.is_admin ? t(' (Admin)', ' (Admin)') : ''}</td>
                     <td style={{ ...td, fontFamily:'monospace' }}>{e.target || '—'}</td>
                     <td style={{ ...td, fontFamily:'monospace', color:'#78716c' }}>{e.ip || '—'}</td>
                     <td style={{ ...td, fontFamily:'monospace', color:'#78716c', maxWidth:220, wordBreak:'break-all' }}>{e.detail ? JSON.stringify(e.detail) : ''}</td>
@@ -59,7 +63,7 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
                 ))}
               </tbody>
             </table>
-            {auditData.entries.length === 0 && <p style={{ ...S.muted, padding:'16px' }}>{auditLoading ? 'Lädt…' : 'Noch keine Einträge.'}</p>}
+            {auditData.entries.length === 0 && <p style={{ ...S.muted, padding:'16px' }}>{auditLoading ? t('Lädt…', 'Loading…') : t('Noch keine Einträge.', 'No entries yet.')}</p>}
           </div>
         </div>
       </div>
@@ -67,16 +71,20 @@ export function AuditView({ auditData, auditLoading, err, logout, loadAudit, set
 }
 
 export function ReportsView({ err, reportMsg, recipients, recipientForm, busy, logout, setView, toggleRecipient, removeRecipient, submitRecipient, sendReportNow, setRecipientForm }) {
+  const t = useAdminT()
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
       </div>
       <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Tagesreport</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('Tagesreport', 'Daily report')}</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
-          Jede Nacht (gegen 1:00 Uhr) geht ein Report mit den wichtigsten Kennzahlen des Vortags an die aktiven Empfänger – kompakte Zahlen im Text, ausführlicher Bericht mit Diagrammen als PDF-Anhang. Es werden ausschließlich aggregierte Zahlen versendet (keine personenbezogenen Daten).
+          {t('Jede Nacht (gegen 1:00 Uhr) geht ein Report mit den wichtigsten Kennzahlen des Vortags an die aktiven Empfänger – kompakte Zahlen im Text, ausführlicher Bericht mit Diagrammen als PDF-Anhang. Es werden ausschließlich aggregierte Zahlen versendet (keine personenbezogenen Daten).', 'Every night (around 1:00 a.m.) a report with the previous day’s key figures is sent to the active recipients – compact numbers in the text, a detailed report with charts as a PDF attachment. Only aggregated figures are sent (no personal data).')}
         </p>
         <Err msg={err} />
         {reportMsg && (
@@ -90,34 +98,34 @@ export function ReportsView({ err, reportMsg, recipients, recipientForm, busy, l
               <div>
                 <strong style={{ fontSize:15 }}>{r.email}</strong>
                 {r.name && <span style={{ ...S.muted, fontSize:13, marginLeft:8 }}>{r.name}</span>}
-                {!r.active && <span style={{ fontSize:11, marginLeft:8, color:'#b45309' }}>pausiert</span>}
+                {!r.active && <span style={{ fontSize:11, marginLeft:8, color:'#b45309' }}>{t('pausiert', 'paused')}</span>}
               </div>
               <div style={{ display:'flex', gap:8 }}>
-                <button className="secondary" onClick={() => toggleRecipient(r)} style={{ fontSize:12, padding:'5px 10px' }}>{r.active ? 'Pausieren' : 'Aktivieren'}</button>
-                <button className="secondary" onClick={() => removeRecipient(r)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+                <button className="secondary" onClick={() => toggleRecipient(r)} style={{ fontSize:12, padding:'5px 10px' }}>{r.active ? t('Pausieren', 'Pause') : t('Aktivieren', 'Activate')}</button>
+                <button className="secondary" onClick={() => removeRecipient(r)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>{t('Löschen', 'Delete')}</button>
               </div>
             </div>
           ))}
-          {recipients.length === 0 && <p style={S.muted}>Noch keine Empfänger. Fügen Sie unten die erste Adresse hinzu.</p>}
+          {recipients.length === 0 && <p style={S.muted}>{t('Noch keine Empfänger. Fügen Sie unten die erste Adresse hinzu.', 'No recipients yet. Add the first address below.')}</p>}
         </div>
 
         {/* Neuer Empfänger */}
         <div style={{ ...S.card, marginBottom:24 }}>
-          <Lbl>Empfänger hinzufügen</Lbl>
-          <input value={recipientForm.email} onChange={e => setRecipientForm({ ...recipientForm, email: e.target.value })} placeholder="E-Mail-Adresse" type="email" style={{ marginBottom:8 }} />
-          <input value={recipientForm.name} onChange={e => setRecipientForm({ ...recipientForm, name: e.target.value })} placeholder="Name (optional)" style={{ marginBottom:12 }} />
-          <button onClick={submitRecipient} disabled={busy || !recipientForm.email.trim()} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? 'Wird gespeichert …' : 'Hinzufügen'}</button>
+          <Lbl>{t('Empfänger hinzufügen', 'Add recipient')}</Lbl>
+          <input value={recipientForm.email} onChange={e => setRecipientForm({ ...recipientForm, email: e.target.value })} placeholder={t('E-Mail-Adresse', 'Email address')} type="email" style={{ marginBottom:8 }} />
+          <input value={recipientForm.name} onChange={e => setRecipientForm({ ...recipientForm, name: e.target.value })} placeholder={t('Name (optional)', 'Name (optional)')} style={{ marginBottom:12 }} />
+          <button onClick={submitRecipient} disabled={busy || !recipientForm.email.trim()} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? t('Wird gespeichert …', 'Saving …') : t('Hinzufügen', 'Add')}</button>
         </div>
 
         {/* Test-Versand */}
         <div style={{ ...S.card }}>
-          <Lbl>Report jetzt testen</Lbl>
+          <Lbl>{t('Report jetzt testen', 'Test report now')}</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 12px' }}>
-            Erzeugt den Report sofort mit den aktuellen Zahlen (Vortag) und verschickt ihn – praktisch zur Kontrolle, ohne bis 1:00 Uhr zu warten.
+            {t('Erzeugt den Report sofort mit den aktuellen Zahlen (Vortag) und verschickt ihn – praktisch zur Kontrolle, ohne bis 1:00 Uhr zu warten.', 'Generates the report immediately with the current figures (previous day) and sends it – handy for checking without waiting until 1:00 a.m.')}
           </p>
-          <input value={recipientForm.test || ''} onChange={e => setRecipientForm({ ...recipientForm, test: e.target.value })} placeholder="Test-Adresse (leer = alle aktiven Empfänger)" type="email" style={{ marginBottom:12 }} />
+          <input value={recipientForm.test || ''} onChange={e => setRecipientForm({ ...recipientForm, test: e.target.value })} placeholder={t('Test-Adresse (leer = alle aktiven Empfänger)', 'Test address (empty = all active recipients)')} type="email" style={{ marginBottom:12 }} />
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            <button onClick={() => sendReportNow((recipientForm.test || '').trim() || undefined)} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? 'Wird gesendet …' : 'Report senden'}</button>
+            <button onClick={() => sendReportNow((recipientForm.test || '').trim() || undefined)} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? t('Wird gesendet …', 'Sending …') : t('Report senden', 'Send report')}</button>
           </div>
         </div>
       </div>
@@ -2466,6 +2474,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
 // Qualitätsmanagement: Beitragenden-Bewertungen (Smiley 1..5 + Kommentar) aller
 // zugänglichen Bücher, neueste zuerst. Daten aus GET /api/admin/feedback.
 export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDone, deleteFeedback }) {
+  const t = useAdminT()
   const faces = ['😞', '😕', '😐', '🙂', '😍']
   const rows = Array.isArray(qmData) ? qmData : []
   const avg = rows.length ? rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length : 0
@@ -2474,36 +2483,39 @@ export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDo
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
-          <span style={{ fontWeight:700, fontSize:16 }}>Qualitätsmanagement</span>
+          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
+          <span style={{ fontWeight:700, fontSize:16 }}>{t('Qualitätsmanagement', 'Quality management')}</span>
         </div>
-        <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
       </div>
       <div style={{ maxWidth:1000, margin:'2rem auto', padding:'0 1.5rem' }}>
-        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Feedback der Beitragenden</h2>
+        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{t('Feedback der Beitragenden', 'Contributor feedback')}</h2>
         <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
-          Bewertungen direkt nach dem Interview (Smiley-Skala + optionaler Kommentar), neueste zuerst.
-          {rows.length > 0 && <> · {rows.length} {rows.length === 1 ? 'Bewertung' : 'Bewertungen'} · ⌀ {avg.toFixed(1)} / 5</>}
+          {t('Bewertungen direkt nach dem Interview (Smiley-Skala + optionaler Kommentar), neueste zuerst.', 'Ratings right after the interview (smiley scale + optional comment), newest first.')}
+          {rows.length > 0 && <> · {rows.length} {rows.length === 1 ? t('Bewertung', 'rating') : t('Bewertungen', 'ratings')} · ⌀ {avg.toFixed(1)} / 5</>}
         </p>
         <Err msg={err} />
         {loading ? (
-          <p style={S.muted}>Wird geladen …</p>
+          <p style={S.muted}>{t('Wird geladen …', 'Loading …')}</p>
         ) : rows.length === 0 ? (
           <div style={{ ...S.card, textAlign:'center', padding:'1.5rem' }}>
-            <p style={S.muted}>Noch keine Bewertungen. Beitragende geben ihr Feedback nach dem Interview ab.</p>
+            <p style={S.muted}>{t('Noch keine Bewertungen. Beitragende geben ihr Feedback nach dem Interview ab.', 'No ratings yet. Contributors leave their feedback after the interview.')}</p>
           </div>
         ) : (
           <div style={{ ...S.card, padding:0, overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ ...th, textAlign:'center' }}>Erledigt</th>
-                  <th style={th}>Zeitpunkt</th>
-                  <th style={th}>Bewertung</th>
-                  <th style={th}>Beitragende:r</th>
-                  <th style={th}>Buchprojekt</th>
-                  <th style={th}>Manager</th>
-                  <th style={th}>Kommentar</th>
+                  <th style={{ ...th, textAlign:'center' }}>{t('Erledigt', 'Done')}</th>
+                  <th style={th}>{t('Zeitpunkt', 'Time')}</th>
+                  <th style={th}>{t('Bewertung', 'Rating')}</th>
+                  <th style={th}>{t('Beitragende:r', 'Contributor')}</th>
+                  <th style={th}>{t('Buchprojekt', 'Book project')}</th>
+                  <th style={th}>{t('Manager', 'Manager')}</th>
+                  <th style={th}>{t('Kommentar', 'Comment')}</th>
                   <th style={{ ...th, textAlign:'right' }}></th>
                 </tr>
               </thead>
@@ -2512,7 +2524,7 @@ export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDo
                   <tr key={r.id} style={{ opacity: r.done ? 0.5 : 1 }}>
                     <td style={{ ...col, textAlign:'center' }}>
                       <input type="checkbox" checked={!!r.done} onChange={e => toggleFeedbackDone?.(r.id, e.target.checked)}
-                        title="Als erledigt markieren" style={{ width:17, height:17, cursor:'pointer', accentColor:'#1c1917' }} />
+                        title={t('Als erledigt markieren', 'Mark as done')} style={{ width:17, height:17, cursor:'pointer', accentColor:'#1c1917' }} />
                     </td>
                     <td style={{ ...col, whiteSpace:'nowrap', color:'#78716c', fontSize:13 }}>{fmt(r.at)}</td>
                     <td style={{ ...col, whiteSpace:'nowrap' }}>
@@ -2525,7 +2537,7 @@ export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDo
                     <td style={{ ...col, maxWidth:360, whiteSpace:'pre-wrap', color:'#44403c' }}>{r.text || '—'}</td>
                     <td style={{ ...col, textAlign:'right', whiteSpace:'nowrap' }}>
                       <button className="secondary" onClick={() => deleteFeedback?.(r.id)}
-                        style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>Löschen</button>
+                        style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>{t('Löschen', 'Delete')}</button>
                     </td>
                   </tr>
                 ))}
