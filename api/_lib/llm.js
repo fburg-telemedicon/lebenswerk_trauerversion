@@ -14,7 +14,11 @@ async function callAzure({ system, messages, maxTokens = MAX_TOKENS }) {
     throw new Error('Azure OpenAI ist nicht konfiguriert (AZURE_OPENAI_ENDPOINT/KEY/DEPLOYMENT).')
   }
   const url = `${endpoint}/openai/v1/chat/completions?api-version=${apiVersion}`
-  const oaiMessages = (system ? [{ role: 'system', content: system }] : []).concat(messages || [])
+  // NUR role + content an die API geben. Unsere Nachrichten können Zusatzfelder
+  // tragen (z. B. `speaker` im begleiteten Co-Interview-Modus); Azure OpenAI lehnt
+  // unbekannte Properties in Message-Objekten ab → sonst schlägt der Call fehl.
+  const clean = (messages || []).map(m => ({ role: m.role, content: m.content }))
+  const oaiMessages = (system ? [{ role: 'system', content: system }] : []).concat(clean)
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'api-key': key },

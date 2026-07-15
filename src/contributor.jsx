@@ -471,7 +471,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
                 <Waveform stream={micStream} color={recSpeaker === 'companion' ? '#3b82f6' : '#dc2626'} />
               </div>
             )}
-            <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
+            <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
             {/* Beide Bedienelemente stehen in EIGENEN Zeilen. Vorher waren Schalter
