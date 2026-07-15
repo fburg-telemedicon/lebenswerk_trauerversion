@@ -63,6 +63,18 @@ export async function claimMemorialName(code, name) {
   return parseResponse(res) // { ok, name }
 }
 
+// Optionale Server-Ablage des im Browser erzeugten Druck-PDFs (Checkbox in der
+// Detailansicht). Legt eine Kopie im Blob-Storage ab und gibt einen signierten
+// Download-Link zurück; beim Löschen des Buchs verschwindet die Kopie automatisch.
+export async function storeMemorialPdf(token, code, { variant, filename, dataBase64 }) {
+  const res = await fetch(`/api/admin/store-pdf?code=${encodeURIComponent(code)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ variant, filename, dataBase64 }),
+  })
+  return parseResponse(res) // { ok, variant, url, stored_pdfs }
+}
+
 // Sprachwahl des Endnutzers festschreiben: Beim Lebenswerk wird das Buch fest auf
 // die gewählte Sprache gepinnt, damit die Sprachauswahl nicht bei jedem Start
 // erneut erscheint. Nur beim Lebenswerk erlaubt; Code genügt (kein Login nötig).

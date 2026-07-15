@@ -13,6 +13,7 @@ import {
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
   getInvite, redeemInvite, requestPasswordReset,
+  storeMemorialPdf,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
@@ -1842,14 +1843,14 @@ Regeln:
   }
 
   // Druckfertiges PDF (nur Bücher): doppelseitiges Bild, Kapitel beginnen rechts.
-  async function downloadGeneratedPdf(key) {
+  async function downloadGeneratedPdf(key, store = false) {
     const gen = GENERATORS[key]
     const data = selected?.[gen.field]
     if (!data || gen.kind !== 'book' || dlBusy) return
     setDlBusy(`${key}:pdf`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      const { pages } = await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      const { pages, blob } = await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
       // Seitenzahl am Buch festhalten — sie bestimmt die Rückenstärke des Covers
       // und schaltet den Cover-Button frei.
       if (pages && pages !== data.print_pages) {
@@ -1857,6 +1858,18 @@ Regeln:
         await adminSaveMemorialText(token, selected.id, gen.field, updated)
         setSelected(s => ({ ...s, [gen.field]: updated }))
         setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, [gen.field]: updated } : x))
+      }
+      // Optional: dieselbe PDF-Datei zusätzlich auf dem Server ablegen und einen
+      // dauerhaften (signierten) Download-Link in der Detailansicht anzeigen.
+      if (store && blob) {
+        setDlBusy(`${key}:pdf-store`)
+        const dataBase64 = await new Promise((res, rej) => {
+          const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Datei-Lesefehler')); r.readAsDataURL(blob)
+        })
+        const out = await storeMemorialPdf(token, selected.id, { variant: key, filename, dataBase64 })
+        const entry = { url: out.url, filename, at: new Date().toISOString() }
+        setSelected(s => ({ ...s, stored_pdf_urls: { ...(s.stored_pdf_urls || {}), [key]: entry } }))
+        setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, stored_pdf_urls: { ...(x.stored_pdf_urls || {}), [key]: entry } } : x))
       }
     } catch (e) { setErr(`Druck-PDF fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }

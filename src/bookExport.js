@@ -508,10 +508,12 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
     doc.text(String(i), PDF_PAGE_W / 2, PDF_PAGE_H - 10, { align: 'center' })
   }
 
-  downloadBlob(filename, doc.output('blob'))
+  const blob = doc.output('blob')
+  downloadBlob(filename, blob)
   // Seitenzahl zurückgeben: sie bestimmt die Rückenstärke des Covers
-  // (src/coverExport.js) und wird deshalb am Buch gespeichert.
-  return { pages: totalPages }
+  // (src/coverExport.js) und wird deshalb am Buch gespeichert. `blob` wird für
+  // die optionale Server-Ablage des PDFs (Checkbox in der Detailansicht) genutzt.
+  return { pages: totalPages, blob }
 }
 
 // Fließtext (Pflegeexzerpt, Rede …) als A4-PDF. Gleiche Konvention wie beim

@@ -26,7 +26,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs`
 
 // Optionale Sammelbestellungs-/Abholadresse säubern. Nur bekannte Felder,
 // getrimmt, max. Länge je Feld. Sind alle Felder leer -> null (Adresse ist
@@ -123,6 +123,10 @@ async function signMemorialImages(memorials) {
     collectImagePaths(m.book_v2).forEach(p => paths.add(p))
     // Vignetten des Lebensposters – je Station eine, im selben Bucket.
     for (const p of posterImagePaths(m.life_poster)) paths.add(p)
+    // Optional auf dem Server abgelegte Druck-PDF-Kopien (memorials.stored_pdfs).
+    for (const v of Object.values(m.stored_pdfs || {})) {
+      if (v?.path) paths.add(String(v.path).replace(/^\/+/, ''))
+    }
   }
   if (paths.size === 0) return
   const pathList = [...paths]
@@ -150,6 +154,15 @@ async function signMemorialImages(memorials) {
     applySignedUrls(m.book_v1, urlMap)
     applySignedUrls(m.book_v2, urlMap)
     applyPosterUrls(m.life_poster, urlMap)
+    // Signierte Download-Links der abgelegten PDF-Kopien (je Variante).
+    if (m.stored_pdfs && typeof m.stored_pdfs === 'object') {
+      const links = {}
+      for (const [variant, v] of Object.entries(m.stored_pdfs)) {
+        const key = v?.path ? String(v.path).replace(/^\/+/, '') : null
+        if (key && urlMap[key]) links[variant] = { url: urlMap[key], filename: v.filename || null, at: v.at || null }
+      }
+      if (Object.keys(links).length) m.stored_pdf_urls = links
+    }
   }
 }
 

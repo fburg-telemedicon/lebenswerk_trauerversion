@@ -1872,6 +1872,8 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
+    // Je Buch-Variante: „Druck-PDF beim Download auch auf dem Server ablegen" (Default aus).
+    const [storePdf, setStorePdf] = useState({})
     // Auftragsdaten-Bearbeitung: Feldkonfiguration der Kategorie + Draft-Helfer.
     const oci = getCategory(selected.product_category).intake
     const od = orderDraft
@@ -2115,9 +2117,16 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       </button>
                       {gen.kind === 'book' ? (
                         pdfOk ? (
-                          <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                            {dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('🖨 Druck-PDF', '🖨 Print PDF')}
+                          <>
+                          <button onClick={() => downloadGeneratedPdf(key, !!storePdf[key])} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                            {dlBusy === `${key}:pdf-store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('🖨 Druck-PDF', '🖨 Print PDF')}
                           </button>
+                          <label title={t('Zusätzlich eine Kopie auf dem Server ablegen und hier einen Download-Link anzeigen. Wird beim Löschen des Buchs mitgelöscht.', 'Also store a copy on the server and show a download link here. It is deleted together with the book.')}
+                                 style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'#78716c', cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.5 }}>
+                            <input type="checkbox" disabled={!has || busy} checked={!!storePdf[key]} onChange={e => setStorePdf(s => ({ ...s, [key]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
+                            {t('auf Server ablegen', 'store on server')}
+                          </label>
+                          </>
                         ) : null
                       ) : (
                         <button onClick={() => requestDownload(key, 'pdf')} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
@@ -2148,6 +2157,17 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         {reviewingKey === key ? t('Prüft …', 'Checking …') : t('🛡 Prüfung wiederholen', '🛡 Repeat check')}
                       </button>
                     </div>
+                    {selected.stored_pdf_urls?.[key]?.url && (
+                      <div style={{ marginTop:10, fontSize:13, background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'8px 12px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                        <span aria-hidden="true">📄</span>
+                        <a href={selected.stored_pdf_urls[key].url} target="_blank" rel="noopener noreferrer" style={{ color:'#166534', fontWeight:600, textDecoration:'underline' }}>
+                          {t('Auf dem Server abgelegtes Druck-PDF öffnen', 'Open print PDF stored on the server')}
+                        </a>
+                        {selected.stored_pdf_urls[key].at && (
+                          <span style={{ color:'#3f6212', fontSize:12 }}>· {new Date(selected.stored_pdf_urls[key].at).toLocaleString('de-DE')}</span>
+                        )}
+                      </div>
+                    )}
                     {busy && (
                       <div style={{ marginTop:10 }}>
                         {genPct[key] != null && (
