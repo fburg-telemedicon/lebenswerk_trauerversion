@@ -149,10 +149,17 @@ module.exports = async function handler(req, res) {
       // image_style/book_layout sind für den Einstellungs-Tab des Endnutzers nötig
       // (Kategorie Lebenswerk); sie verraten nichts über die Inhalte des Buchs.
       const PUBLIC_FIELDS =
-        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, text_style, interview_timer_seconds, companion_mode, intake, created_at'
+        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, text_style, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, intake, created_at'
       const { data, error } = await supabase
         .from('memorials').select(PUBLIC_FIELDS).eq('id', code).single()
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
+
+      // Lock-Zustand nach außen NUR als Zusammenfassung (Inhaber + Ablauf) — das
+      // geheime Lock-Token bleibt intern (es wird nur beim Sperren an den Inhaber
+      // zurückgegeben). Abgelaufene Locks gelten als frei.
+      const lk = data.edit_lock
+      const lockActive = lk && lk.expires && Date.now() < new Date(lk.expires).getTime()
+      data.edit_lock = lockActive ? { holder: lk.holder || null, expires: lk.expires } : null
 
       // Aus `intake` (kategorie-spezifische Notizen des Managers) darf nur EIN Feld
       // nach außen: die Anredeform (Du/Sie) des Lebenswerks. Ist sie gesetzt, fragt

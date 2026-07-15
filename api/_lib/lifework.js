@@ -191,7 +191,11 @@ async function ensureLifeworkSchema() {
       add column if not exists text_style  text,
       add column if not exists stored_pdfs jsonb,
       add column if not exists interview_timer_seconds integer,
-      add column if not exists companion_mode boolean
+      add column if not exists companion_mode boolean,
+      add column if not exists proof_enabled boolean,
+      add column if not exists proof_max integer,
+      add column if not exists proof_used integer,
+      add column if not exists edit_lock jsonb
   `)
   schemaReady = true
 }

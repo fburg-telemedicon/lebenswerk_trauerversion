@@ -26,13 +26,20 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
 function sanitizeTimer(v) {
   const n = parseInt(v, 10)
   return Number.isFinite(n) && n > 0 ? Math.min(n, 24 * 3600) : 0
+}
+
+// Anzahl erlaubter Probedrucke (Endnutzer-Buchvorschau). Default 3; 0..20.
+function sanitizeProofMax(v) {
+  const n = parseInt(v, 10)
+  if (!Number.isFinite(n)) return 3
+  return Math.max(0, Math.min(n, 20))
 }
 
 // Optionale Sammelbestellungs-/Abholadresse säubern. Nur bekannte Felder,
@@ -470,7 +477,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, enduserEmail } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Der Name ist Pflicht — außer beim Lebenswerk: Kennt der Manager den Namen
       // des Endnutzers nicht, trägt dieser ihn beim ersten Start selbst nach
@@ -550,17 +557,24 @@ module.exports = async function handler(req, res) {
         interview_timer_seconds: sanitizeTimer(interviewTimerSeconds),
         // Begleiteter Co-Interview-Modus nur beim Lebenswerk (ein Erzähler + Begleitperson).
         companion_mode: isLifework ? companionMode === true : false,
+        // Probedruck-Tab (Endnutzer-Buchvorschau) nur beim Lebenswerk.
+        proof_enabled: isLifework ? proofEnabled === true : false,
+        proof_max: isLifework ? sanitizeProofMax(proofMax) : 0,
+        proof_used: 0,
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
         delete insertRow.interview_timer_seconds
         delete insertRow.companion_mode
         delete insertRow.show_contributors
+        delete insertRow.proof_enabled
+        delete insertRow.proof_max
+        delete insertRow.proof_used
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }
       if (error) throw error
@@ -690,18 +704,28 @@ module.exports = async function handler(req, res) {
         if ('textStyle' in meta)     update.text_style  = normalizeTextStyle(meta.productCategory || null, meta.textStyle)
         if ('interviewTimerSeconds' in meta) update.interview_timer_seconds = sanitizeTimer(meta.interviewTimerSeconds)
         if ('companionMode' in meta) update.companion_mode = meta.companionMode === true
+        if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
+        if ('proofMax' in meta)      update.proof_max = sanitizeProofMax(meta.proofMax)
+        // Verbrauchte Probedrucke zurücksetzen (Admin gewährt neue Versuche).
+        if (meta.resetProofUsed === true) update.proof_used = 0
+        // Bearbeitungs-Lock des Endnutzers aus der Ferne lösen (Fern-Freigabe).
+        if (meta.releaseLock === true) update.edit_lock = null
 
         if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && ('image_style' in update || 'book_layout' in update || 'text_style' in update || 'interview_timer_seconds' in update || 'companion_mode' in update || 'show_contributors' in update) && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|column/i.test(error.message || '')) {
           delete update.image_style
           delete update.book_layout
           delete update.text_style
           delete update.interview_timer_seconds
           delete update.companion_mode
           delete update.show_contributors
+          delete update.proof_enabled
+          delete update.proof_max
+          delete update.proof_used
+          delete update.edit_lock
           if (Object.keys(update).length) { ({ error } = await supabase.from('memorials').update(update).eq('id', code)) }
           else error = null
         }
