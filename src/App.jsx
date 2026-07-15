@@ -149,6 +149,7 @@ const EMPTY_CREATE = {
   bookLayout: DEFAULT_BOOK_LAYOUT,
   textStyle: 'literary',   // je Kategorie in freshCreateForm auf den Default gesetzt
   timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
+  companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
   // nur Kategorie Lebenswerk
   enduserEmail: '',
 }
@@ -712,6 +713,7 @@ function Dashboard() {
       textStyle: m.text_style || defaultTextStyle(m.product_category),
       timerOn: (m.interview_timer_seconds || 0) > 0,
       timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
+      companionMode: m.companion_mode === true,
     })
     setOrderEdit(true)
   }
@@ -736,6 +738,7 @@ function Dashboard() {
         textStyle: d.textStyle,
         productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils
         interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
+        companionMode: d.companionMode === true,
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -760,6 +763,7 @@ function Dashboard() {
         book_layout: d.bookLayout || DEFAULT_BOOK_LAYOUT,
         text_style: d.textStyle || defaultTextStyle(selected.product_category),
         interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
+        companion_mode: d.companionMode === true,
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
@@ -865,6 +869,7 @@ function Dashboard() {
         bookLayout: createForm.bookLayout || DEFAULT_BOOK_LAYOUT,
         textStyle: createForm.textStyle || defaultTextStyle(createForm.productCategory),
         interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
+        companionMode: createForm.companionMode === true,
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,

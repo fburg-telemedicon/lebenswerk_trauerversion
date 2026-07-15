@@ -74,7 +74,7 @@ function Waveform({ stream, color = '#dc2626' }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn }) {
   const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -89,6 +89,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   // micState: idle | recording | processing
   const [micState,   setMicState]   = useState('idle')
   const [micStream,  setMicStream]  = useState(null) // aktiver Aufnahme-Stream → Schallwellen-Animation
+  // Begleiteter Modus: wer spricht gerade? 'self' (Endnutzer, rot) | 'companion'
+  // (Begleitperson, blau). Bestimmt Zuordnung der Antwort + Farbe der Schallwelle.
+  const [recSpeaker, setRecSpeaker] = useState('self')
+  const speakerRef = useRef('self')
+  const companionInitRef = useRef(true)
   const [transcript, setTranscript] = useState('')
   // Anzeigemodus: mit Transkript (+ Löschen/Neu einsprechen) oder reines Sprach-
   // Interview. Das Interview startet IMMER ohne Transkript (ruhiger Einstieg); die
@@ -147,6 +152,31 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     }
   }, [messages, aiLoading])
 
+  // Begleiteter Modus ein-/ausgeschaltet: Die KI bestätigt kurz (Chat-Blase +
+  // automatisch vorgelesen über den Autoplay-Effekt). AN → sie tritt zurück und
+  // stellt keine Frage; AUS → sie meldet sich zurück und stellt die nächste Frage.
+  // Der Steuer-Hinweis (userTurn) wird NICHT gespeichert, nur die KI-Antwort.
+  useEffect(() => {
+    if (companionInitRef.current) { companionInitRef.current = false; return }
+    let cancelled = false
+    ;(async () => {
+      setAiLoading(true)
+      try {
+        const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+        const userTurn = companionOn
+          ? '[Der Erzähler hat gerade den BEGLEITETEN MODUS eingeschaltet: Ab jetzt führt eine anwesende Begleitperson (z. B. eine Pflegekraft) das Gespräch mit. Bestätige das in EINEM kurzen, warmen Satz, tritt selbst zurück und stelle KEINE neue Frage.]'
+          : '[Der begleitete Modus wurde wieder AUSgeschaltet: Du übernimmst die Gesprächsführung wieder. Melde dich in einem kurzen, warmen Satz zurück und stelle dann die nächste passende Frage – berücksichtige, was in der Zwischenzeit gesprochen wurde.]'
+        const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current, { role: 'user', content: userTurn }], { memorialCode: memorial?.id, kind: 'interview' })
+        if (cancelled) return
+        const finalMsgs = [...messagesRef.current, { role: 'assistant', content: reply }]
+        applyMessages(finalMsgs)
+        onSave?.(finalMsgs)
+      } catch (e) { if (!cancelled) setErr(e.message) }
+      finally { if (!cancelled) setAiLoading(false) }
+    })()
+    return () => { cancelled = true }
+  }, [companionOn])
+
   function playText(text) {
     stopSpeaking()
     setIsPlaying(true); setTtsLoading(true); setErr('')
@@ -184,7 +214,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     finally { setAiLoading(false) }
   }
 
-  async function handleMic() {
+  async function handleMic(speaker = 'self') {
     if (micState === 'processing') return
     // Testzeit abgelaufen: keine neue Aufnahme mehr starten.
     if (expired && micState !== 'recording') return
@@ -193,6 +223,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
       mediaRecRef.current?.stop()
       return
     }
+    // Sprecher der jetzt startenden Aufnahme merken (rot = Endnutzer, blau =
+    // Begleitperson). Bestimmt Zuordnung der Antwort und Farbe der Schallwelle.
+    speakerRef.current = speaker
+    setRecSpeaker(speaker)
 
     // Laufende Sprachausgabe stoppen, bevor das Mikrofon öffnet (kein Überlappen,
     // Button-Status sauber). Zugleich das TTS-Element in dieser Nutzer-Geste erneut
@@ -237,7 +271,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           // Antwort immer automatisch abschicken. Im Transkript-Modus erscheint sie
           // als Chat-Blase und trägt dort dauerhaft „Löschen"/„Neu einsprechen"
           // (siehe sendAnswer + undoFrom/redoFrom).
-          if (text.trim()) sendAnswer(text)
+          if (text.trim()) sendAnswer(text, speakerRef.current)
           return
         } catch (e) {
           setErr(`${t.errTranscribe}: ${e.message}`)
@@ -257,15 +291,20 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     }
   }
 
-  async function sendAnswer(explicitText) {
+  async function sendAnswer(explicitText, speaker = 'self') {
     const text = (explicitText ?? transcript).trim(); if (!text) return
     setTranscript(''); stopSpeaking(); setIsPlaying(false)
     // Antwort landet sofort als Chat-Blase im Verlauf; dort trägt sie dauerhaft
-    // die Buttons Löschen/Neu einsprechen (undoFrom/redoFrom).
-    const newMsgs = [...messagesRef.current, { role: 'user', content: text }]
-    applyMessages(newMsgs); setRound(r => r + 1); setAiLoading(true)
+    // die Buttons Löschen/Neu einsprechen (undoFrom/redoFrom). Der Sprecher
+    // (self/companion) bleibt erhalten – die Buch-Synthese gewichtet danach.
+    const newMsgs = [...messagesRef.current, { role: 'user', content: text, speaker: speaker === 'companion' ? 'companion' : 'self' }]
+    applyMessages(newMsgs); setRound(r => r + 1)
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
+    // Begleiteter Modus: Die KI hört nur zu – die Begleitperson führt das Gespräch.
+    // Keine KI-Frage/-Antwort; die Äußerungen werden nur mit Zuordnung erfasst.
+    if (companionOn) return
+    setAiLoading(true)
     try {
       const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
@@ -360,10 +399,13 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             </div>
           ) : null
         })()}
-        {showTx && history.map((m, i) => (
+        {showTx && history.map((m, i) => {
+          const isCompanion = m.role === 'user' && m.speaker === 'companion'
+          return (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
             <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: m.role === 'user' ? '#e0f2fe' : '#f5f5f4' }}>{m.content}</div>
+              {isCompanion && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>👥 {t.micCompanion || 'Begleitung'}</span>}
+              <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: isCompanion ? '#dbeafe' : (m.role === 'user' ? '#e0f2fe' : '#f5f5f4'), border: isCompanion ? '1px solid #93c5fd' : 'none' }}>{m.content}</div>
               {m.role === 'user' && i === lastUserIdx && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                   <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => undoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txDelete}</button>
@@ -372,7 +414,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
               )}
             </div>
           </div>
-        ))}
+        )})}
         {aiLoading && messages.length === 0 && <div style={{ margin: '1.5rem 0' }}><Dots /></div>}
         {latestQ && (
           <div style={{ ...S.card, marginBottom: '1rem', background: '#fafaf9', borderColor: '#d6d3d1', textAlign: showTx ? 'left' : 'center' }}>
@@ -390,17 +432,43 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         {aiLoading && messages.length > 0 && <div style={{ margin: '.75rem 0' }}><Dots /></div>}
         {!aiLoading && latestQ && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1.5rem 1rem' }}>
-            <div style={{ marginBottom: 14 }}>
-              <button
-                onClick={handleMic}
-                disabled={micState === 'processing' || expired}
-                style={{ width:72, height:72, borderRadius:'50%', fontSize:28, display:'inline-flex', alignItems:'center', justifyContent:'center', background:micBg, border:micBorder, color:'#1c1917', animation:micAnim, transition:'all .2s', opacity: expired ? 0.4 : 1, cursor: expired ? 'not-allowed' : 'pointer' }}
-                aria-label={micLabel}
-              >{micIcon}</button>
-            </div>
+            {companionOn ? (
+              // Begleiteter Modus: zwei Mikrofone. Immer nur EINS aktiv — während
+              // einer Aufnahme ist das andere gesperrt.
+              <div style={{ marginBottom: 14, display:'flex', gap:28, justifyContent:'center', alignItems:'flex-start' }}>
+                {[
+                  { sp:'self',      col:'#ef4444', bg:'#fee2e2', label: t.micSelf || 'Erzähler' },
+                  { sp:'companion', col:'#3b82f6', bg:'#dbeafe', label: t.micCompanion || 'Begleitung' },
+                ].map(mic => {
+                  const on  = micState === 'recording' && recSpeaker === mic.sp
+                  const dis = micState === 'processing' || expired || (micState === 'recording' && recSpeaker !== mic.sp)
+                  return (
+                    <div key={mic.sp} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
+                      <button onClick={() => handleMic(mic.sp)} disabled={dis}
+                        style={{ width:64, height:64, borderRadius:'50%', fontSize:26, display:'inline-flex', alignItems:'center', justifyContent:'center',
+                          background: on ? mic.bg : '#f5f5f4', border: on ? `2px solid ${mic.col}` : '1px solid #d6d3d1', color:'#1c1917',
+                          animation: on ? 'lw-mic 1.5s ease-in-out infinite' : 'none', transition:'all .2s', opacity: (dis && !on) ? 0.4 : 1, cursor: dis ? 'not-allowed' : 'pointer' }}
+                        aria-label={mic.label}>
+                        {micState === 'processing' && recSpeaker === mic.sp ? '⏳' : '🎙'}
+                      </button>
+                      <span style={{ fontSize:11, fontWeight:700, color: mic.col }}>{mic.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{ marginBottom: 14 }}>
+                <button
+                  onClick={() => handleMic('self')}
+                  disabled={micState === 'processing' || expired}
+                  style={{ width:72, height:72, borderRadius:'50%', fontSize:28, display:'inline-flex', alignItems:'center', justifyContent:'center', background:micBg, border:micBorder, color:'#1c1917', animation:micAnim, transition:'all .2s', opacity: expired ? 0.4 : 1, cursor: expired ? 'not-allowed' : 'pointer' }}
+                  aria-label={micLabel}
+                >{micIcon}</button>
+              </div>
+            )}
             {micState === 'recording' && micStream && (
               <div style={{ maxWidth:320, margin:'0 auto 10px' }}>
-                <Waveform stream={micStream} color="#dc2626" />
+                <Waveform stream={micStream} color={recSpeaker === 'companion' ? '#3b82f6' : '#dc2626'} />
               </div>
             )}
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? '#dc2626' : '#78716c', marginBottom:4 }}>
@@ -409,7 +477,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             {/* Beide Bedienelemente stehen in EIGENEN Zeilen. Vorher waren Schalter
                 (inline-flex) und Button Inline-Elemente derselben Zeile — der Button
                 rutschte dann neben die Schalter-Beschriftung und überdeckte sie. */}
-            {txAvailable && (
+            {/* In-Interview-Schalter nur noch, wenn es KEINE Tab-Leiste gibt — dort
+                sitzt der Transkript-Umschalter jetzt als eigenes Icon/Feld. */}
+            {txAvailable && !memorial.photo_upload_tab && (
               <div style={{ marginTop:18 }}>
                 <div
                   onClick={() => setShowTx(v => !v)}
@@ -683,7 +753,7 @@ function EnduserSettings({ code, token, memorial, t }) {
   )
 }
 
-function ContribTabBar({ tab, setTab, t, withSettings, showTx, onToggleTx }) {
+function ContribTabBar({ tab, setTab, t, withSettings, showTx, onToggleTx, companionOn, onToggleCompanion }) {
   const items = [
     { id: 'interview', icon: '🎙️', label: t.tabInterview },
     { id: 'photo',     icon: '📷', label: t.tabPhoto },
@@ -711,6 +781,16 @@ function ContribTabBar({ tab, setTab, t, withSettings, showTx, onToggleTx }) {
           <span style={{ fontSize:11, fontWeight: showTx ? 700 : 500 }}>{t.txTab || 'Transkript'}</span>
         </button>
       )}
+      {/* Begleiteter Modus — Schalter (kein Tab). AN = inverse (blaue) Darstellung,
+          passend zum blauen Mikrofon der Begleitperson. */}
+      {onToggleCompanion && (
+        <button onClick={onToggleCompanion} aria-pressed={!!companionOn}
+          style={{ flex:1, border:'none', borderTop:'2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+            background: companionOn ? '#1d4ed8' : 'none', color: companionOn ? '#fff' : '#a8a29e' }}>
+          <span style={{ fontSize:22, lineHeight:1 }}>👥</span>
+          <span style={{ fontSize:11, fontWeight: companionOn ? 700 : 500 }}>{t.companionTab || 'Begleitet'}</span>
+        </button>
+      )}
     </div>
   )
 }
@@ -734,6 +814,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   const [lang, setLang]                       = useState(null) // vom Beitragenden gewählte Sprache
   const [tab, setTab]                         = useState('interview') // interview | photo (nur wenn photo_upload_tab)
   const [showTx, setShowTx]                   = useState(false)        // Transkript einblenden (auch über die Tab-Leiste steuerbar)
+  const [companionOn, setCompanionOn]         = useState(false)        // begleiteter Co-Interview-Modus aktiv
   const saveQueueRef                          = useRef(Promise.resolve())
   // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
   // EINMAL fallen. Sonst triggert sie ein späterer `setMemorial(...)` erneut — z. B.
@@ -1108,6 +1189,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             initialMessages={initialMessages}
             showTx={showTx}
             setShowTx={setShowTx}
+            companionOn={companionOn}
+            setCompanionOn={setCompanionOn}
           />
         )
         // Ohne die Option kein Tab-Umschalter – Interview wie gehabt.
@@ -1134,7 +1217,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             )}
             <ContribTabBar tab={tab} setTab={setTab} t={t} withSettings={withSettings}
               showTx={showTx}
-              onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null} />
+              onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
+              companionOn={companionOn}
+              onToggleCompanion={memorial?.companion_mode === true ? () => setCompanionOn(v => !v) : null} />
           </div>
         )
       })()}

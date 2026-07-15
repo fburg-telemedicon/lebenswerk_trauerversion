@@ -1313,6 +1313,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           )}
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Ohne Haken läuft das Interview unbegrenzt. Mit Haken zählt im Interview ein gut sichtbarer Countdown herunter; bei Null ist keine Sprachaufnahme/-ausgabe mehr möglich (Ansehen bleibt möglich).</p>
         </div>
+        {createForm.productCategory === 'lifework' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Begleiteter Modus (Co-Interview)</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.companionMode === true} onChange={e => setCreateForm({ ...createForm, companionMode: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Umschalter für einen begleiteten Interview-Modus anbieten</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Blendet im Interview einen Umschalter ein. Ist er aktiv, kann eine Begleitperson (z. B. eine Pflegekraft) das Gespräch mitführen – mit eigenem, blauem Mikrofon; die KI tritt so lange zurück. Für die Buchsynthese zählen vor allem die Aussagen des Erzählers selbst.</p>
+        </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Textstil des Buchs</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Später im Dashboard änderbar.</p>
@@ -2447,6 +2457,16 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   )}
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Ohne Haken unbegrenzt. Greift beim nächsten (Neu-)Start des Interviews.</p>
                 </div>
+                {selected.product_category === 'lifework' && (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Begleiteter Modus (Co-Interview)</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.companionMode === true} onChange={e => setOd({ companionMode: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Umschalter für den begleiteten Modus anbieten</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Begleitperson (z. B. Pflegekraft) kann das Gespräch mit eigenem, blauem Mikrofon mitführen.</p>
+                </div>
+                )}
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Textstil des Buchs</Lbl>
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Wirkt auf die nächste Buch-Generierung.</p>

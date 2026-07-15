@@ -20,9 +20,22 @@ function genderNote(memorial) {
 
 function blocks(contributions) {
   return contributions.map(c => {
-    const lines = c.messages.map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`)
+    const lines = c.messages.map(m => {
+      if (m.role === 'assistant') return `F: ${m.content}`
+      // Begleiteter Modus: Äußerungen der Begleitperson (z. B. Pflegekraft) sind
+      // markiert, damit die Synthese sie vom Erzähler unterscheiden kann.
+      return m.speaker === 'companion' ? `A [Begleitperson]: ${m.content}` : `A: ${m.content}`
+    })
     return `=== ${c.contributor_name} (${c.relationship}) ===\n${lines.join('\n')}`
   }).join('\n\n')
+}
+
+// Direktive zur Gewichtung im begleiteten Modus. Nur wenn wirklich Begleit-
+// Äußerungen vorkommen (sonst leer, um die Prompts nicht unnötig zu belasten).
+function companionNote(contributions) {
+  const has = (contributions || []).some(c => (c?.messages || []).some(m => m?.speaker === 'companion'))
+  if (!has) return ''
+  return `\n\nBEGLEITETER MODUS: Manche Antworten sind mit „[Begleitperson]" markiert — sie stammen NICHT vom Erzähler selbst, sondern von einer begleitenden Person (z. B. einer Pflegekraft), die das Gespräch unterstützt hat. Maßgeblich für das Buch ist, was der ERZÄHLER selbst gesagt hat. Verwende „[Begleitperson]"-Beiträge NUR, wenn sie zusätzliche, konkrete Fakten ÜBER den Erzähler beisteuern; ihre bloßen Fragen, Impulse oder Bestätigungen gehören NICHT ins Buch und dürfen NICHT als Aussagen des Erzählers ausgegeben werden.`
 }
 
 // ── Buchumfang an die beigetragene Textmenge koppeln ──────────────
@@ -689,7 +702,7 @@ Regeln:
 - Auf Deutsch
 - Gültiges JSON, keine trailing commas
 
-Interview:\n\n${blocks(contributions)}`
+${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
 }
 
 function lifeworkV2Chapter(memorial, contributions, plan, outline) {
@@ -716,7 +729,7 @@ Regeln:
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 
-Interview:\n\n${blocks(contributions)}`
+${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
 }
 
 // ── Pflegeexzerpt (Nebenprodukt des Lebenswerks) ──────────────────
@@ -773,7 +786,7 @@ Anforderungen:
 - Auf Deutsch
 - Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. Keine Überschrift, keine Metakommentare, kein Markdown.
 
-Interview:\n\n${blocks(contributions)}`
+${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
 }
 
 // ── Profile + Endtext-Stile/-Abschnitte je Nicht-Trauer-Kategorie ──
