@@ -899,6 +899,13 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const cancelRef = useRef(false)
   const bookRef   = useRef(null)
 
+  // Audio-Textänderung (Druckversion): Abschnitt markieren → Sprach-Anweisung → KI
+  const [audioEdit, setAudioEdit] = useState(null)  // { idx, state:'recording'|'processing' }
+  const audioRecRef = useRef(null)
+  const audioChunks = useRef([])
+  const taRefs      = useRef({})   // idx → <textarea>
+  const selRef      = useRef(null) // { idx, start, end } zum Aufnahmestart erfasst
+
   const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
   const P = proofT(lang, du)
   const isPrint = !!book?.print
@@ -1023,6 +1030,65 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     } catch (e) { setErr(e.message) }
   }
 
+  // ── Audio-Textänderung: Aufnahme starten/stoppen (Toggle je Kapitel) ──
+  async function toggleAudioEdit(idx) {
+    // Läuft bereits an DIESEM Kapitel → stoppen
+    if (audioEdit && audioEdit.idx === idx && audioEdit.state === 'recording') {
+      try { audioRecRef.current?.stop() } catch {}
+      return
+    }
+    if (audioEdit) return  // anderswo beschäftigt
+    setErr('')
+    // Auswahl im Textfeld zum Startzeitpunkt festhalten (leer = ganzer Abschnitt)
+    const ta = taRefs.current[idx]
+    selRef.current = (ta && ta.selectionStart != null && ta.selectionEnd > ta.selectionStart)
+      ? { idx, start: ta.selectionStart, end: ta.selectionEnd }
+      : { idx }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      audioRecRef.current = rec; audioChunks.current = []
+      rec.ondataavailable = e => { if (e.data.size > 0) audioChunks.current.push(e.data) }
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setAudioEdit({ idx, state: 'processing' })
+        try {
+          const mimeType = rec.mimeType || 'audio/webm'
+          const blob = new Blob(audioChunks.current, { type: mimeType })
+          const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob) })
+          const resp = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio: base64, mimeType, memorialCode: code, language: lang }) })
+          const data = await resp.json()
+          if (!resp.ok) throw new Error(data.error)
+          const instruction = String(data.text || '').trim()
+          if (!instruction) throw new Error(P.audioNoText)
+          await applyAudioEdit(idx, instruction)
+        } catch (e) { setErr(e.message) }
+        finally { setAudioEdit(null) }
+      }
+      rec.start(); setAudioEdit({ idx, state: 'recording' })
+    } catch (e) { setErr(e.message); setAudioEdit(null) }
+  }
+
+  // Transkribierte Anweisung auf den (markierten oder ganzen) Abschnitt anwenden.
+  async function applyAudioEdit(idx, instruction) {
+    const nb = bookRef.current; const ch = nb.chapters[idx]
+    const body = String(ch.body || '')
+    const sel = selRef.current
+    const hasSel = sel && sel.idx === idx && sel.start != null && sel.end > sel.start
+    const target = hasSel ? body.slice(sel.start, sel.end) : body
+    // Anweisungen im SYSTEM-Prompt (Azure-Prompt-Shield lehnt Imperative im User-Turn ab);
+    // der User-Turn enthält nur die Daten (Abschnitt + gesprochene Anweisung).
+    const sys = `${langDirective(lang)} Du bist ein einfühlsamer Lektor einer Autobiografie in der Ich-Form. `
+      + `Überarbeite AUSSCHLIESSLICH den bereitgestellten Abschnitt gemäß der Anweisung des Erzählers. `
+      + `Behalte Sprache, Ich-Perspektive, Zeitform und den warmen, persönlichen Ton bei. Erfinde keine neuen Fakten. `
+      + `Gib NUR den überarbeiteten Abschnitt zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar.`
+    const revised = String(await askLLM(sys, [{ role: 'user', content: `ABSCHNITT:\n${target}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
+    if (!revised) return
+    const newBody = hasSel ? body.slice(0, sel.start) + revised + body.slice(sel.end) : revised
+    setChapter(idx, { body: newBody })
+    try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current) } catch (e) { setErr(e.message) }
+  }
+
   const page = { ...S.page, paddingTop: '1.5rem' }
   const imgUrl = (p) => (p ? signed[p] : null)
   const heading = (
@@ -1100,7 +1166,17 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
               </div>
             )}
             <input value={c.heading || ''} onChange={e => setChapter(i, { heading: e.target.value })} placeholder={P.headingPh} style={{ fontWeight: 700, marginBottom: 8 }} />
-            <textarea value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 180, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
+            <textarea ref={el => { taRefs.current[i] = el }} value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 180, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+              <button type="button" onClick={() => toggleAudioEdit(i)} disabled={!!audioEdit && audioEdit.idx !== i}
+                className={audioEdit && audioEdit.idx === i && audioEdit.state === 'recording' ? '' : 'secondary'}
+                style={{ fontSize: 12, padding: '5px 10px' }}>
+                {audioEdit && audioEdit.idx === i
+                  ? (audioEdit.state === 'recording' ? P.audioEditStop : P.audioEditBusy)
+                  : P.audioEditBtn}
+              </button>
+              <span style={{ fontSize: 11, color: '#a8a29e' }}>{P.audioEditHint}</span>
+            </div>
           </section>
         )
       })}
