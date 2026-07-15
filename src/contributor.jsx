@@ -106,6 +106,31 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   const chunksRef    = useRef([])
   const endRef       = useRef(null)
 
+  // Test-Zeitlimit: 0 = unbegrenzt. Ist ein Limit gesetzt, läuft ab dem ersten
+  // Betreten des Interviews ein Countdown; die Frist (Deadline) wird pro Buch im
+  // localStorage gehalten, damit ein Neuladen sie nicht zurücksetzt. Bei Null ist
+  // keine Aufnahme/Sprachausgabe mehr möglich – Ansehen bleibt erlaubt.
+  const timerSeconds = Math.max(0, parseInt(memorial?.interview_timer_seconds, 10) || 0)
+  const timerActive  = timerSeconds > 0
+  const [remaining, setRemaining] = useState(timerSeconds)
+  useEffect(() => {
+    if (!timerActive || !memorial?.id) return
+    // Schlüssel enthält den Timer-Wert: Ändert der Manager das Limit, startet der
+    // Countdown sauber neu; ein bloßes Neuladen mit gleichem Limit setzt ihn NICHT zurück.
+    const key = `lw_timer_${memorial.id}_${timerSeconds}`
+    let deadline = parseInt(localStorage.getItem(key) || '', 10)
+    if (!Number.isFinite(deadline)) {
+      deadline = Date.now() + timerSeconds * 1000
+      try { localStorage.setItem(key, String(deadline)) } catch { /* privater Modus */ }
+    }
+    const tick = () => setRemaining(Math.max(0, Math.round((deadline - Date.now()) / 1000)))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [timerActive, timerSeconds, memorial?.id])
+  const expired = timerActive && remaining <= 0
+  const fmtMMSS = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiLoading])
   useEffect(() => { if (messages.length === 0) loadFirst() }, [])
 
@@ -113,6 +138,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   useEffect(() => {
     const last = messages[messages.length - 1]
     if (last?.role === 'assistant' && !aiLoading) {
+      // Nach abgelaufener Testzeit keine Sprachausgabe mehr.
+      if (expired) return
       // Nach Löschen/Neu einsprechen die (wiederhergestellte) Frage nicht erneut
       // vorlesen – sonst überlagert die TTS eine gerade startende Aufnahme.
       if (skipAutoPlayRef.current) { skipAutoPlayRef.current = false; return }
@@ -159,6 +186,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
 
   async function handleMic() {
     if (micState === 'processing') return
+    // Testzeit abgelaufen: keine neue Aufnahme mehr starten.
+    if (expired && micState !== 'recording') return
 
     if (micState === 'recording') {
       mediaRecRef.current?.stop()
@@ -306,7 +335,21 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         </div>
         <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
       </div>
+      {timerActive && (
+        <div style={{ textAlign:'center', padding:'8px 12px', borderBottom:'1px solid #e7e5e4', fontSize:14, fontWeight:700,
+          background: expired ? '#fef2f2' : (remaining <= 60 ? '#fff7ed' : '#eff6ff'),
+          color: expired ? '#b91c1c' : (remaining <= 60 ? '#c2410c' : '#1d4ed8') }}>
+          {expired
+            ? (t.timerExpiredShort || '⏳ Testzeit abgelaufen')
+            : `⏳ ${t.timerRemaining || 'Verbleibende Testzeit'}: ${fmtMMSS(remaining)}`}
+        </div>
+      )}
       <div style={{ padding: '1.25rem 1.5rem' }}>
+        {expired && (
+          <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'12px 14px', fontSize:14, color:'#991b1b', lineHeight:1.55, marginBottom:14 }}>
+            {t.timerExpired || 'Die Testzeit ist abgelaufen. Sie können das Interview weiter ansehen, aber keine Antworten mehr aufnehmen. Für ein unbegrenztes Interview wenden Sie sich bitte an den Anbieter.'}
+          </div>
+        )}
         <Err msg={err} />
         {saveErr && <div style={{ ...S.err }}>⚠ {t.saveLabel}: {saveErr}</div>}
         {memorial.funeral_date && (() => {
@@ -337,7 +380,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
               <Lbl>{t.questionLabel}</Lbl>
               <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 1rem', color: '#292524' }}>{latestQ}</p>
             </>}
-            <button onClick={handleSpeak} disabled={ttsLoading || aiLoading} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={handleSpeak} disabled={ttsLoading || aiLoading || expired} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: expired ? 0.5 : 1 }}>
               {ttsLoading
                 ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
                 : isPlaying ? t.stop : hasPlayed ? t.readAgain : t.listen}
@@ -350,8 +393,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             <div style={{ marginBottom: 14 }}>
               <button
                 onClick={handleMic}
-                disabled={micState === 'processing'}
-                style={{ width:72, height:72, borderRadius:'50%', fontSize:28, display:'inline-flex', alignItems:'center', justifyContent:'center', background:micBg, border:micBorder, color:'#1c1917', animation:micAnim, transition:'all .2s' }}
+                disabled={micState === 'processing' || expired}
+                style={{ width:72, height:72, borderRadius:'50%', fontSize:28, display:'inline-flex', alignItems:'center', justifyContent:'center', background:micBg, border:micBorder, color:'#1c1917', animation:micAnim, transition:'all .2s', opacity: expired ? 0.4 : 1, cursor: expired ? 'not-allowed' : 'pointer' }}
                 aria-label={micLabel}
               >{micIcon}</button>
             </div>
@@ -381,7 +424,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
                 </div>
               </div>
             )}
-            {memorial.catalog && micState === 'idle' && (
+            {memorial.catalog && micState === 'idle' && !expired && (
               <div style={{ marginTop:16 }}>
                 <button
                   onClick={() => sendAnswer(t.nextQuestionMsg)}

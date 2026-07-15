@@ -148,6 +148,7 @@ const EMPTY_CREATE = {
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   textStyle: 'literary',   // je Kategorie in freshCreateForm auf den Default gesetzt
+  timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
   // nur Kategorie Lebenswerk
   enduserEmail: '',
 }
@@ -709,6 +710,8 @@ function Dashboard() {
       imageStyle: m.image_style || DEFAULT_IMAGE_STYLE,
       bookLayout: m.book_layout || DEFAULT_BOOK_LAYOUT,
       textStyle: m.text_style || defaultTextStyle(m.product_category),
+      timerOn: (m.interview_timer_seconds || 0) > 0,
+      timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
     })
     setOrderEdit(true)
   }
@@ -732,6 +735,7 @@ function Dashboard() {
         bookLayout: d.bookLayout,
         textStyle: d.textStyle,
         productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils
+        interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -755,6 +759,7 @@ function Dashboard() {
         image_style: d.imageStyle || DEFAULT_IMAGE_STYLE,
         book_layout: d.bookLayout || DEFAULT_BOOK_LAYOUT,
         text_style: d.textStyle || defaultTextStyle(selected.product_category),
+        interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
@@ -859,6 +864,7 @@ function Dashboard() {
         imageStyle: createForm.imageStyle || DEFAULT_IMAGE_STYLE,
         bookLayout: createForm.bookLayout || DEFAULT_BOOK_LAYOUT,
         textStyle: createForm.textStyle || defaultTextStyle(createForm.productCategory),
+        interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,

@@ -4,6 +4,7 @@
     {
       "date": "2026-07-15",
       "items": [
+        "Test-Zeitlimit fürs Interview: In den Experteneinstellungen (Buchanlage + Buch-Detailseite) lässt sich ein Zeitlimit aktivieren (Standard 5 Minuten); ohne Aktivierung läuft das Interview unbegrenzt. Mit Limit zählt im Interview-Bildschirm ein gut sichtbarer Countdown herunter. Bei Null bleibt das Interview ansehbar, aber Sprachaufnahme und -ausgabe sind gesperrt – mit Hinweis auf die abgelaufene Testzeit. Praktisch, um das Produkt zeitlich begrenzt zum Ausprobieren bereitzustellen.",
         "Fehler behoben (Lebenswerk-Endnutzer): Beim Starten des Interviews tauchte fälschlich der „vorhandene Session\"-Hinweis auf, obwohl man gerade erst begonnen hatte – dabei wurden Eingabefelder überschrieben und die Sprachausgabe lief schon, bevor der Interview-Bildschirm sichtbar war. Ursache war ein doppelt ausgelöster Einstiegs-Check (das Nachtragen des Namens ans Buch stieß ihn erneut an). Die Einstiegs-Entscheidung fällt jetzt nur noch einmal.",
         "Beim vollständigen Löschen eines Buchprojekts wird jetzt auch der zugehörige Endnutzer-Zugang (Lebenswerk) gelöscht – so wird die E-Mail-Adresse wieder für neue Einladungen frei.",
         "Passwortvergabe-Bildschirm: Lange E-Mail-Adressen brechen jetzt sauber um, statt über den Rand hinauszuragen.",

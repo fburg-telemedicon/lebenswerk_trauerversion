@@ -189,7 +189,8 @@ async function ensureLifeworkSchema() {
       add column if not exists family_tree jsonb,
       add column if not exists life_poster jsonb,
       add column if not exists text_style  text,
-      add column if not exists stored_pdfs jsonb
+      add column if not exists stored_pdfs jsonb,
+      add column if not exists interview_timer_seconds integer
   `)
   schemaReady = true
 }

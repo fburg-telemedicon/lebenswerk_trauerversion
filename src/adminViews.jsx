@@ -1300,6 +1300,20 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         <div style={{ marginBottom: 24 }}>
+          <Lbl>Test-Zeitlimit fürs Interview</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.timerOn === true} onChange={e => setCreateForm({ ...createForm, timerOn: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Interview zeitlich begrenzen (Testlauf zum Ausprobieren)</span>
+          </label>
+          {createForm.timerOn === true && (
+            <div style={{ marginTop:10, marginLeft:28, display:'flex', alignItems:'center', gap:8 }}>
+              <input type="number" min={1} max={1440} value={createForm.timerMinutes} onChange={e => setCreateForm({ ...createForm, timerMinutes: e.target.value })} style={{ width:90 }} />
+              <span style={{ fontSize:13, color:'#78716c' }}>Minuten</span>
+            </div>
+          )}
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Ohne Haken läuft das Interview unbegrenzt. Mit Haken zählt im Interview ein gut sichtbarer Countdown herunter; bei Null ist keine Sprachaufnahme/-ausgabe mehr möglich (Ansehen bleibt möglich).</p>
+        </div>
+        <div style={{ marginBottom: 24 }}>
           <Lbl>Textstil des Buchs</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Später im Dashboard änderbar.</p>
           <TextStylePicker category={createForm.productCategory} value={createForm.textStyle} onChange={k => setCreateForm({ ...createForm, textStyle: k })} />
@@ -2418,6 +2432,20 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       )
                     })}
                   </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Test-Zeitlimit fürs Interview</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.timerOn === true} onChange={e => setOd({ timerOn: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Interview zeitlich begrenzen (Testlauf)</span>
+                  </label>
+                  {od.timerOn === true && (
+                    <div style={{ marginTop:10, marginLeft:28, display:'flex', alignItems:'center', gap:8 }}>
+                      <input type="number" min={1} max={1440} value={od.timerMinutes} onChange={e => setOd({ timerMinutes: e.target.value })} style={{ width:90 }} />
+                      <span style={{ fontSize:13, color:'#78716c' }}>Minuten</span>
+                    </div>
+                  )}
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Ohne Haken unbegrenzt. Greift beim nächsten (Neu-)Start des Interviews.</p>
                 </div>
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Textstil des Buchs</Lbl>

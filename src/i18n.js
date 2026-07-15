@@ -154,6 +154,9 @@ ${url}
   txRedo: '↻ Neu einsprechen',
   txToggleLabel: 'Transkript & Korrekturmöglichkeiten anzeigen',
   txTab: 'Transkript',
+  timerRemaining: 'Verbleibende Testzeit',
+  timerExpiredShort: '⏳ Testzeit abgelaufen',
+  timerExpired: 'Die Testzeit ist abgelaufen. Sie können das Interview weiter ansehen, aber keine Antworten mehr aufnehmen. Für ein unbegrenztes Interview wenden Sie sich bitte an den Anbieter.',
   tabInterview: 'Interview',
   tabPhoto: 'Foto-Upload',
   // Lebenswerk / Endnutzer
@@ -261,6 +264,9 @@ ${url}
   txRedo: '↻ Nagraj ponownie',
   txToggleLabel: 'Pokaż transkrypcję i możliwość korekty',
   txTab: 'Transkrypcja',
+  timerRemaining: 'Pozostały czas testowy',
+  timerExpiredShort: '⏳ Czas testowy minął',
+  timerExpired: 'Czas testowy dobiegł końca. Możesz nadal przeglądać wywiad, ale nie możesz już nagrywać odpowiedzi. Aby uzyskać nieograniczony wywiad, skontaktuj się z dostawcą.',
   tabInterview: 'Wywiad',
   tabPhoto: 'Zdjęcia',
   // Dzieło życia / użytkownik końcowy
@@ -368,6 +374,9 @@ ${url}
   txRedo: '↻ Record again',
   txToggleLabel: 'Show transcript & correction options',
   txTab: 'Transcript',
+  timerRemaining: 'Remaining trial time',
+  timerExpiredShort: '⏳ Trial time expired',
+  timerExpired: 'The trial time has expired. You can still view the interview, but can no longer record answers. For an unlimited interview, please contact the provider.',
   tabInterview: 'Interview',
   tabPhoto: 'Photos',
   // Life’s work / end user
