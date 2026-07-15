@@ -7,9 +7,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang } from './api.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
-import { getCategory } from './categories.js'
+import { getCategory, defaultTextStyle } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
-import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
+import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
 import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
 import { S, PartnerBanner, Dots, Err, Lbl } from './ui.jsx'
@@ -721,8 +721,10 @@ function ContributorPhotoUpload({ code, contribId, t }) {
 // Einstellungs-Tab des Endnutzers (Kategorie Lebenswerk): Grafikstil + Textstil
 // seines eigenen Buchs. Autorisiert über den Endnutzer-Token (siehe App.jsx).
 function EnduserSettings({ code, token, memorial, t }) {
+  const cat = memorial?.product_category || 'lifework'
   const [imageStyle, setImageStyle] = useState(memorial?.image_style || DEFAULT_IMAGE_STYLE)
   const [bookLayout, setBookLayout] = useState(memorial?.book_layout || DEFAULT_BOOK_LAYOUT)
+  const [textStyle, setTextStyle]   = useState(memorial?.text_style || defaultTextStyle(cat))
   const [saved, setSaved] = useState('')
   const [err, setErr] = useState('')
 
@@ -747,6 +749,10 @@ function EnduserSettings({ code, token, memorial, t }) {
       <div style={{ marginBottom:24 }}>
         <Lbl>{t.settingsBookLayout}</Lbl>
         <BookLayoutPicker value={bookLayout} onChange={k => { setBookLayout(k); save({ bookLayout: k }) }} />
+      </div>
+      <div style={{ marginBottom:24 }}>
+        <Lbl>{t.settingsWritingStyle || 'Schreibstil'}</Lbl>
+        <TextStylePicker category={cat} value={textStyle} onChange={k => { setTextStyle(k); save({ textStyle: k }) }} />
       </div>
       {saved && <p style={{ fontSize:13, color:'#16a34a' }}>{saved}</p>}
     </div>

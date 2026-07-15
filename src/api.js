@@ -39,13 +39,18 @@ export async function createMemorial(token, { name, organizer, gender, bookVaria
 // eingeloggt, autorisiert der `eu`-Claim seines Tokens; ohne Login (E-Mail ist
 // beim Lebenswerk optional) genügt der Buch-Code — dann OHNE Authorization-Header,
 // der Server lässt das nur beim Lebenswerk zu.
-export async function updateOwnMemorial(token, code, { imageStyle, bookLayout } = {}) {
+export async function updateOwnMemorial(token, code, { imageStyle, bookLayout, textStyle } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
     method: 'PATCH',
     headers,
-    body: JSON.stringify({ imageStyle, bookLayout }),
+    // Nur gesetzte Felder senden (nicht jeder Aufruf ändert alle drei).
+    body: JSON.stringify({
+      ...(imageStyle !== undefined ? { imageStyle } : {}),
+      ...(bookLayout !== undefined ? { bookLayout } : {}),
+      ...(textStyle !== undefined ? { textStyle } : {}),
+    }),
   })
   return parseResponse(res) // { ok }
 }

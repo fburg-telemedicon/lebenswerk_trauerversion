@@ -11,6 +11,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { checkAuth } = require('./_lib/auth')
 const { normalizeStyle } = require('./_lib/image-styles')
 const { normalizeLayout } = require('./_lib/book-layouts')
+const { normalizeTextStyle } = require('./_lib/text-styles')
 const { LIFEWORK } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
 
@@ -40,7 +41,7 @@ async function handleEnduserPatch(req, res, code) {
     ok = m.product_category === LIFEWORK             // Code-basiert nur beim Lebenswerk
   }
   if (!ok) return res.status(403).json({ error: 'Kein Zugriff auf dieses Buch.' })
-  const { imageStyle, bookLayout } = req.body || {}
+  const { imageStyle, bookLayout, textStyle } = req.body || {}
   const update = {}
   if (imageStyle !== undefined) {
     const s = normalizeStyle(imageStyle)
@@ -51,6 +52,10 @@ async function handleEnduserPatch(req, res, code) {
     const l = normalizeLayout(bookLayout)
     if (!l) return res.status(400).json({ error: 'Unbekanntes Buchlayout.' })
     update.book_layout = l
+  }
+  if (textStyle !== undefined) {
+    // Auf die für die Kategorie erlaubten Schreibstile beschränkt (Default sonst).
+    update.text_style = normalizeTextStyle(m.product_category, textStyle)
   }
   if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Änderung übergeben.' })
   const { error } = await supabase.from('memorials').update(update).eq('id', code)
