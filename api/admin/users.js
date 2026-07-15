@@ -86,6 +86,16 @@ async function handleSelf(req, res) {
       return res.json({ ok: true })
     }
 
+    // Eigene Dashboard-Sprache festlegen (beim ersten Login, wenn der Admin sie
+    // nicht vorbelegt hat). Persistiert, damit die Wahl auf jedem Gerät greift.
+    if (body.lang !== undefined) {
+      const l = (body.lang === 'de' || body.lang === 'en') ? body.lang : null
+      const { error } = await supabase.from('app_users').update({ lang: l }).eq('id', req.auth.uid)
+      if (error) throw error
+      await audit(req, { actor: req.auth, action: 'user.lang_change', target: req.auth.uid, detail: { self: true, lang: l } })
+      return res.json({ ok: true, lang: l })
+    }
+
     // Sonst: Firmenlogo speichern/entfernen.
     const v = validateLogo(body.logo)
     if (v.error) return res.status(400).json({ error: v.error })
@@ -146,8 +156,11 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { username, allowed_categories, is_admin, demo } = req.body || {}
+      const { username, allowed_categories, is_admin, demo, lang } = req.body || {}
       const email = String(username || '').trim()
+      // Dashboard-Sprache optional vorbelegen (de/en). Fehlt sie, wählt der Manager
+      // sie beim ersten Login selbst.
+      const langVal = (lang === 'de' || lang === 'en') ? lang : null
       if (!email) return res.status(400).json({ error: 'E-Mail-Adresse fehlt.' })
       // Benutzername = E-Mail: als gültige Adresse verlangen (Login + Einladung/Reset).
       if (!isEmail(email)) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' })
@@ -163,6 +176,7 @@ module.exports = async function handler(req, res) {
           invite_token, invite_expires,
           allowed_categories: cats,
           is_admin: Boolean(is_admin),
+          lang: langVal,
         })
         .select('id, username, allowed_categories, is_admin, created_at, invite_token, invite_expires').single()
       if (error) {

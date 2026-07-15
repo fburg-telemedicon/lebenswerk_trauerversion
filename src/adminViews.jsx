@@ -662,6 +662,15 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
               )
             })}
           </div>
+          <div style={{ margin:'4px 0 16px' }}>
+            <Lbl>{t('Dashboard-Sprache', 'Dashboard language')}</Lbl>
+            <select value={userForm.lang || ''} onChange={e => setUserForm({ ...userForm, lang: e.target.value })} style={{ maxWidth:280 }}>
+              <option value="">{t('Beim ersten Login wählen lassen', 'Let them choose on first login')}</option>
+              <option value="de">{t('Deutsch', 'German')}</option>
+              <option value="en">{t('Englisch', 'English')}</option>
+            </select>
+            <span style={{ ...S.muted, display:'block', fontSize:12, marginTop:4 }}>{t('Nicht gesetzt: Der Manager wählt die Sprache beim ersten Login (DE/EN).', 'If not set: the manager chooses the language on first login (DE/EN).')}</span>
+          </div>
           <label style={{ display:'flex', alignItems:'flex-start', gap:8, margin:'4px 0 16px', cursor:'pointer', fontSize:14 }}>
             <input type="checkbox" checked={userForm.demo} onChange={e => setUserForm({ ...userForm, demo: e.target.checked })} style={{ marginTop:3 }} />
             <span>
@@ -781,6 +790,14 @@ export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView
   )
 }
 
+// Status eines Buchprojekts: „Frist beendet", sobald die Erfassungsfrist (aus
+// funeral_date + cutoff) erreicht/überschritten ist; sonst „in Arbeit". Ohne Frist
+// (z. B. Lebenswerk) bleibt es „in Arbeit".
+function fristEnded(m) {
+  const d = cutoffDate(m.funeral_date, cutoffDays(m))
+  return !!(d && d.getTime() < Date.now())
+}
+
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
@@ -792,6 +809,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
       { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
       { key: 'variant',   label: t('Variante', 'Variant'),      val: m => m.book_variant || 0, disp: m => m.book_variant ? t(`Variante ${m.book_variant}`, `Variant ${m.book_variant}`) : '—' },
       { key: 'cutoff',    label: t('Erfassung bis', 'Collection until'), val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
+      { key: 'status',    label: t('Status', 'Status'), val: m => fristEnded(m) ? 1 : 0, disp: m => fristEnded(m) ? t('Frist beendet', 'Deadline ended') : t('In Arbeit', 'In progress') },
       { key: 'answers',   label: t('Antworten', 'Responses'),     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} ${t('Antworten', 'responses')}` },
       ...(auth.admin ? [{ key: 'cost', label: t('Kosten', 'Cost'), val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
     ]
@@ -956,6 +974,11 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? t(`Variante ${m.book_variant}`, `Variant ${m.book_variant}`) : '—'}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
+                      <td style={{ ...mainCell }}                                          onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        {fristEnded(m)
+                          ? <span style={{ fontSize:12, color:'#b45309', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:6, padding:'2px 8px', whiteSpace:'nowrap' }}>{t('Frist beendet', 'Deadline ended')}</span>
+                          : <span style={{ fontSize:12, color:'#3f6212', background:'#f7fee7', border:'1px solid #d9f99d', borderRadius:6, padding:'2px 8px', whiteSpace:'nowrap' }}>{t('In Arbeit', 'In progress')}</span>}
+                      </td>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         {(m.contribution_count || 0)} {(m.contribution_count === 1) ? t('Beitrag', 'contribution') : t('Beiträge', 'contributions')} · {(m.answer_count || 0)} {(m.answer_count === 1) ? t('Antwort', 'response') : t('Antworten', 'responses')}
                       </td>

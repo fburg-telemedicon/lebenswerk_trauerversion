@@ -11,7 +11,7 @@ import {
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
   adminGetBookDefaults, adminSaveBookDefaults, adminResetBookDefaults,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
-  getSettings, saveSettings, changeOwnPassword,
+  getSettings, saveSettings, changeOwnPassword, saveOwnLang,
   getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
 } from './api.js'
@@ -53,7 +53,7 @@ function CoverPreview({ prep, posKey, width = 420 }) {
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
-import { AdminLangProvider } from './adminI18n.jsx'
+import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
@@ -378,6 +378,7 @@ function decodeToken(token) {
 
 // ── Admin-Dashboard (Standard-Eingang der Seite) ──────────────────
 function Dashboard() {
+  const { setLang: setAdminLang } = useAdminLang()  // Dashboard-Sprache (de/en)
   const [view, setView]               = useState('login') // login|list|create-category|create|created|detail|book-v1|book-v2|users
   const [token, setToken]             = useState(() => sessionStorage.getItem('lw_admin_token') || '')
   const [auth, setAuth]               = useState(() => {
@@ -398,7 +399,7 @@ function Dashboard() {
   const [selectedContrib, setSelectedContrib] = useState(null)
   const [createForm, setCreateForm]   = useState({ ...EMPTY_CREATE })
   const [usersData, setUsersData]     = useState({ users: [] })
-  const [userForm, setUserForm]       = useState({ username: '', cats: [], demo: true })
+  const [userForm, setUserForm]       = useState({ username: '', cats: [], demo: true, lang: '' })
   const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
   const [auditData, setAuditData]     = useState({ entries: [] })
   const [qmData, setQmData]           = useState([])
@@ -534,16 +535,33 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       sessionStorage.setItem('lw_admin_token', d.token)
+      // Dashboard-Sprache eines Managers: hat der Admin sie vorbelegt (d.lang), gilt
+      // sie sofort; sonst wählt der Manager sie beim ersten Login (needLangPick).
+      const isManager = !d.admin && !d.enduser
+      const presetLang = (d.lang === 'de' || d.lang === 'en') ? d.lang : null
+      if (isManager && presetLang) setAdminLang(presetLang)
       const authInfo = {
         admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username,
         // Endnutzer (Lebenswerk): kein Dashboard, sondern direkt das eigene Interview.
         enduser: Boolean(d.enduser), code: d.code || null,
+        needLangPick: isManager && !presetLang,
       }
       sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
       setToken(d.token); setAuth(authInfo)
       if (!authInfo.enduser) await loadMemorials(d.token)
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
+  }
+
+  // Manager wählt beim ersten Login seine Dashboard-Sprache — lokal sofort wirksam
+  // und am Konto gespeichert (damit die Abfrage nicht wiederkehrt, auch auf anderen
+  // Geräten).
+  async function pickAdminLang(choice) {
+    setAdminLang(choice)
+    const next = { ...auth, needLangPick: false }
+    setAuth(next)
+    try { sessionStorage.setItem('lw_admin_auth', JSON.stringify(next)) } catch {}
+    try { await saveOwnLang(token, choice) } catch { /* nicht kritisch */ }
   }
 
   async function submitReset(e) {
@@ -1005,8 +1023,9 @@ function Dashboard() {
         username: userForm.username.trim(),
         allowed_categories: userForm.cats,
         demo: userForm.demo,
+        lang: userForm.lang || null,
       })
-      setUserForm({ username: '', cats: [], demo: true })
+      setUserForm({ username: '', cats: [], demo: true, lang: '' })
       if (u.invite_token) setCreatedInvite({ username: u.username, url: inviteLink(u.invite_token), demo: u.demo, demoError: u.demo_error, emailSent: u.email_sent, emailError: u.email_error })
       await loadUsers()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -2896,6 +2915,20 @@ Regeln:
         </button>
       </form>
       )}
+    </div>
+  )
+
+  // ── Erstmalige Sprachwahl eines Managers (Admin hat sie nicht vorbelegt) ──
+  if (token && auth.needLangPick) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }}>
+      <div style={{ width: '100%', maxWidth: 380, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem', textAlign: 'center' }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Sprache wählen · Choose language</h1>
+        <p style={{ fontSize: 14, color: '#78716c', marginBottom: 20 }}>Bitte wählen Sie die Sprache des Dashboards. · Please choose the dashboard language.</p>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <button onClick={() => pickAdminLang('de')} style={{ padding: 14, fontSize: 16 }}>Deutsch</button>
+          <button onClick={() => pickAdminLang('en')} style={{ padding: 14, fontSize: 16 }}>English</button>
+        </div>
+      </div>
     </div>
   )
 

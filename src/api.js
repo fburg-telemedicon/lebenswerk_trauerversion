@@ -159,11 +159,11 @@ export async function adminListUsers(token) {
 }
 // Legt einen Benutzer OHNE Passwort an; die Antwort enthält invite_token, aus
 // dem das Frontend den Einladungslink (?invite=…) baut.
-export async function adminCreateUser(token, { username, allowed_categories, is_admin, demo }) {
+export async function adminCreateUser(token, { username, allowed_categories, is_admin, demo, lang }) {
   const res = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ username, allowed_categories, is_admin, demo }),
+    body: JSON.stringify({ username, allowed_categories, is_admin, demo, lang }),
   })
   return parseResponse(res) // { id, username, …, invite_token, invite_expires, demo? }
 }
@@ -347,6 +347,15 @@ export async function changeOwnPassword(token, { currentPassword, newPassword })
     body: JSON.stringify({ currentPassword, newPassword }),
   })
   return parseResponse(res) // { ok }
+}
+// Eigene Dashboard-Sprache (de/en) am Konto speichern — beim ersten Login gewählt.
+export async function saveOwnLang(token, lang) {
+  const res = await fetch('/api/admin/users?self=1', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ lang }),
+  })
+  return parseResponse(res) // { ok, lang }
 }
 
 export async function adminDeleteMemorial(token, code) {
