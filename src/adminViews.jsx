@@ -236,24 +236,27 @@ export function CostsView({ selected, costData, costsLoading, err, setView, logo
 }
 
 export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, pwForm, pwSaved, logout, setView, onLogoFile, saveLogo, saveOwnPassword, setPwForm }) {
+  const t = useAdminT()
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Einstellungen</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('Einstellungen', 'Settings')}</h2>
         <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
-          Hinterlegen Sie Ihr Firmenlogo. Es wird den Beitragenden Ihrer Bücher oben angezeigt –
-          anstelle des Standard-Logos.
+          {t('Hinterlegen Sie Ihr Firmenlogo. Es wird den Beitragenden Ihrer Bücher oben angezeigt – anstelle des Standard-Logos.', 'Add your company logo. It is shown to the contributors of your books at the top – instead of the default logo.')}
         </p>
         <Err msg={err} />
 
         <div style={{ ...S.card }}>
-          <Lbl>Firmenlogo</Lbl>
+          <Lbl>{t('Firmenlogo', 'Company logo')}</Lbl>
           {logoLoading ? (
-            <p style={S.muted}>Wird geladen …</p>
+            <p style={S.muted}>{t('Wird geladen …', 'Loading …')}</p>
           ) : (
             <>
               <div style={{
@@ -262,59 +265,59 @@ export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, p
                 display:'flex', alignItems:'center', justifyContent:'center', minHeight:90,
               }}>
                 {logo
-                  ? <img src={logo} alt="Logo-Vorschau" style={{ maxHeight:80, maxWidth:'100%', objectFit:'contain' }} />
-                  : <span style={{ fontSize:13, color:'#a8a29e' }}>Noch kein Logo hinterlegt</span>}
+                  ? <img src={logo} alt={t('Logo-Vorschau', 'Logo preview')} style={{ maxHeight:80, maxWidth:'100%', objectFit:'contain' }} />
+                  : <span style={{ fontSize:13, color:'#a8a29e' }}>{t('Noch kein Logo hinterlegt', 'No logo added yet')}</span>}
               </div>
 
               <div style={{ background:'#f5f5f4', border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 14px', marginBottom:14 }}>
-                <div style={{ fontSize:12, color:'#78716c', marginBottom:6 }}>So sehen es die Beitragenden:</div>
+                <div style={{ fontSize:12, color:'#78716c', marginBottom:6 }}>{t('So sehen es die Beitragenden:', 'This is how contributors see it:')}</div>
                 <PartnerBanner logoUrl={logo} />
               </div>
 
               <p style={{ fontSize:12, color:'#78716c', margin:'0 0 12px' }}>
-                PNG, JPG, SVG, WebP oder GIF · max. 1 MB. Querformat mit transparentem Hintergrund wirkt am besten.
+                {t('PNG, JPG, SVG, WebP oder GIF · max. 1 MB. Querformat mit transparentem Hintergrund wirkt am besten.', 'PNG, JPG, SVG, WebP or GIF · max. 1 MB. Landscape format with a transparent background works best.')}
               </p>
 
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                 <label className="secondary" style={{ fontSize:13, padding:'9px 16px', cursor:'pointer', display:'inline-block', borderRadius:8, border:'1px solid #d6d3d1' }}>
-                  📁 Logo auswählen
+                  {t('📁 Logo auswählen', '📁 Choose logo')}
                   <input type="file" accept="image/*" onChange={onLogoFile} style={{ display:'none' }} />
                 </label>
                 <button onClick={() => saveLogo(logo)} disabled={busy || !logo} style={{ fontSize:13, padding:'9px 16px' }}>
-                  {busy ? 'Wird gespeichert …' : 'Speichern'}
+                  {busy ? t('Wird gespeichert …', 'Saving …') : t('Speichern', 'Save')}
                 </button>
                 <button onClick={() => saveLogo(null)} disabled={busy || !logo} className="secondary" style={{ fontSize:13, padding:'9px 16px', color:'#dc2626', borderColor:'#fecaca' }}>
-                  Logo entfernen
+                  {t('Logo entfernen', 'Remove logo')}
                 </button>
               </div>
-              {logoSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>✓ Gespeichert.</p>}
+              {logoSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>{t('✓ Gespeichert.', '✓ Saved.')}</p>}
             </>
           )}
         </div>
 
         <form onSubmit={saveOwnPassword} style={{ ...S.card, marginTop:'1.25rem' }}>
-          <Lbl>Passwort ändern</Lbl>
+          <Lbl>{t('Passwort ändern', 'Change password')}</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'4px 0 14px' }}>{PASSWORD_RULES_TEXT}</p>
           <Err msg={pwErr} />
           <div style={{ marginBottom:12 }}>
-            <Lbl>Aktuelles Passwort</Lbl>
+            <Lbl>{t('Aktuelles Passwort', 'Current password')}</Lbl>
             <input type="password" autoComplete="current-password" value={pwForm.current}
               onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} placeholder="••••" />
           </div>
           <div style={{ marginBottom:12 }}>
-            <Lbl>Neues Passwort</Lbl>
+            <Lbl>{t('Neues Passwort', 'New password')}</Lbl>
             <input type="password" autoComplete="new-password" value={pwForm.next}
               onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} placeholder="••••" />
           </div>
           <div style={{ marginBottom:14 }}>
-            <Lbl>Neues Passwort wiederholen</Lbl>
+            <Lbl>{t('Neues Passwort wiederholen', 'Repeat new password')}</Lbl>
             <input type="password" autoComplete="new-password" value={pwForm.next2}
               onChange={e => setPwForm(f => ({ ...f, next2: e.target.value }))} placeholder="••••" />
           </div>
           <button type="submit" disabled={busy || !pwForm.current || !pwForm.next || !pwForm.next2} style={{ fontSize:13, padding:'9px 16px' }}>
-            {busy ? 'Wird geändert …' : 'Passwort ändern'}
+            {busy ? t('Wird geändert …', 'Changing …') : t('Passwort ändern', 'Change password')}
           </button>
-          {pwSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>✓ Passwort geändert.</p>}
+          {pwSaved && <p style={{ fontSize:13, color:'#16a34a', marginTop:12, marginBottom:0 }}>{t('✓ Passwort geändert.', '✓ Password changed.')}</p>}
         </form>
       </div>
     </div>
