@@ -32,11 +32,12 @@ module.exports = async function handler(req, res) {
     // Streng begrenzen: jede Anfrage legt DB-Zeilen an und verschickt eine Mail.
     if (!(await enforce(req, res, { name: 'register-ip', limit: 5, windowSeconds: 3600 }))) return
 
-    let { name, email, lang, consent } = req.body || {}
+    let { name, email, lang } = req.body || {}
     email = String(email || '').trim()
-    name = String(name || '').trim().slice(0, 120)
+    name = String(name || '').trim().slice(0, 120)   // optional — Name kommt beim Start
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' })
-    if (consent !== true) return res.status(400).json({ error: 'Bitte der Verarbeitung Ihrer Angaben zustimmen.' })
+    // Die eigentliche DSGVO-Einwilligung wird beim Interview-Start abgefragt (Info-
+    // Formular). Die Registrierung erfasst bewusst nur E-Mail + Sprache.
     // Missbrauchsschutz (E-Mail-Bombing gegen Fremde): pro Zieladresse eng
     // begrenzen — ergänzend zum Duplikat-Konto-Check (jede Adresse bekommt
     // ohnehin nur EINE Zugangsmail, solange ihr Konto besteht).
@@ -68,7 +69,7 @@ module.exports = async function handler(req, res) {
       note: 'Selbstregistrierung (Test · 5 Min.)',
       pickup_address: null,
       catalog_id: catalog,
-      followups: null,
+      followups: 7,          // Spalte ist NOT NULL — sinnvoller Default (wie bei der Anlage)
       interview_timer_seconds: TRIAL_TIMER_SECONDS,
       companion_mode: false,
     }
@@ -121,6 +122,6 @@ module.exports = async function handler(req, res) {
     return res.json({ ok: true, email_sent })
   } catch (e) {
     console.error('/api/register error:', e)
-    return res.status(500).json({ error: 'Die Registrierung ist fehlgeschlagen. Bitte später erneut versuchen.', _debug: String(e && e.message || e).slice(0, 300) })
+    return res.status(500).json({ error: 'Die Registrierung ist fehlgeschlagen. Bitte später erneut versuchen.' })
   }
 }

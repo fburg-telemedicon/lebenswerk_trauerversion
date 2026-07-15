@@ -68,5 +68,7 @@ export async function generateProofBook({ memorial, contributions, lang, onProgr
   }
 
   onProgress?.({ pct: 100, text: 'Fertig.' })
-  return { title: String(outline.title || memorial.name || 'Mein Leben').trim(), subtitle: String(outline.subtitle || '').trim(), chapters, proof: true }
+  // language mitgeben: die Leseansicht (auch im Admin-Dashboard) liest daraus die
+  // UI-/Bezeichner-Sprache; fehlt sie, fällt sie auf Deutsch zurück.
+  return { title: String(outline.title || memorial.name || 'Mein Leben').trim(), subtitle: String(outline.subtitle || '').trim(), language: lang || memorial.languages?.[0] || 'de', chapters, proof: true }
 }

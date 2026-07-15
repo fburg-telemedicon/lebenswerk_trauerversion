@@ -3146,10 +3146,8 @@ function InviteFlow({ token }) {
 // ein Lebenswerk an. Danach kommt die Zugangs-Mail (Passwort setzen & starten);
 // das Buch hat die Default-Werte inkl. 5-Minuten-Testlimit. Kein Login nötig.
 function RegisterFlow() {
-  const [name, setName]   = useState('')
   const [email, setEmail] = useState('')
   const [lang, setLang]   = useState('de')
-  const [consent, setConsent] = useState(false)
   const [busy, setBusy]   = useState(false)
   const [err, setErr]     = useState('')
   const [done, setDone]   = useState(null)   // { email_sent }
@@ -3159,10 +3157,11 @@ function RegisterFlow() {
   async function submit(e) {
     e.preventDefault()
     if (!emailOk) { setErr('Bitte eine gültige E-Mail-Adresse angeben.'); return }
-    if (!consent) { setErr('Bitte der Verarbeitung Ihrer Angaben zustimmen.'); return }
     setErr(''); setBusy(true)
     try {
-      const d = await registerLifework({ name: name.trim(), email: email.trim(), lang, consent: true })
+      // Nur E-Mail + Sprache. Name, Anrede und die DSGVO-Einwilligung folgen nach
+      // dem Login beim Interview-Start.
+      const d = await registerLifework({ email: email.trim(), lang })
       setDone({ email_sent: d.email_sent !== false })
     } catch (e) { setErr(e.message); setBusy(false) }
   }
@@ -3200,25 +3199,20 @@ function RegisterFlow() {
           Legen Sie hier Ihren persönlichen Zugang an; die Testversion umfasst 5 Minuten Interviewzeit.
         </p>
         <Err msg={err} />
-        <div style={{ marginBottom: 12 }}>
-          <Lbl>Ihr Name <span style={{ color: '#a8a29e', fontWeight: 400 }}>(optional)</span></Lbl>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Vor- und Nachname" autoFocus />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <Lbl>E-Mail-Adresse</Lbl>
-          <input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
-        </div>
         <div style={{ marginBottom: 14 }}>
           <Lbl>Sprache des Interviews</Lbl>
-          <select value={lang} onChange={e => setLang(e.target.value)} style={{ width: '100%' }}>
+          <select value={lang} onChange={e => setLang(e.target.value)} style={{ width: '100%' }} autoFocus>
             {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </div>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, lineHeight: 1.5, color: '#57534e', marginBottom: 18, cursor: 'pointer' }}>
-          <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, cursor: 'pointer', accentColor: '#1c1917' }} />
-          <span>Ich stimme der Verarbeitung meiner Angaben zum Anlegen des Zugangs zu und habe die <a href="#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color: '#57534e' }}>Datenschutzhinweise</a> gelesen.</span>
-        </label>
-        <button type="submit" disabled={busy || !emailOk || !consent} style={{ width: '100%', padding: 12, fontSize: 15 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Lbl>E-Mail-Adresse</Lbl>
+          <input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
+        </div>
+        <p style={{ fontSize: 12, lineHeight: 1.5, color: '#a8a29e', margin: '0 0 16px' }}>
+          Name, Anrede und die Datenschutz-Einwilligung fragen wir anschließend beim Start Ihres Interviews ab.
+        </p>
+        <button type="submit" disabled={busy || !emailOk} style={{ width: '100%', padding: 12, fontSize: 15 }}>
           {busy ? 'Wird angelegt …' : 'Zugang anlegen'}
         </button>
         <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', marginTop: 14, marginBottom: 0 }}>

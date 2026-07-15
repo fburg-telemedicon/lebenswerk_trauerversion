@@ -51,6 +51,7 @@ function sanitizeBook(book) {
   if (!chapters.length) return null
   return {
     title: clip(book.title, 300), subtitle: clip(book.subtitle, 300), chapters,
+    ...(book.language ? { language: clip(book.language, 8) } : {}),
     proof: true, ...(book.print ? { print: true } : {}),
   }
 }
