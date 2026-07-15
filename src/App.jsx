@@ -5,7 +5,7 @@ import {
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload,
   enqueueGeneration, getGenerationJob, cancelGenerationJob,
-  adminDeleteContribution, adminUpdateContributionMessages, adminUpdateContributionMeta, adminSaveTranscriptCheck,
+  adminDeleteContribution, adminUpdateContributionMessages, adminUpdateContributionMeta, adminSaveTranscriptCheck, adminLockAction,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback, adminSetFeedbackDone, adminDeleteFeedback,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
@@ -436,6 +436,9 @@ function Dashboard() {
   const [resetBusy, setResetBusy]     = useState(false)
   const [memorials, setMemorials]     = useState([])
   const [selected, setSelected]       = useState(null)
+  const [enduserEditing, setEnduserEditing] = useState(false) // Endnutzer hält den Bearbeitungs-Lock → Admin read-only
+  const adminLockRef = useRef(null)   // Token des Admin-Bearbeitungs-Locks
+  const adminHbRef   = useRef(null)   // Heartbeat-Intervall
   const [contributions, setContribs]  = useState([])
   const [transcriptReport, setTranscriptReport] = useState(false) // Transkript-Bericht-Modal offen?
   const [selectedContrib, setSelectedContrib] = useState(null)
@@ -736,6 +739,30 @@ function Dashboard() {
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
+
+  // Admin-Bearbeitungs-Lock für Lebenswerke: Beim Öffnen der Detailansicht holt der
+  // Admin den Lock (blockt den Endnutzer). Scheitert das (409), bearbeitet der
+  // Endnutzer gerade → Admin-Ansicht wird read-only. Freigabe beim Verlassen.
+  useEffect(() => {
+    if (view !== 'detail' || !selected || selected.product_category !== 'lifework' || selected.book_finalized) { setEnduserEditing(false); return }
+    let alive = true
+    const code = selected.id
+    ;(async () => {
+      try {
+        const r = await adminLockAction(token, code, 'acquire')
+        if (!alive) { adminLockAction(token, code, 'release', r.token).catch(() => {}); return }
+        adminLockRef.current = r.token
+        setEnduserEditing(false)
+        adminHbRef.current = setInterval(() => { if (adminLockRef.current) adminLockAction(token, code, 'heartbeat', adminLockRef.current).catch(() => {}) }, 5 * 60 * 1000)
+      } catch { if (alive) setEnduserEditing(true) } // 409 → Endnutzer bearbeitet gerade
+    })()
+    return () => {
+      alive = false
+      if (adminHbRef.current) { clearInterval(adminHbRef.current); adminHbRef.current = null }
+      const tk = adminLockRef.current; adminLockRef.current = null
+      if (tk) adminLockAction(token, code, 'release', tk).catch(() => {})
+    }
+  }, [view, selected?.id]) // eslint-disable-line
 
   async function reloadContributions() {
     if (!selected) return
@@ -3031,7 +3058,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

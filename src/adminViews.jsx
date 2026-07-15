@@ -1943,7 +1943,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
   )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -1991,9 +1991,9 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
               📕 {t('Vom Endnutzer abgeschlossen — muss gedruckt werden.', 'Finalized by the end user — needs to be printed.')}
             </div>
           )}
-          {selected.product_category === 'lifework' && !selected.book_finalized && selected.edit_lock?.holder === 'enduser' && (
+          {selected.product_category === 'lifework' && !selected.book_finalized && (enduserEditing || selected.edit_lock?.holder === 'enduser') && (
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#92400e', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-              <span>🔒 {t('Wird gerade vom Endnutzer bearbeitet (Druckversion).', 'Currently being edited by the end user (print version).')}</span>
+              <span>🔒 {t('Wird gerade vom Endnutzer bearbeitet — nur Ansicht, Bearbeitung gesperrt.', 'Currently being edited by the end user — view only, editing locked.')}</span>
               <button className="secondary" onClick={() => adminProofAction({ releaseLock: true })} style={{ fontSize:12, padding:'4px 10px', color:'#b91c1c', borderColor:'#fecaca' }}>{t('Bearbeitung freigeben', 'Release editing')}</button>
             </div>
           )}
@@ -2207,7 +2207,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         // Lock) oder das Buch abgeschlossen ist. Gibt der Admin den Lock
                         // frei (edit_lock → null), ist Generieren wieder möglich —
                         // interview_closed allein sperrt NICHT dauerhaft.
-                        const enduserLocked = selected.product_category === 'lifework' && (selected.book_finalized || selected.edit_lock?.holder === 'enduser')
+                        const enduserLocked = selected.product_category === 'lifework' && (selected.book_finalized || enduserEditing || selected.edit_lock?.holder === 'enduser')
                         return (
                         <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0 || enduserLocked}
                           title={enduserLocked ? t('Gesperrt: Der Endnutzer erstellt/bearbeitet die Endversion.', 'Locked: the end user is creating/editing the final version.') : ''}

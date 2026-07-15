@@ -2,7 +2,8 @@
 // GET    /api/admin/memorials              →  alle Gedenkbücher (auth required)
 // DELETE /api/admin/memorials?code=ABC123  →  Gedenkbuch + Beiträge löschen (auth required)
 
-const { createClient } = require('../_lib/store')
+const crypto = require('crypto')
+const { createClient, pool } = require('../_lib/store')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { audit } = require('../_lib/audit')
@@ -644,10 +645,54 @@ module.exports = async function handler(req, res) {
       if (!code) return res.status(400).json({ error: 'code fehlt.' })
 
       // Nur Eigentümer (bzw. Admin) dürfen Buch/Trauerrede überschreiben.
-      const access = await loadAccessibleMemorial(supabase, req.auth, code)
+      const access = await loadAccessibleMemorial(supabase, req.auth, code, 'id, owner_user, product_category, edit_lock')
       if (access.error) return res.status(access.status).json({ error: access.error })
 
+      const lockNow  = access.memorial?.edit_lock
+      const lockLive = !!(lockNow && lockNow.expires && new Date(lockNow.expires).getTime() > Date.now())
+
+      // ── Admin-Bearbeitungs-Lock (Gegenstück zum Endnutzer-Lock, holder='admin') ──
+      // Solange der Endnutzer bearbeitet, bekommt der Admin keinen Lock (409) und
+      // umgekehrt: hält der Admin den Lock, scheitert die Endnutzer-Acquire (deren
+      // Bedingung nur eigenen/abgelaufenen/leeren Lock zulässt).
+      if (req.body && req.body.lock) {
+        const { action, token: ltok } = req.body.lock
+        const TTL = 15 * 60 * 1000
+        if (action === 'acquire') {
+          const tk = crypto.randomUUID()
+          const val = JSON.stringify({ holder: 'admin', token: tk, at: new Date().toISOString(), expires: new Date(Date.now() + TTL).toISOString() })
+          const { rows } = await pool().query(
+            `update memorials set edit_lock = $2::jsonb
+               where id = $1
+                 and (edit_lock is null
+                      or (edit_lock->>'expires')::timestamptz < now()
+                      or edit_lock->>'holder' = 'admin')
+             returning edit_lock`, [code, val])
+          if (!rows.length) return res.status(409).json({ error: 'Wird gerade vom Endnutzer bearbeitet.' })
+          return res.json({ token: tk, expires: rows[0].edit_lock.expires })
+        }
+        if (action === 'heartbeat') {
+          await pool().query(
+            `update memorials set edit_lock = jsonb_set(edit_lock, '{expires}', to_jsonb($3::text))
+              where id = $1 and edit_lock->>'token' = $2`,
+            [code, ltok, new Date(Date.now() + TTL).toISOString()])
+          return res.json({ ok: true })
+        }
+        if (action === 'release') {
+          await pool().query(`update memorials set edit_lock = null where id = $1 and edit_lock->>'token' = $2`, [code, ltok])
+          return res.json({ ok: true })
+        }
+        return res.status(400).json({ error: 'Unbekannte Lock-Aktion.' })
+      }
+
       const { field, text, meta, uploadEdit } = req.body || {}
+
+      // Konfliktschutz: Solange der Endnutzer aktiv bearbeitet (Lebenswerk-Lock),
+      // darf der Admin das Buch NICHT überschreiben. Die Fern-Freigabe
+      // (meta.releaseLock) bleibt erlaubt.
+      if (lockLive && lockNow.holder === 'enduser' && !(meta && meta.releaseLock === true)) {
+        return res.status(409).json({ error: 'Wird gerade vom Endnutzer bearbeitet – Bearbeitung derzeit gesperrt.' })
+      }
 
       // Bildunterschrift/-beschreibung eines hochgeladenen Fotos bearbeiten.
       if (uploadEdit && uploadEdit.id) {

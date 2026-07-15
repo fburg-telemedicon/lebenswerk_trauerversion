@@ -410,6 +410,17 @@ export async function adminUpdateMemorialMeta(token, code, meta) {
   return parseResponse(res) // { ok }
 }
 
+// Admin-Bearbeitungs-Lock (Gegenstück zum Endnutzer-Lock). action: 'acquire'|'heartbeat'|'release'.
+// 'acquire' wirft bei aktivem Endnutzer-Lock (HTTP 409).
+export async function adminLockAction(token, code, action, lockToken) {
+  const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ lock: { action, token: lockToken } }),
+  })
+  return parseResponse(res) // acquire → { token, expires }; sonst { ok }
+}
+
 export async function adminDeleteContribution(token, id) {
   const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
