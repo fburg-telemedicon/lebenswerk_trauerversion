@@ -13,6 +13,7 @@ import { LANGUAGES, uiText, canPrintPdf } from './i18n.js'
 import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
+import { useAdminT, AdminLangToggle } from './adminI18n.jsx'
 
 export function AuditView({ auditData, auditLoading, err, logout, loadAudit, setView }) {
     const fmtTime = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
@@ -743,17 +744,18 @@ export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView
 }
 
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+    const t = useAdminT()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
-      { key: 'name',      label: 'Name',          val: m => (m.name || '').toLowerCase(), disp: m => m.name || '—' },
-      ...(showCategoryColumn ? [{ key: 'category', label: 'Kategorie', val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
-      ...(auth.admin ? [{ key: 'owner', label: 'Inhaber', val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
-      { key: 'organizer', label: 'Organisator',   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
-      { key: 'variant',   label: 'Variante',      val: m => m.book_variant || 0, disp: m => m.book_variant ? `Variante ${m.book_variant}` : '—' },
-      { key: 'cutoff',    label: 'Erfassung bis', val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
-      { key: 'answers',   label: 'Antworten',     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} Antworten` },
-      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
+      { key: 'name',      label: t('Name', 'Name'),          val: m => (m.name || '').toLowerCase(), disp: m => m.name || '—' },
+      ...(showCategoryColumn ? [{ key: 'category', label: t('Kategorie', 'Category'), val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
+      ...(auth.admin ? [{ key: 'owner', label: t('Inhaber', 'Owner'), val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
+      { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
+      { key: 'variant',   label: t('Variante', 'Variant'),      val: m => m.book_variant || 0, disp: m => m.book_variant ? t(`Variante ${m.book_variant}`, `Variant ${m.book_variant}`) : '—' },
+      { key: 'cutoff',    label: t('Erfassung bis', 'Collection until'), val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
+      { key: 'answers',   label: t('Antworten', 'Responses'),     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} ${t('Antworten', 'responses')}` },
+      ...(auth.admin ? [{ key: 'cost', label: t('Kosten', 'Cost'), val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
     ]
     const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
     const distinctVals = col => [...new Set(memorials.map(col.disp))].sort((a, b) => String(a).localeCompare(String(b), 'de', { numeric: true }))
@@ -795,56 +797,57 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
         <div>
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
           <span style={{ fontSize: 13, color: '#78716c', marginLeft: 12 }}>
-            {visibleMemorials.length < memorials.length ? `${visibleMemorials.length} / ${memorials.length}` : memorials.length} {memorials.length === 1 ? 'Buch' : 'Bücher'}
+            {visibleMemorials.length < memorials.length ? `${visibleMemorials.length} / ${memorials.length}` : memorials.length} {memorials.length === 1 ? t('Buch', 'book') : t('Bücher', 'books')}
           </span>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
           <span style={{ fontSize: 13, color: '#78716c', marginRight: 4 }}>
-            Angemeldet als <strong style={{ color:'#1c1917', fontWeight:600 }}>{myName}</strong>
+            {t('Angemeldet als', 'Signed in as')} <strong style={{ color:'#1c1917', fontWeight:600 }}>{myName}</strong>
           </span>
           {auth.admin && (
-            <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>Benutzer</button>
+            <button className="secondary" onClick={() => { loadUsers(); setErr(''); setView('users') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Benutzer', 'Users')}</button>
           )}
           {auth.admin && (
-            <button className="secondary" onClick={() => { loadAudit(); setErr(''); setView('audit') }} style={{ fontSize: 13, padding: '7px 14px' }}>Audit-Log</button>
+            <button className="secondary" onClick={() => { loadAudit(); setErr(''); setView('audit') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Audit-Log', 'Audit log')}</button>
           )}
           {auth.admin && (
-            <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>Fragenkataloge</button>
+            <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Fragenkataloge', 'Question catalogs')}</button>
           )}
           {auth.admin && (
-            <button className="secondary" onClick={openBookDefaults} style={{ fontSize: 13, padding: '7px 14px' }}>Standardwerte</button>
+            <button className="secondary" onClick={openBookDefaults} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Standardwerte', 'Defaults')}</button>
           )}
           {auth.admin && (
-            <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>Report</button>
+            <button className="secondary" onClick={() => { loadRecipients(); setReportMsg(''); setErr(''); setView('reports') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Report', 'Report')}</button>
           )}
           {auth.admin && (
-            <button className="secondary" onClick={() => { loadFeedback(); setErr(''); setView('quality') }} style={{ fontSize: 13, padding: '7px 14px' }}>Qualität</button>
+            <button className="secondary" onClick={() => { loadFeedback(); setErr(''); setView('quality') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Qualität', 'Quality')}</button>
           )}
           {myUid && (
-            <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>Einstellungen</button>
+            <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Einstellungen', 'Settings')}</button>
           )}
-          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
         </div>
       </div>
 
       <div style={{ maxWidth: 1200, margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem', gap:12 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Alle Bücher</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>{t('Alle Bücher', 'All books')}</h2>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             {Object.keys(filters).length > 0 && (
-              <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:13, padding:'8px 12px' }}>Filter zurücksetzen</button>
+              <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:13, padding:'8px 12px' }}>{t('Filter zurücksetzen', 'Reset filters')}</button>
             )}
             <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
-              + Neues Buch
+              {t('+ Neues Buch', '+ New book')}
             </button>
           </div>
         </div>
         <Err msg={err} />
         {loading ? (
-          <p style={{ color: '#78716c', fontSize: 14 }}>Wird geladen …</p>
+          <p style={{ color: '#78716c', fontSize: 14 }}>{t('Wird geladen …', 'Loading …')}</p>
         ) : memorials.length === 0 ? (
           <div style={{ ...S.card, textAlign:'center', padding:'2rem' }}>
-            <p style={S.muted}>Noch keine Bücher angelegt. Beginnen Sie mit „+ Neues Buch".</p>
+            <p style={S.muted}>{t('Noch keine Bücher angelegt. Beginnen Sie mit „+ Neues Buch".', 'No books yet. Start with “+ New book”.')}</p>
           </div>
         ) : (
           <>
@@ -855,11 +858,11 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                 <tr>
                   {sortCols.map(c => (
                     <th key={c.key} style={{ ...th, whiteSpace: 'nowrap', position: 'relative', zIndex: filterCol === c.key ? 40 : undefined }}>
-                      <span onClick={() => toggleSort(c.key)} title="Spalte sortieren" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <span onClick={() => toggleSort(c.key)} title={t('Spalte sortieren', 'Sort column')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
                       </span>
                       <span onClick={(e) => { e.stopPropagation(); setFilterCol(k => k === c.key ? null : c.key) }}
-                            title="Spalte filtern"
+                            title={t('Spalte filtern', 'Filter column')}
                             style={{ marginLeft: 6, cursor: 'pointer', display: 'inline-flex', verticalAlign: 'middle' }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true">
                           <path d="M3 4h18v2.2l-7 7v6.3l-4-2.2v-4.1l-7-7z" fill={filterActive(c.key) ? '#1d4ed8' : '#a8a29e'} />
@@ -871,7 +874,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                             <input type="checkbox" checked={allChecked(c.key)}
                                    ref={el => { if (el) el.indeterminate = !allChecked(c.key) && (filters[c.key]?.length > 0) }}
                                    onChange={() => toggleAll(c.key)} style={{ flexShrink: 0, margin: 0, width: 15, height: 15 }} />
-                            <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>Alle</span>
+                            <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>{t('Alle', 'All')}</span>
                           </label>
                           <div style={{ borderTop: '1px solid #f5f5f4', margin: '4px 0' }} />
                           {distinctVals(c).map(v => (
@@ -900,7 +903,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                   const leaveRow   = () => setHoveredRow(null)
                   return (
                     <tr key={m.id}>
-                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name || <span style={{ color:'#a8a29e', fontWeight:400 }}>Name folgt</span>}</td>
+                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}</td>
                       {showCategoryColumn && (
                         <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}>
@@ -913,10 +916,10 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                         <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }} onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.owner_username || '—'}</td>
                       )}
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
-                      <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? `Variante ${m.book_variant}` : '—'}</td>
+                      <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.book_variant ? t(`Variante ${m.book_variant}`, `Variant ${m.book_variant}`) : '—'}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
-                        {(m.contribution_count || 0)} {(m.contribution_count === 1) ? 'Beitrag' : 'Beiträge'} · {(m.answer_count || 0)} {(m.answer_count === 1) ? 'Antwort' : 'Antworten'}
+                        {(m.contribution_count || 0)} {(m.contribution_count === 1) ? t('Beitrag', 'contribution') : t('Beiträge', 'contributions')} · {(m.answer_count || 0)} {(m.answer_count === 1) ? t('Antwort', 'response') : t('Antworten', 'responses')}
                       </td>
                       {auth.admin && (
                       <td
@@ -926,7 +929,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                       >
                         <button
                           onClick={(e) => { e.stopPropagation(); openCosts(m) }}
-                          title="Aufschlüsselung anzeigen"
+                          title={t('Aufschlüsselung anzeigen', 'Show breakdown')}
                           style={{
                             background: costHover ? '#bfdbfe' : '#fff',
                             border:'1px solid #93c5fd',
@@ -954,9 +957,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                           disabled={deletingId === m.id}
                           className="secondary"
                           style={{ fontSize:12, padding:'6px 12px', color:'#dc2626', borderColor:'#fecaca' }}
-                          title={`${getCategory(m.product_category).nounBook} löschen`}
+                          title={t(`${getCategory(m.product_category).nounBook} löschen`, 'Delete')}
                         >
-                          {deletingId === m.id ? '…' : '🗑 Löschen'}
+                          {deletingId === m.id ? '…' : t('🗑 Löschen', '🗑 Delete')}
                         </button>
                       </td>
                     </tr>

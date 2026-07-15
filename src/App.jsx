@@ -52,6 +52,7 @@ function CoverPreview({ prep, posKey, width = 420 }) {
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
+import { AdminLangProvider } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
@@ -2961,7 +2962,7 @@ export default function App() {
       `}</style>
       {inviteFromURL ? <InviteFlow token={inviteFromURL} />
         : codeFromURL ? <ContributorFlow code={codeFromURL} />
-        : <Dashboard />}
+        : <AdminLangProvider><Dashboard /></AdminLangProvider>}
       <LegalFooter />
     </>
   )
