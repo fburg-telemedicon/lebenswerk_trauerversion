@@ -21,13 +21,18 @@ const { createClient, pool } = require('./_lib/store')
 const { checkAuth } = require('./_lib/auth')
 const { enforce } = require('./_lib/ratelimit')
 const { LIFEWORK } = require('./_lib/lifework')
+const { sendMail } = require('./_lib/graphmail')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const LOCK_TTL_MS = 15 * 60 * 1000   // 15 Min ohne Heartbeat → Lock läuft ab
+// „Buch fertig – muss gedruckt werden" geht IMMER an den Betreiber (Manager
+// drucken nicht selbst). Per Env überschreibbar.
+const FINALIZE_NOTIFY = process.env.FINALIZE_NOTIFY || process.env.INVITE_BCC || 'florian.burg@lebensgeschichten.ai'
 
-// Buch auf textbasierte Felder reduzieren (Probedruck ist bewusst OHNE Bilder) und
-// gegen Größenmissbrauch begrenzen.
+// Buch säubern und gegen Größenmissbrauch begrenzen. Bilder-Felder (image_path für
+// die vorläufige Druckversion + Historie/Regenerierungszähler) bleiben erhalten;
+// der textbasierte Zwischenstand hat sie schlicht nicht.
 function sanitizeBook(book) {
   if (!book || typeof book !== 'object') return null
   const clip = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '')
@@ -38,16 +43,22 @@ function sanitizeBook(book) {
     ...(c?.contributor_name ? { contributor_name: clip(c.contributor_name, 200) } : {}),
     ...(c?.relationship ? { relationship: clip(c.relationship, 200) } : {}),
     ...(c?.contribution_id ? { contribution_id: clip(c.contribution_id, 40) } : {}),
+    ...(c?.image_path ? { image_path: clip(c.image_path, 200) } : {}),
+    ...(Array.isArray(c?.image_history) ? { image_history: c.image_history.filter(p => typeof p === 'string').slice(0, 20).map(p => p.slice(0, 200)) } : {}),
+    ...(Number.isFinite(c?.image_regen_used) ? { image_regen_used: Math.max(0, Math.min(50, c.image_regen_used)) } : {}),
   })) : []
   if (!chapters.length) return null
-  return { title: clip(book.title, 300), subtitle: clip(book.subtitle, 300), chapters, proof: true }
+  return {
+    title: clip(book.title, 300), subtitle: clip(book.subtitle, 300), chapters,
+    proof: true, ...(book.print ? { print: true } : {}),
+  }
 }
 
 // Autorisierung + Laden des Buchs. Gibt die Memorial-Zeile zurück oder null (Antwort
 // wurde dann bereits gesendet).
 async function authAndLoad(req, res, code) {
   const { data: m } = await supabase.from('memorials')
-    .select('id, product_category, proof_enabled, proof_max, proof_used, edit_lock, book_v2')
+    .select('id, name, product_category, proof_enabled, proof_max, proof_used, edit_lock, book_v2, interview_closed, book_finalized')
     .eq('id', code).maybeSingle()
   if (!m) { res.status(404).json({ error: 'Buch nicht gefunden.' }); return null }
   if (m.product_category !== LIFEWORK) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
@@ -81,7 +92,7 @@ module.exports = async function handler(req, res) {
       const book = sanitizeBook(m.book_v2)
       const lk = m.edit_lock
       const lock = lockActive(lk) ? { holder: lk.holder || null, expires: lk.expires } : null
-      return res.json({ book, proof_used: m.proof_used || 0, proof_max: m.proof_max ?? 3, lock })
+      return res.json({ book, proof_used: m.proof_used || 0, proof_max: m.proof_max ?? 3, lock, interview_closed: !!m.interview_closed, book_finalized: !!m.book_finalized })
     }
 
     // ── Lock holen/erneuern ──
@@ -137,8 +148,9 @@ module.exports = async function handler(req, res) {
       return res.json({ ok: true, used, max, remaining: Math.max(0, max - used) })
     }
 
-    // ── Bearbeitetes Buch sichern (nur Text) ──
+    // ── Bearbeitetes Buch sichern ──
     if (action === 'save-book') {
+      if (m.book_finalized) return res.status(409).json({ error: 'Das Buch ist bereits abgeschlossen und kann nicht mehr bearbeitet werden.' })
       const token = String(req.body?.token || '')
       // Gültigen, eigenen Lock verlangen (sonst könnte parallel überschrieben werden).
       if (!lockActive(m.edit_lock) || m.edit_lock.token !== token || m.edit_lock.holder !== 'enduser') {
@@ -148,6 +160,51 @@ module.exports = async function handler(req, res) {
       if (!book) return res.status(400).json({ error: 'Kein gültiges Buch übergeben.' })
       const { error } = await supabase.from('memorials').update({ book_v2: book }).eq('id', code)
       if (error) throw error
+      return res.json({ ok: true })
+    }
+
+    // ── Vorläufige Druckversion starten: Interview ENDGÜLTIG abschließen ──
+    // Danach ist die Buchvorschau editierbar (mit Bildern); das Interview kann nicht
+    // mehr genutzt werden. Holt zugleich den Bearbeitungs-Lock.
+    if (action === 'start-print') {
+      if (!m.proof_enabled) return res.status(403).json({ error: 'Nicht freigeschaltet.' })
+      if (m.book_finalized) return res.status(409).json({ error: 'Das Buch ist bereits abgeschlossen.' })
+      const token = crypto.randomBytes(18).toString('base64url')
+      const lock = { holder: 'enduser', token, at: new Date().toISOString(), expires: new Date(Date.now() + LOCK_TTL_MS).toISOString() }
+      const { rows } = await pool().query(
+        `update memorials set interview_closed = true, edit_lock = $2::jsonb
+           where id = $1
+             and (edit_lock is null or (edit_lock->>'expires')::timestamptz < now() or edit_lock->>'holder' = 'enduser')
+         returning id`, [code, JSON.stringify(lock)])
+      if (!rows.length) return res.status(409).json({ error: 'Das Buch wird gerade an anderer Stelle bearbeitet.' })
+      return res.json({ ok: true, token, expires: lock.expires, interview_closed: true })
+    }
+
+    // ── Bearbeitung ABSCHLIESSEN (unwiderruflich) ──
+    // Danach keine weitere Bearbeitung; Betreiber wird per E-Mail informiert
+    // („Buch fertig – muss gedruckt werden"); der Nachtreport zählt solche Bücher.
+    if (action === 'finalize') {
+      if (m.book_finalized) return res.json({ ok: true, already: true })
+      if (!m.book_v2) return res.status(400).json({ error: 'Es gibt noch keine Druckversion.' })
+      const token = String(req.body?.token || '')
+      if (!lockActive(m.edit_lock) || m.edit_lock.token !== token || m.edit_lock.holder !== 'enduser') {
+        return res.status(409).json({ error: 'Ihre Bearbeitungssitzung ist abgelaufen. Bitte neu laden.' })
+      }
+      const { error } = await supabase.from('memorials')
+        .update({ book_finalized: true, book_finalized_at: new Date().toISOString(), edit_lock: null })
+        .eq('id', code)
+      if (error) throw error
+      // Betreiber-Mail (nicht kritisch — Abschluss darf daran nicht scheitern).
+      try {
+        const name = m.name || `(ohne Name)`
+        const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+        await sendMail({
+          to: FINALIZE_NOTIFY,
+          subject: `Buch fertig – muss gedruckt werden: ${name} (${code})`,
+          text: `Ein Lebenswerk-Buch wurde vom Endnutzer abgeschlossen und muss gedruckt werden.\n\nName: ${name}\nCode: ${code}\nAbgeschlossen: ${new Date().toLocaleString('de-DE')}\n`,
+          html: `<p>Ein Lebenswerk-Buch wurde vom Endnutzer <b>abgeschlossen</b> und muss gedruckt werden.</p><p>Name: <b>${esc(name)}</b><br>Code: ${esc(code)}</p>`,
+        })
+      } catch (e) { console.error('/api/enduser-book finalize mail:', e.message) }
       return res.json({ ok: true })
     }
 

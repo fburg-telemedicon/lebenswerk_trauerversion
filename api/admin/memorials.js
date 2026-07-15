@@ -26,7 +26,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).

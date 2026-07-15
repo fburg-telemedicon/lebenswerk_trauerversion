@@ -195,7 +195,10 @@ async function ensureLifeworkSchema() {
       add column if not exists proof_enabled boolean,
       add column if not exists proof_max integer,
       add column if not exists proof_used integer,
-      add column if not exists edit_lock jsonb
+      add column if not exists edit_lock jsonb,
+      add column if not exists interview_closed boolean,
+      add column if not exists book_finalized boolean,
+      add column if not exists book_finalized_at timestamptz
   `)
   schemaReady = true
 }
