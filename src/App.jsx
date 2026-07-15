@@ -2728,7 +2728,7 @@ Regeln:
   // eigenen Interview — Sprachwahl (falls der Admin keine Sprache gesetzt hat),
   // dann Angaben zur Person, dann das Gespräch.
   if (token && auth.enduser && auth.code) {
-    return <ContributorFlow code={auth.code} endUserToken={token} />
+    return <ContributorFlow code={auth.code} endUserToken={token} onLogout={logout} />
   }
 
   // ── LOGIN ──

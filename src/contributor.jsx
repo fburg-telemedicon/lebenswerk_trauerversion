@@ -661,7 +661,7 @@ function ContribTabBar({ tab, setTab, t, withSettings }) {
 // `endUserToken` gesetzt → der Erzähler ist der Endnutzer eines Lebenswerks: Er
 // erzählt sein EIGENES Leben (keine Beziehungsangabe), kann Fotos hochladen und
 // bekommt einen Einstellungs-Tab für Grafik- und Textstil seines Buchs.
-export function ContributorFlow({ code, endUserToken = null }) {
+export function ContributorFlow({ code, endUserToken = null, onLogout = null }) {
   const [view, setView]                       = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]               = useState(null)
   const [contribForm, setContribForm]         = useState({ name:'', gender:'', relationship:'', address:'Sie' })
@@ -861,6 +861,16 @@ export function ContributorFlow({ code, endUserToken = null }) {
 
   return (
     <>
+      {/* Endnutzer (Lebenswerk mit eigenem Login) braucht jederzeit einen Logout —
+          fest oben rechts, über allen Ansichten (aber unter den Vollbild-Modals). */}
+      {endUserToken && onLogout && (
+        <button
+          onClick={onLogout}
+          className="secondary"
+          title={t.logout || 'Log out'}
+          style={{ position:'fixed', top:10, right:10, zIndex:150, fontSize:12, padding:'6px 12px', background:'#fff', boxShadow:'0 1px 4px rgba(0,0,0,.12)' }}
+        >⎋ {t.logout || 'Log out'}</button>
+      )}
       {view === 'loading' && (
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}><Dots /></div>
       )}

@@ -507,7 +507,10 @@ export function CreatedView({ createdCode, copied, token, logout, copyInvite, co
     return (
       <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
         <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <button className="ghost" onClick={() => loadMemorials(token)} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
+          </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <AdminLangToggle />
             <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
