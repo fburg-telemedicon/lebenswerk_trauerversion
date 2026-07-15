@@ -75,7 +75,7 @@ function Waveform({ stream, color = '#dc2626' }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true }) {
   const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -146,12 +146,31 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     if (last?.role === 'assistant' && !aiLoading) {
       // Nach abgelaufener Testzeit keine Sprachausgabe mehr.
       if (expired) return
+      // Nicht vorlesen, wenn der Interview-Tab gerade nicht sichtbar ist.
+      if (!active) return
       // Nach Löschen/Neu einsprechen die (wiederhergestellte) Frage nicht erneut
       // vorlesen – sonst überlagert die TTS eine gerade startende Aufnahme.
       if (skipAutoPlayRef.current) { skipAutoPlayRef.current = false; return }
       playText(last.content)
     }
   }, [messages, aiLoading])
+
+  // Tab-Wechsel: Verlässt der Nutzer den Interview-Tab, wird die vorgelesene Frage
+  // SOFORT gestoppt (nicht bis zum Satzende weiterreden). Kommt er zurück, wird die
+  // aktuelle Frage von vorne vorgelesen — außer im begleiteten Modus (dort liest die
+  // KI nichts vor) oder nach abgelaufener Testzeit.
+  const wasActiveRef = useRef(active)
+  useEffect(() => {
+    if (active && !wasActiveRef.current) {
+      if (!companionOn && !expired) {
+        const last = [...messagesRef.current].reverse().find(m => m.role === 'assistant')
+        if (last) playText(last.content)
+      }
+    } else if (!active && wasActiveRef.current) {
+      stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
+    }
+    wasActiveRef.current = active
+  }, [active]) // eslint-disable-line
 
   // Begleiteter Modus ein-/ausgeschaltet: Die KI bestätigt kurz (Chat-Blase +
   // automatisch vorgelesen über den Autoplay-Effekt). AN → sie tritt zurück und
@@ -771,7 +790,9 @@ function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, sho
     ...(withProof    ? [{ id: 'proof',    icon: '📖', label: t.tabProof || 'Probedruck' }] : []),
     ...(withSettings ? [{ id: 'settings', icon: '⚙️', label: t.tabSettings }] : []),
   ]
-  const hasToggles = !!onToggleTx || !!onToggleCompanion
+  // Modus-Schalter (Transkript/Begleitet) gehören nur zur Interview-Ansicht — auf
+  // den übrigen Tabs (Foto, Probedruck, Einstellungen) sind sie ohne Funktion.
+  const showToggles = (!!onToggleTx || !!onToggleCompanion) && tab === 'interview'
   const pill = (on, color) => ({
     display:'inline-flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:999,
     fontSize:12.5, fontWeight: on ? 700 : 500, cursor:'pointer', lineHeight:1.1,
@@ -779,7 +800,7 @@ function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, sho
   })
   return (
     <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #e7e5e4', zIndex:30, boxShadow:'0 -1px 4px rgba(0,0,0,.05)' }}>
-      {hasToggles && (
+      {showToggles && (
         <div style={{ display:'flex', justifyContent:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid #f5f5f4', flexWrap:'wrap' }}>
           {onToggleTx && (
             <button onClick={onToggleTx} aria-pressed={!!showTx} style={pill(showTx, '#1c1917')}>
@@ -1407,6 +1428,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             setShowTx={setShowTx}
             companionOn={companionOn}
             setCompanionOn={setCompanionOn}
+            active={tab === 'interview'}
           />
         )
         // Der Einstellungs-Tab gehört JEDEM Lebenswerk-Endnutzer — auch dem, der
@@ -1419,9 +1441,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt
         // (der Einstellungs-Tab erschien schon bisher nur zusammen mit der Tab-Leiste).
         if (!withPhoto && !withProof) return vi
+        // Die Schalter-Zeile gibt es nur im Interview-Tab → nur dort ist die Leiste
+        // zweizeilig (mehr Platz unten nötig).
         const hasToggles = (memorial?.show_transcript !== false) || (memorial?.companion_mode === true)
         return (
-          <div style={{ paddingBottom: hasToggles ? 116 : 64 }}>
+          <div style={{ paddingBottom: (hasToggles && tab === 'interview') ? 116 : 64 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
             {withPhoto && (
               <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
