@@ -798,10 +798,76 @@ function EnduserSettings({ code, token, memorial, t }) {
   )
 }
 
-// Untere Navigation im Interview. ZWEI Zeilen (mobil-freundlich):
-//   Zeile 1 = Modus-SCHALTER (Transkript, Begleitet) — Zustände, keine Ziele.
-//   Zeile 2 = Navigations-TABS (Interview, Foto, Probedruck, Einstellungen).
-// Bewusst kein Hamburger-Menü: Bottom-Tabs bleiben sichtbar und auffindbar.
+// Kleiner Schiebeschalter für die Menü-Einträge (Transkript/Begleitet).
+function MiniSwitch({ on, color = '#1c1917' }) {
+  return (
+    <span style={{ position:'relative', width:38, height:22, borderRadius:11, background: on ? color : '#d6d3d1', transition:'background .2s', flexShrink:0, display:'inline-block' }}>
+      <span style={{ position:'absolute', top:2, left: on ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 2px rgba(0,0,0,.25)' }} />
+    </span>
+  )
+}
+
+// Navigation im Interview als HAMBURGER-Menü (oben rechts). Alles steckt darin:
+// Ansicht wechseln (Interview/Foto/Probedruck/Einstellungen), die Modus-Schalter
+// (Transkript & Korrektur, Begleitet) und „Später fortsetzen oder beenden". Die
+// Interview-Ansicht ist der oberste Menüpunkt → man kommt immer schnell zurück.
+function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, companionOn, onToggleCompanion, onPause }) {
+  const [open, setOpen] = useState(false)
+  const navItems = [
+    { id:'interview', icon:'🎙️', label:t.tabInterview },
+    ...(withPhoto    ? [{ id:'photo',    icon:'📷', label:t.tabPhoto }] : []),
+    ...(withProof    ? [{ id:'proof',    icon:'📖', label:t.tabProof || 'Probedruck' }] : []),
+    ...(withSettings ? [{ id:'settings', icon:'⚙️', label:t.tabSettings }] : []),
+  ]
+  const go = id => { setTab(id); setOpen(false) }
+  const row = { display:'flex', alignItems:'center', gap:12, width:'100%', padding:'13px 14px', border:'none', background:'none', cursor:'pointer', fontSize:15, textAlign:'left', color:'#1c1917', borderRadius:10 }
+  const sep = { borderTop:'1px solid #f0efec', margin:'8px 6px' }
+  return (
+    <>
+      <button aria-label={t.menuOpen || 'Menü'} onClick={() => setOpen(true)}
+        style={{ position:'fixed', top:12, right:12, zIndex:40, width:44, height:44, borderRadius:12, background:'#fff', border:'1px solid #e7e5e4', boxShadow:'0 1px 4px rgba(0,0,0,.1)', cursor:'pointer', fontSize:20, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>☰</button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.35)', zIndex:50, display:'flex', justifyContent:'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width:'min(320px,86vw)', height:'100%', background:'#fff', boxShadow:'-2px 0 12px rgba(0,0,0,.12)', padding:'14px 8px', overflowY:'auto', display:'flex', flexDirection:'column', gap:2 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'2px 8px 10px' }}>
+              <span style={{ fontSize:12, fontWeight:700, color:'#a8a29e', textTransform:'uppercase', letterSpacing:.5 }}>{t.menuTitle || 'Menü'}</span>
+              <button onClick={() => setOpen(false)} aria-label="×" style={{ background:'none', border:'none', fontSize:24, cursor:'pointer', color:'#78716c', lineHeight:1 }}>×</button>
+            </div>
+            {navItems.map(it => (
+              <button key={it.id} onClick={() => go(it.id)} style={{ ...row, background: tab===it.id ? '#f5f5f4' : 'none', fontWeight: tab===it.id ? 700 : 500 }}>
+                <span style={{ fontSize:19 }}>{it.icon}</span><span>{it.label}</span>
+              </button>
+            ))}
+            {(onToggleTx || onToggleCompanion) && <div style={sep} />}
+            {onToggleTx && (
+              <button onClick={onToggleTx} aria-pressed={!!showTx} style={row}>
+                <span style={{ fontSize:19 }}>📝</span>
+                <span style={{ flex:1 }}>{t.txTab || 'Transkript'}</span>
+                <MiniSwitch on={showTx} />
+              </button>
+            )}
+            {onToggleCompanion && (
+              <button onClick={onToggleCompanion} aria-pressed={!!companionOn} style={row}>
+                <span style={{ fontSize:19 }}>👥</span>
+                <span style={{ flex:1 }}>{t.companionTab || 'Begleitet'}</span>
+                <MiniSwitch on={companionOn} color="#1d4ed8" />
+              </button>
+            )}
+            {onPause && (<>
+              <div style={sep} />
+              <button onClick={() => { setOpen(false); onPause() }} style={{ ...row, color:'#78716c' }}>
+                <span style={{ fontSize:19 }}>⏸️</span><span>{t.pauseEnd || 'Später fortsetzen oder beenden'}</span>
+              </button>
+            </>)}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// (Alt) Untere Navigation im Interview — durch ContribMenu (Hamburger) ersetzt,
+// bleibt vorerst als Referenz erhalten.
 function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, companionOn, onToggleCompanion }) {
   const items = [
     { id: 'interview', icon: '🎙️', label: t.tabInterview },
@@ -1707,11 +1773,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt
         // (der Einstellungs-Tab erschien schon bisher nur zusammen mit der Tab-Leiste).
         if (!withPhoto && !withProof) return vi
-        // Die Schalter-Zeile gibt es nur im Interview-Tab → nur dort ist die Leiste
-        // zweizeilig (mehr Platz unten nötig).
-        const hasToggles = (memorial?.show_transcript !== false) || (memorial?.companion_mode === true)
+        // paddingTop lässt Platz für den fixierten ☰-Button (oben rechts), damit er
+        // keine Kopfzeile (z. B. „Vorschauen") überdeckt.
         return (
-          <div style={{ paddingBottom: (hasToggles && tab === 'interview') ? 116 : 64 }}>
+          <div style={{ paddingTop: 52, paddingBottom: 24 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
             {withPhoto && (
               <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
@@ -1730,11 +1795,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
-            <ContribTabBar tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof}
+            <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
               companionOn={companionOn}
-              onToggleCompanion={memorial?.companion_mode === true ? () => setCompanionOn(v => !v) : null} />
+              onToggleCompanion={memorial?.companion_mode === true ? () => setCompanionOn(v => !v) : null}
+              onPause={tab === 'interview' ? handlePause : null} />
           </div>
         )
       })()}
