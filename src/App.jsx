@@ -3166,18 +3166,57 @@ function InviteFlow({ token }) {
 // Öffentliche Seite: Ein Interessent legt sich SELBST einen Endnutzer-Zugang für
 // ein Lebenswerk an. Danach kommt die Zugangs-Mail (Passwort setzen & starten);
 // das Buch hat die Default-Werte inkl. 5-Minuten-Testlimit. Kein Login nötig.
+//
+// Zwei Schritte: 1) Sprache wählen  2) E-Mail-Adresse — Schritt 2 komplett in der
+// gewählten Sprache. Bedien-Texte je Sprache hier gebündelt (Fallback: Englisch);
+// das Interview selbst läuft ohnehin in der gewählten Sprache.
+const REG_L10N = {
+  de: {
+    pick: 'In welcher Sprache möchten Sie erzählen?',
+    heading: 'Ihr Lebenswerk kostenlos testen',
+    intro: 'Erzählen Sie Ihre eigene Lebensgeschichte – ein KI-Interviewer begleitet Sie in Ruhe durch Ihre Erinnerungen. Legen Sie hier Ihren persönlichen Zugang an; die Testversion umfasst 5 Minuten Interviewzeit.',
+    emailLbl: 'E-Mail-Adresse',
+    note: 'Name, Anrede und die Datenschutz-Einwilligung fragen wir anschließend beim Start Ihres Interviews ab.',
+    submit: 'Zugang anlegen', creating: 'Wird angelegt …', back: '← Sprache ändern',
+    invalid: 'Bitte eine gültige E-Mail-Adresse angeben.',
+    loginPre: 'Schon registriert?', loginLink: 'Zum Login',
+    doneTitle: 'Fast geschafft!',
+    doneBody: (e) => <>Wir haben eine E-Mail an <b style={{ overflowWrap: 'anywhere' }}>{e}</b> geschickt. Öffnen Sie den Link darin, vergeben Sie Ihr Passwort und starten Sie Ihr Lebenswerk.</>,
+    doneNote: 'Die Testversion umfasst 5 Minuten Interviewzeit. Falls die E-Mail nicht ankommt, prüfen Sie bitte Ihren Spam-Ordner.',
+    doneWarn: 'Hinweis: Der Versand der E-Mail hat gemeldet, dass sie evtl. nicht zugestellt wurde. Bitte wenden Sie sich an support@lebensgeschichten.ai.',
+  },
+  en: {
+    pick: 'Which language would you like to tell your story in?',
+    heading: 'Try your life story for free',
+    intro: 'Tell your own life story – an AI interviewer gently guides you through your memories. Create your personal access here; the trial includes 5 minutes of interview time.',
+    emailLbl: 'Email address',
+    note: 'We will ask for your name, form of address and privacy consent afterwards, when your interview starts.',
+    submit: 'Create access', creating: 'Creating …', back: '← Change language',
+    invalid: 'Please enter a valid email address.',
+    loginPre: 'Already registered?', loginLink: 'Sign in',
+    doneTitle: 'Almost there!',
+    doneBody: (e) => <>We have sent an email to <b style={{ overflowWrap: 'anywhere' }}>{e}</b>. Open the link in it, set your password and start your life story.</>,
+    doneNote: 'The trial includes 5 minutes of interview time. If the email does not arrive, please check your spam folder.',
+    doneWarn: 'Note: email delivery reported that the message may not have been delivered. Please contact support@lebensgeschichten.ai.',
+  },
+}
+const regT = (lang) => REG_L10N[lang] || REG_L10N.en
+
 function RegisterFlow() {
+  const [step, setStep]   = useState('lang')  // 'lang' → 'email'
   const [email, setEmail] = useState('')
   const [lang, setLang]   = useState('de')
   const [busy, setBusy]   = useState(false)
   const [err, setErr]     = useState('')
   const [done, setDone]   = useState(null)   // { email_sent }
 
+  const T = regT(lang)
+  const rtl = lang === 'he' || lang === 'ar'
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 
   async function submit(e) {
     e.preventDefault()
-    if (!emailOk) { setErr('Bitte eine gültige E-Mail-Adresse angeben.'); return }
+    if (!emailOk) { setErr(T.invalid); return }
     setErr(''); setBusy(true)
     try {
       // Nur E-Mail + Sprache. Name, Anrede und die DSGVO-Einwilligung folgen nach
@@ -3192,52 +3231,61 @@ function RegisterFlow() {
 
   if (done) return (
     <div style={wrap}>
-      <div style={card}>
+      <div style={{ ...card, direction: rtl ? 'rtl' : 'ltr', textAlign: rtl ? 'right' : 'left' }}>
         <div style={{ fontSize: 34, marginBottom: 8 }}>✉️</div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>Fast geschafft!</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{T.doneTitle}</h1>
         <p style={{ fontSize: 15, lineHeight: 1.6, color: '#44403c', margin: '0 0 12px' }}>
-          Wir haben eine E-Mail an <b style={{ overflowWrap: 'anywhere' }}>{email.trim()}</b> geschickt. Öffnen Sie den Link darin,
-          vergeben Sie Ihr Passwort und starten Sie Ihr Lebenswerk.
+          {T.doneBody(email.trim())}
         </p>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: '#78716c', margin: 0 }}>
-          Die Testversion umfasst 5 Minuten Interviewzeit. Falls die E-Mail nicht ankommt, prüfen Sie bitte Ihren Spam-Ordner.
-        </p>
+        <p style={{ fontSize: 13, lineHeight: 1.6, color: '#78716c', margin: 0 }}>{T.doneNote}</p>
         {done.email_sent === false && (
-          <p style={{ fontSize: 13, color: '#b45309', marginTop: 12 }}>
-            Hinweis: Der Versand der E-Mail hat gemeldet, dass sie evtl. nicht zugestellt wurde. Bitte wenden Sie sich an support@lebensgeschichten.ai.
-          </p>
+          <p style={{ fontSize: 13, color: '#b45309', marginTop: 12 }}>{T.doneWarn}</p>
         )}
       </div>
     </div>
   )
 
+  // Schritt 1 — Sprache wählen (immer zweisprachig beschriftet, damit jeder es findet)
+  if (step === 'lang') return (
+    <div style={wrap}>
+      <div style={card}>
+        <div style={{ fontSize: 30, marginBottom: 10, textAlign: 'center' }}>🌍</div>
+        <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>Sprache wählen</h1>
+        <p style={{ fontSize: 13, color: '#78716c', margin: '0 0 18px', textAlign: 'center' }}>Choose your language</p>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {LANGUAGES.map(l => (
+            <button key={l.code} type="button"
+              onClick={() => { setLang(l.code); setErr(''); setStep('email') }}
+              style={{ width: '100%', padding: '12px 14px', fontSize: 15, textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, cursor: 'pointer' }}>
+              {l.label} <span style={{ float: 'right', color: '#a8a29e' }}>›</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+  // Schritt 2 — E-Mail (komplett in der gewählten Sprache)
   return (
     <div style={wrap}>
-      <form onSubmit={submit} style={card}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Ihr Lebenswerk kostenlos testen</h1>
-        <p style={{ fontSize: 14, lineHeight: 1.6, color: '#78716c', marginBottom: '1.4rem' }}>
-          Erzählen Sie Ihre eigene Lebensgeschichte – ein KI-Interviewer begleitet Sie in Ruhe durch Ihre Erinnerungen.
-          Legen Sie hier Ihren persönlichen Zugang an; die Testversion umfasst 5 Minuten Interviewzeit.
-        </p>
+      <form onSubmit={submit} style={{ ...card, direction: rtl ? 'rtl' : 'ltr', textAlign: rtl ? 'right' : 'left' }}>
+        <button type="button" onClick={() => { setStep('lang'); setErr('') }}
+          style={{ background: 'none', border: 'none', color: '#78716c', cursor: 'pointer', padding: 0, marginBottom: 12, fontSize: 13 }}>
+          {T.back}
+        </button>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>{T.heading}</h1>
+        <p style={{ fontSize: 14, lineHeight: 1.6, color: '#78716c', marginBottom: '1.4rem' }}>{T.intro}</p>
         <Err msg={err} />
-        <div style={{ marginBottom: 14 }}>
-          <Lbl>Sprache des Interviews</Lbl>
-          <select value={lang} onChange={e => setLang(e.target.value)} style={{ width: '100%' }} autoFocus>
-            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-          </select>
-        </div>
         <div style={{ marginBottom: 16 }}>
-          <Lbl>E-Mail-Adresse</Lbl>
-          <input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
+          <Lbl>{T.emailLbl}</Lbl>
+          <input type="email" autoComplete="email" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" autoFocus />
         </div>
-        <p style={{ fontSize: 12, lineHeight: 1.5, color: '#a8a29e', margin: '0 0 16px' }}>
-          Name, Anrede und die Datenschutz-Einwilligung fragen wir anschließend beim Start Ihres Interviews ab.
-        </p>
+        <p style={{ fontSize: 12, lineHeight: 1.5, color: '#a8a29e', margin: '0 0 16px' }}>{T.note}</p>
         <button type="submit" disabled={busy || !emailOk} style={{ width: '100%', padding: 12, fontSize: 15 }}>
-          {busy ? 'Wird angelegt …' : 'Zugang anlegen'}
+          {busy ? T.creating : T.submit}
         </button>
         <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', marginTop: 14, marginBottom: 0 }}>
-          Schon registriert? <a href="/" style={{ color: '#78716c' }}>Zum Login</a>
+          {T.loginPre} <a href="/" style={{ color: '#78716c' }}>{T.loginLink}</a>
         </p>
       </form>
     </div>
