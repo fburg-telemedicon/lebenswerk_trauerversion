@@ -514,6 +514,18 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
+            {/* Begleitmodus wird direkt am Mikrofon geschaltet (nicht im Menü):
+                grafisches Personen-Symbol + Umschalter, blau wenn aktiv. */}
+            {memorial?.companion_mode === true && (
+              <div style={{ marginTop:12, display:'flex', justifyContent:'center' }}>
+                <button onClick={() => setCompanionOn(v => !v)} aria-pressed={companionOn}
+                  style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'7px 14px', borderRadius:999, fontSize:12.5, fontWeight: companionOn ? 700 : 500, cursor:'pointer', lineHeight:1.1,
+                    border:`1px solid ${companionOn ? '#1d4ed8' : '#d6d3d1'}`, background: companionOn ? '#1d4ed8' : '#fff', color: companionOn ? '#fff' : '#57534e' }}>
+                  <span aria-hidden="true" style={{ width:24, height:24, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:14, background: companionOn ? 'rgba(255,255,255,.2)' : '#dbeafe' }}>👥</span>
+                  <span>{t.companionTab || 'Begleitet'}</span>
+                </button>
+              </div>
+            )}
             {/* Beide Bedienelemente stehen in EIGENEN Zeilen. Vorher waren Schalter
                 (inline-flex) und Button Inline-Elemente derselben Zeile — der Button
                 rutschte dann neben die Schalter-Beschriftung und überdeckte sie. */}
@@ -812,7 +824,7 @@ function MiniSwitch({ on, color = '#1c1917' }) {
 // Ansicht wechseln (Interview/Foto/Probedruck/Einstellungen), die Modus-Schalter
 // (Transkript & Korrektur, Begleitet) und „Später fortsetzen oder beenden". Die
 // Interview-Ansicht ist der oberste Menüpunkt → man kommt immer schnell zurück.
-function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, companionOn, onToggleCompanion, onPause }) {
+function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, onPause }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
@@ -825,8 +837,8 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showT
   const sep = { borderTop:'1px solid #f0efec', margin:'8px 6px' }
   return (
     <>
-      <button aria-label={t.menuOpen || 'Menü'} onClick={() => setOpen(true)}
-        style={{ position:'fixed', top:12, right:12, zIndex:40, width:44, height:44, borderRadius:12, background:'#fff', border:'1px solid #e7e5e4', boxShadow:'0 1px 4px rgba(0,0,0,.1)', cursor:'pointer', fontSize:20, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>☰</button>
+      <button aria-label={t.menuTitle || 'Menü'} onClick={() => setOpen(true)}
+        style={{ position:'fixed', top:14, right:14, zIndex:40, width:46, height:46, borderRadius:12, background:'#1c1917', border:'none', boxShadow:'0 2px 8px rgba(0,0,0,.28)', cursor:'pointer', fontSize:22, lineHeight:1, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>☰</button>
       {open && (
         <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.35)', zIndex:50, display:'flex', justifyContent:'flex-end' }}>
           <div onClick={e => e.stopPropagation()} style={{ width:'min(320px,86vw)', height:'100%', background:'#fff', boxShadow:'-2px 0 12px rgba(0,0,0,.12)', padding:'14px 8px', overflowY:'auto', display:'flex', flexDirection:'column', gap:2 }}>
@@ -839,19 +851,12 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showT
                 <span style={{ fontSize:19 }}>{it.icon}</span><span>{it.label}</span>
               </button>
             ))}
-            {(onToggleTx || onToggleCompanion) && <div style={sep} />}
+            {onToggleTx && <div style={sep} />}
             {onToggleTx && (
               <button onClick={onToggleTx} aria-pressed={!!showTx} style={row}>
                 <span style={{ fontSize:19 }}>📝</span>
                 <span style={{ flex:1 }}>{t.txTab || 'Transkript'}</span>
                 <MiniSwitch on={showTx} />
-              </button>
-            )}
-            {onToggleCompanion && (
-              <button onClick={onToggleCompanion} aria-pressed={!!companionOn} style={row}>
-                <span style={{ fontSize:19 }}>👥</span>
-                <span style={{ flex:1 }}>{t.companionTab || 'Begleitet'}</span>
-                <MiniSwitch on={companionOn} color="#1d4ed8" />
               </button>
             )}
             {onPause && (<>
@@ -891,6 +896,38 @@ function BookRead({ book, imgUrl }) {
         </section>
       ))}
     </article>
+  )
+}
+
+// Fügt `repl` an Stelle [start,end) ein und korrigiert die Leerzeichen an den zwei
+// Nahtstellen: kein fehlendes (z. B. nach einem Satzpunkt) und kein doppeltes.
+// Öffnende Zeichen (Klammer/Anführung) bzw. anschließende Satzzeichen bleiben ohne
+// Zwischenraum.
+function spliceText(text, start, end, repl) {
+  let before = text.slice(0, start)
+  let after  = text.slice(end)
+  const r = String(repl).trim()
+  const opener = /[([{«„“‚'¿¡]/       // danach KEIN Leerzeichen
+  const closer = /[.,;:!?)\]}»”“"']/  // davor KEIN Leerzeichen
+  if (before && r && !/\s$/.test(before) && !/^\s/.test(r) && !opener.test(before.slice(-1)) && !closer.test(r[0])) before += ' '
+  if (after  && r && !/\s$/.test(r) && !/^\s/.test(after) && !opener.test(r.slice(-1)) && !closer.test(after[0])) after = ' ' + after
+  return (before + r + after).replace(/[ \t]{2,}/g, ' ')
+}
+
+// Textarea, die automatisch auf die Texthöhe wächst (kein inneres Scrollen). `taRef`
+// reicht das echte <textarea>-Element nach oben (für die Auswahl-Erfassung der
+// Sprach-Überarbeitung).
+function AutoGrowTextarea({ value, onChange, taRef, style }) {
+  const innerRef = useRef(null)
+  const grow = () => { const el = innerRef.current; if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px` } }
+  useEffect(() => { grow() }, [value])
+  return (
+    <textarea
+      ref={el => { innerRef.current = el; if (taRef) taRef(el) }}
+      value={value}
+      onChange={e => { onChange(e); grow() }}
+      style={{ ...style, overflow: 'hidden', resize: 'none' }}
+    />
   )
 }
 
@@ -1113,7 +1150,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       + `Gib NUR den überarbeiteten Abschnitt zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar.`
     const revised = String(await askLLM(sys, [{ role: 'user', content: `ABSCHNITT:\n${target}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
     if (!revised) return
-    const newBody = hasSel ? body.slice(0, sel.start) + revised + body.slice(sel.end) : revised
+    const newBody = hasSel ? spliceText(body, sel.start, sel.end, revised) : revised
     setChapter(idx, { body: newBody })
     try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current) } catch (e) { setErr(e.message) }
   }
@@ -1195,7 +1232,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
               </div>
             )}
             <input value={c.heading || ''} onChange={e => setChapter(i, { heading: e.target.value })} placeholder={P.headingPh} style={{ fontWeight: 700, marginBottom: 8 }} />
-            <textarea ref={el => { taRefs.current[i] = el }} value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 180, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
+            <AutoGrowTextarea taRef={el => { taRefs.current[i] = el }} value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 120, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
               <button type="button" onClick={() => toggleAudioEdit(i)} disabled={!!audioEdit && audioEdit.idx !== i}
                 className={audioEdit && audioEdit.idx === i && audioEdit.state === 'recording' ? '' : 'secondary'}
@@ -1751,8 +1788,6 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
-              companionOn={companionOn}
-              onToggleCompanion={memorial?.companion_mode === true ? () => setCompanionOn(v => !v) : null}
               onPause={tab === 'interview' ? handlePause : null} />
           </div>
         )
