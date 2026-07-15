@@ -936,7 +936,7 @@ function AutoGrowTextarea({ value, onChange, onFocus, style }) {
 //    MIT Bildern und ist danach editierbar (Text + je Kapitel Bild neu generieren,
 //    bis zu N× mit Historie). Abschließen ist unwiderruflich (Betreiber wird per
 //    E-Mail informiert). Alle Bearbeitung läuft über einen Buch-Lock (Checkout).
-function ProofTab({ code, token, memorial, contribId, lang, t }) {
+function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }) {
   const [loading, setLoading]   = useState(true)
   const [book, setBook]         = useState(null)
   const [signed, setSigned]     = useState({})       // Bildpfad → signierte URL
@@ -1025,6 +1025,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     try {
       const sp = await startPrintVersion(code, token)   // schließt Interview endgültig + Lock
       lockRef.current = sp.token; startHeartbeat()
+      onMemorialPatch?.({ interview_closed: true })      // Status sofort aktualisieren
       const c = await loadContribution()
       setProgress(P.progText)
       const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(Math.round(p.pct * 0.4)); setProgress(p.text) } })
@@ -1093,6 +1094,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       await finalizeBook(code, token, tk)
       lockRef.current = null; stopHeartbeat()
       setFinalized(true); setFinalizeOpen(false); setOkText('')
+      onMemorialPatch?.({ book_finalized: true, interview_closed: true })  // Status sofort aktualisieren
     } catch (e) { setErr(e.message) }
   }
 
@@ -1741,8 +1743,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       )}
 
       {!needLang && view === 'interview' && memorial && (() => {
-        // Nach Abschluss der Druckversion ist das Interview gesperrt — nur ein Hinweis.
-        const vi = memorial.interview_closed ? (
+        // Nach Start der Druckversion ODER Abschluss des Buchs ist das Interview
+        // gesperrt — nur ein Hinweis.
+        const vi = (memorial.interview_closed || memorial.book_finalized) ? (
           <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
             <div style={{ fontSize:34, marginBottom:8 }}>✅</div>
             <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Interview abgeschlossen</h2>
@@ -1769,7 +1772,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         // läuft dann code-basiert (updateOwnMemorial ohne Token; Server erlaubt das
         // nur beim Lebenswerk).
         const withSettings = isSelf
-        const withPhoto    = memorial.photo_upload_tab === true
+        // Nach Abschluss des Buchs kein Foto-Upload mehr.
+        const withPhoto    = memorial.photo_upload_tab === true && !memorial.book_finalized
         const withProof    = isSelf && memorial.proof_enabled === true
         // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt
         // (der Einstellungs-Tab erschien schon bisher nur zusammen mit der Tab-Leiste).
@@ -1788,7 +1792,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             )}
             {withProof && (
               <div style={{ display: tab === 'proof' ? 'block' : 'none' }}>
-                <ProofTab code={code} token={endUserToken} memorial={memorial} contribId={contribId} lang={L} t={t} />
+                <ProofTab code={code} token={endUserToken} memorial={memorial} contribId={contribId} lang={L} t={t}
+                  onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)} />
               </div>
             )}
             {withSettings && (
