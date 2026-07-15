@@ -1066,11 +1066,15 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     const [expertMode, setExpertMode] = useState(false)
+    const t = useAdminT()
     return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView(allowedSlugs.length > 1 ? 'create-category' : 'list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView(allowedSlugs.length > 1 ? 'create-category' : 'list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{ci.createHeading}</h2>
@@ -1194,8 +1198,8 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             eigenes Leben, es sammelt niemand Beiträge Dritter ein. */}
         {!isLifework && (
         <div style={{ marginBottom: 14 }}>
-          <Lbl>Ihr Name (Organisator) *</Lbl>
-          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Ihr Name" />
+          <Lbl>{t('Ihr Name (Organisator) *', 'Your name (organizer) *')}</Lbl>
+          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder={t('Ihr Name', 'Your name')} />
         </div>
         )}
         {ci.useDate && (
@@ -1226,7 +1230,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             bei EINEM Erzähler ergäbe „ein Beitrag = ein Kapitel" kein Buch. */}
         {!isLifework && (
         <div style={{ marginBottom: 24 }}>
-          <Lbl>Buch-Variante *</Lbl>
+          <Lbl>{t('Buch-Variante *', 'Book variant *')}</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
             {BOOK_VARIANTS.map(v => (
               <div
@@ -1246,7 +1250,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
         </div>
         )}
         <button type="button" onClick={() => setExpertMode(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>
-          {expertMode ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
+          {expertMode ? t('⚙ Expertenmodus ausblenden', '⚙ Hide expert mode') : t('⚙ Expertenmodus (weitere Optionen)', '⚙ Expert mode (more options)')}
         </button>
         {expertMode && (<>
         {/* Welche Fragen gestellt werden, entscheidet allein die Katalogauswahl
@@ -1413,7 +1417,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           onClick={handleCreate}
           style={{ width: '100%', padding: 13, fontSize: 15 }}
         >
-          {busy ? 'Wird erstellt …' : ci.createButton}
+          {busy ? t('Wird erstellt …', 'Creating …') : ci.createButton}
         </button>
       </div>
     </div>
@@ -1421,6 +1425,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
 }
 
 export function ContributionView({ selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages, saveContribMeta, saveAnswerText }) {
+    const t = useAdminT()
     const c = selectedContrib
     const [ansEdit, setAnsEdit] = useState(null)   // Index der Nachricht, die gerade editiert wird
     const [ansDraft, setAnsDraft] = useState('')
@@ -1462,17 +1467,18 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
         <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            <button className="ghost" onClick={() => setView('detail')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+            <button className="ghost" onClick={() => setView('detail')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
             <div>
               <span style={{ fontWeight: 700, fontSize: 16 }}>{c.contributor_name}</span>
               <span style={{ fontSize:13, color:'#78716c', marginLeft:10 }}>· {selected.name}</span>
             </div>
           </div>
-          <div style={{ display:'flex', gap:10 }}>
-            <button onClick={() => dlOne(c)} style={{ fontSize:13, padding:'8px 16px' }}>⬇ Herunterladen</button>
-            <button className="secondary" onClick={() => exportContribution(c)} title="Daten dieses Beitragenden als .zip (lesbares PDF + JSON) exportieren – DSGVO Art. 15/20" style={{ fontSize:13, padding:'8px 16px' }}>⬇ DSGVO-Export</button>
-            <button className="secondary" onClick={() => deleteContribution(c)} title="Beitrag löschen" style={{ fontSize:15, padding:'7px 12px', color:'#dc2626' }}>🗑</button>
-            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <button onClick={() => dlOne(c)} style={{ fontSize:13, padding:'8px 16px' }}>{t('⬇ Herunterladen', '⬇ Download')}</button>
+            <button className="secondary" onClick={() => exportContribution(c)} title={t('Daten dieses Beitragenden als .zip (lesbares PDF + JSON) exportieren – DSGVO Art. 15/20', 'Export this contributor’s data as .zip (readable PDF + JSON) – GDPR Art. 15/20')} style={{ fontSize:13, padding:'8px 16px' }}>{t('⬇ DSGVO-Export', '⬇ GDPR export')}</button>
+            <button className="secondary" onClick={() => deleteContribution(c)} title={t('Beitrag löschen', 'Delete contribution')} style={{ fontSize:15, padding:'7px 12px', color:'#dc2626' }}>🗑</button>
+            <AdminLangToggle />
+            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
           </div>
         </div>
 
@@ -1484,40 +1490,40 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
               </div>
               {editMeta ? (
                 <div style={{ display:'flex', flexDirection:'column', gap:6, flex:1 }}>
-                  <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder="Name" style={{ fontSize:15, padding:'6px 9px' }} />
-                  <input value={relDraft} onChange={e => setRelDraft(e.target.value)} placeholder="Beziehung zur Hauptperson (z. B. Tochter)" style={{ fontSize:13, padding:'6px 9px' }} />
+                  <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder={t('Name', 'Name')} style={{ fontSize:15, padding:'6px 9px' }} />
+                  <input value={relDraft} onChange={e => setRelDraft(e.target.value)} placeholder={t('Beziehung zur Hauptperson (z. B. Tochter)', 'Relationship to the main person (e.g. daughter)')} style={{ fontSize:13, padding:'6px 9px' }} />
                   <div style={{ display:'flex', gap:8, marginTop:2 }}>
-                    <button onClick={submitMeta} disabled={savingMeta || !nameDraft.trim()} style={{ fontSize:12, padding:'6px 12px' }}>{savingMeta ? 'Speichert …' : 'Speichern'}</button>
-                    <button className="secondary" onClick={() => setEditMeta(false)} disabled={savingMeta} style={{ fontSize:12, padding:'6px 12px' }}>Abbrechen</button>
+                    <button onClick={submitMeta} disabled={savingMeta || !nameDraft.trim()} style={{ fontSize:12, padding:'6px 12px' }}>{savingMeta ? t('Speichert …', 'Saving …') : t('Speichern', 'Save')}</button>
+                    <button className="secondary" onClick={() => setEditMeta(false)} disabled={savingMeta} style={{ fontSize:12, padding:'6px 12px' }}>{t('Abbrechen', 'Cancel')}</button>
                   </div>
                 </div>
               ) : (
                 <div>
                   <div style={{ fontWeight:700, fontSize:18, display:'flex', alignItems:'center', gap:8 }}>
                     {c.contributor_name}
-                    <button className="secondary" onClick={startEditMeta} title="Name & Beziehung ändern" style={{ fontSize:11, padding:'3px 8px' }}>✏ ändern</button>
+                    <button className="secondary" onClick={startEditMeta} title={t('Name & Beziehung ändern', 'Change name & relationship')} style={{ fontSize:11, padding:'3px 8px' }}>{t('✏ ändern', '✏ edit')}</button>
                   </div>
                   <div style={{ fontSize:13, color:'#78716c' }}>{c.relationship}</div>
                 </div>
               )}
             </div>
             <div style={{ fontSize:13, color:'#57534e', lineHeight:1.8 }}>
-              {c.contributor_gender && <div><span style={{ color:'#a8a29e' }}>Geschlecht:</span> {c.contributor_gender}</div>}
-              {c.contributor_address && <div><span style={{ color:'#a8a29e' }}>Anrede:</span> {c.contributor_address}</div>}
-              <div><span style={{ color:'#a8a29e' }}>Erstellt:</span> {new Date(c.created_at).toLocaleString('de-DE')}</div>
-              <div><span style={{ color:'#a8a29e' }}>Antworten:</span> {c.messages.filter(m => m.role === 'user').length}</div>
+              {c.contributor_gender && <div><span style={{ color:'#a8a29e' }}>{t('Geschlecht:', 'Gender:')}</span> {c.contributor_gender}</div>}
+              {c.contributor_address && <div><span style={{ color:'#a8a29e' }}>{t('Anrede:', 'Form of address:')}</span> {c.contributor_address}</div>}
+              <div><span style={{ color:'#a8a29e' }}>{t('Erstellt:', 'Created:')}</span> {new Date(c.created_at).toLocaleString('de-DE')}</div>
+              <div><span style={{ color:'#a8a29e' }}>{t('Antworten:', 'Responses:')}</span> {c.messages.filter(m => m.role === 'user').length}</div>
             </div>
           </div>
 
           {pairs.length === 0 ? (
-            <p style={S.muted}>Dieser Beitrag enthält noch keine Inhalte.</p>
+            <p style={S.muted}>{t('Dieser Beitrag enthält noch keine Inhalte.', 'This contribution has no content yet.')}</p>
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
               {pairs.map((p, j) => (
                 <div key={j} style={{ ...S.card, position:'relative' }}>
                   <button
                     onClick={() => deleteMessages(c, p.indices)}
-                    title="Frage & Antwort löschen"
+                    title={t('Frage & Antwort löschen', 'Delete question & answer')}
                     className="ghost"
                     style={{ position:'absolute', top:10, right:10, fontSize:14, color:'#dc2626', padding:'4px 8px', lineHeight:1 }}
                   >
@@ -1525,7 +1531,7 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
                   </button>
                   {p.q && (
                     <div style={{ marginBottom: p.a ? 12 : 0 }}>
-                      <Lbl>Frage</Lbl>
+                      <Lbl>{t('Frage', 'Question')}</Lbl>
                       <p style={{ fontSize:15, lineHeight:1.65, fontStyle:'italic', color:'#44403c', margin:'4px 0 0' }}>{p.q}</p>
                     </div>
                   )}
@@ -1533,19 +1539,19 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
                     const ansIdx = p.indices[p.indices.length - 1]
                     return ansEdit === ansIdx ? (
                       <div>
-                        <Lbl>Antwort</Lbl>
+                        <Lbl>{t('Antwort', 'Answer')}</Lbl>
                         <textarea value={ansDraft} onChange={e => setAnsDraft(e.target.value)} rows={4}
                           style={{ width:'100%', fontSize:15, lineHeight:1.6, padding:'8px 10px', fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
                         <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                          <button onClick={() => submitAns(ansIdx)} disabled={ansSaving} style={{ fontSize:12, padding:'6px 12px' }}>{ansSaving ? 'Speichert …' : 'Speichern'}</button>
-                          <button className="secondary" onClick={() => setAnsEdit(null)} disabled={ansSaving} style={{ fontSize:12, padding:'6px 12px' }}>Abbrechen</button>
+                          <button onClick={() => submitAns(ansIdx)} disabled={ansSaving} style={{ fontSize:12, padding:'6px 12px' }}>{ansSaving ? t('Speichert …', 'Saving …') : t('Speichern', 'Save')}</button>
+                          <button className="secondary" onClick={() => setAnsEdit(null)} disabled={ansSaving} style={{ fontSize:12, padding:'6px 12px' }}>{t('Abbrechen', 'Cancel')}</button>
                         </div>
                       </div>
                     ) : (
                       <div>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <Lbl>Antwort</Lbl>
-                          <button className="ghost" onClick={() => startAnsEdit(ansIdx, p.a)} title="Antwort bearbeiten" style={{ fontSize:11, color:'#78716c', padding:'2px 6px' }}>✏ bearbeiten</button>
+                          <Lbl>{t('Antwort', 'Answer')}</Lbl>
+                          <button className="ghost" onClick={() => startAnsEdit(ansIdx, p.a)} title={t('Antwort bearbeiten', 'Edit answer')} style={{ fontSize:11, color:'#78716c', padding:'2px 6px' }}>{t('✏ bearbeiten', '✏ edit')}</button>
                         </div>
                         <p style={{ fontSize:15, lineHeight:1.7, color:'#1c1917', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{p.a}</p>
                       </div>
@@ -1561,6 +1567,7 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
 }
 
 export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, requestDownload, dlLangOverlay, downloadGeneratedPdf, downloadCover, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText, dlBusy }) {
+    const t = useAdminT()
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
     const data = selected[gen.field]
@@ -1581,13 +1588,13 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
           <Back onClick={() => { setEditMode(false); setEditDraft(null); setView('detail') }} />
         </div>
         <div style={{ textAlign:'center', marginBottom:'2.5rem' }}>
-          <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}{editMode ? ' · Bearbeiten' : ''}</p>
+          <p style={{ fontSize:11, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{subtitle}{editMode ? t(' · Bearbeiten', ' · Editing') : ''}</p>
           <h1 style={{ fontSize:24, fontWeight:600, ...headFont, color:'#78716c' }}>{selected.name}</h1>
         </div>
 
         {!busy && data && !editMode && (
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'1.25rem' }}>
-            <button onClick={() => { setEditDraft(structuredClone(data)); setEditMode(true) }} style={{ fontSize:13, padding:'8px 16px' }}>✏ Bearbeiten</button>
+            <button onClick={() => { setEditDraft(structuredClone(data)); setEditMode(true) }} style={{ fontSize:13, padding:'8px 16px' }}>{t('✏ Bearbeiten', '✏ Edit')}</button>
           </div>
         )}
 
@@ -1605,29 +1612,29 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 </div>
               </>
             )}
-            <p style={{ ...S.muted, marginTop:16 }}>{genProgress[key] || 'Die KI arbeitet …'}</p>
+            <p style={{ ...S.muted, marginTop:16 }}>{genProgress[key] || t('Die KI arbeitet …', 'The AI is working …')}</p>
             <div style={{ marginTop:16 }}>
-              <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:13, padding:'7px 14px', color:'#b91c1c', borderColor:'#fecaca' }}>✕ Abbrechen</button>
+              <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:13, padding:'7px 14px', color:'#b91c1c', borderColor:'#fecaca' }}>{t('✕ Abbrechen', '✕ Cancel')}</button>
             </div>
           </div>
         ) : !data ? (
-          <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>Noch nichts generiert. Geh zurück und klicke „Generieren".</p>
+          <p style={{ ...S.muted, textAlign:'center', padding:'3rem 0' }}>{t('Noch nichts generiert. Geh zurück und klicke „Generieren".', 'Nothing generated yet. Go back and click “Generate”.')}</p>
         ) : editMode ? (
           <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:'1.5rem' }}>
             <p style={{ ...S.muted, fontSize:13, marginBottom:16 }}>
-              Direkt im Text korrigieren (z. B. falsch verstandene Eigennamen). Änderungen werden beim Speichern übernommen. Bilder bleiben unverändert.
+              {t('Direkt im Text korrigieren (z. B. falsch verstandene Eigennamen). Änderungen werden beim Speichern übernommen. Bilder bleiben unverändert.', 'Correct directly in the text (e.g. misheard proper names). Changes are applied when saving. Images stay unchanged.')}
             </p>
             {gen.kind === 'book' && editDraft && typeof editDraft === 'object' ? (
               <>
-                <Lbl>Titel</Lbl>
+                <Lbl>{t('Titel', 'Title')}</Lbl>
                 <input value={editDraft.title || ''} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} style={{ marginBottom:12 }} />
-                <Lbl>Untertitel</Lbl>
+                <Lbl>{t('Untertitel', 'Subtitle')}</Lbl>
                 <input value={editDraft.subtitle || ''} onChange={e => setEditDraft(d => ({ ...d, subtitle: e.target.value }))} style={{ marginBottom:20 }} />
                 {(editDraft.chapters || []).map((ch, i) => (
                   <div key={i} style={{ marginBottom:20, paddingTop:16, borderTop:'1px solid #f5f5f4' }}>
-                    <Lbl>{bt.chapterLabel} {ch.number ?? i + 1} – Überschrift</Lbl>
+                    <Lbl>{bt.chapterLabel} {ch.number ?? i + 1} – {t('Überschrift', 'Heading')}</Lbl>
                     <input value={ch.heading || ''} onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, heading: e.target.value } : c) }))} style={{ marginBottom:8 }} />
-                    <Lbl>Text</Lbl>
+                    <Lbl>{t('Text', 'Text')}</Lbl>
                     <textarea value={ch.body || ''} onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, body: e.target.value } : c) }))} rows={Math.max(6, String(ch.body || '').split('\n').length + 2)} style={{ width:'100%', fontFamily:'inherit', fontSize:14, lineHeight:1.6, resize:'vertical' }} />
                   </div>
                 ))}
@@ -1639,8 +1646,8 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
               </>
             )}
             <div style={{ display:'flex', gap:10, marginTop:16, position:'sticky', bottom:0, background:'#fff', padding:'12px 0', borderTop:'1px solid #f0ede8', zIndex:20 }}>
-              <button onClick={() => saveEdit(gen.field, editDraft)} disabled={savingEdit} style={{ fontSize:14, padding:'9px 18px' }}>{savingEdit ? 'Speichert …' : '✓ Speichern'}</button>
-              <button onClick={() => { setEditMode(false); setEditDraft(null) }} disabled={savingEdit} className="ghost" style={{ fontSize:14 }}>Abbrechen</button>
+              <button onClick={() => saveEdit(gen.field, editDraft)} disabled={savingEdit} style={{ fontSize:14, padding:'9px 18px' }}>{savingEdit ? t('Speichert …', 'Saving …') : t('✓ Speichern', '✓ Save')}</button>
+              <button onClick={() => { setEditMode(false); setEditDraft(null) }} disabled={savingEdit} className="ghost" style={{ fontSize:14 }}>{t('Abbrechen', 'Cancel')}</button>
             </div>
           </div>
         ) : gen.kind === 'book' ? (
@@ -1651,8 +1658,8 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
             </div>
             {reviewMarks.length > 0 && (
               <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:'2rem', fontSize:13, color:'#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-                <span>🛡 {reviewMarks.length} {reviewMarks.length === 1 ? 'Stelle' : 'Stellen'} aus der Inhaltsprüfung sind im Text farbig markiert.</span>
-                <button className="secondary" onClick={() => setReportModal({ title: gen.label, field: gen.field, report: reviewReport })} style={{ fontSize:12, padding:'5px 10px' }}>Prüfbericht</button>
+                <span>🛡 {reviewMarks.length} {reviewMarks.length === 1 ? t('Stelle', 'passage') : t('Stellen', 'passages')} {t('aus der Inhaltsprüfung sind im Text farbig markiert.', 'from the content check are highlighted in the text.')}</span>
+                <button className="secondary" onClick={() => setReportModal({ title: gen.label, field: gen.field, report: reviewReport })} style={{ fontSize:12, padding:'5px 10px' }}>{t('Prüfbericht', 'Check report')}</button>
               </div>
             )}
             {(data.chapters || []).map((ch, i) => (
@@ -1741,20 +1748,20 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
 
         {!busy && data && !editMode && (
           <div style={{ marginTop:'1.5rem', paddingTop:'1.5rem', borderTop:'1px solid #e7e5e4', display:'flex', gap:10, flexWrap:'wrap' }}>
-            <button onClick={() => requestDownload(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}</button>
+            <button onClick={() => requestDownload(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:docx` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('⬇ Download .docx', '⬇ Download .docx')}</button>
             {gen.kind === 'book' ? (
               // Druck-PDF nur für Sprachen, deren Schrift jsPDF setzen kann. Bei
               // Rechts-nach-links (Hebräisch/Arabisch) fehlen die Buchstaben-
               // verbindungen — dort führt nur der Weg über DOCX (Word formt selbst).
               canPrintPdf(data?.language) ? (
-                <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}</button>
+                <button className="secondary" onClick={() => downloadGeneratedPdf(key)} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('🖨 Druck-PDF', '🖨 Print PDF')}</button>
               ) : (
                 <span style={{ fontSize:12, color:'#78716c', alignSelf:'center', maxWidth:280, lineHeight:1.4 }}>
-                  🖨 Druck-PDF ist für diese Schreibrichtung nicht verfügbar — bitte den DOCX-Export nutzen (Word setzt die Schrift korrekt).
+                  {t('🖨 Druck-PDF ist für diese Schreibrichtung nicht verfügbar — bitte den DOCX-Export nutzen (Word setzt die Schrift korrekt).', '🖨 Print PDF is not available for this writing direction — please use the DOCX export (Word sets the script correctly).')}
                 </span>
               )
             ) : (
-              <button className="secondary" onClick={() => requestDownload(key, 'pdf')} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '⬇ Download .pdf'}</button>
+              <button className="secondary" onClick={() => requestDownload(key, 'pdf')} disabled={!!dlBusy} style={{ fontSize:13, padding:'8px 16px' }}>{dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('⬇ Download .pdf', '⬇ Download .pdf')}</button>
             )}
             {gen.kind === 'book' && (
               <button
@@ -1762,16 +1769,16 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 onClick={() => downloadCover(key)}
                 disabled={!!dlBusy || !data?.print_pages}
                 title={data?.print_pages
-                  ? `Rückenstärke aus ${data.print_pages} Seiten`
-                  : 'Erst das Druck-PDF erzeugen — daraus ergibt sich die Rückenstärke.'}
+                  ? t(`Rückenstärke aus ${data.print_pages} Seiten`, `Spine width from ${data.print_pages} pages`)
+                  : t('Erst das Druck-PDF erzeugen — daraus ergibt sich die Rückenstärke.', 'First create the print PDF — the spine width follows from it.')}
                 style={{ fontSize:13, padding:'8px 16px' }}
               >
-                {dlBusy === `${key}:cover-img` ? '⏳ Hintergrund wird erzeugt …'
-                  : dlBusy === `${key}:cover` ? '⏳ Wird erstellt …'
-                  : '📕 Druck-Cover'}
+                {dlBusy === `${key}:cover-img` ? t('⏳ Hintergrund wird erzeugt …', '⏳ Creating background …')
+                  : dlBusy === `${key}:cover` ? t('⏳ Wird erstellt …', '⏳ Creating …')
+                  : t('📕 Druck-Cover', '📕 Print cover')}
               </button>
             )}
-            <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>↻ Neu generieren</button>
+            <button className="secondary" onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} style={{ fontSize:13, padding:'8px 16px' }}>{t('↻ Neu generieren', '↻ Regenerate')}</button>
           </div>
         )}
         {eulogyStyleOverlay}
