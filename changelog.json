@@ -4,6 +4,14 @@
     {
       "date": "2026-07-15",
       "items": [
+        "Fehler behoben: Der leere Bildschirm beim Klick auf „Ansehen\" (Buchansicht im Dashboard) ist beseitigt.",
+        "Selbstregistrierung: Startet jetzt mit der Sprachauswahl; die E-Mail-Abfrage erscheint danach direkt in der gewählten Sprache.",
+        "Buchvorschau/Druckversion (Endnutzer): Alle Bedientexte sind jetzt mehrsprachig (Deutsch/Englisch).",
+        "Das Login-Fenster erscheint jetzt in der Sprache aus der Zugangs-E-Mail.",
+        "Druckversion (Endnutzer): Textabschnitte lassen sich per Sprachaufnahme überarbeiten — Abschnitt markieren, Änderung sprechen, die KI schreibt ihn um.",
+        "Begleiteter Modus: Das Umschalten funktioniert jetzt auch mehrfach zuverlässig, die Transkript-Anzeige hängt nicht mehr hinterher, und Personen-Symbole kennzeichnen Erzähler/Begleitung.",
+        "Beitragenden-Ansicht: Alle Funktionen (Foto, Probedruck, Einstellungen, Transkript, „Später fortsetzen“) stecken jetzt in einem Menü oben rechts (☰); Impressum/Datenschutz im Footer sind wieder erreichbar.",
+        "Verwaiste Endnutzer-Konten werden beim Löschen eines Buchprojekts jetzt zuverlässig mitentfernt (Ursache: zu kurze Datenbankspalte behoben); ein bestehendes verwaistes Konto wurde bereinigt.",
         "Fehler behoben (begleiteter Modus): Beim Ein-/Ausschalten des Begleitmodus wurde die alte KI-Frage wiederholt statt eines Hinweises. Ursache: Die Umschalt-Anweisung wurde als Nutzer-Nachricht geschickt und von Azures Sicherheitsfilter blockiert. Jetzt läuft sie über den System-Prompt — die KI bestätigt den Wechsel korrekt. Zudem wechseln Schallwelle und Untertitel wieder auf Rot, sobald die KI (auch nach dem Begleitmodus) übernimmt; Blau nur, während die Begleitperson aktiv spricht.",
         "Fehler behoben (Selbstregistrierung): Die Registrierung schlug fehl (eine Pflichtspalte war nicht gesetzt). Jetzt behoben. Außerdem vereinfacht: Die Registrierung fragt nur noch Sprache und E-Mail ab; Name, Anrede und die Datenschutz-Einwilligung werden anschließend beim Start des Interviews erfasst.",
         "Verwaiste Endnutzer-Konten aus früheren Tests (vor Einführung der automatischen Löschung) blockierten die Wiederverwendung der E-Mail-Adresse; die Löschung beim Entfernen eines Buchprojekts wurde geprüft und funktioniert zuverlässig.",
