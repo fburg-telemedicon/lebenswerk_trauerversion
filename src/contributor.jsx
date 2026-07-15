@@ -476,13 +476,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
               // einer Aufnahme ist das andere gesperrt.
               <div style={{ marginBottom: 14, display:'flex', gap:28, justifyContent:'center', alignItems:'flex-start' }}>
                 {[
-                  { sp:'self',      col:'#ef4444', bg:'#fee2e2', label: t.micSelf || 'Erzähler' },
-                  { sp:'companion', col:'#3b82f6', bg:'#dbeafe', label: t.micCompanion || 'Begleitung' },
+                  { sp:'self',      col:'#ef4444', bg:'#fee2e2', face:'🧑', label: t.micSelf || 'Erzähler' },
+                  { sp:'companion', col:'#3b82f6', bg:'#dbeafe', face:'👥', label: t.micCompanion || 'Begleitung' },
                 ].map(mic => {
                   const on  = micState === 'recording' && recSpeaker === mic.sp
                   const dis = micState === 'processing' || expired || (micState === 'recording' && recSpeaker !== mic.sp)
                   return (
                     <div key={mic.sp} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
+                      <span aria-hidden="true" style={{ width:34, height:34, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:18, background: mic.bg, border:`1px solid ${mic.col}`, opacity: on ? 1 : 0.85 }}>{mic.face}</span>
                       <button onClick={() => handleMic(mic.sp)} disabled={dis}
                         style={{ width:64, height:64, borderRadius:'50%', fontSize:26, display:'inline-flex', alignItems:'center', justifyContent:'center',
                           background: on ? mic.bg : '#f5f5f4', border: on ? `2px solid ${mic.col}` : '1px solid #d6d3d1', color:'#1c1917',
@@ -866,54 +867,6 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showT
   )
 }
 
-// (Alt) Untere Navigation im Interview — durch ContribMenu (Hamburger) ersetzt,
-// bleibt vorerst als Referenz erhalten.
-function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, companionOn, onToggleCompanion }) {
-  const items = [
-    { id: 'interview', icon: '🎙️', label: t.tabInterview },
-    ...(withPhoto    ? [{ id: 'photo',    icon: '📷', label: t.tabPhoto }] : []),
-    ...(withProof    ? [{ id: 'proof',    icon: '📖', label: t.tabProof || 'Probedruck' }] : []),
-    ...(withSettings ? [{ id: 'settings', icon: '⚙️', label: t.tabSettings }] : []),
-  ]
-  // Modus-Schalter (Transkript/Begleitet) gehören nur zur Interview-Ansicht — auf
-  // den übrigen Tabs (Foto, Probedruck, Einstellungen) sind sie ohne Funktion.
-  const showToggles = (!!onToggleTx || !!onToggleCompanion) && tab === 'interview'
-  const pill = (on, color) => ({
-    display:'inline-flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:999,
-    fontSize:12.5, fontWeight: on ? 700 : 500, cursor:'pointer', lineHeight:1.1,
-    border:`1px solid ${on ? color : '#e7e5e4'}`, background: on ? color : '#fff', color: on ? '#fff' : '#78716c',
-  })
-  return (
-    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #e7e5e4', zIndex:30, boxShadow:'0 -1px 4px rgba(0,0,0,.05)' }}>
-      {showToggles && (
-        <div style={{ display:'flex', justifyContent:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid #f5f5f4', flexWrap:'wrap' }}>
-          {onToggleTx && (
-            <button onClick={onToggleTx} aria-pressed={!!showTx} style={pill(showTx, '#1c1917')}>
-              <span style={{ fontSize:16, lineHeight:1 }}>📝</span><span>{t.txTab || 'Transkript'}</span>
-            </button>
-          )}
-          {onToggleCompanion && (
-            <button onClick={onToggleCompanion} aria-pressed={!!companionOn} style={pill(companionOn, '#1d4ed8')}>
-              <span style={{ fontSize:16, lineHeight:1 }}>👥</span><span>{t.companionTab || 'Begleitet'}</span>
-            </button>
-          )}
-        </div>
-      )}
-      <div style={{ display:'flex' }}>
-        {items.map(it => {
-          const active = tab === it.id
-          return (
-            <button key={it.id} onClick={() => setTab(it.id)} aria-current={active}
-              style={{ flex:1, background:'none', border:'none', borderTop: active ? '2px solid #1c1917' : '2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3, color: active ? '#1c1917' : '#a8a29e' }}>
-              <span style={{ fontSize:22, lineHeight:1 }}>{it.icon}</span>
-              <span style={{ fontSize:11, fontWeight: active ? 700 : 500 }}>{it.label}</span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 // Kleines Modal + schreibgeschützte Buchansicht (von ProofTab genutzt).
 function PModal({ children, onClose }) {
