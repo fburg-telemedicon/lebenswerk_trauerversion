@@ -851,6 +851,8 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const cancelRef = useRef(false)
 
   const remaining = Math.max(0, max - used)
+  // Anredeform (Sie/Du) wie vom Admin/Endnutzer gewählt — für die Hinweistexte.
+  const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
 
   useEffect(() => {
     let alive = true
@@ -876,7 +878,9 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       setUsed(cons.used); setMax(cons.max)
       const c = await getContribution(contribId, code)
       if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) {
-        throw new Error('Es sind noch keine Interview-Antworten vorhanden. Bitte zuerst ein paar Fragen beantworten.')
+        throw new Error(du
+          ? 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworte zuerst ein paar Fragen.'
+          : 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworten Sie zuerst ein paar Fragen.')
       }
       const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(p.pct); setProgress(p.text) } })
       await saveEnduserBook(code, token, lockRef.current, nb)
@@ -915,12 +919,14 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       {!book ? (
         <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
           <p style={{ fontSize: 15, lineHeight: 1.6, color: '#44403c', marginTop: 0 }}>
-            Hier entsteht aus Ihren bisherigen Antworten eine erste Textfassung Ihres Buchs (ohne Bilder) — als Zwischenstand zum Ansehen. Sie können später jederzeit weiter erzählen; die endgültige Fassung wird daraus erstellt.
+            {du
+              ? 'Hier entsteht aus deinen bisherigen Antworten eine erste Textfassung deines Buchs (ohne Bilder) — als Zwischenstand zum Ansehen. Du kannst später jederzeit weiter erzählen; die endgültige Fassung wird daraus erstellt.'
+              : 'Hier entsteht aus Ihren bisherigen Antworten eine erste Textfassung Ihres Buchs (ohne Bilder) — als Zwischenstand zum Ansehen. Sie können später jederzeit weiter erzählen; die endgültige Fassung wird daraus erstellt.'}
           </p>
           <button onClick={() => setConfirmOpen(true)} disabled={remaining <= 0} style={{ fontSize: 15, padding: '11px 20px' }}>
             📖 Zwischenstand ansehen
           </button>
-          {remaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>Sie haben alle {max} Vorschauen aufgebraucht.</p>}
+          {remaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>{du ? `Du hast alle ${max} Vorschauen aufgebraucht.` : `Sie haben alle ${max} Vorschauen aufgebraucht.`}</p>}
         </div>
       ) : (
         <>
@@ -946,10 +952,11 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       {confirmOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }} onClick={() => setConfirmOpen(false)}>
           <div style={{ background: '#fff', borderRadius: 14, padding: '1.6rem', maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Buchvorschau erstellen?</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Zwischenstand erstellen?</h3>
             <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
-              Ihr Buch wird jetzt aus Ihren bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das ist eine KI-Generierung und zählt zu Ihren Vorschauen:
-              Sie haben danach noch <b>{Math.max(0, remaining - 1)} von {max}</b> übrig{book ? '. Eine bereits vorhandene Vorschau wird dabei ersetzt' : ''}.
+              {du
+                ? <>Dein Buch wird jetzt aus deinen bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das ist eine KI-Generierung und zählt zu deinen Vorschauen: Du hast danach noch <b>{Math.max(0, remaining - 1)} von {max}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird dabei ersetzt' : ''}.</>
+                : <>Ihr Buch wird jetzt aus Ihren bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das ist eine KI-Generierung und zählt zu Ihren Vorschauen: Sie haben danach noch <b>{Math.max(0, remaining - 1)} von {max}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird dabei ersetzt' : ''}.</>}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button className="secondary" onClick={() => setConfirmOpen(false)} style={{ fontSize: 14 }}>Abbrechen</button>
