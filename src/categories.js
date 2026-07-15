@@ -1148,6 +1148,7 @@ export const CATEGORIES = {
       // Endnutzer wird beim Start dann nur noch nach dem gefragt, was fehlt.
       useGender: true,
       genderLabel: 'Geschlecht des Endnutzers',
+      genderSelfOption: true,   // leere Option „Endnutzer wählt selbst" (Default)
       useAddressForm: true,    // Du/Sie — nur beim Lebenswerk
       useDate: false,          // Kein Anlass, kein Anlass-Datum.
       useCutoff: false,        // Keine Frist — der Endnutzer bestimmt sein Tempo.

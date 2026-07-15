@@ -61,7 +61,7 @@ export function langDirective(lang) {
 // ── Feste UI-Texte ────────────────────────────────────────────────
 const DE = {
   locale: 'de-DE',
-  genders: { 'männlich': 'Männlich', 'weiblich': 'Weiblich', 'divers': 'Divers' },
+  genders: { 'männlich': 'Männlich', 'weiblich': 'Weiblich', 'divers': 'Divers', 'keine Angabe': 'Keine Angabe' },
   notFound: (noun) => `${noun} nicht gefunden`,
   yourName: 'Ihr Name *',
   fullName: 'Vollständiger Name',
@@ -115,6 +115,7 @@ ${url}
   autosaveNote: 'Ihre Antworten werden automatisch gespeichert. Sie können beliebig lange erzählen oder oben „Später fortsetzen oder beenden" klicken.',
   errTranscribe: 'Transkription', errMic: 'Mikrofon',
   // Sprachauswahl
+  nextQuestion: 'Nächste Frage →', nextQuestionMsg: 'Weiter zur nächsten Frage, bitte.',
   langPickTitle: 'In welcher Sprache möchten Sie fortfahren?',
   // Buch-Überschriften
   chapterLabel: 'Kapitel',
@@ -167,7 +168,7 @@ ${url}
 
 const PL = {
   locale: 'pl-PL',
-  genders: { 'männlich': 'Mężczyzna', 'weiblich': 'Kobieta', 'divers': 'Inne' },
+  genders: { 'männlich': 'Mężczyzna', 'weiblich': 'Kobieta', 'divers': 'Inne', 'keine Angabe': 'Bez podania' },
   notFound: (noun) => `Nie znaleziono: ${noun}`,
   yourName: 'Twoje imię i nazwisko *',
   fullName: 'Imię i nazwisko',
@@ -220,6 +221,7 @@ ${url}
   autosaveNote: 'Twoje odpowiedzi są zapisywane automatycznie. Możesz mówić dowolnie długo lub kliknąć u góry „Kontynuuj później lub zakończ".',
   errTranscribe: 'Transkrypcja', errMic: 'Mikrofon',
   legalGermanNote: 'Uwaga: polityka prywatności i nota prawna są dostępne w języku niemieckim i to one są wiążące prawnie.',
+  nextQuestion: 'Następne pytanie →', nextQuestionMsg: 'Przejdźmy do następnego pytania.',
   langPickTitle: 'W jakim języku chcesz kontynuować?',
   chapterLabel: 'Rozdział',
   contributorsHeading: 'W tej księdze wzięli udział:',
@@ -271,7 +273,7 @@ ${url}
 
 const EN = {
   locale: 'en-GB',
-  genders: { 'männlich': 'Male', 'weiblich': 'Female', 'divers': 'Diverse' },
+  genders: { 'männlich': 'Male', 'weiblich': 'Female', 'divers': 'Diverse', 'keine Angabe': 'Prefer not to say' },
   notFound: (noun) => `${noun} not found`,
   yourName: 'Your name *',
   fullName: 'Full name',
@@ -324,6 +326,7 @@ ${url}
   autosaveNote: 'Your answers are saved automatically. You can talk for as long as you like, or click “Continue later or finish” above.',
   errTranscribe: 'Transcription', errMic: 'Microphone',
   legalGermanNote: 'Note: the privacy policy and legal notice are provided in German and are the legally authoritative version.',
+  nextQuestion: 'Next question →', nextQuestionMsg: 'Please move on to the next question.',
   langPickTitle: 'Which language would you like to continue in?',
   chapterLabel: 'Chapter',
   contributorsHeading: 'Contributors to this book:',
@@ -523,7 +526,23 @@ const CONTRIB = {
     encouragement: { nounBook: 'book of encouragement', heading: 'Your message', introNoun: 'Book of encouragement for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. sister, friend, colleague …', relationshipHint: 'From your perspective: who are you to {name}? Enter your own role – e.g. “sister”, “friend” or “colleague”.', consentNoun: 'book of encouragement', interviewButton: '🎙 Start voice interview →' },
     lifework:      { nounBook: 'life’s work', heading: 'Your life story', introNoun: 'Life’s work of', consentNoun: 'life’s work (autobiography)', interviewButton: '🎙 Start the conversation →' },
   },
+  es: {
+    lifework: { nounBook: 'obra de vida', heading: 'La historia de su vida', introNoun: 'Obra de vida de', consentNoun: 'mi obra de vida (autobiografía)', interviewButton: '🎙 Comenzar la conversación →' },
+  },
+  it: {
+    lifework: { nounBook: 'opera di una vita', heading: 'La storia della sua vita', introNoun: 'Opera di una vita di', consentNoun: 'la mia opera di una vita (autobiografia)', interviewButton: '🎙 Iniziare la conversazione →' },
+  },
+  eu: {
+    lifework: { nounBook: 'bizitza-lana', heading: 'Zure bizitzaren istorioa', introNoun: 'Bizitza-lana:', consentNoun: 'nire bizitza-lana (autobiografia)', interviewButton: '🎙 Hasi elkarrizketa →' },
+  },
+  he: {
+    lifework: { nounBook: 'מפעל חיים', heading: 'סיפור חייך', introNoun: 'מפעל חייו של', consentNoun: 'מפעל חיי (אוטוביוגרפיה)', interviewButton: '🎙 להתחיל את השיחה →' },
+  },
+  ar: {
+    lifework: { nounBook: 'عمل حياة', heading: 'قصة حياتك', introNoun: 'عمل حياة', consentNoun: 'عمل حياتي (سيرة ذاتية)', interviewButton: '🎙 بدء المحادثة →' },
+  },
 }
+
 
 export function contributorL10n(slug, lang) {
   const cat = CATEGORIES[slug] || CATEGORIES.memorial

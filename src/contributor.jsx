@@ -380,12 +380,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             {memorial.catalog && micState === 'idle' && (
               <div style={{ marginTop:16 }}>
                 <button
-                  onClick={() => sendAnswer(({ de:'Weiter zur nächsten Frage, bitte.', en:'Please move on to the next question.', pl:'Przejdźmy do następnego pytania.' })[lang] || 'Weiter zur nächsten Frage, bitte.')}
+                  onClick={() => sendAnswer(t.nextQuestionMsg)}
                   disabled={aiLoading}
                   className="secondary"
                   style={{ fontSize:13, padding:'8px 16px' }}
                 >
-                  {({ de:'Nächste Frage →', en:'Next question →', pl:'Następne pytanie →' })[lang] || 'Nächste Frage →'}
+                  {t.nextQuestion}
                 </button>
               </div>
             )}

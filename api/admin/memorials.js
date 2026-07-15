@@ -481,7 +481,10 @@ module.exports = async function handler(req, res) {
       let days = parseInt(cutoffDays, 10)
       if (!Number.isFinite(days) || days < 0) days = 7
       const insertRow = {
-        id: code, name: String(name || '').trim() || null, organizer: organizerName || null,
+        // name/organizer sind in der DB NOT NULL. Beim Lebenswerk dürfen sie leer
+        // bleiben (Endnutzer trägt den Namen beim Start nach) — dann LEERSTRING,
+        // nicht null. Die Anzeige zeigt bei leerem Namen „Name folgt".
+        id: code, name: String(name || '').trim(), organizer: organizerName,
         gender: gender || null, book_variant: variant,
         // Lebenswerk: kein Anlass-Datum, keine Erfassungsfrist — der Endnutzer
         // bestimmt selbst, wie schnell er erzählt.

@@ -1096,9 +1096,11 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <div style={{ marginBottom: 14 }}>
             <Lbl>{ci.genderLabel}</Lbl>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-              {GENDERS.map(g => (
+              {/* Beim Lebenswerk ist der leere Wert eine echte Option: „Endnutzer
+                  wählt selbst" (Default). Er wird beim Start abgefragt. */}
+              {[...(ci.genderSelfOption ? [{ value: '', label: 'Endnutzer wählt selbst' }] : []), ...GENDERS].map(g => (
                 <div
-                  key={g.value}
+                  key={g.value || 'self'}
                   onClick={() => setCreateForm({ ...createForm, gender: g.value })}
                   style={{
                     ...S.card, cursor:'pointer', textAlign:'center', padding:'12px 8px',

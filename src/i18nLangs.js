@@ -27,7 +27,7 @@ export function swissify(obj) {
 
 export const ES = {
   locale: 'es-ES',
-  genders: { 'männlich': 'Hombre', 'weiblich': 'Mujer', 'divers': 'No binario' },
+  genders: { 'männlich': 'Hombre', 'weiblich': 'Mujer', 'divers': 'No binario', 'keine Angabe': 'Prefiero no decirlo' },
   notFound: (noun) => `${noun} no encontrado`,
   yourName: 'Su nombre *',
   fullName: 'Nombre completo',
@@ -76,6 +76,7 @@ ${url}
   autosaveNote: 'Sus respuestas se guardan automáticamente. Puede hablar todo el tiempo que quiera o pulsar arriba «Continuar más tarde o terminar».',
   errTranscribe: 'Transcripción', errMic: 'Micrófono',
   legalGermanNote: 'Aviso: la política de privacidad y el aviso legal están disponibles en alemán y constituyen la versión jurídicamente vinculante.',
+  nextQuestion: 'Siguiente pregunta →', nextQuestionMsg: 'Pasemos a la siguiente pregunta, por favor.',
   langPickTitle: '¿En qué idioma desea continuar?',
   chapterLabel: 'Capítulo',
   contributorsHeading: 'Han participado en este libro:',
@@ -125,7 +126,7 @@ ${url}
 
 export const IT = {
   locale: 'it-IT',
-  genders: { 'männlich': 'Uomo', 'weiblich': 'Donna', 'divers': 'Non binario' },
+  genders: { 'männlich': 'Uomo', 'weiblich': 'Donna', 'divers': 'Non binario', 'keine Angabe': 'Preferisco non dirlo' },
   notFound: (noun) => `${noun} non trovato`,
   yourName: 'Il suo nome *',
   fullName: 'Nome e cognome',
@@ -174,6 +175,7 @@ ${url}
   autosaveNote: 'Le sue risposte vengono salvate automaticamente. Può parlare quanto vuole oppure premere in alto «Continua più tardi o termina».',
   errTranscribe: 'Trascrizione', errMic: 'Microfono',
   legalGermanNote: 'Avviso: informativa sulla privacy e note legali sono disponibili in tedesco e costituiscono la versione giuridicamente vincolante.',
+  nextQuestion: 'Prossima domanda →', nextQuestionMsg: 'Passiamo alla prossima domanda, per favore.',
   langPickTitle: 'In quale lingua desidera proseguire?',
   chapterLabel: 'Capitolo',
   contributorsHeading: 'Hanno collaborato a questo libro:',
@@ -223,7 +225,7 @@ ${url}
 
 export const EU = {
   locale: 'eu-ES',
-  genders: { 'männlich': 'Gizona', 'weiblich': 'Emakumea', 'divers': 'Ez-bitarra' },
+  genders: { 'männlich': 'Gizona', 'weiblich': 'Emakumea', 'divers': 'Ez-bitarra', 'keine Angabe': 'Nahiago dut ez esan' },
   notFound: (noun) => `${noun} ez da aurkitu`,
   yourName: 'Zure izena *',
   fullName: 'Izen-abizenak',
@@ -272,6 +274,7 @@ ${url}
   autosaveNote: 'Zure erantzunak automatikoki gordetzen dira. Nahi beste hitz egin dezakezu edo goian «Geroago jarraitu edo amaitu» sakatu.',
   errTranscribe: 'Transkripzioa', errMic: 'Mikrofonoa',
   legalGermanNote: 'Oharra: pribatutasun-politika eta lege-oharra alemanez daude eskuragarri, eta hori da legez baliozko bertsioa.',
+  nextQuestion: 'Hurrengo galdera →', nextQuestionMsg: 'Goazen hurrengo galderara, mesedez.',
   langPickTitle: 'Zein hizkuntzatan jarraitu nahi duzu?',
   chapterLabel: 'Kapitulua',
   contributorsHeading: 'Liburu honetan parte hartu dutenak:',
@@ -321,7 +324,7 @@ ${url}
 
 export const HE = {
   locale: 'he-IL',
-  genders: { 'männlich': 'זכר', 'weiblich': 'נקבה', 'divers': 'אחר' },
+  genders: { 'männlich': 'זכר', 'weiblich': 'נקבה', 'divers': 'אחר', 'keine Angabe': 'מעדיף לא לציין' },
   notFound: (noun) => `${noun} לא נמצא`,
   yourName: 'השם שלך *',
   fullName: 'שם מלא',
@@ -370,6 +373,7 @@ ${url}
   autosaveNote: 'התשובות נשמרות אוטומטית. אפשר לספר כמה שתרצה, או ללחוץ למעלה על «להמשיך מאוחר יותר או לסיים».',
   errTranscribe: 'תמלול', errMic: 'מיקרופון',
   legalGermanNote: 'לתשומת לבך: מדיניות הפרטיות וההצהרה המשפטית זמינות בגרמנית, והן הגרסה המחייבת מבחינה משפטית.',
+  nextQuestion: 'השאלה הבאה →', nextQuestionMsg: 'נעבור בבקשה לשאלה הבאה.',
   langPickTitle: 'באיזו שפה תרצה להמשיך?',
   chapterLabel: 'פרק',
   contributorsHeading: 'שותפים לספר הזה:',
@@ -419,7 +423,7 @@ ${url}
 
 export const AR = {
   locale: 'ar-EG',
-  genders: { 'männlich': 'ذكر', 'weiblich': 'أنثى', 'divers': 'آخر' },
+  genders: { 'männlich': 'ذكر', 'weiblich': 'أنثى', 'divers': 'آخر', 'keine Angabe': 'أفضل عدم الذكر' },
   notFound: (noun) => `${noun} غير موجود`,
   yourName: 'اسمك *',
   fullName: 'الاسم الكامل',
@@ -468,6 +472,7 @@ ${url}
   autosaveNote: 'تُحفظ إجاباتك تلقائياً. يمكنك التحدث بالقدر الذي تريد أو الضغط في الأعلى على «المتابعة لاحقاً أو الإنهاء».',
   errTranscribe: 'التفريغ النصي', errMic: 'الميكروفون',
   legalGermanNote: 'ملاحظة: سياسة الخصوصية والإشعار القانوني متوفران بالألمانية، وهما النسخة المُلزِمة قانونياً.',
+  nextQuestion: 'السؤال التالي →', nextQuestionMsg: 'لننتقل إلى السؤال التالي، من فضلك.',
   langPickTitle: 'بأي لغة تريد المتابعة؟',
   chapterLabel: 'الفصل',
   contributorsHeading: 'شارك في هذا الكتاب:',
