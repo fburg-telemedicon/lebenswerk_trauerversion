@@ -189,6 +189,17 @@ export async function requestPasswordReset(email) {
   })
   return parseResponse(res) // { ok:true }
 }
+// Self-Service-Registrierung als Endnutzer eines Lebenswerks (öffentlich, ohne
+// Login). Legt Buch (Default-Werte + 5-Min-Testlimit) + Konto an und verschickt
+// die Zugangs-Mail (BCC an den Betreiber). Antwort { ok, email_sent }.
+export async function registerLifework({ name, email, lang, consent }) {
+  const res = await fetch('/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, lang, consent }),
+  })
+  return parseResponse(res)
+}
 export async function adminUpdateUser(token, id, patch) {
   const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',

@@ -12,7 +12,7 @@ import {
   adminGetBookDefaults, adminSaveBookDefaults, adminResetBookDefaults,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   getSettings, saveSettings, changeOwnPassword,
-  getInvite, redeemInvite, requestPasswordReset,
+  getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle } from './categories.js'
@@ -67,6 +67,7 @@ import { formatEur, costKindLabel } from './shared.js'
 const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding eines neuen Benutzers
+const registerFromURL = urlParams.has('register')            // öffentliche Selbstregistrierung (Lebenswerk-Test)
 
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
@@ -2846,6 +2847,9 @@ Regeln:
           style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
           Passwort vergessen?
         </button>
+        <p style={{ textAlign: 'center', fontSize: 13, color: '#a8a29e', margin: '18px 0 0', borderTop: '1px solid #f5f5f4', paddingTop: 16 }}>
+          Noch keinen Zugang? <a href="/?register=1" style={{ color: '#78716c', fontWeight: 600 }}>Lebenswerk kostenlos testen</a>
+        </p>
       </form>
       ) : (
       <form onSubmit={submitReset} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
@@ -3080,6 +3084,94 @@ function InviteFlow({ token }) {
   )
 }
 
+// ── Selbstregistrierung (Aufruf per ?register) ────────────────────
+// Öffentliche Seite: Ein Interessent legt sich SELBST einen Endnutzer-Zugang für
+// ein Lebenswerk an. Danach kommt die Zugangs-Mail (Passwort setzen & starten);
+// das Buch hat die Default-Werte inkl. 5-Minuten-Testlimit. Kein Login nötig.
+function RegisterFlow() {
+  const [name, setName]   = useState('')
+  const [email, setEmail] = useState('')
+  const [lang, setLang]   = useState('de')
+  const [consent, setConsent] = useState(false)
+  const [busy, setBusy]   = useState(false)
+  const [err, setErr]     = useState('')
+  const [done, setDone]   = useState(null)   // { email_sent }
+
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+  async function submit(e) {
+    e.preventDefault()
+    if (!emailOk) { setErr('Bitte eine gültige E-Mail-Adresse angeben.'); return }
+    if (!consent) { setErr('Bitte der Verarbeitung Ihrer Angaben zustimmen.'); return }
+    setErr(''); setBusy(true)
+    try {
+      const d = await registerLifework({ name: name.trim(), email: email.trim(), lang, consent: true })
+      setDone({ email_sent: d.email_sent !== false })
+    } catch (e) { setErr(e.message); setBusy(false) }
+  }
+
+  const card = { width: '100%', maxWidth: 440, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }
+  const wrap = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }
+
+  if (done) return (
+    <div style={wrap}>
+      <div style={card}>
+        <div style={{ fontSize: 34, marginBottom: 8 }}>✉️</div>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>Fast geschafft!</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: '#44403c', margin: '0 0 12px' }}>
+          Wir haben eine E-Mail an <b style={{ overflowWrap: 'anywhere' }}>{email.trim()}</b> geschickt. Öffnen Sie den Link darin,
+          vergeben Sie Ihr Passwort und starten Sie Ihr Lebenswerk.
+        </p>
+        <p style={{ fontSize: 13, lineHeight: 1.6, color: '#78716c', margin: 0 }}>
+          Die Testversion umfasst 5 Minuten Interviewzeit. Falls die E-Mail nicht ankommt, prüfen Sie bitte Ihren Spam-Ordner.
+        </p>
+        {done.email_sent === false && (
+          <p style={{ fontSize: 13, color: '#b45309', marginTop: 12 }}>
+            Hinweis: Der Versand der E-Mail hat gemeldet, dass sie evtl. nicht zugestellt wurde. Bitte wenden Sie sich an support@lebensgeschichten.ai.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={wrap}>
+      <form onSubmit={submit} style={card}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Ihr Lebenswerk kostenlos testen</h1>
+        <p style={{ fontSize: 14, lineHeight: 1.6, color: '#78716c', marginBottom: '1.4rem' }}>
+          Erzählen Sie Ihre eigene Lebensgeschichte – ein KI-Interviewer begleitet Sie in Ruhe durch Ihre Erinnerungen.
+          Legen Sie hier Ihren persönlichen Zugang an; die Testversion umfasst 5 Minuten Interviewzeit.
+        </p>
+        <Err msg={err} />
+        <div style={{ marginBottom: 12 }}>
+          <Lbl>Ihr Name <span style={{ color: '#a8a29e', fontWeight: 400 }}>(optional)</span></Lbl>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Vor- und Nachname" autoFocus />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <Lbl>E-Mail-Adresse</Lbl>
+          <input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Sprache des Interviews</Lbl>
+          <select value={lang} onChange={e => setLang(e.target.value)} style={{ width: '100%' }}>
+            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, lineHeight: 1.5, color: '#57534e', marginBottom: 18, cursor: 'pointer' }}>
+          <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, cursor: 'pointer', accentColor: '#1c1917' }} />
+          <span>Ich stimme der Verarbeitung meiner Angaben zum Anlegen des Zugangs zu und habe die <a href="#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color: '#57534e' }}>Datenschutzhinweise</a> gelesen.</span>
+        </label>
+        <button type="submit" disabled={busy || !emailOk || !consent} style={{ width: '100%', padding: 12, fontSize: 15 }}>
+          {busy ? 'Wird angelegt …' : 'Zugang anlegen'}
+        </button>
+        <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', marginTop: 14, marginBottom: 0 }}>
+          Schon registriert? <a href="/" style={{ color: '#78716c' }}>Zum Login</a>
+        </p>
+      </form>
+    </div>
+  )
+}
+
 export default function App() {
   const [hash, setHash] = useState(() => window.location.hash)
   useEffect(() => {
@@ -3099,6 +3191,7 @@ export default function App() {
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
       {inviteFromURL ? <InviteFlow token={inviteFromURL} />
+        : registerFromURL ? <RegisterFlow />
         : codeFromURL ? <ContributorFlow code={codeFromURL} />
         : <AdminLangProvider><Dashboard /></AdminLangProvider>}
       <LegalFooter />

@@ -9,7 +9,7 @@
 
 const { createClient } = require('../_lib/store')
 const { verifyCredentials, issueToken, isConfigured, verifyPassword, hashPassword, validatePasswordPolicy, generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
-const { enforce } = require('../_lib/ratelimit')
+const { enforce, allow } = require('../_lib/ratelimit')
 const { audit } = require('../_lib/audit')
 const { sendAccessMail, inviteLink, baseUrl } = require('../_lib/invitemail')
 const { ensureLifeworkSchema } = require('../_lib/lifework')
@@ -47,6 +47,12 @@ async function handleResetRequest(req, res, rawEmail) {
   if (!(await enforce(req, res, { name: 'reset-ip', limit: 5, windowSeconds: 600 }))) return
   const generic = { ok: true }
   if (!email) return res.json(generic)
+  // Missbrauchsschutz: pro Zieladresse begrenzen, damit ein bestehendes Konto
+  // nicht mit Reset-Mails zugespammt werden kann. `allow` (kein 429) statt
+  // `enforce`, damit die Antwort GENERISCH bleibt (kein Rückschluss auf das Konto).
+  if (!(await allow(req, { name: 'reset-email', limit: 3, windowSeconds: 3600, key: email.toLowerCase() }))) {
+    return res.json(generic)
+  }
   try {
     const { data: user } = await supabase
       .from('app_users').select('id, username').ilike('username', email).maybeSingle()
