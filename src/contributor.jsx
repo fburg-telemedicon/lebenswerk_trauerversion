@@ -96,6 +96,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   const [recSpeaker, setRecSpeaker] = useState('self')
   const speakerRef = useRef('self')
   const companionInitRef = useRef(true)
+  const companionRunRef  = useRef(0)
   const [transcript, setTranscript] = useState('')
   // Anzeigemodus: mit Transkript (+ Löschen/Neu einsprechen) oder reines Sprach-
   // Interview. Das Interview startet IMMER ohne Transkript (ruhiger Einstieg); die
@@ -179,7 +180,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   // Der Steuer-Hinweis (userTurn) wird NICHT gespeichert, nur die KI-Antwort.
   useEffect(() => {
     if (companionInitRef.current) { companionInitRef.current = false; return }
-    let cancelled = false
+    // Run-Zähler: nur der JÜNGSTE Umschalt-Lauf darf das Ergebnis anwenden UND
+    // aiLoading zurücksetzen. Sonst blieb bei schnellem Umschalten ein überholter
+    // Lauf mit aiLoading=true hängen → der Autoplay der Bestätigung (verlangt
+    // !aiLoading) feuerte beim erneuten Wechsel nicht mehr ("nur einmal").
+    const myRun = ++companionRunRef.current
     ;(async () => {
       setAiLoading(true)
       try {
@@ -193,14 +198,13 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           : '\n\n[MODUSWECHSEL: Der begleitete Modus wurde ausgeschaltet — du übernimmst wieder. Melde dich in EINEM sehr kurzen, warmen Satz (höchstens 10 Wörter) zurück und stelle dann die nächste passende Frage.]'
         const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang) + modeDirective
         const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current], { memorialCode: memorial?.id, kind: 'interview' })
-        if (cancelled) return
+        if (companionRunRef.current !== myRun) return
         const finalMsgs = [...messagesRef.current, { role: 'assistant', content: reply }]
         applyMessages(finalMsgs)
         onSave?.(finalMsgs)
-      } catch (e) { if (!cancelled) setErr(e.message) }
-      finally { if (!cancelled) setAiLoading(false) }
+      } catch (e) { if (companionRunRef.current === myRun) setErr(e.message) }
+      finally { if (companionRunRef.current === myRun) setAiLoading(false) }
     })()
-    return () => { cancelled = true }
   }, [companionOn])
 
   function playText(text) {
@@ -370,12 +374,17 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
     onPause?.()
   }
 
-  const latestQ = [...messages].reverse().find(m => m.role === 'assistant')?.content
+  // Index der aktuell prominent gezeigten KI-Frage (jüngste Assistant-Nachricht).
+  let latestAssistantIdx = -1
+  for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === 'assistant') { latestAssistantIdx = i; break } }
+  const latestQ = latestAssistantIdx >= 0 ? messages[latestAssistantIdx].content : undefined
 
-  // Verlauf für die Chat-Blasen: aktuelle Frage (letzte KI-Nachricht) ausblenden –
-  // sie steht schon in der Frage-Karte. Indizes bleiben deckungsgleich mit
-  // `messages` (nur das letzte Element entfällt) → undoFrom/redoFrom nutzen `i`.
-  const history = messages.slice(0, -1)
+  // Verlauf = alle Nachrichten; im Render wird nur die prominent gezeigte KI-Frage
+  // (latestAssistantIdx) übersprungen. Indizes bleiben deckungsgleich mit `messages`
+  // → undoFrom/redoFrom nutzen `i`. (Früher: slice(0,-1) blendete AUCH eine
+  // abschließende Nutzer-/Begleitantwort aus – im Begleitmodus die letzte Nachricht,
+  // weil die KI dort nicht antwortet → die Transkript-Anzeige „hing um 1".)
+  const history = messages
   // Löschen/Neu einsprechen nur bei der zuletzt gesendeten Antwort: sobald die
   // nächste Antwort da ist, wandern die Buttons mit; ältere Einträge bleiben fix
   // (sonst würde der ganze nachfolgende Gesprächsbaum verworfen).
@@ -429,6 +438,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
           ) : null
         })()}
         {showTx && history.map((m, i) => {
+          if (i === latestAssistantIdx) return null   // steht schon prominent in der Frage-Karte
           const isCompanion = m.role === 'user' && m.speaker === 'companion'
           return (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
