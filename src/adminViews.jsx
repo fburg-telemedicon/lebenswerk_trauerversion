@@ -489,19 +489,23 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
 }
 
 export function CreatedView({ createdCode, copied, token, logout, copyInvite, copyQR, loadMemorials }) {
+    const t = useAdminT()
     const inviteUrl = `${window.location.origin}/?code=${createdCode}`
     return (
       <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
         <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span>
-          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <AdminLangToggle />
+            <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+          </div>
         </div>
         <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem', textAlign:'center' }}>
           <div style={{ fontSize: 40, marginBottom: '1rem' }}>✅</div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Buch erstellt</h2>
-          <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Teilen Sie diesen Link oder den QR-Code mit Familie und Freunden:</p>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>{t('Buch erstellt', 'Book created')}</h2>
+          <p style={{ ...S.muted, marginBottom: '1.5rem' }}>{t('Teilen Sie diesen Link oder den QR-Code mit Familie und Freunden:', 'Share this link or the QR code with family and friends:')}</p>
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
-            <Lbl>Einladungslink</Lbl>
+            <Lbl>{t('Einladungslink', 'Invitation link')}</Lbl>
             <a
               href={inviteUrl}
               target="_blank"
@@ -509,7 +513,7 @@ export function CreatedView({ createdCode, copied, token, logout, copyInvite, co
               style={{ display:'block', fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#1d4ed8', margin:'6px 0 10px', textDecoration:'underline' }}
             >{inviteUrl}</a>
             <button className="secondary" onClick={() => copyInvite(createdCode)} style={{ fontSize: 13 }}>
-              {copied === createdCode ? '✓ Kopiert' : '📋 Link kopieren'}
+              {copied === createdCode ? t('✓ Kopiert', '✓ Copied') : t('📋 Link kopieren', '📋 Copy link')}
             </button>
             <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
               <img
@@ -520,11 +524,11 @@ export function CreatedView({ createdCode, copied, token, logout, copyInvite, co
                 style={{ borderRadius:8, background:'#fff' }}
               />
               <button className="secondary" onClick={() => copyQR(createdCode)} style={{ fontSize: 13 }}>
-                {copied === `qr-${createdCode}` ? '✓ QR kopiert' : '📋 QR-Code kopieren'}
+                {copied === `qr-${createdCode}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
               </button>
             </div>
           </div>
-          <button onClick={() => loadMemorials(token)} style={{ padding: '11px 28px' }}>Zur Übersicht</button>
+          <button onClick={() => loadMemorials(token)} style={{ padding: '11px 28px' }}>{t('Zur Übersicht', 'To overview')}</button>
         </div>
       </div>
     )
@@ -980,15 +984,19 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
 }
 
 export function CreateCategoryView({ err, allowedSlugs, logout, setView, chooseCategory }) {
+  const t = useAdminT()
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
-        <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
       </div>
       <div style={{ maxWidth: 540, margin: '2rem auto', padding: '0 1.5rem' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Produktkategorie wählen</h2>
-        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>Für welchen Anlass soll das Buch entstehen?</p>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('Produktkategorie wählen', 'Choose product category')}</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>{t('Für welchen Anlass soll das Buch entstehen?', 'What occasion is the book for?')}</p>
         <Err msg={err} />
         <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10 }}>
           {allowedSlugs.map(slug => {
