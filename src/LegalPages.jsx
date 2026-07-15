@@ -1,9 +1,24 @@
 // src/LegalPages.jsx
 // Statische Rechtsseiten (Impressum/Datenschutz) + Footer. Aus App.jsx ausgelagert.
-// Reine Präsentation, keine Hooks/kein State.
 
+import { useState, useEffect } from 'react'
 import { CONSENT_VERSION } from './constants.js'
 import { BOOK_DISCLAIMER } from './bookExport.js'
+
+// Footer-Beschriftungen je Sprache. Die ZIELDOKUMENTE bleiben deutsch (nur die
+// Link-Texte werden übersetzt) — so entschieden, weil Rechtstexte maßgeblich
+// deutsch sind.
+const FOOTER_LABELS = {
+  de:      { privacy: 'Datenschutzerklärung', imprint: 'Impressum' },
+  'de-CH': { privacy: 'Datenschutzerklärung', imprint: 'Impressum' },
+  en:      { privacy: 'Privacy policy', imprint: 'Legal notice' },
+  pl:      { privacy: 'Polityka prywatności', imprint: 'Nota prawna' },
+  es:      { privacy: 'Política de privacidad', imprint: 'Aviso legal' },
+  it:      { privacy: 'Informativa sulla privacy', imprint: 'Note legali' },
+  eu:      { privacy: 'Pribatutasun-politika', imprint: 'Lege-oharra' },
+  he:      { privacy: 'מדיניות פרטיות', imprint: 'הצהרה משפטית' },
+  ar:      { privacy: 'سياسة الخصوصية', imprint: 'الإشعار القانوني' },
+}
 
 function LegalLayout({ title, children }) {
   const back = () => { if (window.history.length > 1) window.history.back(); else window.location.href = '/' }
@@ -146,13 +161,25 @@ export function Datenschutz() {
   )
 }
 
+// Der Footer wird global gerendert und kennt die Interview-Sprache nicht direkt.
+// Der Beitragenden-Flow schreibt sie nach `document.documentElement.lang` und löst
+// ein `lw-lang`-Event aus; darauf liest der Footer die Sprache neu und übersetzt
+// seine beiden Link-Texte (die Zielseiten bleiben deutsch).
 export function LegalFooter() {
+  const [lang, setLang] = useState(() => document.documentElement.lang || 'de')
+  useEffect(() => {
+    const read = () => setLang(document.documentElement.lang || 'de')
+    read()
+    window.addEventListener('lw-lang', read)
+    return () => window.removeEventListener('lw-lang', read)
+  }, [])
+  const L = FOOTER_LABELS[lang] || FOOTER_LABELS.de
   const a = { color:'#57534e', margin:'0 10px', textDecoration:'none' }
   return (
-    <footer style={{ borderTop:'1px solid #e7e5e4', padding:'18px 1.5rem', textAlign:'center', fontSize:13, color:'#78716c', background:'#fafaf9' }}>
-      <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={a}>Datenschutzerklärung</a>
+    <footer dir={lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr'} style={{ borderTop:'1px solid #e7e5e4', padding:'18px 1.5rem', textAlign:'center', fontSize:13, color:'#78716c', background:'#fafaf9' }}>
+      <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={a}>{L.privacy}</a>
       <span style={{ color:'#d6d3d1' }}>·</span>
-      <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={a}>Impressum</a>
+      <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={a}>{L.imprint}</a>
     </footer>
   )
 }

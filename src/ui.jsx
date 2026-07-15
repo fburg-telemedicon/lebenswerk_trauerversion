@@ -28,14 +28,14 @@ export function PartnerBanner({ logoUrl, category }) {
   const fallback = category === 'lifework' ? '/lebenswerk-logo.png' : DEFAULT_LOGO
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 1.25rem', display:'flex', alignItems:'center', gap:12 }}>
-        {/* Die Höhe war früher auf 40 px gedeckelt — bei einem Querformat-Logo
-            (Lebenswerk) blieb davon ein Streifen übrig. Jetzt darf es die volle
-            Breite der Karte nutzen, die Höhe begrenzt nur nach oben. */}
+      <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'16px 1.25rem', display:'flex', alignItems:'center', gap:12 }}>
+        {/* Das Lebenswerk-Logo ist fast 16:9 (1672×941) — eine niedrige Höhen-
+            grenze drückt es auf einen schmalen Streifen. Deshalb großzügige Höhe;
+            ein echtes Querformat-Banner wird stattdessen von der Breite begrenzt. */}
         <img
           src={logoUrl || fallback}
           alt="Lebensgeschichten.ai"
-          style={{ maxHeight:64, maxWidth:'min(340px, 70%)', width:'auto', objectFit:'contain', flexShrink:0 }}
+          style={{ maxHeight:104, maxWidth:'min(380px, 78%)', width:'auto', objectFit:'contain', flexShrink:0 }}
         />
       </div>
     </div>

@@ -840,7 +840,9 @@ export function ContributorFlow({ code, endUserToken = null }) {
   // des Beitragenden-Flows wird wieder auf links-nach-rechts zurückgestellt.
   useEffect(() => {
     document.documentElement.dir = isRTL(L) ? 'rtl' : 'ltr'
-    return () => { document.documentElement.dir = 'ltr' }
+    document.documentElement.lang = L
+    window.dispatchEvent(new Event('lw-lang'))   // Footer liest die Sprache neu
+    return () => { document.documentElement.dir = 'ltr'; document.documentElement.lang = 'de'; window.dispatchEvent(new Event('lw-lang')) }
   }, [L])
 
   // Ohne Firmenlogo trägt ein Lebenswerk das Lebenswerk-Logo statt des Standard-Logos.
