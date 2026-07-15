@@ -153,6 +153,7 @@ ${url}
   txDelete: '🗑 Löschen',
   txRedo: '↻ Neu einsprechen',
   txToggleLabel: 'Transkript & Korrekturmöglichkeiten anzeigen',
+  txTab: 'Transkript',
   tabInterview: 'Interview',
   tabPhoto: 'Foto-Upload',
   // Lebenswerk / Endnutzer
@@ -259,6 +260,7 @@ ${url}
   txDelete: '🗑 Usuń',
   txRedo: '↻ Nagraj ponownie',
   txToggleLabel: 'Pokaż transkrypcję i możliwość korekty',
+  txTab: 'Transkrypcja',
   tabInterview: 'Wywiad',
   tabPhoto: 'Zdjęcia',
   // Dzieło życia / użytkownik końcowy
@@ -365,6 +367,7 @@ ${url}
   txDelete: '🗑 Delete',
   txRedo: '↻ Record again',
   txToggleLabel: 'Show transcript & correction options',
+  txTab: 'Transcript',
   tabInterview: 'Interview',
   tabPhoto: 'Photos',
   // Life’s work / end user

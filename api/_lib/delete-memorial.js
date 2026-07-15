@@ -26,8 +26,9 @@ async function deleteMemorialImages(supabase, code) {
 }
 
 // Vollständige Löschung in dieser Reihenfolge:
-// 1. Storage-Bilder (best effort), 2. cost_events, 3. contributions, 4. memorial.
-// Gibt die Storage-Warnungen zurück. Wirft bei DB-Fehlern.
+// 1. Storage-Bilder (best effort), 2. cost_events, 3. contributions, 4. memorial,
+// 5. Endnutzer-Zugang (Lebenswerk).
+// Gibt die Storage-/Konto-Warnungen zurück. Wirft bei DB-Fehlern der Kern-Tabellen.
 async function deleteMemorialCompletely(supabase, code) {
   const warnings = await deleteMemorialImages(supabase, code)
   const { error: costErr } = await supabase.from('cost_events').delete().eq('memorial_id', code)
@@ -36,7 +37,18 @@ async function deleteMemorialCompletely(supabase, code) {
   if (cErr) throw cErr
   const { error: mErr } = await supabase.from('memorials').delete().eq('id', code)
   if (mErr) throw mErr
-  if (warnings.length) console.warn('Löschung memorial', code, 'Storage-Warnungen:', warnings)
+  // Endnutzer-Zugang: Beim Lebenswerk hängt das eigene Konto des Erzählers an
+  // GENAU diesem Buch (app_users.enduser_memorial). Ohne das Buch ist es zwecklos
+  // — löschen, damit die E-Mail-Adresse wieder für neue Einladungen frei wird.
+  // Best effort: schlägt das fehl, bleibt das Buch trotzdem gelöscht.
+  try {
+    const { error: euErr } = await supabase
+      .from('app_users').delete().eq('enduser_memorial', code).eq('is_enduser', true)
+    if (euErr) warnings.push(`Endnutzer-Konto-Löschung fehlgeschlagen: ${euErr.message}`)
+  } catch (e) {
+    warnings.push(`Endnutzer-Konto-Löschung Ausnahme: ${e.message}`)
+  }
+  if (warnings.length) console.warn('Löschung memorial', code, 'Warnungen:', warnings)
   return warnings
 }
 

@@ -15,6 +15,12 @@ import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
 import { useAdminT, AdminLangToggle } from './adminI18n.jsx'
 
+// Anzeigename eines Buchs im Dashboard: Buchname → (Lebenswerk-)Endnutzer-E-Mail
+// → interne Notiz → sonst leer (Aufrufer zeigt dann „Name folgt").
+function displayBookName(m) {
+  return String(m?.name || m?.enduser_email || m?.note || '').trim()
+}
+
 export function AuditView({ auditData, auditLoading, err, logout, loadAudit, setView }) {
     const t = useAdminT()
     const fmtTime = ts => { try { return new Date(ts).toLocaleString('de-DE') } catch { return ts } }
@@ -780,7 +786,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
-      { key: 'name',      label: t('Name', 'Name'),          val: m => (m.name || '').toLowerCase(), disp: m => m.name || '—' },
+      { key: 'name',      label: t('Name', 'Name'),          val: m => displayBookName(m).toLowerCase(), disp: m => displayBookName(m) || '—' },
       ...(showCategoryColumn ? [{ key: 'category', label: t('Kategorie', 'Category'), val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
       ...(auth.admin ? [{ key: 'owner', label: t('Inhaber', 'Owner'), val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
       { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
@@ -935,7 +941,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                   const leaveRow   = () => setHoveredRow(null)
                   return (
                     <tr key={m.id}>
-                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.name || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}</td>
+                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{displayBookName(m) || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}</td>
                       {showCategoryColumn && (
                         <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}>
@@ -1888,7 +1894,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>{t('← Zurück', '← Back')}</button>
             <div>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name || t('Name folgt', 'Name to follow')}</span>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{displayBookName(selected) || t('Name folgt', 'Name to follow')}</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

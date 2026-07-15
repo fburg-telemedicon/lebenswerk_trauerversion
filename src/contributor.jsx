@@ -74,7 +74,7 @@ function Waveform({ stream, color = '#dc2626' }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [] }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp }) {
   const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -94,7 +94,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
   // Interview. Das Interview startet IMMER ohne Transkript (ruhiger Einstieg); die
   // Buch-Einstellung `show_transcript` entscheidet nur, ob der Schalter überhaupt
   // angeboten wird, mit dem der Beitragende es einblenden kann.
-  const [showTx,     setShowTx]     = useState(false)
+  // `showTx` kann von oben (ContributorFlow) kontrolliert werden, damit der
+  // Transkript-Umschalter auch in der Tab-Leiste sitzt; sonst lokaler Zustand.
+  const [showTxLocal, setShowTxLocal] = useState(false)
+  const showTx    = showTxProp !== undefined ? showTxProp : showTxLocal
+  const setShowTx = setShowTxProp || setShowTxLocal
   const txAvailable = memorial?.show_transcript !== false
   const [err,        setErr]        = useState('')
   const [hasPlayed,  setHasPlayed]  = useState(false)
@@ -636,7 +640,7 @@ function EnduserSettings({ code, token, memorial, t }) {
   )
 }
 
-function ContribTabBar({ tab, setTab, t, withSettings }) {
+function ContribTabBar({ tab, setTab, t, withSettings, showTx, onToggleTx }) {
   const items = [
     { id: 'interview', icon: '🎙️', label: t.tabInterview },
     { id: 'photo',     icon: '📷', label: t.tabPhoto },
@@ -654,6 +658,16 @@ function ContribTabBar({ tab, setTab, t, withSettings }) {
           </button>
         )
       })}
+      {/* Transkript-Umschalter als eigenes Feld — kein Tab-Wechsel, sondern ein
+          Schalter. AN = inverse Darstellung (dunkel gefüllt). */}
+      {onToggleTx && (
+        <button onClick={onToggleTx} aria-pressed={!!showTx}
+          style={{ flex:1, border:'none', borderTop:'2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+            background: showTx ? '#1c1917' : 'none', color: showTx ? '#fff' : '#a8a29e' }}>
+          <span style={{ fontSize:22, lineHeight:1 }}>📝</span>
+          <span style={{ fontSize:11, fontWeight: showTx ? 700 : 500 }}>{t.txTab || 'Transkript'}</span>
+        </button>
+      )}
     </div>
   )
 }
@@ -676,7 +690,14 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   const [saveErr, setSaveErr]                 = useState('')
   const [lang, setLang]                       = useState(null) // vom Beitragenden gewählte Sprache
   const [tab, setTab]                         = useState('interview') // interview | photo (nur wenn photo_upload_tab)
+  const [showTx, setShowTx]                   = useState(false)        // Transkript einblenden (auch über die Tab-Leiste steuerbar)
   const saveQueueRef                          = useRef(Promise.resolve())
+  // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
+  // EINMAL fallen. Sonst triggert sie ein späterer `setMemorial(...)` erneut — z. B.
+  // wenn `startInterview()` beim Lebenswerk den nachgetragenen Namen ans Buch
+  // schreibt: dann tauchte mitten im laufenden Interview fälschlich der
+  // „vorhandene Session"-Hinweis auf (Audio lief schon, Felder wurden überschrieben).
+  const bootedRef                             = useRef(false)
 
   useEffect(() => {
     getMemorial(code)
@@ -685,7 +706,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   }, [code])
 
   useEffect(() => {
-    if (!memorial) return
+    if (!memorial || bootedRef.current) return
+    bootedRef.current = true
     if (sessionFromURL) {
       fetchContribution(code, sessionFromURL).then(contrib => {
         if (contrib) { restoreFrom(contrib); setView('interview') }
@@ -1041,6 +1063,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             onPause={handlePause}
             saveErr={saveErr}
             initialMessages={initialMessages}
+            showTx={showTx}
+            setShowTx={setShowTx}
           />
         )
         // Ohne die Option kein Tab-Umschalter – Interview wie gehabt.
@@ -1065,7 +1089,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
-            <ContribTabBar tab={tab} setTab={setTab} t={t} withSettings={withSettings} />
+            <ContribTabBar tab={tab} setTab={setTab} t={t} withSettings={withSettings}
+              showTx={showTx}
+              onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null} />
           </div>
         )
       })()}

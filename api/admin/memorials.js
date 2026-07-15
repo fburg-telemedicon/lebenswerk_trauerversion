@@ -437,6 +437,20 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      // Endnutzer-E-Mail (Lebenswerk) ergänzen: Sie dient im Dashboard als
+      // Ersatz-Anzeigename, solange der Buchname noch leer ist (Name → E-Mail →
+      // interne Notiz → „Name folgt"). Der Endnutzer hat sein eigenes app_users-
+      // Konto mit enduser_memorial == Buch-Code.
+      const lifeworkCodes = memorials.filter(m => m.product_category === 'lifework').map(m => m.id)
+      if (lifeworkCodes.length) {
+        const { data: eus } = await supabase
+          .from('app_users').select('username, enduser_memorial')
+          .eq('is_enduser', true).in('enduser_memorial', lifeworkCodes)
+        const byCode = {}
+        for (const u of eus || []) if (u.enduser_memorial) byCode[u.enduser_memorial] = u.username
+        for (const m of memorials) if (byCode[m.id]) m.enduser_email = byCode[m.id]
+      }
+
       // Grafikstil + Buchlayout kommen aus dem Haupt-Select; nur Defaults für
       // (noch) leere Werte setzen.
       for (const m of memorials) {

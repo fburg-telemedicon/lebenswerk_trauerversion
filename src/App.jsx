@@ -2986,7 +2986,7 @@ function InviteFlow({ token }) {
   return (
     <div style={wrap} dir={dir}>
       <form onSubmit={submit} style={card}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{T.welcome(username)}</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{T.welcome(username)}</h1>
         <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>{T.pwIntro}</p>
         <Err msg={err} />
         <div style={{ marginBottom: 12 }}>
