@@ -164,6 +164,7 @@ ${url}
   tabPhoto: 'Foto-Upload',
   // Lebenswerk / Endnutzer
   tabSettings: 'Einstellungen',
+  tabProof: 'Probedruck',
   settingsTitle: 'Einstellungen für Ihr Buch',
   settingsIntro: 'Sie können jederzeit ändern, wie Ihr Buch aussehen soll. Die Einstellungen wirken auf das fertige Buch, nicht auf das Gespräch.',
   settingsImageStyle: 'Grafikstil der Bilder',
@@ -278,6 +279,7 @@ ${url}
   tabPhoto: 'Zdjęcia',
   // Dzieło życia / użytkownik końcowy
   tabSettings: 'Ustawienia',
+  tabProof: 'Podgląd książki',
   settingsTitle: 'Ustawienia Twojej książki',
   settingsIntro: 'W każdej chwili możesz zmienić wygląd swojej książki. Ustawienia dotyczą gotowej książki, nie rozmowy.',
   settingsImageStyle: 'Styl graficzny ilustracji',
@@ -392,6 +394,7 @@ ${url}
   tabPhoto: 'Photos',
   // Life’s work / end user
   tabSettings: 'Settings',
+  tabProof: 'Book preview',
   settingsTitle: 'Settings for your book',
   settingsIntro: 'You can change how your book will look at any time. These settings affect the finished book, not the conversation.',
   settingsImageStyle: 'Graphic style of the images',

@@ -194,6 +194,22 @@ export async function requestPasswordReset(email) {
   })
   return parseResponse(res) // { ok:true }
 }
+// ── Endnutzer-Buchvorschau („Probedruck", nur Lebenswerk) ─────────
+// Alle Operationen laufen über /api/enduser-book. Autorisierung: eingeloggter
+// Endnutzer (Token) ODER der Buch-Code allein (beim Lebenswerk erlaubt).
+async function enduserBook(code, token, body) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`/api/enduser-book?code=${encodeURIComponent(code)}`, { method: 'POST', headers, body: JSON.stringify(body) })
+  return parseResponse(res)
+}
+export const getEnduserBook   = (code, token)            => enduserBook(code, token, { action: 'get-book' })
+export const acquireEditLock  = (code, token)            => enduserBook(code, token, { action: 'lock-acquire' })      // { token, expires }
+export const heartbeatEditLock= (code, token, lockToken)=> enduserBook(code, token, { action: 'lock-heartbeat', token: lockToken })
+export const releaseEditLock  = (code, token, lockToken)=> enduserBook(code, token, { action: 'lock-release', token: lockToken })
+export const consumeProof     = (code, token)            => enduserBook(code, token, { action: 'proof-consume' })     // { used, max, remaining }
+export const saveEnduserBook  = (code, token, lockToken, book) => enduserBook(code, token, { action: 'save-book', token: lockToken, book })
+
 // Self-Service-Registrierung als Endnutzer eines Lebenswerks (öffentlich, ohne
 // Login). Legt Buch (Default-Werte + 5-Min-Testlimit) + Konto an und verschickt
 // die Zugangs-Mail (BCC an den Betreiber). Antwort { ok, email_sent }.

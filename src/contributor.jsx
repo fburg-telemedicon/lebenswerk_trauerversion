@@ -5,7 +5,8 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook } from './api.js'
+import { generateProofBook } from './enduserProof.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory, defaultTextStyle } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -759,43 +760,229 @@ function EnduserSettings({ code, token, memorial, t }) {
   )
 }
 
-function ContribTabBar({ tab, setTab, t, withSettings, showTx, onToggleTx, companionOn, onToggleCompanion }) {
+// Untere Navigation im Interview. ZWEI Zeilen (mobil-freundlich):
+//   Zeile 1 = Modus-SCHALTER (Transkript, Begleitet) — Zustände, keine Ziele.
+//   Zeile 2 = Navigations-TABS (Interview, Foto, Probedruck, Einstellungen).
+// Bewusst kein Hamburger-Menü: Bottom-Tabs bleiben sichtbar und auffindbar.
+function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, companionOn, onToggleCompanion }) {
   const items = [
     { id: 'interview', icon: '🎙️', label: t.tabInterview },
-    { id: 'photo',     icon: '📷', label: t.tabPhoto },
+    ...(withPhoto    ? [{ id: 'photo',    icon: '📷', label: t.tabPhoto }] : []),
+    ...(withProof    ? [{ id: 'proof',    icon: '📖', label: t.tabProof || 'Probedruck' }] : []),
     ...(withSettings ? [{ id: 'settings', icon: '⚙️', label: t.tabSettings }] : []),
   ]
+  const hasToggles = !!onToggleTx || !!onToggleCompanion
+  const pill = (on, color) => ({
+    display:'inline-flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:999,
+    fontSize:12.5, fontWeight: on ? 700 : 500, cursor:'pointer', lineHeight:1.1,
+    border:`1px solid ${on ? color : '#e7e5e4'}`, background: on ? color : '#fff', color: on ? '#fff' : '#78716c',
+  })
   return (
-    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #e7e5e4', display:'flex', zIndex:30, boxShadow:'0 -1px 4px rgba(0,0,0,.05)' }}>
-      {items.map(it => {
-        const active = tab === it.id
-        return (
-          <button key={it.id} onClick={() => setTab(it.id)} aria-current={active}
-            style={{ flex:1, background:'none', border:'none', borderTop: active ? '2px solid #1c1917' : '2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3, color: active ? '#1c1917' : '#a8a29e' }}>
-            <span style={{ fontSize:22, lineHeight:1 }}>{it.icon}</span>
-            <span style={{ fontSize:11, fontWeight: active ? 700 : 500 }}>{it.label}</span>
-          </button>
-        )
-      })}
-      {/* Transkript-Umschalter als eigenes Feld — kein Tab-Wechsel, sondern ein
-          Schalter. AN = inverse Darstellung (dunkel gefüllt). */}
-      {onToggleTx && (
-        <button onClick={onToggleTx} aria-pressed={!!showTx}
-          style={{ flex:1, border:'none', borderTop:'2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3,
-            background: showTx ? '#1c1917' : 'none', color: showTx ? '#fff' : '#a8a29e' }}>
-          <span style={{ fontSize:22, lineHeight:1 }}>📝</span>
-          <span style={{ fontSize:11, fontWeight: showTx ? 700 : 500 }}>{t.txTab || 'Transkript'}</span>
-        </button>
+    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'#fff', borderTop:'1px solid #e7e5e4', zIndex:30, boxShadow:'0 -1px 4px rgba(0,0,0,.05)' }}>
+      {hasToggles && (
+        <div style={{ display:'flex', justifyContent:'center', gap:8, padding:'7px 8px', borderBottom:'1px solid #f5f5f4', flexWrap:'wrap' }}>
+          {onToggleTx && (
+            <button onClick={onToggleTx} aria-pressed={!!showTx} style={pill(showTx, '#1c1917')}>
+              <span style={{ fontSize:16, lineHeight:1 }}>📝</span><span>{t.txTab || 'Transkript'}</span>
+            </button>
+          )}
+          {onToggleCompanion && (
+            <button onClick={onToggleCompanion} aria-pressed={!!companionOn} style={pill(companionOn, '#1d4ed8')}>
+              <span style={{ fontSize:16, lineHeight:1 }}>👥</span><span>{t.companionTab || 'Begleitet'}</span>
+            </button>
+          )}
+        </div>
       )}
-      {/* Begleiteter Modus — Schalter (kein Tab). AN = inverse (blaue) Darstellung,
-          passend zum blauen Mikrofon der Begleitperson. */}
-      {onToggleCompanion && (
-        <button onClick={onToggleCompanion} aria-pressed={!!companionOn}
-          style={{ flex:1, border:'none', borderTop:'2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3,
-            background: companionOn ? '#1d4ed8' : 'none', color: companionOn ? '#fff' : '#a8a29e' }}>
-          <span style={{ fontSize:22, lineHeight:1 }}>👥</span>
-          <span style={{ fontSize:11, fontWeight: companionOn ? 700 : 500 }}>{t.companionTab || 'Begleitet'}</span>
-        </button>
+      <div style={{ display:'flex' }}>
+        {items.map(it => {
+          const active = tab === it.id
+          return (
+            <button key={it.id} onClick={() => setTab(it.id)} aria-current={active}
+              style={{ flex:1, background:'none', border:'none', borderTop: active ? '2px solid #1c1917' : '2px solid transparent', cursor:'pointer', padding:'8px 4px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:3, color: active ? '#1c1917' : '#a8a29e' }}>
+              <span style={{ fontSize:22, lineHeight:1 }}>{it.icon}</span>
+              <span style={{ fontSize:11, fontWeight: active ? 700 : 500 }}>{it.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Probedruck-Tab (nur Lebenswerk): erzeugt das Buch aus den bisherigen Antworten
+// als reine Textansicht (wie beim Manager, ohne Bilder), begrenzt auf N Erzeugungen.
+// Bearbeiten (Stift) mit Buch-Lock (Checkout), damit Admin und Endnutzer nicht
+// gleichzeitig schreiben. Änderungen werden in der DB gespeichert (book_v2).
+function ProofTab({ code, token, memorial, contribId, lang, t }) {
+  const [loading, setLoading] = useState(true)
+  const [book, setBook]       = useState(null)
+  const [used, setUsed]       = useState(memorial?.proof_used || 0)
+  const [max, setMax]         = useState(memorial?.proof_max ?? 3)
+  const [lockedByOther, setLockedByOther] = useState(false)
+  const [busy, setBusy]       = useState(false)
+  const [pct, setPct]         = useState(0)
+  const [progress, setProgress] = useState('')
+  const [err, setErr]         = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft]     = useState(null)
+  const [saved, setSaved]     = useState('')
+  const lockRef   = useRef(null)   // gehaltenes Lock-Token
+  const hbRef     = useRef(null)   // Heartbeat-Intervall
+  const cancelRef = useRef(false)
+
+  const remaining = Math.max(0, max - used)
+
+  useEffect(() => {
+    let alive = true
+    getEnduserBook(code, token)
+      .then(d => { if (!alive) return; setBook(d.book || null); setUsed(d.proof_used || 0); setMax(d.proof_max ?? 3); setLockedByOther(!!d.lock); setLoading(false) })
+      .catch(() => { if (alive) setLoading(false) })
+    return () => { alive = false; stopHeartbeat(); if (lockRef.current) releaseEditLock(code, token, lockRef.current).catch(() => {}) }
+  }, [code]) // eslint-disable-line
+
+  function stopHeartbeat() { if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null } }
+  function startHeartbeat() {
+    stopHeartbeat()
+    hbRef.current = setInterval(() => { if (lockRef.current) heartbeatEditLock(code, token, lockRef.current).catch(() => {}) }, 5 * 60 * 1000)
+  }
+  async function acquire() { const r = await acquireEditLock(code, token); lockRef.current = r.token; startHeartbeat() }
+  async function release() { stopHeartbeat(); const tk = lockRef.current; lockRef.current = null; if (tk) { try { await releaseEditLock(code, token, tk) } catch {} } }
+
+  async function generate() {
+    setConfirmOpen(false); setErr(''); setSaved(''); setBusy(true); setPct(0); setProgress('Wird vorbereitet …'); cancelRef.current = false
+    try {
+      await acquire()
+      const cons = await consumeProof(code, token)
+      setUsed(cons.used); setMax(cons.max)
+      const c = await getContribution(contribId, code)
+      if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) {
+        throw new Error('Es sind noch keine Interview-Antworten vorhanden. Bitte zuerst ein paar Fragen beantworten.')
+      }
+      const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(p.pct); setProgress(p.text) } })
+      await saveEnduserBook(code, token, lockRef.current, nb)
+      setBook(nb)
+    } catch (e) {
+      if (e.message !== '__CANCELLED__') setErr(e.message)
+    } finally { await release(); setBusy(false) }
+  }
+
+  async function startEdit() {
+    setErr(''); setSaved('')
+    try { await acquire() } catch (e) { setErr(e.message); setLockedByOther(true); return }
+    setDraft(JSON.parse(JSON.stringify(book))); setEditing(true)
+  }
+  async function cancelEdit() { setEditing(false); setDraft(null); await release() }
+  async function saveEdit() {
+    setErr('')
+    try {
+      await saveEnduserBook(code, token, lockRef.current, draft)
+      setBook(draft); setEditing(false); setDraft(null); setSaved('Gespeichert.'); setTimeout(() => setSaved(''), 2500)
+      await release()
+    } catch (e) { setErr(e.message) }
+  }
+  const setCh = (i, patch) => setDraft(d => ({ ...d, chapters: d.chapters.map((c, j) => j === i ? { ...c, ...patch } : c) }))
+
+  const page = { ...S.page, paddingTop: '1.5rem' }
+
+  if (loading) return <div style={page}><Dots /></div>
+
+  // ── Generierungs-Fortschritt ──
+  if (busy) return (
+    <div style={page}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{t.tabProof || 'Probedruck'}</h2>
+      <div style={{ height: 8, background: '#e7e5e4', borderRadius: 999, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: '#1c1917', transition: 'width .3s' }} />
+      </div>
+      <p style={{ ...S.muted, margin: 0 }}>{pct}% · {progress}</p>
+      <button className="secondary" onClick={() => { cancelRef.current = true }} style={{ marginTop: 16, fontSize: 13 }}>Abbrechen</button>
+    </div>
+  )
+
+  // ── Bearbeiten-Modus (manuell) ──
+  if (editing && draft) return (
+    <div style={page}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <button onClick={saveEdit} style={{ fontSize: 14, padding: '8px 16px' }}>✓ Speichern</button>
+        <button className="secondary" onClick={cancelEdit} style={{ fontSize: 14, padding: '8px 16px' }}>Abbrechen</button>
+      </div>
+      <Err msg={err} />
+      <div style={{ marginBottom: 14 }}>
+        <Lbl>Titel</Lbl>
+        <input value={draft.title || ''} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))} />
+      </div>
+      <div style={{ marginBottom: 20 }}>
+        <Lbl>Untertitel</Lbl>
+        <input value={draft.subtitle || ''} onChange={e => setDraft(d => ({ ...d, subtitle: e.target.value }))} />
+      </div>
+      {draft.chapters.map((c, i) => (
+        <div key={i} style={{ marginBottom: 22, borderTop: '1px solid #f0efec', paddingTop: 14 }}>
+          <div style={{ fontSize: 12, color: '#a8a29e', marginBottom: 4 }}>Kapitel {c.number}</div>
+          <input value={c.heading || ''} onChange={e => setCh(i, { heading: e.target.value })} placeholder="Überschrift" style={{ fontWeight: 700, marginBottom: 8 }} />
+          <textarea value={c.body || ''} onChange={e => setCh(i, { body: e.target.value })} style={{ width: '100%', minHeight: 200, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
+        </div>
+      ))}
+      <p style={{ ...S.muted, fontSize: 12, marginTop: 4 }}>Tipp: Der Sprach-/KI-Bearbeitungsmodus (markierte Stelle per Audio ändern) folgt in Kürze.</p>
+    </div>
+  )
+
+  // ── Leseansicht bzw. „erstellen" ──
+  return (
+    <div style={page}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{t.tabProof || 'Probedruck'}</h2>
+        <span style={{ fontSize: 12, color: '#78716c' }}>Noch {remaining} von {max} Vorschauen</span>
+      </div>
+      <Err msg={err} />
+      {saved && <p style={{ fontSize: 13, color: '#16a34a' }}>{saved}</p>}
+      {lockedByOther && !book && <p style={{ fontSize: 13, color: '#b45309' }}>Das Buch wird gerade an anderer Stelle bearbeitet.</p>}
+
+      {!book ? (
+        <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
+          <p style={{ fontSize: 15, lineHeight: 1.6, color: '#44403c', marginTop: 0 }}>
+            Hier entsteht aus Ihren bisherigen Antworten eine erste Textfassung Ihres Buchs (ohne Bilder), die Sie ansehen und bearbeiten können.
+          </p>
+          <button onClick={() => setConfirmOpen(true)} disabled={remaining <= 0} style={{ fontSize: 15, padding: '11px 20px' }}>
+            📖 Buchvorschau erstellen
+          </button>
+          {remaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>Sie haben alle {max} Vorschauen aufgebraucht.</p>}
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            <button onClick={startEdit} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>✏️ Bearbeiten</button>
+            <button onClick={() => setConfirmOpen(true)} className="secondary" disabled={remaining <= 0} title={remaining <= 0 ? 'Keine Vorschauen mehr übrig' : ''} style={{ fontSize: 14, padding: '8px 16px' }}>↻ Neu erzeugen</button>
+          </div>
+          <article style={{ fontFamily: 'Georgia, serif', color: '#1c1917' }}>
+            <h1 style={{ fontSize: 26, fontWeight: 700, textAlign: 'center', margin: '10px 0 4px' }}>{book.title}</h1>
+            {book.subtitle && <p style={{ textAlign: 'center', fontStyle: 'italic', color: '#78716c', marginTop: 0 }}>{book.subtitle}</p>}
+            {(book.chapters || []).map((c, i) => (
+              <section key={i} style={{ marginTop: 28 }}>
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#a8a29e', letterSpacing: 1 }}>KAPITEL {c.number}</div>
+                <h2 style={{ fontSize: 21, fontWeight: 700, textAlign: 'center', margin: '4px 0 14px' }}>{c.heading}</h2>
+                {String(c.body || '').split('\n\n').map((p, k) => p.trim() && (
+                  <p key={k} style={{ fontSize: 16, lineHeight: 1.75, textAlign: 'justify', margin: '0 0 12px' }}>{p.trim()}</p>
+                ))}
+              </section>
+            ))}
+          </article>
+        </>
+      )}
+
+      {confirmOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }} onClick={() => setConfirmOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '1.6rem', maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Buchvorschau erstellen?</h3>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
+              Ihr Buch wird jetzt aus Ihren bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das ist eine KI-Generierung und zählt zu Ihren Vorschauen:
+              Sie haben danach noch <b>{Math.max(0, remaining - 1)} von {max}</b> übrig{book ? '. Eine bereits vorhandene Vorschau wird dabei ersetzt' : ''}.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button className="secondary" onClick={() => setConfirmOpen(false)} style={{ fontSize: 14 }}>Abbrechen</button>
+              <button onClick={generate} style={{ fontSize: 14 }}>Jetzt erstellen</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -1222,29 +1409,38 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             setCompanionOn={setCompanionOn}
           />
         )
-        // Ohne die Option kein Tab-Umschalter – Interview wie gehabt.
-        if (!memorial.photo_upload_tab) return vi
-        // Mit Option: alle Panels bleiben gemountet (Interview-Fortschritt bleibt
-        // erhalten), nur Sichtbarkeit per Tab. Untere Tab-Leiste schaltet um.
         // Der Einstellungs-Tab gehört JEDEM Lebenswerk-Endnutzer — auch dem, der
         // ohne Login über den Code-Link kommt (E-Mail ist optional). Die Änderung
         // läuft dann code-basiert (updateOwnMemorial ohne Token; Server erlaubt das
         // nur beim Lebenswerk).
         const withSettings = isSelf
+        const withPhoto    = memorial.photo_upload_tab === true
+        const withProof    = isSelf && memorial.proof_enabled === true
+        // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt
+        // (der Einstellungs-Tab erschien schon bisher nur zusammen mit der Tab-Leiste).
+        if (!withPhoto && !withProof) return vi
+        const hasToggles = (memorial?.show_transcript !== false) || (memorial?.companion_mode === true)
         return (
-          <div style={{ paddingBottom: 64 }}>
+          <div style={{ paddingBottom: hasToggles ? 116 : 64 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
-            <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
-              <div style={{ ...S.page, paddingTop:'2rem' }}>
-                <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
+            {withPhoto && (
+              <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
+                <div style={{ ...S.page, paddingTop:'2rem' }}>
+                  <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
+                </div>
               </div>
-            </div>
+            )}
+            {withProof && (
+              <div style={{ display: tab === 'proof' ? 'block' : 'none' }}>
+                <ProofTab code={code} token={endUserToken} memorial={memorial} contribId={contribId} lang={L} t={t} />
+              </div>
+            )}
             {withSettings && (
               <div style={{ display: tab === 'settings' ? 'block' : 'none' }}>
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
-            <ContribTabBar tab={tab} setTab={setTab} t={t} withSettings={withSettings}
+            <ContribTabBar tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
               companionOn={companionOn}

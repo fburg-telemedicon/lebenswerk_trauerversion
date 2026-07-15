@@ -47,7 +47,7 @@ function sanitizeBook(book) {
 // wurde dann bereits gesendet).
 async function authAndLoad(req, res, code) {
   const { data: m } = await supabase.from('memorials')
-    .select('id, product_category, proof_enabled, proof_max, proof_used, edit_lock')
+    .select('id, product_category, proof_enabled, proof_max, proof_used, edit_lock, book_v2')
     .eq('id', code).maybeSingle()
   if (!m) { res.status(404).json({ error: 'Buch nicht gefunden.' }); return null }
   if (m.product_category !== LIFEWORK) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
@@ -73,6 +73,16 @@ module.exports = async function handler(req, res) {
     const action = String(req.body?.action || '')
     const m = await authAndLoad(req, res, code)
     if (!m) return
+
+    // ── Bestehende Buchvorschau lesen (kein Verbrauch) ──
+    // Der öffentliche /api/memorial gibt book_v2 bewusst NICHT heraus; für den
+    // Endnutzer seines EIGENEN Lebenswerks ist die Textvorschau hier aber ok.
+    if (action === 'get-book') {
+      const book = sanitizeBook(m.book_v2)
+      const lk = m.edit_lock
+      const lock = lockActive(lk) ? { holder: lk.holder || null, expires: lk.expires } : null
+      return res.json({ book, proof_used: m.proof_used || 0, proof_max: m.proof_max ?? 3, lock })
+    }
 
     // ── Lock holen/erneuern ──
     if (action === 'lock-acquire') {
