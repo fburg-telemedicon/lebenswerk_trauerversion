@@ -1859,6 +1859,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
 export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
+    const t = useAdminT()
     const isLifework = selected?.product_category === 'lifework'
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
@@ -1875,38 +1876,39 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
         <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>← Zurück</button>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>{t('← Zurück', '← Back')}</button>
             <div>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name || 'Name folgt'}</span>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{selected.name || t('Name folgt', 'Name to follow')}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button className="secondary" onClick={reloadContributions} disabled={loading} style={{ fontSize: 13, padding: '8px 14px' }}>
-              {loading ? '…' : '↻ Aktualisieren'}
+              {loading ? '…' : t('↻ Aktualisieren', '↻ Refresh')}
             </button>
             {contributions.length > 0 && (
               <button onClick={dlAll} style={{ fontSize: 13, padding: '8px 16px' }}>
-                ⬇ Alle herunterladen ({contributions.length})
+                {t('⬇ Alle herunterladen', '⬇ Download all')} ({contributions.length})
               </button>
             )}
-            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+            <AdminLangToggle />
+            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
           </div>
         </div>
 
         <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Beiträge</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{t('Beiträge', 'Contributions')}</h2>
           <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
-            Organisator: {selected.organizer}
+            {t('Organisator:', 'Organizer:')} {selected.organizer}
             {selected.gender ? ` · ${selected.gender}` : ''}
-            {selected.book_variant ? ` · Buch-Variante ${selected.book_variant}` : ''}
+            {selected.book_variant ? ` · ${t('Buch-Variante', 'Book variant')} ${selected.book_variant}` : ''}
             {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
-            {selected.funeral_date ? ` · Erfassung bis: ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : ''}
+            {selected.funeral_date ? ` · ${t('Erfassung bis:', 'Collection until:')} ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} ${t('Tage vorher', 'days before')})` : ''}
           </p>
 
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
               <div style={{ minWidth:0 }}>
-                <Lbl>Einladungslink (für Beitragende)</Lbl>
+                <Lbl>{t('Einladungslink (für Beitragende)', 'Invitation link (for contributors)')}</Lbl>
                 <a
                   href={inviteUrl}
                   target="_blank"
@@ -1915,7 +1917,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 >{inviteUrl}</a>
               </div>
               <button className="secondary" onClick={() => copyInvite(selected.id)} style={{ fontSize:13, flexShrink:0 }}>
-                {copied === selected.id ? '✓ Kopiert' : '📋 Kopieren'}
+                {copied === selected.id ? t('✓ Kopiert', '✓ Copied') : t('📋 Kopieren', '📋 Copy')}
               </button>
             </div>
             <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
@@ -1927,7 +1929,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 style={{ borderRadius:8, background:'#fff' }}
               />
               <button className="secondary" onClick={() => copyQR(selected.id)} style={{ fontSize: 13 }}>
-                {copied === `qr-${selected.id}` ? '✓ QR kopiert' : '📋 QR-Code kopieren'}
+                {copied === `qr-${selected.id}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
               </button>
             </div>
           </div>
@@ -2067,13 +2069,13 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
               {[
                 // Lebenswerk kennt nur Variante 2 (eine Autobiographie), und das
                 // Nebenprodukt heißt hier Pflegeexzerpt statt Rede.
-                ...(isLifework ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:'Jede Person als eigenes Kapitel (Ich-Form, fließender Text).' }]),
+                ...(isLifework ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
                 { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
-                  ? 'KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.'
-                  : 'KI webt alle Beiträge zu einem stimmigen, literarischen Text.' },
+                  ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
+                  : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') },
                 { key:'eulogy',  icon: isLifework ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
-                  ? 'Zweiseitige Zusammenfassung für die Pflegeakte – Sprache wird beim Erzeugen abgefragt.'
-                  : `KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.` },
+                  ? t('Zweiseitige Zusammenfassung für die Pflegeakte – Sprache wird beim Erzeugen abgefragt.', 'Two-page summary for the care record – language is asked when generating.')
+                  : t(`KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.`, `The AI writes a personal text (${GENERATORS.eulogy.noun}) to read aloud.`) },
               ].map(({ key, icon, title, sub }) => {
                 const gen   = GENERATORS[key]
                 const has   = !!selected[gen.field]
@@ -2091,27 +2093,27 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
                         <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
                       </div>
-                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Generiert</span>}
+                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>{t('✓ Generiert', '✓ Generated')}</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
-                        {busy ? 'Wird generiert …' : has ? '↻ Neu generieren' : '✨ Generieren'}
+                        {busy ? t('Wird generiert …', 'Generating …') : has ? t('↻ Neu generieren', '↻ Regenerate') : t('✨ Generieren', '✨ Generate')}
                       </button>
                       <button onClick={() => { setEditMode(false); setEditDraft(null); setView(gen.view) }} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                        👁 Ansehen/Bearbeiten
+                        {t('👁 Ansehen/Bearbeiten', '👁 View/Edit')}
                       </button>
                       <button onClick={() => requestDownload(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                        {dlBusy === `${key}:docx` ? '⏳ Wird erstellt …' : '⬇ Download .docx'}
+                        {dlBusy === `${key}:docx` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('⬇ Download .docx', '⬇ Download .docx')}
                       </button>
                       {gen.kind === 'book' ? (
                         pdfOk ? (
                           <button onClick={() => downloadGeneratedPdf(key)} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                            {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '🖨 Druck-PDF'}
+                            {dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('🖨 Druck-PDF', '🖨 Print PDF')}
                           </button>
                         ) : null
                       ) : (
                         <button onClick={() => requestDownload(key, 'pdf')} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                          {dlBusy === `${key}:pdf` ? '⏳ Wird erstellt …' : '⬇ Download .pdf'}
+                          {dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('⬇ Download .pdf', '⬇ Download .pdf')}
                         </button>
                       )}
                       {gen.kind === 'book' && (
@@ -2120,22 +2122,22 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                           disabled={!has || busy || !!dlBusy || !selected[gen.field]?.print_pages}
                           className="secondary"
                           title={selected[gen.field]?.print_pages
-                            ? `Rückenstärke aus ${selected[gen.field].print_pages} Seiten`
-                            : 'Erst das Druck-PDF erzeugen — daraus ergibt sich die Rückenstärke.'}
+                            ? t(`Rückenstärke aus ${selected[gen.field].print_pages} Seiten`, `Spine width from ${selected[gen.field].print_pages} pages`)
+                            : t('Erst das Druck-PDF erzeugen — daraus ergibt sich die Rückenstärke.', 'First create the print PDF — the spine width follows from it.')}
                           style={{ fontSize:13, padding:'8px 14px' }}
                         >
-                          {dlBusy === `${key}:cover-img` ? '⏳ Hintergrund wird erzeugt …'
-                            : dlBusy === `${key}:cover` ? '⏳ Wird erstellt …'
-                            : '📕 Druck-Cover'}
+                          {dlBusy === `${key}:cover-img` ? t('⏳ Hintergrund wird erzeugt …', '⏳ Creating background …')
+                            : dlBusy === `${key}:cover` ? t('⏳ Wird erstellt …', '⏳ Creating …')
+                            : t('📕 Druck-Cover', '📕 Print cover')}
                         </button>
                       )}
                       {gen.kind === 'book' && (
                         <button onClick={() => openImgEdit(key)} disabled={!has || busy || !bookHasImages(selected[gen.field])} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                          🖼 Bilder überarbeiten
+                          {t('🖼 Bilder überarbeiten', '🖼 Rework images')}
                         </button>
                       )}
                       <button onClick={() => recheck(key)} disabled={!has || busy || reviewingKey === key} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                        {reviewingKey === key ? 'Prüft …' : '🛡 Prüfung wiederholen'}
+                        {reviewingKey === key ? t('Prüft …', 'Checking …') : t('🛡 Prüfung wiederholen', '🛡 Repeat check')}
                       </button>
                     </div>
                     {busy && (
@@ -2146,10 +2148,10 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                           </div>
                         )}
                         <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
-                          {genPct[key] != null ? `${genPct[key]} % · ` : ''}{genProgress[key] || 'Wird generiert …'}
+                          {genPct[key] != null ? `${genPct[key]} % · ` : ''}{genProgress[key] || t('Wird generiert …', 'Generating …')}
                         </p>
                         <button onClick={() => cancelGenerate(key)} disabled={!!cancelGenRef.current[key]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
-                          ✕ Abbrechen
+                          {t('✕ Abbrechen', '✕ Cancel')}
                         </button>
                       </div>
                     )}
@@ -2161,31 +2163,31 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
                           <div style={{ width:`${reviewPct}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
                         </div>
-                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>🛡 Inhaltsprüfung läuft … {reviewPct} %</p>
+                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>{t('🛡 Inhaltsprüfung läuft …', '🛡 Content check running …')} {reviewPct} %</p>
                       </div>
                     )}
                     {gen.kind === 'book' && (
                       <label style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:10, fontSize:12, color:'#78716c', cursor:'pointer' }}>
                         <input type="checkbox" checked={skipImages} onChange={e => setSkipImages(e.target.checked)} style={{ width:16, height:16, flexShrink:0, margin:0, cursor:'pointer' }} />
-                        🐞 Bilder überspringen (schneller – für Tests)
+                        {t('🐞 Bilder überspringen (schneller – für Tests)', '🐞 Skip images (faster – for tests)')}
                       </label>
                     )}
                     {has && !busy && report && (
                       <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f5f5f4' }}>
                         {report.error ? (
-                          <span style={{ fontSize:12, color:'#b45309' }}>⚠ Inhaltsprüfung fehlgeschlagen.{' '}
-                            <button className="ghost" onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:12, padding:0, textDecoration:'underline' }}>Details</button>
+                          <span style={{ fontSize:12, color:'#b45309' }}>{t('⚠ Inhaltsprüfung fehlgeschlagen.', '⚠ Content check failed.')}{' '}
+                            <button className="ghost" onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:12, padding:0, textDecoration:'underline' }}>{t('Details', 'Details')}</button>
                           </span>
                         ) : openFindings > 0 ? (
                           <button onClick={() => setReportModal({ title, field: gen.field, report })} style={{ fontSize:13, padding:'7px 12px', background:'#b91c1c' }}>
-                            🛡 Prüfbericht ansehen ({openFindings} offen{totalFindings > openFindings ? `, ${totalFindings - openFindings} erledigt` : ''})
+                            {t('🛡 Prüfbericht ansehen', '🛡 View check report')} ({openFindings} {t('offen', 'open')}{totalFindings > openFindings ? `, ${totalFindings - openFindings} ${t('erledigt', 'done')}` : ''})
                           </button>
                         ) : totalFindings > 0 ? (
                           <button onClick={() => setReportModal({ title, field: gen.field, report })} className="secondary" style={{ fontSize:13, padding:'7px 12px', color:'#15803d', borderColor:'#bbf7d0' }}>
-                            ✓ Alle {totalFindings} Befunde bearbeitet – Bericht ansehen
+                            {t(`✓ Alle ${totalFindings} Befunde bearbeitet – Bericht ansehen`, `✓ All ${totalFindings} findings handled – view report`)}
                           </button>
                         ) : (
-                          <span style={{ fontSize:12, color:'#15803d' }}>🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.</span>
+                          <span style={{ fontSize:12, color:'#15803d' }}>{t('🛡 Inhaltsprüfung durchgeführt – keine kritischen Aussagen gefunden.', '🛡 Content check done – no critical statements found.')}</span>
                         )}
                       </div>
                     )}
@@ -2197,10 +2199,10 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   Interview als strukturierte Daten und werden daraus gezeichnet —
                   erneutes Laden kostet deshalb keine KI. */}
               {isLifework && [
-                { kind:'tree',   field:'family_tree', icon:'🌳', title:'Stammbaum',
-                  sub:'KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).' },
-                { kind:'poster', field:'life_poster', icon:'🖼', title:'Lebensposter',
-                  sub:'Ein illustriertes Blatt (A2 quer): Die Bild-KI malt den Lebensweg mit allen Szenen in einem Zug, die Beschriftung kommt als scharfer Vektortext darüber. Die Stile wählst du vor der Erzeugung.' },
+                { kind:'tree',   field:'family_tree', icon:'🌳', title:t('Stammbaum', 'Family tree'),
+                  sub:t('KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).', 'The AI reads the family from the interview; a family tree is created from it (PDF, A3 portrait).') },
+                { kind:'poster', field:'life_poster', icon:'🖼', title:t('Lebensposter', 'Life poster'),
+                  sub:t('Ein illustriertes Blatt (A2 quer): Die Bild-KI malt den Lebensweg mit allen Szenen in einem Zug, die Beschriftung kommt als scharfer Vektortext darüber. Die Stile wählst du vor der Erzeugung.', 'An illustrated sheet (A2 landscape): the image AI paints the life path with all scenes in one go, the labels are added as crisp vector text on top. You choose the styles before generating.') },
               ].map(({ kind, field, icon, title, sub }) => {
                 const has  = !!selected[field]
                 // Läuft serverseitig als Job — Fortschritt und Abbrechen wie beim Buch.
@@ -2213,16 +2215,16 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
                         <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
                       </div>
-                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>✓ Erzeugt</span>}
+                      {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>{t('✓ Erzeugt', '✓ Created')}</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       <button onClick={() => kind === 'poster' ? requestPoster() : generateExtra(kind)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
-                        {busy ? 'Wird erzeugt …' : has ? '↻ Neu erzeugen' : '✨ Erzeugen'}
+                        {busy ? t('Wird erzeugt …', 'Creating …') : has ? t('↻ Neu erzeugen', '↻ Recreate') : t('✨ Erzeugen', '✨ Create')}
                       </button>
                       {/* Beim Poster hängt der Download an der einzelnen Stil-Vorschau unten. */}
                       {!hasVariants && (
                         <button onClick={() => downloadExtra(kind)} disabled={!has || busy || !!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                          {extraDl === kind ? '⏳ PDF wird erstellt …' : '⬇ Download PDF'}
+                          {extraDl === kind ? t('⏳ PDF wird erstellt …', '⏳ Creating PDF …') : t('⬇ Download PDF', '⬇ Download PDF')}
                         </button>
                       )}
                     </div>
@@ -2242,10 +2244,10 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                           </div>
                         )}
                         <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
-                          {genPct[kind] != null ? `${genPct[kind]} % · ` : ''}{genProgress[kind] || 'Wird erzeugt …'}
+                          {genPct[kind] != null ? `${genPct[kind]} % · ` : ''}{genProgress[kind] || t('Wird erzeugt …', 'Creating …')}
                         </p>
                         <button onClick={() => cancelGenerate(kind)} disabled={!!cancelGenRef.current[kind]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
-                          ✕ Abbrechen
+                          {t('✕ Abbrechen', '✕ Cancel')}
                         </button>
                       </div>
                     )}
@@ -2263,9 +2265,9 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
           {/* ── Auftragsdaten (Stammdaten) — selten gebraucht, daher unten ── */}
           <div style={{ ...S.card, marginBottom:'1.5rem' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom: orderEdit ? 16 : 4 }}>
-              <h3 style={{ fontSize:16, fontWeight:600, margin:0 }}>Auftragsdaten</h3>
+              <h3 style={{ fontSize:16, fontWeight:600, margin:0 }}>{t('Auftragsdaten', 'Order data')}</h3>
               {!orderEdit && (
-                <button className="secondary" onClick={startOrderEdit} style={{ fontSize:13, padding:'8px 14px' }}>✎ Bearbeiten</button>
+                <button className="secondary" onClick={startOrderEdit} style={{ fontSize:13, padding:'8px 14px' }}>{t('✎ Bearbeiten', '✎ Edit')}</button>
               )}
             </div>
 
