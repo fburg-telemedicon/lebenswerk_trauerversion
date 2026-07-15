@@ -914,17 +914,16 @@ function spliceText(text, start, end, repl) {
   return (before + r + after).replace(/[ \t]{2,}/g, ' ')
 }
 
-// Textarea, die automatisch auf die Texthöhe wächst (kein inneres Scrollen). `taRef`
-// reicht das echte <textarea>-Element nach oben (für die Auswahl-Erfassung der
-// Sprach-Überarbeitung).
-function AutoGrowTextarea({ value, onChange, taRef, style }) {
+// Textarea, die automatisch auf die Texthöhe wächst (kein inneres Scrollen).
+function AutoGrowTextarea({ value, onChange, onFocus, style }) {
   const innerRef = useRef(null)
   const grow = () => { const el = innerRef.current; if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px` } }
   useEffect(() => { grow() }, [value])
   return (
     <textarea
-      ref={el => { innerRef.current = el; if (taRef) taRef(el) }}
+      ref={innerRef}
       value={value}
+      onFocus={onFocus}
       onChange={e => { onChange(e); grow() }}
       style={{ ...style, overflow: 'hidden', resize: 'none' }}
     />
@@ -965,12 +964,13 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const cancelRef = useRef(false)
   const bookRef   = useRef(null)
 
-  // Audio-Textänderung (Druckversion): Abschnitt markieren → Sprach-Anweisung → KI
-  const [audioEdit, setAudioEdit] = useState(null)  // { idx, state:'recording'|'processing' }
+  // Audio-Textänderung (Druckversion): EIN Icon oben, wirkt auf das zuletzt
+  // fokussierte Feld (Titel/Untertitel/Kapitel-Überschrift/-Text).
+  const [audioEdit, setAudioEdit] = useState(null)  // { state:'recording'|'processing' }
   const audioRecRef = useRef(null)
   const audioChunks = useRef([])
-  const taRefs      = useRef({})   // idx → <textarea>
-  const selRef      = useRef(null) // { idx, start, end } zum Aufnahmestart erfasst
+  const activeRef   = useRef(null) // { kind, idx, el } zuletzt fokussiertes Feld
+  const selRef      = useRef(null) // { kind, idx, start, end } zum Aufnahmestart erfasst
 
   const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
   const P = proofT(lang, du)
@@ -1096,20 +1096,19 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     } catch (e) { setErr(e.message) }
   }
 
-  // ── Audio-Textänderung: Aufnahme starten/stoppen (Toggle je Kapitel) ──
-  async function toggleAudioEdit(idx) {
-    // Läuft bereits an DIESEM Kapitel → stoppen
-    if (audioEdit && audioEdit.idx === idx && audioEdit.state === 'recording') {
-      try { audioRecRef.current?.stop() } catch {}
-      return
-    }
-    if (audioEdit) return  // anderswo beschäftigt
+  // Merkt sich das zuletzt fokussierte Editierfeld (für das obere Audio-Icon).
+  const setActive = (kind, idx = null) => (e) => { activeRef.current = { kind, idx, el: e.currentTarget } }
+
+  // ── Audio-Textänderung: EIN Icon oben, wirkt auf das zuletzt fokussierte Feld ──
+  async function toggleAudioEdit() {
+    if (audioEdit?.state === 'recording') { try { audioRecRef.current?.stop() } catch {}; return }
+    if (audioEdit) return
+    const a = activeRef.current
+    if (!a || !a.el) { setErr(P.audioPickFirst); return }
+    const el = a.el
+    const hasSel = el.selectionStart != null && el.selectionEnd > el.selectionStart
+    selRef.current = { kind: a.kind, idx: a.idx, start: hasSel ? el.selectionStart : null, end: hasSel ? el.selectionEnd : null }
     setErr('')
-    // Auswahl im Textfeld zum Startzeitpunkt festhalten (leer = ganzer Abschnitt)
-    const ta = taRefs.current[idx]
-    selRef.current = (ta && ta.selectionStart != null && ta.selectionEnd > ta.selectionStart)
-      ? { idx, start: ta.selectionStart, end: ta.selectionEnd }
-      : { idx }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const rec = new MediaRecorder(stream)
@@ -1117,7 +1116,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       rec.ondataavailable = e => { if (e.data.size > 0) audioChunks.current.push(e.data) }
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        setAudioEdit({ idx, state: 'processing' })
+        setAudioEdit({ state: 'processing' })
         try {
           const mimeType = rec.mimeType || 'audio/webm'
           const blob = new Blob(audioChunks.current, { type: mimeType })
@@ -1127,31 +1126,45 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
           if (!resp.ok) throw new Error(data.error)
           const instruction = String(data.text || '').trim()
           if (!instruction) throw new Error(P.audioNoText)
-          await applyAudioEdit(idx, instruction)
+          await applyAudioEdit(selRef.current, instruction)
         } catch (e) { setErr(e.message) }
         finally { setAudioEdit(null) }
       }
-      rec.start(); setAudioEdit({ idx, state: 'recording' })
+      rec.start(); setAudioEdit({ state: 'recording' })
     } catch (e) { setErr(e.message); setAudioEdit(null) }
   }
 
-  // Transkribierte Anweisung auf den (markierten oder ganzen) Abschnitt anwenden.
-  async function applyAudioEdit(idx, instruction) {
-    const nb = bookRef.current; const ch = nb.chapters[idx]
-    const body = String(ch.body || '')
-    const sel = selRef.current
-    const hasSel = sel && sel.idx === idx && sel.start != null && sel.end > sel.start
-    const target = hasSel ? body.slice(sel.start, sel.end) : body
-    // Anweisungen im SYSTEM-Prompt (Azure-Prompt-Shield lehnt Imperative im User-Turn ab);
-    // der User-Turn enthält nur die Daten (Abschnitt + gesprochene Anweisung).
+  // Feldtext lesen/schreiben je Feldart (Titel/Untertitel/Kapitel-Überschrift/-Text).
+  function fieldText(t) {
+    const nb = bookRef.current
+    if (t.kind === 'title')    return String(nb.title || '')
+    if (t.kind === 'subtitle') return String(nb.subtitle || '')
+    if (t.kind === 'heading')  return String(nb.chapters[t.idx]?.heading || '')
+    return String(nb.chapters[t.idx]?.body || '')
+  }
+  function writeField(t, val) {
+    if (t.kind === 'title')          setField({ title: val })
+    else if (t.kind === 'subtitle')  setField({ subtitle: val })
+    else setChapter(t.idx, t.kind === 'heading' ? { heading: val } : { body: val })
+  }
+
+  // Transkribierte Anweisung auf das (markierte oder ganze) Feld anwenden.
+  async function applyAudioEdit(t, instruction) {
+    if (!t) return
+    const text = fieldText(t)
+    const hasSel = t.start != null && t.end > t.start
+    const segment = hasSel ? text.slice(t.start, t.end) : text
+    const isHeading = t.kind !== 'body'
+    // Anweisungen im SYSTEM-Prompt (Azure-Prompt-Shield lehnt Imperative im User-Turn ab).
     const sys = `${langDirective(lang)} Du bist ein einfühlsamer Lektor einer Autobiografie in der Ich-Form. `
-      + `Überarbeite AUSSCHLIESSLICH den bereitgestellten Abschnitt gemäß der Anweisung des Erzählers. `
-      + `Behalte Sprache, Ich-Perspektive, Zeitform und den warmen, persönlichen Ton bei. Erfinde keine neuen Fakten. `
-      + `Gib NUR den überarbeiteten Abschnitt zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar.`
-    const revised = String(await askLLM(sys, [{ role: 'user', content: `ABSCHNITT:\n${target}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
+      + (isHeading
+          ? `Überarbeite die bereitgestellte ÜBERSCHRIFT gemäß der Anweisung — kurz und prägnant, ohne abschließenden Punkt. `
+          : `Überarbeite AUSSCHLIESSLICH den bereitgestellten Abschnitt gemäß der Anweisung. Behalte Ich-Perspektive, Zeitform und den warmen, persönlichen Ton bei. `)
+      + `Behalte die Sprache bei. Erfinde keine neuen Fakten. Gib NUR den überarbeiteten Text zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar.`
+    const revised = String(await askLLM(sys, [{ role: 'user', content: `${isHeading ? 'ÜBERSCHRIFT' : 'ABSCHNITT'}:\n${segment}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
     if (!revised) return
-    const newBody = hasSel ? spliceText(body, sel.start, sel.end, revised) : revised
-    setChapter(idx, { body: newBody })
+    const newText = hasSel ? spliceText(text, t.start, t.end, revised) : revised
+    writeField(t, newText)
     try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current) } catch (e) { setErr(e.message) }
   }
 
@@ -1196,13 +1209,21 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
         {P.printBanner}
       </div>
       <Err msg={err} />
-      {saved && <p style={{ fontSize: 13, color: '#16a34a' }}>{saved}</p>}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      {/* Immer sichtbare Aktionsleiste: EIN Audio-Icon wirkt auf den zuletzt
+          angetippten Absatz/die Überschrift (markierter Teil, sonst ganzes Feld). */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fafaf9', display: 'flex', gap: 8, margin: '0 0 4px', padding: '8px 0', flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid #f0efec' }}>
+        <button onClick={toggleAudioEdit} disabled={audioEdit?.state === 'processing'}
+          className={audioEdit?.state === 'recording' ? '' : 'secondary'}
+          style={{ fontSize: 13, padding: '8px 14px' }}>
+          {audioEdit?.state === 'recording' ? P.audioEditStop : audioEdit?.state === 'processing' ? P.audioEditBusy : P.audioBar}
+        </button>
         <button onClick={saveText} disabled={!dirty} style={{ fontSize: 14, padding: '8px 16px' }}>{P.save}</button>
         <button onClick={() => setFinalizeOpen(true)} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>{P.finalizeBtn}</button>
       </div>
-      <input value={book.title || ''} onChange={e => setField({ title: e.target.value })} placeholder={P.fieldTitle} style={{ width: '100%', fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, textAlign: 'center', border: '1px solid #f0efec', borderRadius: 8, padding: 10, marginBottom: 6 }} />
-      <input value={book.subtitle || ''} onChange={e => setField({ subtitle: e.target.value })} placeholder={P.fieldSubtitle} style={{ width: '100%', fontFamily: 'Georgia, serif', fontStyle: 'italic', textAlign: 'center', color: '#78716c', border: '1px solid #f0efec', borderRadius: 8, padding: 8, marginBottom: 8 }} />
+      <p style={{ fontSize: 11, color: '#a8a29e', margin: '0 0 12px' }}>{P.audioBarHint}</p>
+      {saved && <p style={{ fontSize: 13, color: '#16a34a' }}>{saved}</p>}
+      <input value={book.title || ''} onFocus={setActive('title')} onChange={e => setField({ title: e.target.value })} placeholder={P.fieldTitle} style={{ width: '100%', fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, textAlign: 'center', border: '1px solid #f0efec', borderRadius: 8, padding: 10, marginBottom: 6 }} />
+      <input value={book.subtitle || ''} onFocus={setActive('subtitle')} onChange={e => setField({ subtitle: e.target.value })} placeholder={P.fieldSubtitle} style={{ width: '100%', fontFamily: 'Georgia, serif', fontStyle: 'italic', textAlign: 'center', color: '#78716c', border: '1px solid #f0efec', borderRadius: 8, padding: 8, marginBottom: 8 }} />
       {(book.chapters || []).map((c, i) => {
         const used = imageRegen[String(c.number)] || (c.image_path ? 1 : 0)
         const left = Math.max(0, imgTotalMax - used)
@@ -1231,18 +1252,8 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
                 </div>
               </div>
             )}
-            <input value={c.heading || ''} onChange={e => setChapter(i, { heading: e.target.value })} placeholder={P.headingPh} style={{ fontWeight: 700, marginBottom: 8 }} />
-            <AutoGrowTextarea taRef={el => { taRefs.current[i] = el }} value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 120, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
-              <button type="button" onClick={() => toggleAudioEdit(i)} disabled={!!audioEdit && audioEdit.idx !== i}
-                className={audioEdit && audioEdit.idx === i && audioEdit.state === 'recording' ? '' : 'secondary'}
-                style={{ fontSize: 12, padding: '5px 10px' }}>
-                {audioEdit && audioEdit.idx === i
-                  ? (audioEdit.state === 'recording' ? P.audioEditStop : P.audioEditBusy)
-                  : P.audioEditBtn}
-              </button>
-              <span style={{ fontSize: 11, color: '#a8a29e' }}>{P.audioEditHint}</span>
-            </div>
+            <input value={c.heading || ''} onFocus={setActive('heading', i)} onChange={e => setChapter(i, { heading: e.target.value })} placeholder={P.headingPh} style={{ fontWeight: 700, marginBottom: 8 }} />
+            <AutoGrowTextarea onFocus={setActive('body', i)} value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 120, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
           </section>
         )
       })}
