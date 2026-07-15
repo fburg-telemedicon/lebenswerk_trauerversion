@@ -1992,15 +1992,21 @@ Regeln:
     const gen = GENERATORS[key]
     const data = selected?.[gen.field]
     if (!data || gen.kind !== 'book' || dlBusy) return
+    // Das E-Book baut auf dem über die Cover-Funktion erstellten Druck-Cover auf
+    // (gleicher Hintergrund, gleiche Kastenlage). Ohne Cover kein E-Book.
+    const bgUrl = data.cover_image_url
+    if (!data.cover_image_path || !bgUrl) {
+      setErr('Bitte zuerst über „📕 Druck-Cover" ein Cover erstellen — es ist die Basis für das E-Book.')
+      return
+    }
     setDlBusy(`${key}:ebook`); setErr('')
     try {
-      const bgUrl = await ensureCoverBackground(key)
-      setDlBusy(`${key}:ebook`)
       const filename = `${gen.filename}_${safeName(selected.name)}_eBook.pdf`
       const { blob } = await downloadEbookPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), {
         showContributors: selected.show_contributors !== false,
         selfNarrated: selected.product_category === 'lifework',
         coverBgUrl: bgUrl,
+        coverBoxPos: data.cover_box_pos || 'auto',
         coverTitle: data.title || selected.name,
         coverSubtitle: data.subtitle || '',
       })
@@ -2019,11 +2025,23 @@ Regeln:
     finally { setDlBusy('') }
   }
 
-  function saveCover(posKey) {
+  async function saveCover(posKey) {
     if (!coverModal) return
+    const key = coverModal.key
     try {
       downloadCoverPdf(coverModal.filename, coverModal.prep, posKey)
       setCoverModal(null)
+      // Gewählte Kastenlage am Buch merken → das E-Book übernimmt sie (gleiche
+      // Vorderseite wie das gerade erzeugte Druck-Cover). Fehlschlag hier ist
+      // unkritisch (das Cover-PDF ist schon heruntergeladen).
+      const gen = GENERATORS[key]
+      const book = selected?.[gen.field]
+      if (book && book.cover_box_pos !== posKey) {
+        const updated = { ...book, cover_box_pos: posKey }
+        setSelected(s => ({ ...s, [gen.field]: updated }))
+        setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, [gen.field]: updated } : x))
+        try { await adminSaveMemorialText(token, selected.id, gen.field, updated) } catch { /* nicht kritisch */ }
+      }
     } catch (e) { setErr(`Druck-Cover fehlgeschlagen: ${e.message}`) }
   }
 

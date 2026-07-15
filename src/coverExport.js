@@ -528,14 +528,27 @@ export function downloadCoverPdf(filename, p, boxYKey) {
 // über eine Doppelfläche mit Rücken in der Mitte.
 const EB_PAGE_W = 154, EB_PAGE_H = 216
 const EB_SPREAD_W = EB_PAGE_W * 2
-const EB_BOX_MARGIN = 12   // seitlicher Rand des Titelkastens
-const EB_BOX_PAD_X = 8
+const EB_BOX_PAD_X = 10   // Innenabstand des Textes (der Kasten selbst ist randlos)
+
+// Bild-Element verkleinern und als JPEG-DataURL kodieren (E-Mail-freundlich).
+function downscaleImageToJpeg(imgEl, maxPx, quality) {
+  const scale = Math.min(1, maxPx / Math.max(imgEl.naturalWidth, imgEl.naturalHeight))
+  const w = Math.max(1, Math.round(imgEl.naturalWidth * scale))
+  const h = Math.max(1, Math.round(imgEl.naturalHeight * scale))
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h
+  cv.getContext('2d').drawImage(imgEl, 0, 0, w, h)
+  return cv.toDataURL('image/jpeg', quality)
+}
 
 // Lädt Bild/Farben/Geometrie für EINE E-Book-Coverseite (async, ohne jsPDF-Zeichnen).
-export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layout }) {
+// boxPos: Lage des Titelkastens (auto|top|middle|bottom) — kommt vom erstellten
+// Druck-Cover (dort im Dialog gewählt), damit E-Book und Cover übereinstimmen.
+// maxPx/quality: Hintergrund verkleinert als JPEG einbetten (kleine Dateigröße).
+export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layout, boxPos, maxPx, quality }) {
   const HF = layout?.heading?.pdf || 'times'
   const BF = layout?.body?.pdf || 'times'
-  const [bgData, bgImg] = await Promise.all([toDataUrl(bgUrl), loadImage(bgUrl)])
+  const bgImg = await loadImage(bgUrl)
+  const bgData = maxPx ? downscaleImageToJpeg(bgImg, maxPx, quality || 0.72) : await toDataUrl(bgUrl)
   const { bg, fg } = pickAccentColor(bgImg)
 
   let logoData = null, logoImg = null
@@ -554,16 +567,18 @@ export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layo
   const analysis = side === 'front' ? renderCoverCanvas(bgImg, EB_SPREAD_W, EB_PAGE_H) : null
 
   return { side, HF, BF, bg, fg, bgData, bgImg, logoData, logoImg, baseX, offY,
-    dw: fit.w, dh: fit.h, title: String(title || ''), subtitle: String(subtitle || ''), _analysis: analysis }
+    dw: fit.w, dh: fit.h, boxPos: boxPos || 'auto',
+    title: String(title || ''), subtitle: String(subtitle || ''), _analysis: analysis }
 }
 
 // Zeichnet eine vorbereitete E-Book-Coverseite auf die AKTUELLE jsPDF-Seite.
 export function drawEbookCoverPage(doc, p) {
   const W = EB_PAGE_W, H = EB_PAGE_H
-  doc.addImage(p.bgData, 'PNG', p.baseX, p.offY, p.dw, p.dh, undefined, 'FAST')
+  const bgFmt = /^data:image\/jpe?g/i.test(p.bgData) ? 'JPEG' : 'PNG'
+  doc.addImage(p.bgData, bgFmt, p.baseX, p.offY, p.dw, p.dh, undefined, 'FAST')
 
   if (p.side === 'front') {
-    const textW = W - 2 * EB_BOX_MARGIN - 2 * EB_BOX_PAD_X
+    const textW = W - 2 * EB_BOX_PAD_X
     doc.setFont(p.HF, 'bold'); doc.setFontSize(TITLE_SIZE)
     const titleLines = doc.splitTextToSize(p.title, textW)
     doc.setFont(p.BF, 'italic'); doc.setFontSize(SUB_SIZE)
@@ -573,13 +588,19 @@ export function drawEbookCoverPage(doc, p) {
 
     const safeTop = 16, safeBottom = H - 16
     const clamp = y => Math.max(safeTop, Math.min(safeBottom - boxH, y))
-    // Kasten ins ruhigste Band der rechten Bildhälfte (Doppelseiten-x 154…308).
-    const boxY = clamp(p._analysis
-      ? quietestBandY(p._analysis, { xMm: EB_PAGE_W, widthMm: EB_PAGE_W, topMm: safeTop, bottomMm: safeBottom, boxHMm: boxH })
-      : safeBottom - boxH)
+    // Lage aus dem Druck-Cover übernehmen (auto = ruhigstes Band der rechten
+    // Bildhälfte, Doppelseiten-x 154…308).
+    const boxY =
+      p.boxPos === 'top'    ? clamp(safeTop) :
+      p.boxPos === 'middle' ? clamp((safeTop + safeBottom) / 2 - boxH / 2) :
+      p.boxPos === 'bottom' ? clamp(safeBottom - boxH) :
+      clamp(p._analysis
+        ? quietestBandY(p._analysis, { xMm: EB_PAGE_W, widthMm: EB_PAGE_W, topMm: safeTop, bottomMm: safeBottom, boxHMm: boxH })
+        : safeBottom - boxH)
 
+    // Randloser Kasten: ganz links bis ganz rechts (wie die Vorderseite des Druck-Covers).
     doc.setFillColor(p.bg[0], p.bg[1], p.bg[2])
-    doc.rect(EB_BOX_MARGIN, boxY, W - 2 * EB_BOX_MARGIN, boxH, 'F')
+    doc.rect(0, boxY, W, boxH, 'F')
     doc.setTextColor(p.fg[0], p.fg[1], p.fg[2])
     let ty = boxY + BOX_PAD_Y + TITLE_LH * 0.72
     doc.setFont(p.HF, 'bold'); doc.setFontSize(TITLE_SIZE)

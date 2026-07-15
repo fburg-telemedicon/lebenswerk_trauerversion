@@ -314,6 +314,28 @@ async function fetchImageForPdf(url) {
   } catch { return null }
 }
 
+// Ein per fetchImageForPdf geladenes Bild auf Bildschirmauflösung verkleinern und
+// als JPEG neu kodieren (fürs E-Book — Druck-PNGs sind für E-Mail zu groß). Gibt
+// { dataUrl, w, h } zurück; bei Fehler das Original unverändert.
+async function downscaleToJpeg(img, maxPx, quality) {
+  try {
+    const scale = Math.min(1, maxPx / Math.max(img.w, img.h))
+    // Schon klein UND bereits JPEG → nichts zu tun. Ein großes PNG wird auch bei
+    // scale≈1 neu als JPEG kodiert (spart am meisten).
+    if (scale >= 1 && /^data:image\/jpe?g/i.test(img.dataUrl)) return img
+    const el = await new Promise((res, rej) => {
+      const im = new Image()
+      im.onload = () => res(im); im.onerror = () => rej(new Error('Bild'))
+      im.src = img.dataUrl
+    })
+    const w = Math.max(1, Math.round(img.w * scale))
+    const h = Math.max(1, Math.round(img.h * scale))
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h
+    cv.getContext('2d').drawImage(el, 0, 0, w, h)
+    return { dataUrl: cv.toDataURL('image/jpeg', quality), w, h }
+  } catch { return img }
+}
+
 // Druckfertiges PDF (einseitige Seiten, exakte Platzierung). Endformat je
 // Einzelseite 15,4 × 21,6 cm = DIN A5 (14,8 × 21,0) + 3 mm Beschnitt ringsum.
 // Layout-Regeln:
@@ -338,7 +360,10 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
   const bt = uiText(book.language)
   let HF = layout.heading.pdf, BF = layout.body.pdf
   const up = s => layout.heading.upper ? String(s || '').toUpperCase() : (s || '')
-  const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H] })
+  // opts.compress: PDF-Streams deflaten (fürs E-Book an → kleinere Datei; fürs
+  // Druck-PDF aus → unverändert). opts.imageMaxPx/imageQuality: Kapitelbilder auf
+  // Bildschirmauflösung verkleinern + als JPEG einbetten (nur E-Book).
+  const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H], compress: opts.compress === true })
 
   // jsPDF-Standardfonts (times/helvetica) können nur Latin-1 – polnische u. a.
   // Sonderzeichen (ł, ż, ś, ć, ą, ę, ź) fehlen → falsche Breite/Umbruch (Text läuft
@@ -382,7 +407,8 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
     const offX = (PDF_SPREAD_W - dw) / 2
     const offY = (PDF_PAGE_H - dh) / 2
     const baseX = side === 'left' ? offX : offX - PDF_PAGE_W
-    doc.addImage(img.dataUrl, 'PNG', baseX, offY, dw, dh)
+    const fmt = /^data:image\/jpe?g/i.test(img.dataUrl) ? 'JPEG' : 'PNG'
+    doc.addImage(img.dataUrl, fmt, baseX, offY, dw, dh)
     pageImage.add(page)
   }
 
@@ -430,7 +456,8 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
 
   // ── Kapitel ──
   for (const ch of (book.chapters || [])) {
-    const img = ch.image_url ? await fetchImageForPdf(ch.image_url) : null
+    let img = ch.image_url ? await fetchImageForPdf(ch.image_url) : null
+    if (img && opts.imageMaxPx) img = await downscaleToJpeg(img, opts.imageMaxPx, opts.imageQuality || 0.72)
     if (img) {
       startVerso(); drawHalf(img, 'left')   // linke Seite: linke Bildhälfte
       newPage();    drawHalf(img, 'right')  // rechte Seite: rechte Bildhälfte
@@ -536,15 +563,19 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
 // Cover-Hintergrund wie das Druck-Cover (opts.coverBgUrl).
 export async function downloadEbookPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
   if (!opts.coverBgUrl) throw new Error('Cover-Hintergrund fehlt.')
+  // E-Mail-freundlich: Bilder auf Bildschirmauflösung (JPEG) + PDF-Streams deflaten.
+  const imgMaxPx = opts.imageMaxPx || 1500
+  const imgQuality = opts.imageQuality || 0.72
   // Cover-Seiten VOR den Seitenmanipulationen laden (async), damit das Einfügen/
   // Anhängen danach rein synchron abläuft.
   const [front, back] = await Promise.all([
-    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'front', title: opts.coverTitle || book.title || '', subtitle: opts.coverSubtitle || book.subtitle || '', layout }),
-    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'back', layout }),
+    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'front', title: opts.coverTitle || book.title || '', subtitle: opts.coverSubtitle || book.subtitle || '', layout, boxPos: opts.coverBoxPos, maxPx: imgMaxPx, quality: imgQuality }),
+    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'back', layout, maxPx: imgMaxPx, quality: imgQuality }),
   ])
 
-  // Innenteil identisch zum Druck bauen (ohne 4er-Auffüllung).
-  const { doc } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, { ...opts, pad4: false })
+  // Innenteil identisch zum Druck bauen (ohne 4er-Auffüllung), aber mit
+  // verkleinerten JPEG-Bildern und komprimierten PDF-Streams.
+  const { doc } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, { ...opts, pad4: false, compress: true, imageMaxPx: imgMaxPx, imageQuality: imgQuality })
 
   // Rückseite hinten anhängen (nach der Nummerierung → bekommt keine Seitenzahl).
   doc.addPage([PDF_PAGE_W, PDF_PAGE_H])

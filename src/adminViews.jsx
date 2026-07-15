@@ -2148,26 +2148,19 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       </button>
                       {gen.kind === 'book' ? (
                         pdfOk ? (
-                          <>
-                          <button onClick={() => downloadGeneratedPdf(key, !!storePdf[key])} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
-                            {dlBusy === `${key}:pdf-store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('🖨 Druck-PDF', '🖨 Print PDF')}
-                          </button>
-                          <label title={t('Zusätzlich eine Kopie auf dem Server ablegen und hier einen Download-Link anzeigen. Wird beim Löschen des Buchs mitgelöscht.', 'Also store a copy on the server and show a download link here. It is deleted together with the book.')}
-                                 style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'#78716c', cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.5 }}>
-                            <input type="checkbox" disabled={!has || busy} checked={!!storePdf[key]} onChange={e => setStorePdf(s => ({ ...s, [key]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
-                            {t('auf Server ablegen', 'store on server')}
-                          </label>
-                          <button onClick={() => downloadGeneratedEbook(key, !!storePdf[`ebook_${key}`])} disabled={!has || busy || !!dlBusy} className="secondary"
-                                  title={t('E-Book-PDF: Innenteil mit Cover-Vorderseite (Seite 1) und Cover-Rückseite (letzte Seite), ohne Buchrücken.', 'E-book PDF: interior with the cover front (page 1) and cover back (last page), without a spine.')}
-                                  style={{ fontSize:13, padding:'8px 14px' }}>
-                            {dlBusy === `${key}:ebook-store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : dlBusy === `${key}:cover-img` ? t('⏳ Hintergrund wird erzeugt …', '⏳ Creating background …') : dlBusy === `${key}:ebook` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('📱 E-Book', '📱 E-book')}
-                          </button>
-                          <label title={t('Zusätzlich eine Kopie des E-Books auf dem Server ablegen und hier einen Download-Link anzeigen. Wird beim Löschen des Buchs mitgelöscht.', 'Also store a copy of the e-book on the server and show a download link here. It is deleted together with the book.')}
-                                 style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'#78716c', cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.5 }}>
-                            <input type="checkbox" disabled={!has || busy} checked={!!storePdf[`ebook_${key}`]} onChange={e => setStorePdf(s => ({ ...s, [`ebook_${key}`]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
-                            {t('auf Server ablegen', 'store on server')}
-                          </label>
-                          </>
+                          // Button + „auf Server ablegen" als eine Spalte, damit die
+                          // Checkbox direkt unter ihrem Button bleibt (kein Umbruch auf
+                          // eine eigene Zeile im umbrechenden Button-Fluss).
+                          <span style={{ display:'inline-flex', flexDirection:'column', alignItems:'flex-start', gap:4 }}>
+                            <button onClick={() => downloadGeneratedPdf(key, !!storePdf[key])} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                              {dlBusy === `${key}:pdf-store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : dlBusy === `${key}:pdf` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('🖨 Druck-PDF', '🖨 Print PDF')}
+                            </button>
+                            <label title={t('Zusätzlich eine Kopie auf dem Server ablegen und hier einen Download-Link anzeigen. Wird beim Löschen des Buchs mitgelöscht.', 'Also store a copy on the server and show a download link here. It is deleted together with the book.')}
+                                   style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'#78716c', cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.5, whiteSpace:'nowrap' }}>
+                              <input type="checkbox" disabled={!has || busy} checked={!!storePdf[key]} onChange={e => setStorePdf(s => ({ ...s, [key]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
+                              {t('auf Server ablegen', 'store on server')}
+                            </label>
+                          </span>
                         ) : null
                       ) : (
                         <button onClick={() => requestDownload(key, 'pdf')} disabled={!has || busy || !!dlBusy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
@@ -2189,6 +2182,27 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                             : t('📕 Druck-Cover', '📕 Print cover')}
                         </button>
                       )}
+                      {gen.kind === 'book' && pdfOk && (() => {
+                        // Das E-Book baut auf dem erstellten Druck-Cover auf (gleicher
+                        // Hintergrund + gewählte Kastenlage). Erst danach verfügbar.
+                        const hasCover = !!selected[gen.field]?.cover_image_path
+                        return (
+                        <span style={{ display:'inline-flex', flexDirection:'column', alignItems:'flex-start', gap:4 }}>
+                          <button onClick={() => downloadGeneratedEbook(key, !!storePdf[`ebook_${key}`])} disabled={!has || busy || !!dlBusy || !hasCover} className="secondary"
+                                  title={hasCover
+                                    ? t('E-Book-PDF auf Basis des Covers: Cover-Vorderseite (Seite 1) und Cover-Rückseite (letzte Seite), ohne Buchrücken.', 'E-book PDF based on the cover: cover front (page 1) and cover back (last page), without a spine.')
+                                    : t('Bitte zuerst über „📕 Druck-Cover" ein Cover erstellen — es ist die Basis für das E-Book.', 'Please first create a cover via “📕 Print cover” — it is the basis for the e-book.')}
+                                  style={{ fontSize:13, padding:'8px 14px' }}>
+                            {dlBusy === `${key}:ebook-store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : dlBusy === `${key}:ebook` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('📱 E-Book', '📱 E-book')}
+                          </button>
+                          <label title={t('Zusätzlich eine Kopie des E-Books auf dem Server ablegen und hier einen Download-Link anzeigen. Wird beim Löschen des Buchs mitgelöscht.', 'Also store a copy of the e-book on the server and show a download link here. It is deleted together with the book.')}
+                                 style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'#78716c', cursor: hasCover ? 'pointer' : 'default', opacity: hasCover ? 1 : 0.5, whiteSpace:'nowrap' }}>
+                            <input type="checkbox" disabled={!has || busy || !hasCover} checked={!!storePdf[`ebook_${key}`]} onChange={e => setStorePdf(s => ({ ...s, [`ebook_${key}`]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
+                            {t('auf Server ablegen', 'store on server')}
+                          </label>
+                        </span>
+                        )
+                      })()}
                       {gen.kind === 'book' && (
                         <button onClick={() => openImgEdit(key)} disabled={!has || busy || !bookHasImages(selected[gen.field])} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                           {t('🖼 Bilder überarbeiten', '🖼 Rework images')}
