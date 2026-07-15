@@ -166,7 +166,7 @@ async function signMemorialImages(memorials) {
       const links = {}
       for (const [variant, v] of Object.entries(m.stored_pdfs)) {
         const key = v?.path ? String(v.path).replace(/^\/+/, '') : null
-        if (key && urlMap[key]) links[variant] = { url: urlMap[key], filename: v.filename || null, at: v.at || null }
+        if (key && urlMap[key]) links[variant] = { url: urlMap[key], slug: v.slug || null, filename: v.filename || null, at: v.at || null }
       }
       if (Object.keys(links).length) m.stored_pdf_urls = links
     }

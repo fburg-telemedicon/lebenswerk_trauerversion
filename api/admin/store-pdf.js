@@ -13,6 +13,7 @@ const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { ensureLifeworkSchema } = require('../_lib/lifework')
+const crypto = require('crypto')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -46,8 +47,12 @@ module.exports = async function handler(req, res) {
     if (upErr) return res.status(502).json({ error: 'Ablage im Storage fehlgeschlagen: ' + upErr.message })
 
     const cur = (access.memorial.stored_pdfs && typeof access.memorial.stored_pdfs === 'object') ? { ...access.memorial.stored_pdfs } : {}
+    // Unrats-Capability für die Kurz-Domain-URL (/api/pdf). Bei erneutem Upload
+    // bleibt der Slug stabil, damit ein bereits geteilter Link weiter funktioniert.
+    const slug = cur[variant]?.slug || crypto.randomBytes(12).toString('base64url')
     cur[variant] = {
       path,
+      slug,
       filename: String(filename || `Buch_${variant}.pdf`).slice(0, 160),
       at: new Date().toISOString(),
       size: buf.length,

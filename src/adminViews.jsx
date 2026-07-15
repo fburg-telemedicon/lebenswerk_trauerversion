@@ -1904,6 +1904,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
     const [odExpert, setOdExpert] = useState(false)
     // Je Buch-Variante: „Druck-PDF beim Download auch auf dem Server ablegen" (Default aus).
     const [storePdf, setStorePdf] = useState({})
+    const [pdfCopied, setPdfCopied] = useState(null)   // welcher Buch-Variante-Link gerade kopiert wurde
     // Auftragsdaten-Bearbeitung: Feldkonfiguration der Kategorie + Draft-Helfer.
     const oci = getCategory(selected.product_category).intake
     const od = orderDraft
@@ -2187,17 +2188,27 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         {reviewingKey === key ? t('Prüft …', 'Checking …') : t('🛡 Prüfung wiederholen', '🛡 Repeat check')}
                       </button>
                     </div>
-                    {selected.stored_pdf_urls?.[key]?.url && (
+                    {selected.stored_pdf_urls?.[key]?.url && (() => {
+                      const sp = selected.stored_pdf_urls[key]
+                      // Kurze, dauerhafte Domain-URL (über /api/pdf, re-signiert bei
+                      // jedem Aufruf); ohne Slug (älteres PDF) direkt die SAS-URL.
+                      const shareUrl = sp.slug ? `${window.location.origin}/api/pdf?code=${selected.id}&v=${key}&s=${sp.slug}` : sp.url
+                      return (
                       <div style={{ marginTop:10, fontSize:13, background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'8px 12px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                         <span aria-hidden="true">📄</span>
-                        <a href={selected.stored_pdf_urls[key].url} target="_blank" rel="noopener noreferrer" style={{ color:'#166534', fontWeight:600, textDecoration:'underline' }}>
+                        <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#166534', fontWeight:600, textDecoration:'underline' }}>
                           {t('Auf dem Server abgelegtes Druck-PDF öffnen', 'Open print PDF stored on the server')}
                         </a>
-                        {selected.stored_pdf_urls[key].at && (
-                          <span style={{ color:'#3f6212', fontSize:12 }}>· {new Date(selected.stored_pdf_urls[key].at).toLocaleString('de-DE')}</span>
+                        <button className="secondary" onClick={() => { navigator.clipboard?.writeText(shareUrl); setPdfCopied(key); setTimeout(() => setPdfCopied(c => c === key ? null : c), 2000) }}
+                          style={{ fontSize:12, padding:'4px 10px' }}>
+                          {pdfCopied === key ? t('✓ Kopiert', '✓ Copied') : t('📋 Link kopieren', '📋 Copy link')}
+                        </button>
+                        {sp.at && (
+                          <span style={{ color:'#3f6212', fontSize:12 }}>· {new Date(sp.at).toLocaleString('de-DE')}</span>
                         )}
                       </div>
-                    )}
+                      )
+                    })()}
                     {busy && (
                       <div style={{ marginTop:10 }}>
                         {genPct[key] != null && (

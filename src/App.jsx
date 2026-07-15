@@ -1878,7 +1878,7 @@ Regeln:
           const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Datei-Lesefehler')); r.readAsDataURL(blob)
         })
         const out = await storeMemorialPdf(token, selected.id, { variant: key, filename, dataBase64 })
-        const entry = { url: out.url, filename, at: new Date().toISOString() }
+        const entry = { url: out.url, slug: out.stored_pdfs?.[key]?.slug || null, filename, at: new Date().toISOString() }
         setSelected(s => ({ ...s, stored_pdf_urls: { ...(s.stored_pdf_urls || {}), [key]: entry } }))
         setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, stored_pdf_urls: { ...(x.stored_pdf_urls || {}), [key]: entry } } : x))
       }
