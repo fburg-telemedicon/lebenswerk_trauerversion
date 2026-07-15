@@ -22,7 +22,7 @@ import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, con
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
-import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
+import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
@@ -1920,6 +1920,43 @@ Regeln:
   // Pfad wird der Grafikstil festgehalten (cover_image_style). Wird der Stil des
   // Buchs später geändert, passt der gespeicherte Hintergrund nicht mehr und wird
   // automatisch neu erzeugt — sonst bliebe das Cover im alten Stil hängen.
+  // Cover-Hintergrund sicherstellen: vorhandenen wiederverwenden, sonst erzeugen und
+  // am Buch speichern. Gibt die signierte Bild-URL zurück. Genutzt von Druck-Cover
+  // UND E-Book (beide brauchen denselben Hintergrund).
+  async function ensureCoverBackground(key) {
+    const gen = GENERATORS[key]
+    const book = selected?.[gen.field]
+    const style = selected.image_style || DEFAULT_IMAGE_STYLE
+    let bgUrl = book.cover_image_url
+    const styleChanged = book.cover_image_style !== style
+    // Version des Cover-Prompts: Wird der Prompt verbessert, sind alle mit dem
+    // alten erzeugten Hintergründe überholt und werden einmalig neu erzeugt.
+    const promptOld = (book.cover_prompt_v || 1) < COVER_PROMPT_VERSION
+    if (!book.cover_image_path || !bgUrl || styleChanged || promptOld) {
+      setDlBusy(`${key}:cover-img`)
+      const prompt = coverPrompt(book, selected)
+      const { storagePath } = await generateImageWithRetry(selected.id, prompt, {
+        meta: { variant: key, chapterNumber: 0, chapterHeading: 'Cover' },
+        onWait: (s, rl) => setErr(rl ? `Rate-Limit — neuer Versuch in ${s}s …` : `Erneuter Versuch in ${s}s …`),
+      })
+      setErr('')
+      // Der alte Hintergrund wird beim Speichern serverseitig aufgeräumt
+      // (collectImagePaths kennt cover_image_path).
+      const updated = { ...book, cover_image_path: storagePath, cover_image_style: style, cover_prompt_v: COVER_PROMPT_VERSION }
+      await adminSaveMemorialText(token, selected.id, gen.field, updated)
+      // Neu laden, damit die signierte URL für den frischen Hintergrund ankommt.
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (!r.ok) throw new Error('Cover-Hintergrund konnte nicht geladen werden.')
+      const fresh = await r.json()
+      setMemorials(fresh)
+      const m = fresh.find(x => x.id === selected.id)
+      if (m) setSelected(m)
+      bgUrl = m?.[gen.field]?.cover_image_url
+      if (!bgUrl) throw new Error('Cover-Hintergrund wurde erzeugt, aber keine Bild-URL erhalten.')
+    }
+    return bgUrl
+  }
+
   async function downloadCover(key) {
     const gen = GENERATORS[key]
     const book = selected?.[gen.field]
@@ -1931,35 +1968,7 @@ Regeln:
     try {
       // Rückenstärke früh prüfen (>400 Seiten → klare Fehlermeldung, kein Bild erzeugen).
       spineWidthMm(pages)
-
-      const style = selected.image_style || DEFAULT_IMAGE_STYLE
-      let bgUrl = book.cover_image_url
-      const styleChanged = book.cover_image_style !== style
-      // Version des Cover-Prompts: Wird der Prompt verbessert, sind alle mit dem
-      // alten erzeugten Hintergründe überholt und werden einmalig neu erzeugt.
-      const promptOld = (book.cover_prompt_v || 1) < COVER_PROMPT_VERSION
-      if (!book.cover_image_path || !bgUrl || styleChanged || promptOld) {
-        setDlBusy(`${key}:cover-img`)
-        const prompt = coverPrompt(book, selected)
-        const { storagePath } = await generateImageWithRetry(selected.id, prompt, {
-          meta: { variant: key, chapterNumber: 0, chapterHeading: 'Cover' },
-          onWait: (s, rl) => setErr(rl ? `Rate-Limit — neuer Versuch in ${s}s …` : `Erneuter Versuch in ${s}s …`),
-        })
-        setErr('')
-        // Der alte Hintergrund wird beim Speichern serverseitig aufgeräumt
-        // (collectImagePaths kennt cover_image_path).
-        const updated = { ...book, cover_image_path: storagePath, cover_image_style: style, cover_prompt_v: COVER_PROMPT_VERSION }
-        await adminSaveMemorialText(token, selected.id, gen.field, updated)
-        // Neu laden, damit die signierte URL für den frischen Hintergrund ankommt.
-        const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
-        if (!r.ok) throw new Error('Cover-Hintergrund konnte nicht geladen werden.')
-        const fresh = await r.json()
-        setMemorials(fresh)
-        const m = fresh.find(x => x.id === selected.id)
-        if (m) setSelected(m)
-        bgUrl = m?.[gen.field]?.cover_image_url
-        if (!bgUrl) throw new Error('Cover-Hintergrund wurde erzeugt, aber keine Bild-URL erhalten.')
-      }
+      const bgUrl = await ensureCoverBackground(key)
 
       setDlBusy(`${key}:cover`)
       // Nicht direkt herunterladen: erst die Lagen des Titelstreifens zeigen und
@@ -1973,6 +1982,40 @@ Regeln:
       })
       setCoverModal({ key, prep, filename: `${gen.filename}_${safeName(selected.name)}_Cover.pdf` })
     } catch (e) { setErr(`Druck-Cover fehlgeschlagen: ${e.message}`) }
+    finally { setDlBusy('') }
+  }
+
+  // E-Book-PDF: Innenteil (wie Druck) + Cover-Vorderseite (Seite 1) und
+  // Cover-Rückseite (letzte Seite), ohne Buchrücken. Optional zusätzlich auf dem
+  // Server ablegen (eigene Variante ebook_<key>, unabhängig vom Druck-PDF).
+  async function downloadGeneratedEbook(key, store = false) {
+    const gen = GENERATORS[key]
+    const data = selected?.[gen.field]
+    if (!data || gen.kind !== 'book' || dlBusy) return
+    setDlBusy(`${key}:ebook`); setErr('')
+    try {
+      const bgUrl = await ensureCoverBackground(key)
+      setDlBusy(`${key}:ebook`)
+      const filename = `${gen.filename}_${safeName(selected.name)}_eBook.pdf`
+      const { blob } = await downloadEbookPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), {
+        showContributors: selected.show_contributors !== false,
+        selfNarrated: selected.product_category === 'lifework',
+        coverBgUrl: bgUrl,
+        coverTitle: data.title || selected.name,
+        coverSubtitle: data.subtitle || '',
+      })
+      if (store && blob) {
+        setDlBusy(`${key}:ebook-store`)
+        const variant = `ebook_${key}`
+        const dataBase64 = await new Promise((res, rej) => {
+          const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Datei-Lesefehler')); r.readAsDataURL(blob)
+        })
+        const out = await storeMemorialPdf(token, selected.id, { variant, filename, dataBase64 })
+        const entry = { url: out.url, slug: out.stored_pdfs?.[variant]?.slug || null, filename, at: new Date().toISOString() }
+        setSelected(s => ({ ...s, stored_pdf_urls: { ...(s.stored_pdf_urls || {}), [variant]: entry } }))
+        setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, stored_pdf_urls: { ...(x.stored_pdf_urls || {}), [variant]: entry } } : x))
+      }
+    } catch (e) { setErr(`E-Book fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
   }
 
@@ -2865,7 +2908,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

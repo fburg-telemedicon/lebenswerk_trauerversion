@@ -1894,7 +1894,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
   )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -2157,6 +2157,16 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                             <input type="checkbox" disabled={!has || busy} checked={!!storePdf[key]} onChange={e => setStorePdf(s => ({ ...s, [key]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
                             {t('auf Server ablegen', 'store on server')}
                           </label>
+                          <button onClick={() => downloadGeneratedEbook(key, !!storePdf[`ebook_${key}`])} disabled={!has || busy || !!dlBusy} className="secondary"
+                                  title={t('E-Book-PDF: Innenteil mit Cover-Vorderseite (Seite 1) und Cover-Rückseite (letzte Seite), ohne Buchrücken.', 'E-book PDF: interior with the cover front (page 1) and cover back (last page), without a spine.')}
+                                  style={{ fontSize:13, padding:'8px 14px' }}>
+                            {dlBusy === `${key}:ebook-store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : dlBusy === `${key}:cover-img` ? t('⏳ Hintergrund wird erzeugt …', '⏳ Creating background …') : dlBusy === `${key}:ebook` ? t('⏳ Wird erstellt …', '⏳ Creating …') : t('📱 E-Book', '📱 E-book')}
+                          </button>
+                          <label title={t('Zusätzlich eine Kopie des E-Books auf dem Server ablegen und hier einen Download-Link anzeigen. Wird beim Löschen des Buchs mitgelöscht.', 'Also store a copy of the e-book on the server and show a download link here. It is deleted together with the book.')}
+                                 style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'#78716c', cursor: has ? 'pointer' : 'default', opacity: has ? 1 : 0.5 }}>
+                            <input type="checkbox" disabled={!has || busy} checked={!!storePdf[`ebook_${key}`]} onChange={e => setStorePdf(s => ({ ...s, [`ebook_${key}`]: e.target.checked }))} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
+                            {t('auf Server ablegen', 'store on server')}
+                          </label>
                           </>
                         ) : null
                       ) : (
@@ -2205,6 +2215,26 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                         </button>
                         {sp.at && (
                           <span style={{ color:'#3f6212', fontSize:12 }}>· {new Date(sp.at).toLocaleString('de-DE')}</span>
+                        )}
+                      </div>
+                      )
+                    })()}
+                    {selected.stored_pdf_urls?.[`ebook_${key}`]?.url && (() => {
+                      const ek = `ebook_${key}`
+                      const sp = selected.stored_pdf_urls[ek]
+                      const shareUrl = sp.slug ? `${window.location.origin}/api/pdf?code=${selected.id}&v=${ek}&s=${sp.slug}` : sp.url
+                      return (
+                      <div style={{ marginTop:10, fontSize:13, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'8px 12px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                        <span aria-hidden="true">📱</span>
+                        <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8', fontWeight:600, textDecoration:'underline' }}>
+                          {t('Auf dem Server abgelegtes E-Book öffnen', 'Open e-book stored on the server')}
+                        </a>
+                        <button className="secondary" onClick={() => { navigator.clipboard?.writeText(shareUrl); setPdfCopied(ek); setTimeout(() => setPdfCopied(c => c === ek ? null : c), 2000) }}
+                          style={{ fontSize:12, padding:'4px 10px' }}>
+                          {pdfCopied === ek ? t('✓ Kopiert', '✓ Copied') : t('📋 Link kopieren', '📋 Copy link')}
+                        </button>
+                        {sp.at && (
+                          <span style={{ color:'#1e40af', fontSize:12 }}>· {new Date(sp.at).toLocaleString('de-DE')}</span>
                         )}
                       </div>
                       )

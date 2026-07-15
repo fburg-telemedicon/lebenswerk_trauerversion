@@ -19,7 +19,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 const IMAGE_BUCKET = 'memorial-images'
 const SIGNED_URL_TTL = 60 * 60
-const ALLOWED_VARIANTS = new Set(['book_v1', 'book_v2', 'eulogy'])
+const ALLOWED_VARIANTS = new Set(['book_v1', 'book_v2', 'eulogy', 'ebook_book_v1', 'ebook_book_v2'])
 const MAX_BYTES = 45 * 1024 * 1024   // unter dem 50-MB-JSON-Limit von server.js
 
 module.exports = async function handler(req, res) {

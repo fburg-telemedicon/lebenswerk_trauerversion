@@ -7,6 +7,7 @@ import jsPDF from 'jspdf'
 import { getCategory } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
 import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
+import { prepareEbookCoverPage, drawEbookCoverPage } from './coverExport.js'
 
 // Disclaimer zur Entstehung & Haftung – wird ans Ende jedes Buchs/jeder Rede
 // gesetzt (HTML-Ansicht + DOCX) und im Impressum/Datenschutz referenziert.
@@ -327,7 +328,12 @@ const PDF_PAGE_W = 154   // mm – Einzelseite inkl. Beschnitt
 const PDF_PAGE_H = 216   // mm
 const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
 
-export async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+// Baut das druckfertige Innenteil (ohne Cover) und gibt das jsPDF-Dokument + die
+// Seitenzahl zurück, OHNE herunterzuladen. downloadPrintPdf (Druck) und
+// downloadEbookPdf (E-Book, mit Cover-Seiten drumherum) bauen darauf auf.
+// opts.pad4 (Default true): auf ein Vielfaches von 4 auffüllen (nur fürs Drucken
+// nötig — beim E-Book aus, sonst lägen Leerseiten vor der Cover-Rückseite).
+export async function buildInteriorPdf(book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
   const showContributors = opts.showContributors !== false
   const bt = uiText(book.language)
   let HF = layout.heading.pdf, BF = layout.body.pdf
@@ -496,7 +502,9 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
   // Buchbindung setzt Seiten in 4er-Bögen; die Gesamtseitenzahl muss durch 4
   // teilbar sein. Fehlende Seiten werden als LEERE Seiten OHNE Seitenzahl am
   // Schluss ergänzt (als pageEmpty markiert → die Nummerierung unten überspringt sie).
-  while (doc.getNumberOfPages() % 4 !== 0) { newPage(); pageEmpty.add(page) }
+  // Beim E-Book (opts.pad4 === false) entfällt das — Leerseiten vor der
+  // Cover-Rückseite wären dort sinnlos.
+  if (opts.pad4 !== false) { while (doc.getNumberOfPages() % 4 !== 0) { newPage(); pageEmpty.add(page) } }
 
   // ── Seitenzahlen unten mittig – ohne Titel-, Bild- und Leerseiten ──
   // Seite 1 ist immer die (innere) Titelseite und bleibt klassisch ohne Nummer.
@@ -508,12 +516,47 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
     doc.text(String(i), PDF_PAGE_W / 2, PDF_PAGE_H - 10, { align: 'center' })
   }
 
+  // Seitenzahl bestimmt die Rückenstärke des Druck-Covers und wird am Buch
+  // gespeichert; das Dokument wird von den Aufrufern ausgegeben/erweitert.
+  return { doc, pages: totalPages }
+}
+
+// Druckfertiges Innenteil-PDF herunterladen. Endformat je Einzelseite 15,4 × 21,6 cm.
+export async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+  const { doc, pages } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, opts)
   const blob = doc.output('blob')
   downloadBlob(filename, blob)
-  // Seitenzahl zurückgeben: sie bestimmt die Rückenstärke des Covers
-  // (src/coverExport.js) und wird deshalb am Buch gespeichert. `blob` wird für
-  // die optionale Server-Ablage des PDFs (Checkbox in der Detailansicht) genutzt.
-  return { pages: totalPages, blob }
+  // `blob` für die optionale Server-Ablage (Checkbox in der Detailansicht).
+  return { pages, blob }
+}
+
+// E-Book-PDF: dasselbe Innenteil, aber eingefasst zwischen zwei Cover-Seiten —
+// vorne die Vorderseite (rechte Bildhälfte + Titel), hinten die Rückseite (linke
+// Bildhälfte + Logo). Kein Buchrücken, keine Druck-Auffüllung. Braucht denselben
+// Cover-Hintergrund wie das Druck-Cover (opts.coverBgUrl).
+export async function downloadEbookPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+  if (!opts.coverBgUrl) throw new Error('Cover-Hintergrund fehlt.')
+  // Cover-Seiten VOR den Seitenmanipulationen laden (async), damit das Einfügen/
+  // Anhängen danach rein synchron abläuft.
+  const [front, back] = await Promise.all([
+    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'front', title: opts.coverTitle || book.title || '', subtitle: opts.coverSubtitle || book.subtitle || '', layout }),
+    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'back', layout }),
+  ])
+
+  // Innenteil identisch zum Druck bauen (ohne 4er-Auffüllung).
+  const { doc } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, { ...opts, pad4: false })
+
+  // Rückseite hinten anhängen (nach der Nummerierung → bekommt keine Seitenzahl).
+  doc.addPage([PDF_PAGE_W, PDF_PAGE_H])
+  drawEbookCoverPage(doc, back)
+  // Vorderseite ganz vorne einfügen; insertPage(1) setzt den Cursor auf die neue
+  // Seite 1. Die bereits gesetzten Seitenzahlen wandern mit ihren Seiten mit.
+  doc.insertPage(1)
+  drawEbookCoverPage(doc, front)
+
+  const blob = doc.output('blob')
+  downloadBlob(filename, blob)
+  return { blob }
 }
 
 // Fließtext (Pflegeexzerpt, Rede …) als A4-PDF. Gleiche Konvention wie beim

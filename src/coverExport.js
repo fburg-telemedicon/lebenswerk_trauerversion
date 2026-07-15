@@ -516,3 +516,86 @@ export function downloadCoverPdf(filename, p, boxYKey) {
   doc.save(filename)
   return { spineMm: p.B, widthMm: p.W, heightMm: p.H }
 }
+
+// ── E-Book-Cover: EINZELNE Buchseiten (kein Buchrücken, kein Beschnitt-Wickel) ──
+//
+// Für das E-Book wird das Cover nicht als eine breite Druckfläche gesetzt, sondern
+// auf zwei normale Buchseiten (154 × 216 mm, exakt das Innenteil-Format):
+//   • FRONT = Vorderseite: die RECHTE Bildhälfte (Hauptmotiv) + Titelkasten → 1. Seite
+//   • BACK  = Rückseite:   die LINKE Bildhälfte + Logo-Kasten → letzte Seite
+// Der Buchrücken entfällt. Das Hintergrundbild ist dasselbe wie beim Druck-Cover
+// (rechts Hauptmotiv, links ruhiger) — hier nur auf zwei Seiten aufgeteilt statt
+// über eine Doppelfläche mit Rücken in der Mitte.
+const EB_PAGE_W = 154, EB_PAGE_H = 216
+const EB_SPREAD_W = EB_PAGE_W * 2
+const EB_BOX_MARGIN = 12   // seitlicher Rand des Titelkastens
+const EB_BOX_PAD_X = 8
+
+// Lädt Bild/Farben/Geometrie für EINE E-Book-Coverseite (async, ohne jsPDF-Zeichnen).
+export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layout }) {
+  const HF = layout?.heading?.pdf || 'times'
+  const BF = layout?.body?.pdf || 'times'
+  const [bgData, bgImg] = await Promise.all([toDataUrl(bgUrl), loadImage(bgUrl)])
+  const { bg, fg } = pickAccentColor(bgImg)
+
+  let logoData = null, logoImg = null
+  if (side === 'back') {
+    [logoData, logoImg] = await Promise.all([toDataUrl('/cover-logo.png'), loadImage('/cover-logo.png')])
+  }
+
+  // Hintergrund: Bild auf die Doppelseite (2 × Seitenbreite) „covern", dann so
+  // versetzen, dass diese Seite die rechte (front) bzw. linke (back) Hälfte zeigt.
+  const fit = coverFit(bgImg.naturalWidth, bgImg.naturalHeight, EB_SPREAD_W, EB_PAGE_H)
+  const baseX = side === 'front' ? fit.x - EB_PAGE_W : fit.x   // front → rechte Hälfte sichtbar
+  const offY = fit.y
+
+  // Ruhigstes Band nur für die Vorderseite (Titelkasten). Analyse in
+  // Doppelseiten-Koordinaten; für die Vorderseite das rechte Drittel/Hälfte prüfen.
+  const analysis = side === 'front' ? renderCoverCanvas(bgImg, EB_SPREAD_W, EB_PAGE_H) : null
+
+  return { side, HF, BF, bg, fg, bgData, bgImg, logoData, logoImg, baseX, offY,
+    dw: fit.w, dh: fit.h, title: String(title || ''), subtitle: String(subtitle || ''), _analysis: analysis }
+}
+
+// Zeichnet eine vorbereitete E-Book-Coverseite auf die AKTUELLE jsPDF-Seite.
+export function drawEbookCoverPage(doc, p) {
+  const W = EB_PAGE_W, H = EB_PAGE_H
+  doc.addImage(p.bgData, 'PNG', p.baseX, p.offY, p.dw, p.dh, undefined, 'FAST')
+
+  if (p.side === 'front') {
+    const textW = W - 2 * EB_BOX_MARGIN - 2 * EB_BOX_PAD_X
+    doc.setFont(p.HF, 'bold'); doc.setFontSize(TITLE_SIZE)
+    const titleLines = doc.splitTextToSize(p.title, textW)
+    doc.setFont(p.BF, 'italic'); doc.setFontSize(SUB_SIZE)
+    const subLines = p.subtitle ? doc.splitTextToSize(p.subtitle, textW) : []
+    const blockH = titleLines.length * TITLE_LH + (subLines.length ? 4 + subLines.length * SUB_LH : 0)
+    const boxH = blockH + 2 * BOX_PAD_Y
+
+    const safeTop = 16, safeBottom = H - 16
+    const clamp = y => Math.max(safeTop, Math.min(safeBottom - boxH, y))
+    // Kasten ins ruhigste Band der rechten Bildhälfte (Doppelseiten-x 154…308).
+    const boxY = clamp(p._analysis
+      ? quietestBandY(p._analysis, { xMm: EB_PAGE_W, widthMm: EB_PAGE_W, topMm: safeTop, bottomMm: safeBottom, boxHMm: boxH })
+      : safeBottom - boxH)
+
+    doc.setFillColor(p.bg[0], p.bg[1], p.bg[2])
+    doc.rect(EB_BOX_MARGIN, boxY, W - 2 * EB_BOX_MARGIN, boxH, 'F')
+    doc.setTextColor(p.fg[0], p.fg[1], p.fg[2])
+    let ty = boxY + BOX_PAD_Y + TITLE_LH * 0.72
+    doc.setFont(p.HF, 'bold'); doc.setFontSize(TITLE_SIZE)
+    for (const ln of titleLines) { doc.text(ln, W / 2, ty, { align: 'center' }); ty += TITLE_LH }
+    if (subLines.length) {
+      ty += 4
+      doc.setFont(p.BF, 'italic'); doc.setFontSize(SUB_SIZE)
+      for (const ln of subLines) { doc.text(ln, W / 2, ty, { align: 'center' }); ty += SUB_LH }
+    }
+  } else {
+    // Rückseite: Logo unten mittig auf einem Farbstreifen (wie beim Druck-Cover).
+    const lw = 40
+    const lh = lw * (p.logoImg.naturalHeight / p.logoImg.naturalWidth)
+    const ly = H - 30 - lh
+    doc.setFillColor(p.bg[0], p.bg[1], p.bg[2])
+    doc.rect(0, ly - 6, W, lh + 12, 'F')
+    doc.addImage(p.logoData, 'PNG', (W - lw) / 2, ly, lw, lh, undefined, 'FAST')
+  }
+}
