@@ -22,6 +22,20 @@ const TARGETS = [
 ]
 const NEW_LEN = 16
 
+// Verwaiste Endnutzer-Konten: is_enduser-Konten, deren enduser_memorial auf KEIN
+// (mehr) existierendes Buch zeigt (Buch gelöscht, oder Link durch frühere
+// varchar(6)-Kürzung des Codes gebrochen). Solche Konten sind ohne Buch nutzlos.
+async function findOrphans(p) {
+  const { rows } = await p.query(
+    `select u.id, u.username, u.enduser_memorial, u.created_at
+       from app_users u
+       left join memorials m on m.id = u.enduser_memorial
+      where u.is_enduser = true
+        and (u.enduser_memorial is null or m.id is null)
+      order by u.created_at`)
+  return rows
+}
+
 async function inspect(p) {
   const cols = await p.query(
     `select table_name, column_name, data_type, character_maximum_length
@@ -46,6 +60,22 @@ module.exports = async function handler(req, res) {
   try {
     if (action === 'inspect') {
       return res.json(await inspect(p))
+    }
+    if (action === 'orphans') {
+      // Nur auflisten (read-only) — E-Mail-Adressen der verwaisten Endnutzer-Konten.
+      const orphans = await findOrphans(p)
+      return res.json({ count: orphans.length, orphans })
+    }
+    if (action === 'purge-orphans') {
+      // Verwaiste Endnutzer-Konten löschen. Schutz: body.confirm === 'PURGE'.
+      if (String(req.body?.confirm || '') !== 'PURGE') {
+        return res.status(400).json({ error: "Bestätigung fehlt: confirm='PURGE' senden." })
+      }
+      const orphans = await findOrphans(p)
+      const ids = orphans.map(o => o.id)
+      if (!ids.length) return res.json({ ok: true, deleted: 0, orphans: [] })
+      await p.query(`delete from app_users where id = any($1::uuid[])`, [ids])
+      return res.json({ ok: true, deleted: ids.length, orphans })
     }
     if (action === 'widen-codes') {
       const client = await p.connect()

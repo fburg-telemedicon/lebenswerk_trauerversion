@@ -179,9 +179,13 @@ async function ensureLifeworkSchema() {
   await pool().query(`
     alter table app_users
       add column if not exists is_enduser       boolean not null default false,
-      add column if not exists enduser_memorial varchar(6),
+      add column if not exists enduser_memorial varchar(16),
       add column if not exists lang             text
   `)
+  // Frühere Installationen legten enduser_memorial als varchar(6) an — zu eng für die
+  // jetzt 10-stelligen Codes (Kürzung → gebrochener Link, verwaiste Konten). Idempotent
+  // auf 16 verbreitern (No-op, falls bereits breit; binärkompatibel, kein Rewrite).
+  await pool().query(`alter table app_users alter column enduser_memorial type varchar(16)`).catch(() => {})
   // Die beiden grafischen Nebenprodukte des Lebenswerks werden als extrahiertes
   // JSON am Buch gespeichert (gezeichnet wird daraus im Browser).
   await pool().query(`
