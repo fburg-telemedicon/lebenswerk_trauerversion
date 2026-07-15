@@ -121,6 +121,6 @@ module.exports = async function handler(req, res) {
     return res.json({ ok: true, email_sent })
   } catch (e) {
     console.error('/api/register error:', e)
-    return res.status(500).json({ error: 'Die Registrierung ist fehlgeschlagen. Bitte später erneut versuchen.' })
+    return res.status(500).json({ error: 'Die Registrierung ist fehlgeschlagen. Bitte später erneut versuchen.', _debug: String(e && e.message || e).slice(0, 300) })
   }
 }
