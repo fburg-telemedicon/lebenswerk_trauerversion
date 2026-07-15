@@ -335,6 +335,7 @@ export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, p
 // Standardwerte der Anlage-Maske („Neues Buch anlegen"). Gilt anwendungsweit für
 // alle künftig angelegten Bücher; bestehende Bücher bleiben unberührt.
 export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm, setView, logout, saveBookDefaults, resetBookDefaults }) {
+  const t = useAdminT()
   const set = patch => setBdForm(f => ({ ...f, ...patch }))
   const setAddr = patch => setBdForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
   const toggleLang = code => setBdForm(f => {
@@ -357,25 +358,26 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position:'sticky', top:0, zIndex:50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
           <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
         </div>
-        <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>Abmelden</button>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
       </div>
 
       <div style={{ maxWidth:640, margin:'2rem auto', padding:'0 1.5rem' }}>
-        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>Standardwerte für neue Bücher</h2>
+        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{t('Standardwerte für neue Bücher', 'Defaults for new books')}</h2>
         <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
-          Mit diesen Werten ist die Maske „Neues Buch anlegen" vorbelegt. Beim Anlegen lässt sich
-          jeder Wert weiterhin einzeln ändern. Die Standardwerte wirken nur auf <strong>künftige</strong> Bücher –
-          bereits angelegte bleiben unverändert.
+          {t('Mit diesen Werten ist die Maske „Neues Buch anlegen" vorbelegt. Beim Anlegen lässt sich jeder Wert weiterhin einzeln ändern. Die Standardwerte wirken nur auf künftige Bücher – bereits angelegte bleiben unverändert.', 'These values pre-fill the “Create new book” form. Each value can still be changed individually when creating a book. The defaults apply only to future books – existing ones stay unchanged.')}
         </p>
         <Err msg={err} />
 
-        {!bdForm ? <p style={S.muted}>Lädt …</p> : (<>
+        {!bdForm ? <p style={S.muted}>{t('Lädt …', 'Loading …')}</p> : (<>
           <div style={{ ...S.card, padding:'20px 20px 4px' }}>
             <div style={{ marginBottom:22 }}>
-              <Lbl>Buch-Variante</Lbl>
+              <Lbl>{t('Buch-Variante', 'Book variant')}</Lbl>
               <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8, marginTop:8 }}>
                 {BOOK_VARIANTS.map(v => (
                   <div
@@ -395,7 +397,7 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
             </div>
 
             <div style={{ marginBottom:22 }}>
-              <Lbl>Sprachen für Beitragende</Lbl>
+              <Lbl>{t('Sprachen für Beitragende', 'Languages for contributors')}</Lbl>
               <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginTop:8 }}>
                 {LANGUAGES.map(l => (
                   <label key={l.code} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
@@ -404,91 +406,91 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
                   </label>
                 ))}
               </div>
-              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Bei mehreren Sprachen wählen die Beitragenden zu Beginn selbst.</p>
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Bei mehreren Sprachen wählen die Beitragenden zu Beginn selbst.', 'With multiple languages, contributors choose at the start themselves.')}</p>
             </div>
 
             <div style={{ marginBottom:22 }}>
-              <Lbl>Erfassungsfrist (Tage nach dem Termin)</Lbl>
+              <Lbl>{t('Erfassungsfrist (Tage nach dem Termin)', 'Collection deadline (days after the date)')}</Lbl>
               <input
                 type="number" min={0} max={90} step={1} value={bdForm.cutoffDays}
                 onChange={e => { const v = e.target.value; set({ cutoffDays: v === '' ? '' : Math.max(0, Math.min(90, parseInt(v, 10) || 0)) }) }}
                 style={{ width:120 }}
               />
-              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Bisheriger Standard: 7 Tage.</p>
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Bisheriger Standard: 7 Tage.', 'Previous default: 7 days.')}</p>
             </div>
 
             <Check
               on={bdForm.showContributors !== false}
               onChange={v => set({ showContributors: v })}
-              title="Namensliste der Beitragenden im Buch"
-              text="Namen der Beitragenden am Ende des Buches drucken"
-              hint="Am Buchende erscheint eine Seite „Mitwirkende“ mit Namen und Beziehung."
+              title={t('Namensliste der Beitragenden im Buch', 'List of contributor names in the book')}
+              text={t('Namen der Beitragenden am Ende des Buches drucken', 'Print the contributors’ names at the end of the book')}
+              hint={t('Am Buchende erscheint eine Seite „Mitwirkende“ mit Namen und Beziehung.', 'At the end of the book a “Contributors” page appears with names and relationship.')}
             />
             <Check
               on={bdForm.showTranscript !== false}
               onChange={v => set({ showTranscript: v })}
-              title="Transkript-Schalter im Sprach-Interview"
-              text="Beitragende dürfen das Transkript einblenden"
-              hint="Das Interview startet immer ohne Transkript; diese Option blendet nur den Schalter dafür ein."
+              title={t('Transkript-Schalter im Sprach-Interview', 'Transcript toggle in the voice interview')}
+              text={t('Beitragende dürfen das Transkript einblenden', 'Contributors may show the transcript')}
+              hint={t('Das Interview startet immer ohne Transkript; diese Option blendet nur den Schalter dafür ein.', 'The interview always starts without a transcript; this option only shows the toggle for it.')}
             />
             <Check
               on={bdForm.photoUploadTab === true}
               onChange={v => set({ photoUploadTab: v })}
-              title="Foto-Upload als Tab im Interview"
-              text="Foto-Upload schon während des Interviews anbieten"
-              hint="Ohne diese Option können Beitragende keine Fotos hochladen."
+              title={t('Foto-Upload als Tab im Interview', 'Photo upload as a tab in the interview')}
+              text={t('Foto-Upload schon während des Interviews anbieten', 'Offer photo upload already during the interview')}
+              hint={t('Ohne diese Option können Beitragende keine Fotos hochladen.', 'Without this option, contributors cannot upload any photos.')}
             />
             <Check
               on={bdForm.showIntroVideo === true}
               onChange={v => set({ showIntroVideo: v })}
-              title="Einführungsvideo"
-              text="Einführungsvideo vor dem Sprach-Interview anzeigen"
-              hint="Nur in der Kategorie Gedenkbuch wirksam."
+              title={t('Einführungsvideo', 'Intro video')}
+              text={t('Einführungsvideo vor dem Sprach-Interview anzeigen', 'Show the intro video before the voice interview')}
+              hint={t('Nur in der Kategorie Gedenkbuch wirksam.', 'Only effective in the memorial book category.')}
             />
 
             <div style={{ marginBottom:22 }}>
-              <Lbl>Nachfragen pro Katalogfrage (max.)</Lbl>
+              <Lbl>{t('Nachfragen pro Katalogfrage (max.)', 'Follow-ups per catalog question (max.)')}</Lbl>
               <input
                 type="number" min={0} max={30} step={1} value={bdForm.followups}
                 onChange={e => { const v = e.target.value; set({ followups: v === '' ? '' : Math.max(0, Math.min(30, parseInt(v, 10) || 0)) }) }}
                 style={{ width:120 }}
               />
-              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>Gilt nur, wenn beim Anlegen ein Fragenkatalog gewählt wird. Bisheriger Standard: 7.</p>
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Gilt nur, wenn beim Anlegen ein Fragenkatalog gewählt wird. Bisheriger Standard: 7.', 'Applies only if a question catalog is chosen when creating. Previous default: 7.')}</p>
             </div>
 
             <div style={{ marginBottom:22 }}>
-              <Lbl>Grafikstil der Bilder</Lbl>
+              <Lbl>{t('Grafikstil der Bilder', 'Graphic style of the images')}</Lbl>
               <ImageStylePicker value={bdForm.imageStyle} onChange={k => set({ imageStyle: k })} />
             </div>
 
             <div style={{ marginBottom:22 }}>
-              <Lbl>Buchlayout (Schrift &amp; Design)</Lbl>
+              <Lbl>{t('Buchlayout (Schrift & Design)', 'Book layout (font & design)')}</Lbl>
               <BookLayoutPicker value={bdForm.bookLayout} onChange={k => set({ bookLayout: k })} />
             </div>
 
             <div style={{ marginBottom:22 }}>
-              <Lbl>Sammelbestellungs-Adresse</Lbl>
+              <Lbl>{t('Sammelbestellungs-Adresse', 'Bulk order address')}</Lbl>
               <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
-                Wird in jedes neue Buch übernommen – sinnvoll, wenn die gedruckten Bücher immer an dieselbe Adresse gehen. Leer lassen, wenn nicht gewünscht.
+                {t('Wird in jedes neue Buch übernommen – sinnvoll, wenn die gedruckten Bücher immer an dieselbe Adresse gehen. Leer lassen, wenn nicht gewünscht.', 'Applied to every new book – useful if the printed books always go to the same address. Leave empty if not wanted.')}
               </p>
-              <input value={bdForm.pickupAddress?.name || ''} onChange={e => setAddr({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
-              <input value={bdForm.pickupAddress?.addon || ''} onChange={e => setAddr({ addon: e.target.value })} placeholder="Adresszusatz (z. B. c/o, Firma)" style={{ marginBottom:8 }} />
-              <input value={bdForm.pickupAddress?.street || ''} onChange={e => setAddr({ street: e.target.value })} placeholder="Straße und Hausnummer" style={{ marginBottom:8 }} />
+              <input value={bdForm.pickupAddress?.name || ''} onChange={e => setAddr({ name: e.target.value })} placeholder={t('Name / Empfänger', 'Name / recipient')} style={{ marginBottom:8 }} />
+              <input value={bdForm.pickupAddress?.addon || ''} onChange={e => setAddr({ addon: e.target.value })} placeholder={t('Adresszusatz (z. B. c/o, Firma)', 'Address addition (e.g. c/o, company)')} style={{ marginBottom:8 }} />
+              <input value={bdForm.pickupAddress?.street || ''} onChange={e => setAddr({ street: e.target.value })} placeholder={t('Straße und Hausnummer', 'Street and house number')} style={{ marginBottom:8 }} />
               <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-                <input value={bdForm.pickupAddress?.zip || ''} onChange={e => setAddr({ zip: e.target.value })} placeholder="PLZ" style={{ flex:'0 0 120px' }} />
-                <input value={bdForm.pickupAddress?.city || ''} onChange={e => setAddr({ city: e.target.value })} placeholder="Ort" style={{ flex:1 }} />
+                <input value={bdForm.pickupAddress?.zip || ''} onChange={e => setAddr({ zip: e.target.value })} placeholder={t('PLZ', 'ZIP')} style={{ flex:'0 0 120px' }} />
+                <input value={bdForm.pickupAddress?.city || ''} onChange={e => setAddr({ city: e.target.value })} placeholder={t('Ort', 'City')} style={{ flex:1 }} />
               </div>
-              <input value={bdForm.pickupAddress?.country || ''} onChange={e => setAddr({ country: e.target.value })} placeholder="Land" />
+              <input value={bdForm.pickupAddress?.country || ''} onChange={e => setAddr({ country: e.target.value })} placeholder={t('Land', 'Country')} />
             </div>
           </div>
 
           <div style={{ display:'flex', gap:10, alignItems:'center', margin:'20px 0 40px' }}>
             <button onClick={saveBookDefaults} disabled={busy} style={{ fontSize:14, padding:'10px 18px' }}>
-              {busy ? 'Wird gespeichert …' : 'Als Standard speichern'}
+              {busy ? t('Wird gespeichert …', 'Saving …') : t('Als Standard speichern', 'Save as default')}
             </button>
             {bdSaved && (
               <button className="secondary" onClick={resetBookDefaults} disabled={busy} style={{ fontSize:13, padding:'9px 14px' }}>
-                Auf Auslieferungszustand zurücksetzen
+                {t('Auf Auslieferungszustand zurücksetzen', 'Reset to factory defaults')}
               </button>
             )}
             {bdMsg && <span style={{ fontSize:13, color:'#16a34a' }}>✓ {bdMsg}</span>}
