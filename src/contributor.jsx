@@ -830,10 +830,11 @@ function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, sho
   )
 }
 
-// Probedruck-Tab (nur Lebenswerk): erzeugt das Buch aus den bisherigen Antworten
-// als reine Textansicht (wie beim Manager, ohne Bilder), begrenzt auf N Erzeugungen.
-// Bearbeiten (Stift) mit Buch-Lock (Checkout), damit Admin und Endnutzer nicht
-// gleichzeitig schreiben. Änderungen werden in der DB gespeichert (book_v2).
+// Probedruck-Tab (nur Lebenswerk): erzeugt aus den bisherigen Antworten einen
+// ZWISCHENSTAND als reine Textansicht (wie beim Manager, ohne Bilder), begrenzt auf
+// N Erzeugungen. Bewusst NICHT editierbar — Änderungen würden bei der endgültigen
+// Erstellung überschrieben. (Die editierbare „vorläufige Druckversion" mit Bildern
+// kommt als eigener Schritt.) Erzeugen sichert den Text mit Buch-Lock in book_v2.
 function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const [loading, setLoading] = useState(true)
   const [book, setBook]       = useState(null)
@@ -845,9 +846,6 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   const [progress, setProgress] = useState('')
   const [err, setErr]         = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft]     = useState(null)
-  const [saved, setSaved]     = useState('')
   const lockRef   = useRef(null)   // gehaltenes Lock-Token
   const hbRef     = useRef(null)   // Heartbeat-Intervall
   const cancelRef = useRef(false)
@@ -871,7 +869,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
   async function release() { stopHeartbeat(); const tk = lockRef.current; lockRef.current = null; if (tk) { try { await releaseEditLock(code, token, tk) } catch {} } }
 
   async function generate() {
-    setConfirmOpen(false); setErr(''); setSaved(''); setBusy(true); setPct(0); setProgress('Wird vorbereitet …'); cancelRef.current = false
+    setConfirmOpen(false); setErr(''); setBusy(true); setPct(0); setProgress('Wird vorbereitet …'); cancelRef.current = false
     try {
       await acquire()
       const cons = await consumeProof(code, token)
@@ -887,22 +885,6 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
       if (e.message !== '__CANCELLED__') setErr(e.message)
     } finally { await release(); setBusy(false) }
   }
-
-  async function startEdit() {
-    setErr(''); setSaved('')
-    try { await acquire() } catch (e) { setErr(e.message); setLockedByOther(true); return }
-    setDraft(JSON.parse(JSON.stringify(book))); setEditing(true)
-  }
-  async function cancelEdit() { setEditing(false); setDraft(null); await release() }
-  async function saveEdit() {
-    setErr('')
-    try {
-      await saveEnduserBook(code, token, lockRef.current, draft)
-      setBook(draft); setEditing(false); setDraft(null); setSaved('Gespeichert.'); setTimeout(() => setSaved(''), 2500)
-      await release()
-    } catch (e) { setErr(e.message) }
-  }
-  const setCh = (i, patch) => setDraft(d => ({ ...d, chapters: d.chapters.map((c, j) => j === i ? { ...c, ...patch } : c) }))
 
   const page = { ...S.page, paddingTop: '1.5rem' }
 
@@ -920,33 +902,6 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     </div>
   )
 
-  // ── Bearbeiten-Modus (manuell) ──
-  if (editing && draft) return (
-    <div style={page}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <button onClick={saveEdit} style={{ fontSize: 14, padding: '8px 16px' }}>✓ Speichern</button>
-        <button className="secondary" onClick={cancelEdit} style={{ fontSize: 14, padding: '8px 16px' }}>Abbrechen</button>
-      </div>
-      <Err msg={err} />
-      <div style={{ marginBottom: 14 }}>
-        <Lbl>Titel</Lbl>
-        <input value={draft.title || ''} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))} />
-      </div>
-      <div style={{ marginBottom: 20 }}>
-        <Lbl>Untertitel</Lbl>
-        <input value={draft.subtitle || ''} onChange={e => setDraft(d => ({ ...d, subtitle: e.target.value }))} />
-      </div>
-      {draft.chapters.map((c, i) => (
-        <div key={i} style={{ marginBottom: 22, borderTop: '1px solid #f0efec', paddingTop: 14 }}>
-          <div style={{ fontSize: 12, color: '#a8a29e', marginBottom: 4 }}>Kapitel {c.number}</div>
-          <input value={c.heading || ''} onChange={e => setCh(i, { heading: e.target.value })} placeholder="Überschrift" style={{ fontWeight: 700, marginBottom: 8 }} />
-          <textarea value={c.body || ''} onChange={e => setCh(i, { body: e.target.value })} style={{ width: '100%', minHeight: 200, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
-        </div>
-      ))}
-      <p style={{ ...S.muted, fontSize: 12, marginTop: 4 }}>Tipp: Der Sprach-/KI-Bearbeitungsmodus (markierte Stelle per Audio ändern) folgt in Kürze.</p>
-    </div>
-  )
-
   // ── Leseansicht bzw. „erstellen" ──
   return (
     <div style={page}>
@@ -955,23 +910,21 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
         <span style={{ fontSize: 12, color: '#78716c' }}>Noch {remaining} von {max} Vorschauen</span>
       </div>
       <Err msg={err} />
-      {saved && <p style={{ fontSize: 13, color: '#16a34a' }}>{saved}</p>}
       {lockedByOther && !book && <p style={{ fontSize: 13, color: '#b45309' }}>Das Buch wird gerade an anderer Stelle bearbeitet.</p>}
 
       {!book ? (
         <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
           <p style={{ fontSize: 15, lineHeight: 1.6, color: '#44403c', marginTop: 0 }}>
-            Hier entsteht aus Ihren bisherigen Antworten eine erste Textfassung Ihres Buchs (ohne Bilder), die Sie ansehen und bearbeiten können.
+            Hier entsteht aus Ihren bisherigen Antworten eine erste Textfassung Ihres Buchs (ohne Bilder) — als Zwischenstand zum Ansehen. Sie können später jederzeit weiter erzählen; die endgültige Fassung wird daraus erstellt.
           </p>
           <button onClick={() => setConfirmOpen(true)} disabled={remaining <= 0} style={{ fontSize: 15, padding: '11px 20px' }}>
-            📖 Buchvorschau erstellen
+            📖 Zwischenstand ansehen
           </button>
           {remaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>Sie haben alle {max} Vorschauen aufgebraucht.</p>}
         </div>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <button onClick={startEdit} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>✏️ Bearbeiten</button>
             <button onClick={() => setConfirmOpen(true)} className="secondary" disabled={remaining <= 0} title={remaining <= 0 ? 'Keine Vorschauen mehr übrig' : ''} style={{ fontSize: 14, padding: '8px 16px' }}>↻ Neu erzeugen</button>
           </div>
           <article style={{ fontFamily: 'Georgia, serif', color: '#1c1917' }}>
