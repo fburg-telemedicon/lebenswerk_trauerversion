@@ -4,6 +4,33 @@
 import { useState } from 'react'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
+import { TEXT_STYLES, textStylesFor } from './categories.js'
+
+// Auswahl des Textstils (WIE die KI schreibt). Kategorie-abhängig: „An den
+// Erzählstil anpassen" gibt es nur beim Lebenswerk; das Trauerbuch bietet nur
+// „Literarisch-warm" (dann keine Auswahl, nur ein Hinweis). Reiner Text.
+export function TextStylePicker({ category, value, onChange, disabled }) {
+  const keys = textStylesFor(category)
+  const cur = keys.includes(value) ? value : keys[0]
+  if (keys.length <= 1) {
+    const s = TEXT_STYLES[keys[0]]
+    return <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}><strong style={{ color:'#44403c' }}>{s.label}</strong> — {s.desc}</div>
+  }
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:10 }}>
+      {keys.map(k => {
+        const s = TEXT_STYLES[k]; const on = cur === k
+        return (
+          <div key={k} onClick={() => !disabled && onChange(k)}
+            style={{ cursor: disabled ? 'default' : 'pointer', border:`2px solid ${on ? '#1c1917' : '#e7e5e4'}`, borderRadius:10, background:'#fff', padding:'10px 12px', opacity: disabled ? 0.6 : 1 }}>
+            <div style={{ fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>{on && <span>✓</span>}{s.label}</div>
+            <div style={{ fontSize:11.5, color:'#78716c', lineHeight:1.4, marginTop:3 }}>{s.desc}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export function uploadPrintInfo(u) {
   const w = Number(u.width) || 0, h = Number(u.height) || 0

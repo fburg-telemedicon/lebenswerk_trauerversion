@@ -459,6 +459,48 @@ Beiträge:\n\n${blocks(contributions)}`
   }
 }
 
+// ── Textstil des Buchs ────────────────────────────────────────────
+// Dritte Stellschraube neben Grafikstil und Buchlayout: WIE die KI schreibt.
+//  - literary  = bisheriges Verhalten (keine Zusatz-Direktive)
+//  - narrative = NUR Lebenswerk: der eigene Duktus des einen Erzählers
+//  - light     = feierliche Kategorien: heiter & anekdotisch
+// Das Trauerbuch (memorial) bietet nur „literary" — ein heiterer Ton wäre dort
+// unpassend, und seine Prompts bleiben dadurch unverändert.
+export const TEXT_STYLES = {
+  narrative: {
+    key: 'narrative', label: 'An den Erzählstil anpassen',
+    desc: 'Die KI übernimmt den Duktus der erzählenden Person – Wortwahl, Satzrhythmus, Nähe/Distanz, Lieblingswendungen. Klingt unverkennbar nach ihr, bleibt aber gut lesbar.',
+    directive: 'STIL: Übernimm den EIGENEN Erzählstil der erzählenden Person, wie er in ihren Antworten durchscheint — Wortwahl, Satzrhythmus, Nähe oder Zurückhaltung, wiederkehrende Redewendungen und Lieblingswörter, eine etwaige regionale Färbung (dezent, nicht als Mundart verschriftlicht). Der Text soll klingen, als hätte die Person ihn selbst geschrieben; glätte nur so weit, dass er flüssig und korrekt lesbar bleibt. Erfinde keine Stilmerkmale, die die Beiträge nicht hergeben.',
+  },
+  literary: {
+    key: 'literary', label: 'Literarisch-warm',
+    desc: 'Durchkomponierte, warme Autorenstimme – flüssig und literarisch (Standard).',
+    directive: '',
+  },
+  light: {
+    key: 'light', label: 'Heiter & anekdotisch',
+    desc: 'Amüsant durch warme, pointierte Anekdoten und leichten Humor – charmant, aber nie respektlos.',
+    directive: 'STIL: Erzähle heiter und anekdotisch — rücke die charmanten, komischen und liebenswerten kleinen Geschichten nach vorn, mit leichtem, warmem Humor und einem Augenzwinkern. Nie albern, nie auf Kosten der Person, nie ins Lächerliche gezogen. Bleib bei den belegten Begebenheiten und erfinde keine Pointen.',
+  },
+}
+// Welche Textstile stehen einer Kategorie zur Verfügung (Default zuerst).
+export function textStylesFor(category) {
+  if (category === 'lifework') return ['narrative', 'literary', 'light']
+  if (category === 'memorial') return ['literary']            // Trauer: nur literarisch
+  return ['literary', 'light']                                // feierliche Kategorien
+}
+export function defaultTextStyle(category) { return textStylesFor(category)[0] }
+export function normalizeTextStyle(category, v) {
+  const a = textStylesFor(category)
+  return a.includes(v) ? v : a[0]
+}
+export function textStyleLabel(key) { return TEXT_STYLES[key]?.label || key }
+// Prompt-Regelzeile (eigener Bullet) für den gewählten Textstil; leer bei „literary".
+function textStyleRule(memorial) {
+  const d = TEXT_STYLES[normalizeTextStyle(memorial?.product_category, memorial?.text_style)]?.directive
+  return d ? `\n- ${d}` : ''
+}
+
 function makeV1Chapter(p) {
   return (memorial, contribution, number) => {
     const g = genderNote(memorial)
@@ -479,7 +521,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - ${NO_FILLER_RULE}
-- "body": ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie aus. ${chapterLengthRule(band.min, band.max)} Ein knapper Beitrag ergibt ein kurzes Kapitel — strecke ihn NICHT. Absätze durch \\n\\n trennen
+- "body": ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie aus. ${chapterLengthRule(band.min, band.max)} Ein knapper Beitrag ergibt ein kurzes Kapitel — strecke ihn NICHT. Absätze durch \\n\\n trennen${textStyleRule(memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -545,7 +587,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - ${NO_FILLER_RULE}
-- "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}
+- "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -668,7 +710,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - ${NO_FILLER_RULE}
-- "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(sc.min, sc.max)}
+- "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
 - Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
 - Alles auf Deutsch (außer image_prompt)

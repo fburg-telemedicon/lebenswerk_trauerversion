@@ -10,7 +10,7 @@ import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './catego
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf } from './i18n.js'
-import { ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
+import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
 import { useAdminT, AdminLangToggle } from './adminI18n.jsx'
@@ -1294,6 +1294,11 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         <div style={{ marginBottom: 24 }}>
+          <Lbl>Textstil des Buchs</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Später im Dashboard änderbar.</p>
+          <TextStylePicker category={createForm.productCategory} value={createForm.textStyle} onChange={k => setCreateForm({ ...createForm, textStyle: k })} />
+        </div>
+        <div style={{ marginBottom: 24 }}>
           <Lbl>Grafikstil der Bilder</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Alle im Buch erzeugten Bilder entstehen konsistent in diesem Stil. Später im Dashboard änderbar.</p>
           <ImageStylePicker value={createForm.imageStyle} onChange={k => setCreateForm({ ...createForm, imageStyle: k })} />
@@ -2387,6 +2392,11 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       )
                     })}
                   </div>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Textstil des Buchs</Lbl>
+                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Wirkt auf die nächste Buch-Generierung.</p>
+                  <TextStylePicker category={selected.product_category} value={od.textStyle} onChange={k => setOd({ textStyle: k })} />
                 </div>
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Grafikstil der Bilder</Lbl>

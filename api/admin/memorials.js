@@ -10,6 +10,7 @@ const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
 const { normalizeStyle, DEFAULT_STYLE } = require('../_lib/image-styles')
+const { normalizeTextStyle, defaultTextStyle } = require('../_lib/text-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
 const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
@@ -25,7 +26,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style`
 
 // Optionale Sammelbestellungs-/Abholadresse säubern. Nur bekannte Felder,
 // getrimmt, max. Länge je Feld. Sind alle Felder leer -> null (Adresse ist
@@ -428,13 +429,14 @@ module.exports = async function handler(req, res) {
       for (const m of memorials) {
         m.image_style = m.image_style || DEFAULT_STYLE
         m.book_layout = m.book_layout || DEFAULT_BOOK_LAYOUT
+        m.text_style  = m.text_style  || defaultTextStyle(m.product_category)
       }
 
       return res.json(memorials)
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, enduserEmail } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, enduserEmail } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Der Name ist Pflicht — außer beim Lebenswerk: Kennt der Manager den Namen
       // des Endnutzers nicht, trägt dieser ihn beim ersten Start selbst nach
@@ -458,8 +460,10 @@ module.exports = async function handler(req, res) {
         if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse des Endnutzers angeben (oder das Feld leer lassen).' })
         }
-        await ensureLifeworkSchema()
       }
+      // Schema sicherstellen (idempotent, gecacht) — u. a. die text_style-Spalte,
+      // die für ALLE Kategorien gebraucht wird, nicht nur fürs Lebenswerk.
+      await ensureLifeworkSchema()
 
       let langs = sanitizeLangs(languages)
       // Lebenswerk: Der Admin legt EINE Sprache fest — oder keine, dann wählt der
@@ -508,13 +512,15 @@ module.exports = async function handler(req, res) {
         followups: sanitizeFollowups(followups),
         image_style: normalizeStyle(imageStyle) || DEFAULT_STYLE,
         book_layout: normalizeLayout(bookLayout) || DEFAULT_BOOK_LAYOUT,
+        text_style: normalizeTextStyle(category, textStyle),
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
+        delete insertRow.text_style
         delete insertRow.show_contributors
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }
@@ -642,14 +648,16 @@ module.exports = async function handler(req, res) {
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
         if ('imageStyle' in meta)    update.image_style = normalizeStyle(meta.imageStyle) || DEFAULT_STYLE
         if ('bookLayout' in meta)    update.book_layout = normalizeLayout(meta.bookLayout) || DEFAULT_BOOK_LAYOUT
+        if ('textStyle' in meta)     update.text_style  = normalizeTextStyle(meta.productCategory || null, meta.textStyle)
 
         if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' })
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && ('image_style' in update || 'book_layout' in update || 'show_contributors' in update) && /image_style|book_layout|show_contributors|column/i.test(error.message || '')) {
+        if (error && ('image_style' in update || 'book_layout' in update || 'text_style' in update || 'show_contributors' in update) && /image_style|book_layout|text_style|show_contributors|column/i.test(error.message || '')) {
           delete update.image_style
           delete update.book_layout
+          delete update.text_style
           delete update.show_contributors
           if (Object.keys(update).length) { ({ error } = await supabase.from('memorials').update(update).eq('id', code)) }
           else error = null

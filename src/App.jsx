@@ -14,7 +14,7 @@ import {
   getSettings, saveSettings, changeOwnPassword,
   getInvite, redeemInvite, requestPasswordReset,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -53,7 +53,7 @@ import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
 import { AdminLangProvider } from './adminI18n.jsx'
-import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker } from './pickers.jsx'
+import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
@@ -146,6 +146,7 @@ const EMPTY_CREATE = {
   catalogId: '', followups: 7,
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
+  textStyle: 'literary',   // je Kategorie in freshCreateForm auf den Default gesetzt
   // nur Kategorie Lebenswerk
   enduserEmail: '',
 }
@@ -706,6 +707,7 @@ function Dashboard() {
       pickupAddress: m.pickup_address ? { ...EMPTY_PICKUP, ...m.pickup_address } : { ...EMPTY_PICKUP },
       imageStyle: m.image_style || DEFAULT_IMAGE_STYLE,
       bookLayout: m.book_layout || DEFAULT_BOOK_LAYOUT,
+      textStyle: m.text_style || defaultTextStyle(m.product_category),
     })
     setOrderEdit(true)
   }
@@ -727,6 +729,8 @@ function Dashboard() {
         pickupAddress: d.pickupAddress,
         imageStyle: d.imageStyle,
         bookLayout: d.bookLayout,
+        textStyle: d.textStyle,
+        productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -749,6 +753,7 @@ function Dashboard() {
         pickup_address: hasAddr ? { ...pa, country: (pa.country || '').trim() || 'Deutschland' } : null,
         image_style: d.imageStyle || DEFAULT_IMAGE_STYLE,
         book_layout: d.bookLayout || DEFAULT_BOOK_LAYOUT,
+        text_style: d.textStyle || defaultTextStyle(selected.product_category),
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
@@ -785,6 +790,7 @@ function Dashboard() {
       ...d,
       productCategory: slug,
       intake: {},
+      textStyle: defaultTextStyle(slug),
       pickupAddress: { ...EMPTY_PICKUP, ...(d.pickupAddress || {}) },
       languages: d.languages?.length ? [...d.languages] : [DEFAULT_LANGUAGE],
     }
@@ -851,6 +857,7 @@ function Dashboard() {
         followups: createForm.followups,
         imageStyle: createForm.imageStyle || DEFAULT_IMAGE_STYLE,
         bookLayout: createForm.bookLayout || DEFAULT_BOOK_LAYOUT,
+        textStyle: createForm.textStyle || defaultTextStyle(createForm.productCategory),
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,

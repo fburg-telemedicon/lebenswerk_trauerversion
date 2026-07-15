@@ -187,7 +187,8 @@ async function ensureLifeworkSchema() {
   await pool().query(`
     alter table memorials
       add column if not exists family_tree jsonb,
-      add column if not exists life_poster jsonb
+      add column if not exists life_poster jsonb,
+      add column if not exists text_style  text
   `)
   schemaReady = true
 }
