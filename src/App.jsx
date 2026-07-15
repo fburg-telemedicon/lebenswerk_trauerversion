@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react'
+import { useState, useEffect, useRef, Fragment, Component } from 'react'
 import JSZip from 'jszip'
 import {
   createMemorial, getMemorial, getContribution, addContribution,
@@ -68,6 +68,27 @@ const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding eines neuen Benutzers
 const registerFromURL = urlParams.has('register')            // öffentliche Selbstregistrierung (Lebenswerk-Test)
+
+// Fängt Render-Fehler ab, damit ein Bug NICHT den ganzen Bildschirm leert, sondern
+// die Fehlermeldung zeigt (die früher nur in der Browser-Konsole stand).
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { err: null } }
+  static getDerivedStateFromError(err) { return { err } }
+  componentDidCatch(err, info) { console.error('UI-Fehler:', err, info) }
+  render() {
+    if (!this.state.err) return this.props.children
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1.5rem' }}>
+        <div style={{ maxWidth: 560, width: '100%', background: '#fff', border: '1px solid #fecaca', borderRadius: 12, padding: '1.75rem' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px', color: '#991b1b' }}>Ein Anzeigefehler ist aufgetreten</h1>
+          <p style={{ fontSize: 14, color: '#57534e', margin: '0 0 12px' }}>Bitte laden Sie die Seite neu. Falls es erneut auftritt, senden Sie uns diese Meldung:</p>
+          <pre style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 12, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#7f1d1d', margin: 0 }}>{String(this.state.err?.message || this.state.err)}</pre>
+          <button onClick={() => { this.setState({ err: null }); window.location.reload() }} style={{ marginTop: 14, fontSize: 14, padding: '9px 16px' }}>Seite neu laden</button>
+        </div>
+      </div>
+    )
+  }
+}
 
 // Versions-Tag des Einwilligungstextes. Bei JEDER inhaltlichen Änderung des
 // Consent-/Datenschutztextes hochzählen, damit protokolliert ist, welcher
@@ -3241,10 +3262,12 @@ export default function App() {
         @keyframes lw-spin { to{transform:rotate(360deg)} }
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-      {inviteFromURL ? <InviteFlow token={inviteFromURL} />
-        : registerFromURL ? <RegisterFlow />
-        : codeFromURL ? <ContributorFlow code={codeFromURL} />
-        : <AdminLangProvider><Dashboard /></AdminLangProvider>}
+      <ErrorBoundary>
+        {inviteFromURL ? <InviteFlow token={inviteFromURL} />
+          : registerFromURL ? <RegisterFlow />
+          : codeFromURL ? <ContributorFlow code={codeFromURL} />
+          : <AdminLangProvider><Dashboard /></AdminLangProvider>}
+      </ErrorBoundary>
       <LegalFooter />
     </>
   )

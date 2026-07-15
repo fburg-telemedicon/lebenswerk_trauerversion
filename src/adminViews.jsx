@@ -2193,10 +2193,11 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       {(() => {
-                        // Sobald der Endnutzer die vorläufige Druckversion erstellt hat
-                        // (Interview abgeschlossen) bzw. das Buch abgeschlossen ist,
-                        // darf der Admin nicht mehr drüber generieren.
-                        const enduserLocked = selected.product_category === 'lifework' && (selected.book_finalized || selected.interview_closed)
+                        // Gesperrt, solange der Endnutzer die Endversion HÄLT (aktiver
+                        // Lock) oder das Buch abgeschlossen ist. Gibt der Admin den Lock
+                        // frei (edit_lock → null), ist Generieren wieder möglich —
+                        // interview_closed allein sperrt NICHT dauerhaft.
+                        const enduserLocked = selected.product_category === 'lifework' && (selected.book_finalized || selected.edit_lock?.holder === 'enduser')
                         return (
                         <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0 || enduserLocked}
                           title={enduserLocked ? t('Gesperrt: Der Endnutzer erstellt/bearbeitet die Endversion.', 'Locked: the end user is creating/editing the final version.') : ''}

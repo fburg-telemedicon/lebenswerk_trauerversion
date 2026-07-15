@@ -188,8 +188,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
         // und der Call schlägt fehl (500) — dann wurde die alte Frage einfach wieder
         // vorgelesen und die Bestätigung kam nie.
         const modeDirective = companionOn
-          ? '\n\n[MODUSWECHSEL: Der Erzähler hat gerade den begleiteten Modus eingeschaltet — ab jetzt führt eine anwesende Begleitperson (z. B. eine Pflegekraft) das Gespräch mit. Bestätige das in EINEM kurzen, warmen Satz, tritt selbst zurück und stelle KEINE neue Frage.]'
-          : '\n\n[MODUSWECHSEL: Der begleitete Modus wurde wieder ausgeschaltet — du übernimmst die Gesprächsführung wieder. Melde dich in einem kurzen, warmen Satz zurück und stelle dann die nächste passende Frage; berücksichtige, was in der Zwischenzeit gesprochen wurde.]'
+          ? '\n\n[MODUSWECHSEL: Der begleitete Modus wurde eingeschaltet — eine Begleitperson führt jetzt mit. Bestätige das in EINEM sehr kurzen, warmen Satz (höchstens 8 Wörter), tritt zurück und stelle KEINE Frage.]'
+          : '\n\n[MODUSWECHSEL: Der begleitete Modus wurde ausgeschaltet — du übernimmst wieder. Melde dich in EINEM sehr kurzen, warmen Satz (höchstens 10 Wörter) zurück und stelle dann die nächste passende Frage.]'
         const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang) + modeDirective
         const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current], { memorialCode: memorial?.id, kind: 'interview' })
         if (cancelled) return
