@@ -209,6 +209,20 @@ export const heartbeatEditLock= (code, token, lockToken)=> enduserBook(code, tok
 export const releaseEditLock  = (code, token, lockToken)=> enduserBook(code, token, { action: 'lock-release', token: lockToken })
 export const consumeProof     = (code, token)            => enduserBook(code, token, { action: 'proof-consume' })     // { used, max, remaining }
 export const saveEnduserBook  = (code, token, lockToken, book) => enduserBook(code, token, { action: 'save-book', token: lockToken, book })
+export const startPrintVersion= (code, token)            => enduserBook(code, token, { action: 'start-print' })       // { token, expires, interview_closed }
+export const finalizeBook     = (code, token, lockToken) => enduserBook(code, token, { action: 'finalize', token: lockToken })
+
+// Ein Kapitel-Bild für die vorläufige Druckversion erzeugen (FLUX, kostenpflichtig).
+// Braucht den Bearbeitungs-Lock (lockToken). Gibt { storagePath, count, max } zurück.
+export async function enduserGenerateImage(code, token, { chapterNumber, prompt, lockToken, imageStyle }) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`/api/enduser-image?code=${encodeURIComponent(code)}`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ chapterNumber, prompt, token: lockToken, imageStyle }),
+  })
+  return parseResponse(res)
+}
 
 // Self-Service-Registrierung als Endnutzer eines Lebenswerks (öffentlich, ohne
 // Login). Legt Buch (Default-Werte + 5-Min-Testlimit) + Konto an und verschickt

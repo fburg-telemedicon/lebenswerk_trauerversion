@@ -62,6 +62,8 @@ export async function generateProofBook({ memorial, contributions, lang, onProgr
       number: Number.isFinite(plan.number) ? plan.number : (i + 1),
       heading: String(ch?.heading || plan.heading || '').trim(),
       body: String(ch?.body || '').trim(),
+      // Bild-Motiv (für die vorläufige Druckversion; beim Zwischenstand ungenutzt).
+      image_prompt: String(ch?.image_prompt || plan.image_prompt || '').trim(),
     })
   }
 

@@ -22,6 +22,7 @@ const { checkAuth } = require('./_lib/auth')
 const { enforce } = require('./_lib/ratelimit')
 const { LIFEWORK } = require('./_lib/lifework')
 const { sendMail } = require('./_lib/graphmail')
+const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -90,6 +91,17 @@ module.exports = async function handler(req, res) {
     // Endnutzer seines EIGENEN Lebenswerks ist die Textvorschau hier aber ok.
     if (action === 'get-book') {
       const book = sanitizeBook(m.book_v2)
+      // Kapitelbilder signieren (Bucket privat) — image_url pro Kapitel anhängen.
+      if (book && Array.isArray(book.chapters)) {
+        const paths = book.chapters.map(c => c.image_path).filter(Boolean)
+        if (paths.length) {
+          try {
+            const { data: signed } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls(paths, 3600)
+            const map = {}; for (const s of (signed || [])) if (s?.path && s?.signedUrl) map[s.path] = s.signedUrl
+            for (const c of book.chapters) if (c.image_path && map[c.image_path]) c.image_url = map[c.image_path]
+          } catch {}
+        }
+      }
       const lk = m.edit_lock
       const lock = lockActive(lk) ? { holder: lk.holder || null, expires: lk.expires } : null
       return res.json({ book, proof_used: m.proof_used || 0, proof_max: m.proof_max ?? 3, lock, interview_closed: !!m.interview_closed, book_finalized: !!m.book_finalized })
