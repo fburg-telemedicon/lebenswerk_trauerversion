@@ -4,6 +4,7 @@
     {
       "date": "2026-07-15",
       "items": [
+        "Begleiteter Modus: Die kurze Bestätigung beim Ein- und Ausschalten kommt jetzt zuverlässig (fester, übersetzter Hinweis statt KI-Antwort, die vom Sicherheitsfilter teils blockiert wurde) – in allen 9 Sprachen.",
         "Gegenseitige Sperre: Solange der Endnutzer sein Buch bearbeitet, kann der Admin es nicht bearbeiten – und umgekehrt.",
         "Ist ein Buch abgeschlossen, laufen weder Interview noch Foto-Upload weiter; der Dashboard-Status aktualisiert sich sofort (In Arbeit → Frist beendet → In Druckversion → Abgeschlossen).",
         "Druckversion: Ein einziges, immer sichtbares Audio-Icon oben überarbeitet den zuletzt angetippten Absatz ODER die Überschrift (markierter Teil oder ganzes Feld); Leerzeichen sitzen danach korrekt, und die Textfelder wachsen automatisch auf Texthöhe.",
