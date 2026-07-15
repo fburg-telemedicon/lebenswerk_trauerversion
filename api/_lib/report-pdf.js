@@ -139,6 +139,7 @@ function page1Top(d) {
   ry += 24
   s += table(MARGIN, ry, W - 2 * MARGIN, [
     { label: 'Neue Manager', value: int(y.newManagers) },
+    { label: 'Fertig abgeschlossen (drucken!)', value: `${int(y.finalizedBooks)}${d.totals.finalizedBooks ? ` · offen gesamt ${int(d.totals.finalizedBooks)}` : ''}` },
     { label: 'Beigetragene Textmenge', value: `${int(y.words)} Wörter · ${int(y.chars)} Zeichen` },
     { label: 'Kosten Monat bisher', value: eur(d.mtd.costEur) },
     { label: 'Kosten Vormonat (gesamt)', value: eur(d.mtd.prevMonthCostEur) },

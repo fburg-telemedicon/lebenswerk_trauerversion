@@ -1953,6 +1953,22 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
         </div>
 
         <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
+          {selected.product_category === 'lifework' && selected.book_finalized && (
+            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#166534', fontWeight:600 }}>
+              📕 {t('Vom Endnutzer abgeschlossen — muss gedruckt werden.', 'Finalized by the end user — needs to be printed.')}
+            </div>
+          )}
+          {selected.product_category === 'lifework' && !selected.book_finalized && selected.edit_lock?.holder === 'enduser' && (
+            <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#92400e', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+              <span>🔒 {t('Wird gerade vom Endnutzer bearbeitet (Druckversion).', 'Currently being edited by the end user (print version).')}</span>
+              <button className="secondary" onClick={() => adminProofAction({ releaseLock: true })} style={{ fontSize:12, padding:'4px 10px', color:'#b91c1c', borderColor:'#fecaca' }}>{t('Bearbeitung freigeben', 'Release editing')}</button>
+            </div>
+          )}
+          {selected.product_category === 'lifework' && !selected.book_finalized && selected.edit_lock?.holder !== 'enduser' && selected.interview_closed && (
+            <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#1e40af' }}>
+              ✍️ {t('Interview abgeschlossen — der Endnutzer erstellt/bearbeitet die vorläufige Druckversion.', 'Interview finished — the end user is creating/editing the preliminary print version.')}
+            </div>
+          )}
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{t('Beiträge', 'Contributions')}</h2>
           <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
             {t('Organisator:', 'Organizer:')} {selected.organizer}

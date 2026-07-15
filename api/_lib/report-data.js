@@ -159,6 +159,10 @@ async function gatherReport(supabase, opts = {}) {
   const imagesTotal = await safe('count(images)', () => countRows(supabase, s => s.from('cost_events').select('*', { count: 'exact', head: true }).eq('kind', 'image')), 0)
   const booksTotal = await safe('count(books)', () => countRows(supabase, s => s.from('memorials').select('*', { count: 'exact', head: true }).or('book_v1.not.is.null,book_v2.not.is.null')), 0)
   const eulogiesTotal = await safe('count(eulogies)', () => countRows(supabase, s => s.from('memorials').select('*', { count: 'exact', head: true }).not('eulogy_text', 'is', null)), 0)
+  // Vom Endnutzer ABGESCHLOSSENE Bücher (vorläufige Druckversion finalisiert) →
+  // müssen gedruckt werden. Gestern abgeschlossen (aktionabel) + Gesamtbestand.
+  const finalizedTotal = await safe('count(finalized)', () => countRows(supabase, s => s.from('memorials').select('*', { count: 'exact', head: true }).eq('book_finalized', true)), 0)
+  const finalizedYday = await safe('count(finalizedYday)', () => countRows(supabase, s => s.from('memorials').select('*', { count: 'exact', head: true }).gte('book_finalized_at', iso(dayStart)).lt('book_finalized_at', iso(dayEnd))), 0)
 
   // ── Serien (30 Tage) ────────────────────────────────────────────
   const contributionsPerDay = new Array(30).fill(0)
@@ -280,6 +284,7 @@ async function gatherReport(supabase, opts = {}) {
       newMemorialsByCat,
       newContributions: contributionsPerDay[29] || 0,
       newBooks, newEulogies, newPhotos, newManagers,
+      finalizedBooks: finalizedYday,
       costEur: round2(costYesterday),
       costByModule: { llm: round2(costByModule.llm), tts: round2(costByModule.tts), stt: round2(costByModule.stt), image: round2(costByModule.image) },
       costByModel: Object.fromEntries(Object.entries(costByModel).map(([k, v]) => [k, round2(v)]).sort((a, b) => b[1] - a[1])),
@@ -299,6 +304,7 @@ async function gatherReport(supabase, opts = {}) {
       eulogies: eulogiesTotal,
       photos: photosTotal,
       images: imagesTotal,
+      finalizedBooks: finalizedTotal,
     },
     mtd: { costEur: round2(costMtd), prevMonthCostEur: round2(costPrevMonth) },
     series: { days, contributionsPerDay, costPerDay: costPerDay.map(round2), memorialsPerDay, memByCat30 },

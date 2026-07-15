@@ -28,6 +28,7 @@ function htmlBody(d) {
     ['📖 Neue Gedenkbücher', int(y.newMemorials) + deltaHtml(d.yesterday.delta.memorials), catStr],
     ['✍️ Neue Beiträge', int(y.newContributions) + deltaHtml(d.yesterday.delta.contributions), ''],
     ['🏭 Neu erzeugte Bücher / Nachrufe', d.genTimestamps ? `${int(y.newBooks)} / ${int(y.newEulogies)}` : '–', ''],
+    ['📕 Fertig abgeschlossen (drucken!)', int(y.finalizedBooks), d.totals.finalizedBooks ? `insgesamt zu drucken: ${int(d.totals.finalizedBooks)}` : ''],
     ['🖼️ Neue Fotos', int(y.newPhotos), ''],
     ['👤 Neue Manager', int(y.newManagers), ''],
     ['💶 Kosten gestern', eur(y.costEur) + deltaHtml(d.yesterday.delta.costEur, true), ''],
@@ -80,6 +81,7 @@ function textBody(d) {
   L.push(`  Neue Gedenkbücher: ${int(y.newMemorials)}${deltaText(y.delta.memorials)}`)
   L.push(`  Neue Beiträge: ${int(y.newContributions)}${deltaText(y.delta.contributions)}`)
   L.push(`  Neu erzeugte Bücher/Nachrufe: ${d.genTimestamps ? `${int(y.newBooks)} / ${int(y.newEulogies)}` : '–'}`)
+  L.push(`  Fertig abgeschlossen (drucken!): ${int(y.finalizedBooks)}${d.totals.finalizedBooks ? ` (insgesamt zu drucken: ${int(d.totals.finalizedBooks)})` : ''}`)
   L.push(`  Neue Fotos: ${int(y.newPhotos)}`)
   L.push(`  Neue Manager: ${int(y.newManagers)}`)
   L.push(`  Kosten gestern: ${eur(y.costEur)}${deltaText(y.delta.costEur, true)}`)
