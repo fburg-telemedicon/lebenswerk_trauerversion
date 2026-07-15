@@ -76,7 +76,7 @@ function Waveform({ stream, color = '#dc2626' }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true }) {
   const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -410,7 +410,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, s
             <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
-        <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>
+        {!hidePause && <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>}
       </div>
       {timerActive && (
         <div style={{ textAlign:'center', padding:'8px 12px', borderBottom:'1px solid #e7e5e4', fontSize:14, fontWeight:700,
@@ -1743,6 +1743,17 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       )}
 
       {!needLang && view === 'interview' && memorial && (() => {
+        // Der Einstellungs-Tab gehört JEDEM Lebenswerk-Endnutzer — auch dem, der
+        // ohne Login über den Code-Link kommt (E-Mail ist optional). Die Änderung
+        // läuft dann code-basiert (updateOwnMemorial ohne Token; Server erlaubt das
+        // nur beim Lebenswerk).
+        const withSettings = isSelf
+        // Nach Abschluss des Buchs kein Foto-Upload mehr.
+        const withPhoto    = memorial.photo_upload_tab === true && !memorial.book_finalized
+        const withProof    = isSelf && memorial.proof_enabled === true
+        // Menü (Hamburger) vorhanden = Tab-Leiste. Dann steckt „Später fortsetzen/
+        // beenden" schon im Menü → der In-Interview-Button entfällt.
+        const hasMenu = withPhoto || withProof
         // Nach Start der Druckversion ODER Abschluss des Buchs ist das Interview
         // gesperrt — nur ein Hinweis.
         const vi = (memorial.interview_closed || memorial.book_finalized) ? (
@@ -1758,6 +1769,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             lang={L}
             onSave={saveProgress}
             onPause={handlePause}
+            hidePause={hasMenu}
             saveErr={saveErr}
             initialMessages={initialMessages}
             showTx={showTx}
@@ -1767,14 +1779,6 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             active={tab === 'interview'}
           />
         )
-        // Der Einstellungs-Tab gehört JEDEM Lebenswerk-Endnutzer — auch dem, der
-        // ohne Login über den Code-Link kommt (E-Mail ist optional). Die Änderung
-        // läuft dann code-basiert (updateOwnMemorial ohne Token; Server erlaubt das
-        // nur beim Lebenswerk).
-        const withSettings = isSelf
-        // Nach Abschluss des Buchs kein Foto-Upload mehr.
-        const withPhoto    = memorial.photo_upload_tab === true && !memorial.book_finalized
-        const withProof    = isSelf && memorial.proof_enabled === true
         // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt
         // (der Einstellungs-Tab erschien schon bisher nur zusammen mit der Tab-Leiste).
         if (!withPhoto && !withProof) return vi
