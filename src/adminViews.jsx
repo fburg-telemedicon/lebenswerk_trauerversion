@@ -1020,7 +1020,13 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     const isLifework = createForm.productCategory === 'lifework'
     const euMail = (createForm.enduserEmail || '').trim()
     const emailOk = !isLifework || !euMail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(euMail)
-    const canSubmit = (isLifework || createForm.name) && (isLifework || createForm.organizer) && (!ci.useGender || createForm.gender) && emailOk && !busy
+    // Beim Lebenswerk ist bei der Anlage ALLES optional (Name, Geschlecht, Anrede) —
+    // der Endnutzer ergänzt beim Start, was fehlt. Deshalb hängt der Anlage-Button
+    // dort nur an einer gültigen (oder leeren) E-Mail. Bei den anderen Kategorien
+    // bleiben Name/Organisator/Geschlecht Pflicht wie bisher.
+    const canSubmit = isLifework
+      ? (emailOk && !busy)
+      : (createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && emailOk && !busy)
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     const [expertMode, setExpertMode] = useState(false)
