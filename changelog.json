@@ -4,7 +4,11 @@
     {
       "date": "2026-07-15",
       "items": [
-        "Fehler behoben: Der leere Bildschirm beim Klick auf „Ansehen\" (Buchansicht im Dashboard) ist beseitigt.",
+        "Gegenseitige Sperre: Solange der Endnutzer sein Buch bearbeitet, kann der Admin es nicht bearbeiten – und umgekehrt.",
+        "Ist ein Buch abgeschlossen, laufen weder Interview noch Foto-Upload weiter; der Dashboard-Status aktualisiert sich sofort (In Arbeit → Frist beendet → In Druckversion → Abgeschlossen).",
+        "Druckversion: Ein einziges, immer sichtbares Audio-Icon oben überarbeitet den zuletzt angetippten Absatz ODER die Überschrift (markierter Teil oder ganzes Feld); Leerzeichen sitzen danach korrekt, und die Textfelder wachsen automatisch auf Texthöhe.",
+        "Beitragenden-Menü: „Begleitet“ ist aus dem Menü heraus und sitzt jetzt als Umschalter mit Personen-Symbol direkt am Mikrofon; das Menü-Icon ist dunkel/gut sichtbar und vollständig übersetzt. „Später fortsetzen“ nur noch im Menü.",
+        "Fehler behoben: Der leere Bildschirm beim Klick auf „Ansehen“ (Buchansicht im Dashboard) ist beseitigt.",
         "Selbstregistrierung: Startet jetzt mit der Sprachauswahl; die E-Mail-Abfrage erscheint danach direkt in der gewählten Sprache.",
         "Buchvorschau/Druckversion (Endnutzer): Alle Bedientexte sind jetzt mehrsprachig (Deutsch/Englisch).",
         "Das Login-Fenster erscheint jetzt in der Sprache aus der Zugangs-E-Mail.",
