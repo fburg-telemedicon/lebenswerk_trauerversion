@@ -1643,7 +1643,7 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
     )
 }
 
-export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, requestDownload, dlLangOverlay, downloadGeneratedPdf, downloadCover, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText, dlBusy }) {
+export function BookView({ view, selected, generating, genOwner, contributions, editMode, editDraft, savingEdit, err, genErr, genPct, genProgress, GENERATORS, cancelGenRef, setEditMode, setEditDraft, setView, cancelGenerate, saveEdit, setReportModal, downloadGenerated, requestDownload, dlLangOverlay, downloadGeneratedPdf, downloadCover, setEulogyStyleModal, requestGenerate, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, highlightParagraph, renderRichText, dlBusy, posterZoomOverlay, posterStyleOverlay }) {
     const t = useAdminT()
     const key  = view === 'book-v1' ? 'book_v1' : view === 'book-v2' ? 'book_v2' : 'eulogy'
     const gen  = GENERATORS[key]
