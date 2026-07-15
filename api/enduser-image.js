@@ -198,7 +198,7 @@ module.exports = async function handler(req, res) {
 
     // Signierte Anzeige-URL für die sofortige Darstellung im Client (Bucket ist privat).
     let url = null
-    try { const { data: s } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 3600); url = s?.signedUrl || null } catch {}
+    try { const { data: s } = await supabase.storage.from(BUCKET).createSignedUrls([storagePath], 3600); url = s?.[0]?.signedUrl || null } catch {}
 
     return res.json({ storagePath, url, count: cur + 1, max: maxTotal, ...(usedFallback ? { fallback: 'content_policy' } : {}) })
   } catch (e) {
