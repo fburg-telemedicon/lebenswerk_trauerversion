@@ -68,6 +68,27 @@ const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding eines neuen Benutzers
 const registerFromURL = urlParams.has('register')            // öffentliche Selbstregistrierung (Lebenswerk-Test)
+const langFromURL   = (urlParams.get('lang') || '').trim()   // Login-Fenster in dieser Sprache (aus der Zugangsmail)
+
+// ── Login-Fenster mehrsprachig ────────────────────────────────────
+// Endnutzer kommen über den Login-Link ihrer Zugangsmail (mit ?lang=…) zurück; das
+// Login-Fenster soll dann in ihrer Sprache erscheinen. Nur die wenigen sichtbaren
+// Strings des Login-Formulars; das Dashboard dahinter bleibt de/en.
+const LOGIN_L10N = {
+  de: { sub: 'Bitte melden Sie sich an.', email: 'E-Mail-Adresse', pw: 'Passwort', signIn: 'Anmelden', signingIn: 'Wird überprüft …', forgot: 'Passwort vergessen?' },
+  en: { sub: 'Please sign in.', email: 'Email address', pw: 'Password', signIn: 'Sign in', signingIn: 'Signing in …', forgot: 'Forgot password?' },
+  pl: { sub: 'Zaloguj się.', email: 'Adres e-mail', pw: 'Hasło', signIn: 'Zaloguj się', signingIn: 'Sprawdzanie …', forgot: 'Nie pamiętasz hasła?' },
+  es: { sub: 'Inicie sesión.', email: 'Correo electrónico', pw: 'Contraseña', signIn: 'Iniciar sesión', signingIn: 'Comprobando …', forgot: '¿Olvidó su contraseña?' },
+  it: { sub: 'Accedi.', email: 'Indirizzo e-mail', pw: 'Password', signIn: 'Accedi', signingIn: 'Verifica in corso …', forgot: 'Password dimenticata?' },
+  eu: { sub: 'Hasi saioa.', email: 'Helbide elektronikoa', pw: 'Pasahitza', signIn: 'Hasi saioa', signingIn: 'Egiaztatzen …', forgot: 'Pasahitza ahaztu duzu?' },
+  he: { sub: 'אנא התחבר.', email: 'כתובת דוא״ל', pw: 'סיסמה', signIn: 'התחברות', signingIn: 'בבדיקה …', forgot: 'שכחת סיסמה?' },
+  ar: { sub: 'الرجاء تسجيل الدخول.', email: 'البريد الإلكتروني', pw: 'كلمة المرور', signIn: 'تسجيل الدخول', signingIn: 'جارٍ التحقق …', forgot: 'هل نسيت كلمة المرور؟' },
+}
+LOGIN_L10N['de-CH'] = LOGIN_L10N.de
+const loginT = (lang) => LOGIN_L10N[lang] || LOGIN_L10N[String(lang || '').slice(0, 2)] || LOGIN_L10N.de
+const LOGIN_LANG    = LOGIN_L10N[langFromURL] ? langFromURL : (LOGIN_L10N[langFromURL.slice(0, 2)] ? langFromURL.slice(0, 2) : null)
+const LOGIN_RTL     = LOGIN_LANG === 'he' || LOGIN_LANG === 'ar'
+const LOGIN_T       = loginT(LOGIN_LANG || 'de')
 
 // Fängt Render-Fehler ab, damit ein Bug NICHT den ganzen Bildschirm leert, sondern
 // die Fehlermeldung zeigt (die früher nur in der Browser-Konsole stand).
@@ -2892,28 +2913,30 @@ Regeln:
   if (view === 'login') return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
       {!showReset ? (
-      <form onSubmit={login} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Lebenswerk Admin</h1>
-        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>Bitte melden Sie sich an.</p>
+      <form onSubmit={login} dir={LOGIN_RTL ? 'rtl' : 'ltr'} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem', textAlign: LOGIN_RTL ? 'right' : 'left' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{LOGIN_LANG ? 'Lebensgeschichten' : 'Lebenswerk Admin'}</h1>
+        <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1.5rem' }}>{LOGIN_T.sub}</p>
         <Err msg={err} />
         <div style={{ marginBottom: 12 }}>
-          <Lbl>E-Mail-Adresse</Lbl>
-          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="name@beispiel.de" autoFocus />
+          <Lbl>{LOGIN_T.email}</Lbl>
+          <input value={username} onChange={e => setUsername(e.target.value)} dir="ltr" placeholder="name@beispiel.de" autoFocus />
         </div>
         <div style={{ marginBottom: 20 }}>
-          <Lbl>Passwort</Lbl>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••" />
+          <Lbl>{LOGIN_T.pw}</Lbl>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••" />
         </div>
         <button type="submit" disabled={loading || !username || !password} style={{ width: '100%', padding: 12, fontSize: 15 }}>
-          {loading ? 'Wird überprüft …' : 'Anmelden'}
+          {loading ? LOGIN_T.signingIn : LOGIN_T.signIn}
         </button>
         <button type="button" onClick={() => { setShowReset(true); setResetEmail(username); setResetMsg(''); setErr('') }}
           style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
-          Passwort vergessen?
+          {LOGIN_T.forgot}
         </button>
-        <p style={{ textAlign: 'center', fontSize: 13, color: '#a8a29e', margin: '18px 0 0', borderTop: '1px solid #f5f5f4', paddingTop: 16 }}>
-          Noch keinen Zugang? <a href="/?register=1" style={{ color: '#78716c', fontWeight: 600 }}>Lebenswerk kostenlos testen</a>
-        </p>
+        {!LOGIN_LANG && (
+          <p style={{ textAlign: 'center', fontSize: 13, color: '#a8a29e', margin: '18px 0 0', borderTop: '1px solid #f5f5f4', paddingTop: 16 }}>
+            Noch keinen Zugang? <a href="/?register=1" style={{ color: '#78716c', fontWeight: 600 }}>Lebenswerk kostenlos testen</a>
+          </p>
+        )}
       </form>
       ) : (
       <form onSubmit={submitReset} style={{ width: '100%', maxWidth: 360, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>

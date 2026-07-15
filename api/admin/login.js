@@ -145,7 +145,10 @@ async function handleInvite(req, res, tok) {
     // mit Link zum Login-Screen (BCC an den Betreiber). Ein Fehlschlag darf das
     // erfolgreiche Einlösen nicht kippen.
     try {
-      await sendAccessMail({ to: user.username, url: `${baseUrl(req)}/`, kind: 'confirm', lang: confirmLang })
+      // Login-Link trägt die gewählte Sprache (?lang=…), damit das Login-Fenster
+      // beim nächsten Besuch direkt in der richtigen Sprache erscheint.
+      const loginUrl = `${baseUrl(req)}/?lang=${encodeURIComponent(confirmLang)}`
+      await sendAccessMail({ to: user.username, url: loginUrl, kind: 'confirm', lang: confirmLang })
       await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'user.confirm_sent', detail: { to: user.username } })
     } catch (e) {
       console.error('/api/admin/login confirm mail:', e)
