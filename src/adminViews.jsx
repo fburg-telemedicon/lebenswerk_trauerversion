@@ -1323,6 +1323,22 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Blendet im Interview einen Umschalter ein. Ist er aktiv, kann eine Begleitperson (z. B. eine Pflegekraft) das Gespräch mitführen – mit eigenem, blauem Mikrofon; die KI tritt so lange zurück. Für die Buchsynthese zählen vor allem die Aussagen des Erzählers selbst.</p>
         </div>
         )}
+        {createForm.productCategory === 'lifework' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Probedruck-Tab (Buchvorschau für den Endnutzer)</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.proofEnabled === true} onChange={e => setCreateForm({ ...createForm, proofEnabled: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Endnutzer darf eine Buchvorschau erzeugen und bearbeiten</span>
+          </label>
+          {createForm.proofEnabled === true && (
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, marginLeft:28 }}>
+              <span style={{ fontSize:14 }}>Anzahl erlaubter Vorschauen:</span>
+              <input type="number" min={0} max={20} value={createForm.proofMax} onChange={e => setCreateForm({ ...createForm, proofMax: e.target.value })} style={{ width:80 }} />
+            </div>
+          )}
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Blendet für den Endnutzer einen Tab ein, in dem sein Buch aus den bisherigen Antworten erzeugt und als Textansicht angezeigt wird (ohne Bilder). Jede Erzeugung ist eine KI-Generierung und zählt gegen dieses Limit. Der Endnutzer kann den Text bearbeiten; Änderungen werden gespeichert.</p>
+        </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Textstil des Buchs</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Später im Dashboard änderbar.</p>
@@ -1894,7 +1910,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
   )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -2520,6 +2536,32 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                     <span style={{ fontSize:14 }}>Umschalter für den begleiteten Modus anbieten</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Begleitperson (z. B. Pflegekraft) kann das Gespräch mit eigenem, blauem Mikrofon mitführen.</p>
+                </div>
+                )}
+                {selected.product_category === 'lifework' && (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Probedruck-Tab (Buchvorschau für den Endnutzer)</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.proofEnabled === true} onChange={e => setOd({ proofEnabled: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Endnutzer darf eine Buchvorschau erzeugen und bearbeiten</span>
+                  </label>
+                  {od.proofEnabled === true && (
+                    <div style={{ marginTop:10, marginLeft:28, display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:13, color:'#78716c' }}>Anzahl erlaubter Vorschauen:</span>
+                      <input type="number" min={0} max={20} value={od.proofMax} onChange={e => setOd({ proofMax: e.target.value })} style={{ width:80 }} />
+                    </div>
+                  )}
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Erzeugt das Buch aus den bisherigen Antworten als Textansicht (ohne Bilder); jede Erzeugung zählt gegen das Limit. Der Endnutzer kann den Text bearbeiten.</p>
+                  <div style={{ marginTop:10, marginLeft:28, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                    <span style={{ fontSize:13, color:'#57534e' }}>Verbraucht: <b>{selected.proof_used || 0}</b> von {selected.proof_max ?? 3}</span>
+                    <button type="button" className="secondary" onClick={() => adminProofAction({ resetProofUsed: true })} disabled={!(selected.proof_used > 0)} style={{ fontSize:12, padding:'4px 10px' }}>↺ Verbrauch zurücksetzen</button>
+                    {selected.edit_lock?.holder === 'enduser' && (
+                      <>
+                        <span style={{ fontSize:12, color:'#b45309', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:6, padding:'3px 8px' }}>🔒 Wird gerade vom Endnutzer bearbeitet</span>
+                        <button type="button" className="secondary" onClick={() => adminProofAction({ releaseLock: true })} style={{ fontSize:12, padding:'4px 10px', color:'#b91c1c', borderColor:'#fecaca' }}>Bearbeitung freigeben</button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 )}
                 <div style={{ marginBottom:14 }}>

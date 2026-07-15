@@ -151,6 +151,7 @@ const EMPTY_CREATE = {
   textStyle: 'literary',   // je Kategorie in freshCreateForm auf den Default gesetzt
   timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
   companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
+  proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   // nur Kategorie Lebenswerk
   enduserEmail: '',
 }
@@ -715,6 +716,8 @@ function Dashboard() {
       timerOn: (m.interview_timer_seconds || 0) > 0,
       timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
       companionMode: m.companion_mode === true,
+      proofEnabled: m.proof_enabled === true,
+      proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
     })
     setOrderEdit(true)
   }
@@ -740,6 +743,8 @@ function Dashboard() {
         productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils
         interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: d.companionMode === true,
+        proofEnabled: d.proofEnabled === true,
+        proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -765,12 +770,29 @@ function Dashboard() {
         text_style: d.textStyle || defaultTextStyle(selected.product_category),
         interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companion_mode: d.companionMode === true,
+        proof_enabled: d.proofEnabled === true,
+        proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
       setOrderEdit(false); setOrderDraft(null)
     } catch (e) { setErr(e.message) }
     finally { setOrderSaving(false) }
+  }
+
+  // Sofort-Aktionen zum Probedruck: verbrauchte Vorschauen zurücksetzen bzw. den
+  // Bearbeitungs-Lock des Endnutzers aus der Ferne lösen (Fern-Freigabe).
+  async function adminProofAction(meta) {
+    if (!selected) return
+    setErr('')
+    try {
+      await adminUpdateMemorialMeta(token, selected.id, meta)
+      const local = {}
+      if (meta.resetProofUsed) local.proof_used = 0
+      if (meta.releaseLock) local.edit_lock = null
+      setSelected(s => ({ ...s, ...local }))
+      setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
+    } catch (e) { setErr(e.message) }
   }
 
   function logout() {
@@ -871,6 +893,8 @@ function Dashboard() {
         textStyle: createForm.textStyle || defaultTextStyle(createForm.productCategory),
         interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: createForm.companionMode === true,
+        proofEnabled: createForm.proofEnabled === true,
+        proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,
@@ -2930,7 +2954,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
