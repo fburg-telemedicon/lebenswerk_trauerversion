@@ -126,49 +126,53 @@ export function ReportsView({ err, reportMsg, recipients, recipientForm, busy, l
 }
 
 export function CostsView({ selected, costData, costsLoading, err, setView, logout }) {
+    const t = useAdminT()
     const kinds = costData?.byKind ? Object.entries(costData.byKind).sort((a, b) => b[1].cost_eur - a[1].cost_eur) : []
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
         <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>← Zurück</button>
+            <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
             <div>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>Kosten</span>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>{t('Kosten', 'Costs')}</span>
               <span style={{ fontSize:13, color:'#78716c', marginLeft:10 }}>· {selected.name}</span>
             </div>
           </div>
-          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>Abmelden</button>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <AdminLangToggle />
+            <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+          </div>
         </div>
 
         <div style={{ maxWidth: 920, margin: '2rem auto', padding: '0 1.5rem' }}>
           <Err msg={err} />
-          {costsLoading && <p style={S.muted}>Wird geladen …</p>}
+          {costsLoading && <p style={S.muted}>{t('Wird geladen …', 'Loading …')}</p>}
           {!costsLoading && costData && (
             <>
               <div style={{ ...S.card, marginBottom:'1.5rem', textAlign:'center' }}>
-                <Lbl>Gesamtkosten dieses Buchs</Lbl>
+                <Lbl>{t('Gesamtkosten dieses Buchs', 'Total cost of this book')}</Lbl>
                 <div style={{ fontSize:32, fontWeight:700, fontFamily:'Georgia,serif', marginTop:6 }}>{formatEurSum(costData.total_eur)}</div>
                 <div style={{ fontSize:13, color:'#78716c', marginTop:4 }}>≈ {Number(costData.total_usd || 0).toFixed(2)} USD</div>
               </div>
 
-              <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Aufschlüsselung nach Kategorie</h3>
+              <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{t('Aufschlüsselung nach Kategorie', 'Breakdown by category')}</h3>
               {kinds.length === 0 ? (
-                <p style={S.muted}>Noch keine Kosten erfasst.</p>
+                <p style={S.muted}>{t('Noch keine Kosten erfasst.', 'No costs recorded yet.')}</p>
               ) : (
                 <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, overflow:'hidden', marginBottom:'1.5rem' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse' }}>
                     <thead>
                       <tr>
-                        {['Kategorie', 'Calls', 'Mengen', 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
+                        {[t('Kategorie', 'Category'), t('Calls', 'Calls'), t('Mengen', 'Quantities'), 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {kinds.map(([k, agg]) => {
                         const units = []
-                        if (agg.input_tokens || agg.output_tokens) units.push(`${agg.input_tokens.toLocaleString('de-DE')} in / ${agg.output_tokens.toLocaleString('de-DE')} out Tokens`)
-                        if (agg.characters)    units.push(`${agg.characters.toLocaleString('de-DE')} Zeichen`)
-                        if (agg.audio_seconds) units.push(`${Math.round(agg.audio_seconds)} Sek. Audio`)
-                        if (agg.images)        units.push(`${agg.images} Bild${agg.images > 1 ? 'er' : ''}`)
+                        if (agg.input_tokens || agg.output_tokens) units.push(`${agg.input_tokens.toLocaleString('de-DE')} in / ${agg.output_tokens.toLocaleString('de-DE')} out ${t('Tokens', 'tokens')}`)
+                        if (agg.characters)    units.push(`${agg.characters.toLocaleString('de-DE')} ${t('Zeichen', 'characters')}`)
+                        if (agg.audio_seconds) units.push(`${Math.round(agg.audio_seconds)} ${t('Sek. Audio', 'sec audio')}`)
+                        if (agg.images)        units.push(`${agg.images} ${agg.images > 1 ? t('Bilder', 'images') : t('Bild', 'image')}`)
                         return (
                           <tr key={k}>
                             <td style={{ ...col, fontWeight:500 }}>{costKindLabel(k)}</td>
@@ -183,32 +187,32 @@ export function CostsView({ selected, costData, costsLoading, err, setView, logo
                 </div>
               )}
 
-              <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Alle Vorgänge ({costData.events.length})</h3>
+              <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{t('Alle Vorgänge', 'All events')} ({costData.events.length})</h3>
               {costData.events.length === 0 ? (
-                <p style={S.muted}>Keine Einträge.</p>
+                <p style={S.muted}>{t('Keine Einträge.', 'No entries.')}</p>
               ) : (
                 <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, overflow:'hidden' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse' }}>
                     <thead>
                       <tr>
-                        {['Zeit', 'Kategorie', 'Modell', 'Detail', 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
+                        {[t('Zeit', 'Time'), t('Kategorie', 'Category'), t('Modell', 'Model'), t('Detail', 'Detail'), 'EUR'].map(h => <th key={h} style={th}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {costData.events.map(e => {
                         const parts = []
                         if (e.input_tokens || e.output_tokens) parts.push(`${e.input_tokens || 0} in / ${e.output_tokens || 0} out`)
-                        if (e.characters)    parts.push(`${e.characters} Zeichen`)
+                        if (e.characters)    parts.push(`${e.characters} ${t('Zeichen', 'characters')}`)
                         if (e.audio_seconds) parts.push(`${Math.round(e.audio_seconds)} s`)
                         if (e.images) {
                           // Variante/Kapitel aus den Metadaten (sofern vorhanden)
                           const md = e.metadata || {}
                           const vlabel = md.variant === 'book_v1' ? 'V1' : md.variant === 'book_v2' ? 'V2' : null
                           const chPart = md.chapter != null
-                            ? `Kapitel ${md.chapter}${md.chapter_heading ? ` – „${md.chapter_heading}"` : ''}`
+                            ? `${t('Kapitel', 'Chapter')} ${md.chapter}${md.chapter_heading ? ` – „${md.chapter_heading}"` : ''}`
                             : null
                           const seg = [vlabel, chPart].filter(Boolean).join(' · ')
-                          parts.push(`${e.images} Bild${seg ? ` (${seg})` : ''}`)
+                          parts.push(`${e.images} ${t('Bild', 'image')}${seg ? ` (${seg})` : ''}`)
                         }
                         return (
                           <tr key={e.id}>
