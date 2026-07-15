@@ -2192,9 +2192,19 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>{t('✓ Generiert', '✓ Generated')}</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
-                        {busy ? t('Wird generiert …', 'Generating …') : has ? t('↻ Neu generieren', '↻ Regenerate') : t('✨ Generieren', '✨ Generate')}
-                      </button>
+                      {(() => {
+                        // Sobald der Endnutzer die vorläufige Druckversion erstellt hat
+                        // (Interview abgeschlossen) bzw. das Buch abgeschlossen ist,
+                        // darf der Admin nicht mehr drüber generieren.
+                        const enduserLocked = selected.product_category === 'lifework' && (selected.book_finalized || selected.interview_closed)
+                        return (
+                        <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0 || enduserLocked}
+                          title={enduserLocked ? t('Gesperrt: Der Endnutzer erstellt/bearbeitet die Endversion.', 'Locked: the end user is creating/editing the final version.') : ''}
+                          style={{ fontSize:13, padding:'8px 14px' }}>
+                          {busy ? t('Wird generiert …', 'Generating …') : has ? t('↻ Neu generieren', '↻ Regenerate') : t('✨ Generieren', '✨ Generate')}
+                        </button>
+                        )
+                      })()}
                       <button onClick={() => { setEditMode(false); setEditDraft(null); setView(gen.view) }} disabled={!has || busy} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         {t('👁 Ansehen/Bearbeiten', '👁 View/Edit')}
                       </button>

@@ -161,8 +161,10 @@ module.exports = async function handler(req, res) {
     const cur = Number((m.image_regen && m.image_regen[ch]) || 0)
     if (cur >= maxTotal) return res.status(409).json({ error: `Für dieses Kapitel sind keine Neugenerierungen mehr übrig (${maxTotal - 1} verbraucht).`, count: cur, max: maxTotal })
 
-    // Prompt aufbauen (Grafikstil des Buchs) und FLUX aufrufen.
-    const style = normalizeStyle(imageStyle) || normalizeStyle(m.image_style) || DEFAULT_STYLE
+    // Prompt aufbauen: Grafikstil des Buchs. Der AKTUELLE DB-Wert (m.image_style)
+    // hat Vorrang vor dem evtl. veralteten Client-Wert — so wirkt eine Stiländerung
+    // im Einstellungs-Tab sofort auch auf neu erzeugte Bilder der Endversion.
+    const style = normalizeStyle(m.image_style) || normalizeStyle(imageStyle) || DEFAULT_STYLE
     const fullPrompt = `${styleDirective(style)}\n\nSubject: ${stripMedium(prompt)}\n\n${SPREAD_DIRECTIVE}\n\n${styleAnchor(style)}`
     const fallbackPrompt = `${styleDirective(style)}\n\nSubject: ${stripMedium(SAFE_FALLBACK_PROMPT)}\n\n${SPREAD_DIRECTIVE}\n\n${styleAnchor(style)}`
     let result, usedFallback = false
