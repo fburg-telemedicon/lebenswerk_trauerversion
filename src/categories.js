@@ -1179,7 +1179,8 @@ export const CATEGORIES = {
   },
 }
 
-export const CATEGORY_ORDER = ['memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement', 'lifework']
+// Lebenswerk steht bewusst GANZ OBEN (aktuelles Hauptprodukt).
+export const CATEGORY_ORDER = ['lifework', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
 // Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
 export const CATEGORY_COLORS = {
