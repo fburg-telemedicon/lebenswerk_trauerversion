@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory, defaultTextStyle } from './categories.js'
@@ -830,71 +830,200 @@ function ContribTabBar({ tab, setTab, t, withPhoto, withSettings, withProof, sho
   )
 }
 
-// Probedruck-Tab (nur Lebenswerk): erzeugt aus den bisherigen Antworten einen
-// ZWISCHENSTAND als reine Textansicht (wie beim Manager, ohne Bilder), begrenzt auf
-// N Erzeugungen. Bewusst NICHT editierbar — Änderungen würden bei der endgültigen
-// Erstellung überschrieben. (Die editierbare „vorläufige Druckversion" mit Bildern
-// kommt als eigener Schritt.) Erzeugen sichert den Text mit Buch-Lock in book_v2.
-function ProofTab({ code, token, memorial, contribId, lang, t }) {
-  const [loading, setLoading] = useState(true)
-  const [book, setBook]       = useState(null)
-  const [used, setUsed]       = useState(memorial?.proof_used || 0)
-  const [max, setMax]         = useState(memorial?.proof_max ?? 3)
-  const [lockedByOther, setLockedByOther] = useState(false)
-  const [busy, setBusy]       = useState(false)
-  const [pct, setPct]         = useState(0)
-  const [progress, setProgress] = useState('')
-  const [err, setErr]         = useState('')
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const lockRef   = useRef(null)   // gehaltenes Lock-Token
-  const hbRef     = useRef(null)   // Heartbeat-Intervall
-  const cancelRef = useRef(false)
+// Kleines Modal + schreibgeschützte Buchansicht (von ProofTab genutzt).
+function PModal({ children, onClose }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:60, padding:16 }} onClick={onClose}>
+      <div style={{ background:'#fff', borderRadius:14, padding:'1.6rem', maxWidth:440, width:'100%', maxHeight:'90vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>{children}</div>
+    </div>
+  )
+}
+function BookRead({ book, imgUrl }) {
+  if (!book) return null
+  return (
+    <article style={{ fontFamily:'Georgia, serif', color:'#1c1917' }}>
+      <h1 style={{ fontSize:26, fontWeight:700, textAlign:'center', margin:'10px 0 4px' }}>{book.title}</h1>
+      {book.subtitle && <p style={{ textAlign:'center', fontStyle:'italic', color:'#78716c', marginTop:0 }}>{book.subtitle}</p>}
+      {(book.chapters||[]).map((c,i)=>(
+        <section key={i} style={{ marginTop:28 }}>
+          {c.image_path && imgUrl(c.image_path) && <img src={imgUrl(c.image_path)} alt="" style={{ width:'100%', borderRadius:10, display:'block', margin:'0 0 12px', background:'#f5f5f4' }} />}
+          <div style={{ textAlign:'center', fontSize:12, color:'#a8a29e', letterSpacing:1 }}>KAPITEL {c.number}</div>
+          <h2 style={{ fontSize:21, fontWeight:700, textAlign:'center', margin:'4px 0 14px' }}>{c.heading}</h2>
+          {String(c.body||'').split('\n\n').map((p,k)=>p.trim() && <p key={k} style={{ fontSize:16, lineHeight:1.75, textAlign:'justify', margin:'0 0 12px' }}>{p.trim()}</p>)}
+        </section>
+      ))}
+    </article>
+  )
+}
 
-  const remaining = Math.max(0, max - used)
-  // Anredeform (Sie/Du) wie vom Admin/Endnutzer gewählt — für die Hinweistexte.
+// Probedruck-Tab (nur Lebenswerk). Zwei Modi:
+//  • ZWISCHENSTAND — Textfassung aus den Antworten, bis zu N×, nur ansehen.
+//  • VORLÄUFIGE DRUCKVERSION — schließt das Interview ENDGÜLTIG ab, erzeugt das Buch
+//    MIT Bildern und ist danach editierbar (Text + je Kapitel Bild neu generieren,
+//    bis zu N× mit Historie). Abschließen ist unwiderruflich (Betreiber wird per
+//    E-Mail informiert). Alle Bearbeitung läuft über einen Buch-Lock (Checkout).
+function ProofTab({ code, token, memorial, contribId, lang, t }) {
+  const [loading, setLoading]   = useState(true)
+  const [book, setBook]         = useState(null)
+  const [signed, setSigned]     = useState({})       // Bildpfad → signierte URL
+  const [imageRegen, setImageRegen] = useState({})   // Kapitelnr → Anzahl Generierungen
+  const [proofUsed, setProofUsed] = useState(memorial?.proof_used || 0)
+  const [proofMax, setProofMax]   = useState(memorial?.proof_max ?? 3)
+  const [finalized, setFinalized] = useState(false)
+  const [lockedByOther, setLockedByOther] = useState(false)
+
+  const [busy, setBusy]         = useState(false)
+  const [pct, setPct]           = useState(0)
+  const [progress, setProgress] = useState('')
+  const [regenCh, setRegenCh]   = useState(null)
+  const [err, setErr]           = useState('')
+  const [saved, setSaved]       = useState('')
+  const [dirty, setDirty]       = useState(false)
+
+  const [confirmZw, setConfirmZw]       = useState(false)
+  const [confirmPrint, setConfirmPrint] = useState(false)
+  const [finalizeOpen, setFinalizeOpen] = useState(false)
+  const [okText, setOkText]     = useState('')
+
+  const lockRef   = useRef(null)
+  const hbRef     = useRef(null)
+  const cancelRef = useRef(false)
+  const bookRef   = useRef(null)
+
   const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
+  const isPrint = !!book?.print
+  const zwRemaining = Math.max(0, proofMax - proofUsed)
+  const imgTotalMax = proofMax + 1
+  const style = memorial?.image_style || DEFAULT_IMAGE_STYLE
 
   useEffect(() => {
     let alive = true
-    getEnduserBook(code, token)
-      .then(d => { if (!alive) return; setBook(d.book || null); setUsed(d.proof_used || 0); setMax(d.proof_max ?? 3); setLockedByOther(!!d.lock); setLoading(false) })
-      .catch(() => { if (alive) setLoading(false) })
+    getEnduserBook(code, token).then(d => {
+      if (!alive) return
+      setBook(d.book || null); bookRef.current = d.book || null
+      setSigned(d.signed || {}); setImageRegen(d.image_regen || {})
+      setProofUsed(d.proof_used || 0); setProofMax(d.proof_max ?? 3)
+      setFinalized(!!d.book_finalized); setLockedByOther(!!d.lock); setLoading(false)
+    }).catch(() => { if (alive) setLoading(false) })
     return () => { alive = false; stopHeartbeat(); if (lockRef.current) releaseEditLock(code, token, lockRef.current).catch(() => {}) }
   }, [code]) // eslint-disable-line
 
   function stopHeartbeat() { if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null } }
-  function startHeartbeat() {
-    stopHeartbeat()
-    hbRef.current = setInterval(() => { if (lockRef.current) heartbeatEditLock(code, token, lockRef.current).catch(() => {}) }, 5 * 60 * 1000)
-  }
-  async function acquire() { const r = await acquireEditLock(code, token); lockRef.current = r.token; startHeartbeat() }
+  function startHeartbeat() { stopHeartbeat(); hbRef.current = setInterval(() => { if (lockRef.current) heartbeatEditLock(code, token, lockRef.current).catch(() => {}) }, 5 * 60 * 1000) }
+  async function ensureLock() { if (lockRef.current) return lockRef.current; const r = await acquireEditLock(code, token); lockRef.current = r.token; startHeartbeat(); return r.token }
   async function release() { stopHeartbeat(); const tk = lockRef.current; lockRef.current = null; if (tk) { try { await releaseEditLock(code, token, tk) } catch {} } }
+  function applyBook(nb) { bookRef.current = nb; setBook(nb) }
 
-  async function generate() {
-    setConfirmOpen(false); setErr(''); setBusy(true); setPct(0); setProgress('Wird vorbereitet …'); cancelRef.current = false
+  async function loadContribution() {
+    const c = await getContribution(contribId, code)
+    if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) {
+      throw new Error(du ? 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworte zuerst ein paar Fragen.' : 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworten Sie zuerst ein paar Fragen.')
+    }
+    return c
+  }
+
+  // ── Zwischenstand (Text; verbraucht eine Vorschau) ──
+  async function generateInterim() {
+    setConfirmZw(false); setErr(''); setBusy(true); setPct(0); setProgress('Wird vorbereitet …'); cancelRef.current = false
     try {
-      await acquire()
-      const cons = await consumeProof(code, token)
-      setUsed(cons.used); setMax(cons.max)
-      const c = await getContribution(contribId, code)
-      if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) {
-        throw new Error(du
-          ? 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworte zuerst ein paar Fragen.'
-          : 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworten Sie zuerst ein paar Fragen.')
-      }
+      await ensureLock()
+      const cons = await consumeProof(code, token); setProofUsed(cons.used); setProofMax(cons.max)
+      const c = await loadContribution()
       const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(p.pct); setProgress(p.text) } })
       await saveEnduserBook(code, token, lockRef.current, nb)
-      setBook(nb)
-    } catch (e) {
-      if (e.message !== '__CANCELLED__') setErr(e.message)
-    } finally { await release(); setBusy(false) }
+      applyBook(nb)
+    } catch (e) { if (e.message !== '__CANCELLED__') setErr(e.message) }
+    finally { await release(); setBusy(false) }
+  }
+
+  // ── Vorläufige Druckversion (schließt Interview, Text + Bilder) ──
+  async function createPrint() {
+    setConfirmPrint(false); setErr(''); setBusy(true); setPct(0); setProgress('Interview wird abgeschlossen …'); cancelRef.current = false
+    try {
+      const sp = await startPrintVersion(code, token)   // schließt Interview endgültig + Lock
+      lockRef.current = sp.token; startHeartbeat()
+      const c = await loadContribution()
+      setProgress('Buchtext wird erstellt …')
+      const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(Math.round(p.pct * 0.4)); setProgress(p.text) } })
+      nb.print = true
+      await saveEnduserBook(code, token, lockRef.current, nb)
+      applyBook(nb)
+      const chs = nb.chapters || []
+      for (let i = 0; i < chs.length; i++) {
+        if (cancelRef.current) break
+        setPct(40 + Math.round(55 * i / Math.max(1, chs.length)))
+        setProgress(`Bild ${i + 1} von ${chs.length} …`)
+        const ch = chs[i]
+        const prompt = ch.image_prompt || `${ch.heading}. ${String(ch.body || '').slice(0, 300)}`
+        try {
+          const r = await enduserGenerateImage(code, token, { chapterNumber: ch.number, prompt, lockToken: lockRef.current, imageStyle: style })
+          ch.image_path = r.storagePath; ch.image_history = [r.storagePath]
+          if (r.url) setSigned(s => ({ ...s, [r.storagePath]: r.url }))
+          setImageRegen(rr => ({ ...rr, [String(ch.number)]: r.count }))
+          await saveEnduserBook(code, token, lockRef.current, nb)
+          applyBook({ ...nb })
+        } catch (e) { console.warn('Bild fehlgeschlagen:', e.message) }
+      }
+      setPct(100)
+    } catch (e) { if (e.message !== '__CANCELLED__') setErr(e.message) }
+    finally { setBusy(false) }   // Lock bleibt — Bearbeitung geht weiter
+  }
+
+  // ── Ein Kapitelbild neu generieren ──
+  async function regenImage(idx) {
+    const nb = bookRef.current; const ch = nb.chapters[idx]
+    setErr(''); setRegenCh(ch.number)
+    try {
+      const tk = await ensureLock()
+      const prompt = ch.image_prompt || `${ch.heading}. ${String(ch.body || '').slice(0, 300)}`
+      const r = await enduserGenerateImage(code, token, { chapterNumber: ch.number, prompt, lockToken: tk, imageStyle: style })
+      const hist = Array.isArray(ch.image_history) ? [...ch.image_history] : (ch.image_path ? [ch.image_path] : [])
+      if (!hist.includes(r.storagePath)) hist.push(r.storagePath)
+      ch.image_path = r.storagePath; ch.image_history = hist
+      if (r.url) setSigned(s => ({ ...s, [r.storagePath]: r.url }))
+      setImageRegen(rr => ({ ...rr, [String(ch.number)]: r.count }))
+      applyBook({ ...nb })
+      await saveEnduserBook(code, token, tk, nb)
+    } catch (e) { setErr(e.message) }
+    finally { setRegenCh(null) }
+  }
+
+  // ── Zu einer früheren Bildversion zurückwechseln ──
+  async function pickImage(idx, path) {
+    const nb = bookRef.current; nb.chapters[idx].image_path = path; applyBook({ ...nb })
+    try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, nb) } catch (e) { setErr(e.message) }
+  }
+
+  function setField(patch) { const nb = { ...bookRef.current, ...patch }; applyBook(nb); setDirty(true) }
+  function setChapter(idx, patch) { const nb = { ...bookRef.current, chapters: bookRef.current.chapters.map((c, j) => j === idx ? { ...c, ...patch } : c) }; applyBook(nb); setDirty(true) }
+  async function saveText() {
+    setErr('')
+    try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current); setDirty(false); setSaved('Gespeichert.'); setTimeout(() => setSaved(''), 2500) }
+    catch (e) { setErr(e.message) }
+  }
+
+  async function doFinalize() {
+    setErr('')
+    try {
+      const tk = await ensureLock()
+      if (dirty) { await saveEnduserBook(code, token, tk, bookRef.current); setDirty(false) }
+      await finalizeBook(code, token, tk)
+      lockRef.current = null; stopHeartbeat()
+      setFinalized(true); setFinalizeOpen(false); setOkText('')
+    } catch (e) { setErr(e.message) }
   }
 
   const page = { ...S.page, paddingTop: '1.5rem' }
+  const imgUrl = (p) => (p ? signed[p] : null)
+  const heading = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{t.tabProof || 'Probedruck'}</h2>
+      {!isPrint && !finalized && <span style={{ fontSize: 12, color: '#78716c' }}>Noch {zwRemaining} von {proofMax} Vorschauen</span>}
+    </div>
+  )
 
   if (loading) return <div style={page}><Dots /></div>
 
-  // ── Generierungs-Fortschritt ──
   if (busy) return (
     <div style={page}>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{t.tabProof || 'Probedruck'}</h2>
@@ -906,64 +1035,145 @@ function ProofTab({ code, token, memorial, contribId, lang, t }) {
     </div>
   )
 
-  // ── Leseansicht bzw. „erstellen" ──
+  // ── FINALISIERT ──
+  if (finalized) return (
+    <div style={page}>
+      {heading}
+      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 14, color: '#166534' }}>
+        ✓ {du ? 'Dein Buch ist abgeschlossen und wird gedruckt.' : 'Ihr Buch ist abgeschlossen und wird gedruckt.'} Eine Bearbeitung ist nicht mehr möglich.
+      </div>
+      <BookRead book={book} imgUrl={imgUrl} />
+    </div>
+  )
+
+  // ── DRUCKVERSION (editierbar) ──
+  if (isPrint) return (
+    <div style={page}>
+      {heading}
+      <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+        Der Interview-Teil ist abgeschlossen. Dies ist die vorläufige Druckversion — {du ? 'du kannst' : 'Sie können'} Text und Bilder bearbeiten und das Buch anschließend abschließen.
+      </div>
+      <Err msg={err} />
+      {saved && <p style={{ fontSize: 13, color: '#16a34a' }}>{saved}</p>}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={saveText} disabled={!dirty} style={{ fontSize: 14, padding: '8px 16px' }}>✓ Speichern</button>
+        <button onClick={() => setFinalizeOpen(true)} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>✅ Abschließen</button>
+      </div>
+      <input value={book.title || ''} onChange={e => setField({ title: e.target.value })} placeholder="Titel" style={{ width: '100%', fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, textAlign: 'center', border: '1px solid #f0efec', borderRadius: 8, padding: 10, marginBottom: 6 }} />
+      <input value={book.subtitle || ''} onChange={e => setField({ subtitle: e.target.value })} placeholder="Untertitel (optional)" style={{ width: '100%', fontFamily: 'Georgia, serif', fontStyle: 'italic', textAlign: 'center', color: '#78716c', border: '1px solid #f0efec', borderRadius: 8, padding: 8, marginBottom: 8 }} />
+      {(book.chapters || []).map((c, i) => {
+        const used = imageRegen[String(c.number)] || (c.image_path ? 1 : 0)
+        const left = Math.max(0, imgTotalMax - used)
+        const hist = (c.image_history || []).filter(p => p !== c.image_path)
+        return (
+          <section key={i} style={{ marginTop: 24, borderTop: '1px solid #f0efec', paddingTop: 16 }}>
+            <div style={{ fontSize: 12, color: '#a8a29e', marginBottom: 6 }}>Kapitel {c.number}</div>
+            {c.image_path && imgUrl(c.image_path) ? (
+              <img src={imgUrl(c.image_path)} alt="" style={{ width: '100%', borderRadius: 10, display: 'block', marginBottom: 8, background: '#f5f5f4' }} />
+            ) : (
+              <div style={{ background: '#f5f5f4', borderRadius: 10, padding: '30px 12px', textAlign: 'center', color: '#a8a29e', marginBottom: 8, fontSize: 13 }}>Noch kein Bild</div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+              <button onClick={() => regenImage(i)} disabled={regenCh != null || left <= 0} className="secondary" style={{ fontSize: 13, padding: '6px 12px' }}>
+                {regenCh === c.number ? '⏳ Wird erzeugt …' : (c.image_path ? '↻ Neu generieren' : '🖼 Bild erzeugen')}
+              </button>
+              <span style={{ fontSize: 12, color: left <= 0 ? '#b91c1c' : '#78716c' }}>{left <= 0 ? 'keine Neugenerierung mehr' : `noch ${left}×`}</span>
+            </div>
+            {hist.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 12, color: '#78716c', marginBottom: 4 }}>Frühere Bilder (zum Zurückwechseln antippen):</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {hist.map(p => (imgUrl(p) &&
+                    <img key={p} src={imgUrl(p)} alt="" onClick={() => pickImage(i, p)} style={{ width: 72, height: 48, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #e7e5e4' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <input value={c.heading || ''} onChange={e => setChapter(i, { heading: e.target.value })} placeholder="Überschrift" style={{ fontWeight: 700, marginBottom: 8 }} />
+            <textarea value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 180, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4', resize: 'vertical' }} />
+          </section>
+        )
+      })}
+
+      {finalizeOpen && (
+        <PModal onClose={() => setFinalizeOpen(false)}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Buch endgültig abschließen?</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
+            Danach ist <b>keine weitere Bearbeitung</b> mehr möglich. {du ? 'Dein' : 'Ihr'} Buch geht in den Druck. Zum Bestätigen bitte <b>OK</b> eintippen.
+          </p>
+          <input value={okText} onChange={e => setOkText(e.target.value)} placeholder="OK" style={{ width: '100%', marginBottom: 14 }} />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="secondary" onClick={() => { setFinalizeOpen(false); setOkText('') }} style={{ fontSize: 14 }}>Abbrechen</button>
+            <button onClick={doFinalize} disabled={okText.trim().toUpperCase() !== 'OK'} style={{ fontSize: 14 }}>Abschließen</button>
+          </div>
+        </PModal>
+      )}
+    </div>
+  )
+
+  // ── ZWISCHENSTAND / LANDING (zwei Modi zur Auswahl) ──
   return (
     <div style={page}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{t.tabProof || 'Probedruck'}</h2>
-        <span style={{ fontSize: 12, color: '#78716c' }}>Noch {remaining} von {max} Vorschauen</span>
-      </div>
+      {heading}
       <Err msg={err} />
       {lockedByOther && !book && <p style={{ fontSize: 13, color: '#b45309' }}>Das Buch wird gerade an anderer Stelle bearbeitet.</p>}
 
-      {!book ? (
-        <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
-          <p style={{ fontSize: 15, lineHeight: 1.6, color: '#44403c', marginTop: 0 }}>
-            {du
-              ? 'Hier entsteht aus deinen bisherigen Antworten eine erste Textfassung deines Buchs (ohne Bilder) — als Zwischenstand zum Ansehen. Du kannst später jederzeit weiter erzählen; die endgültige Fassung wird daraus erstellt.'
-              : 'Hier entsteht aus Ihren bisherigen Antworten eine erste Textfassung Ihres Buchs (ohne Bilder) — als Zwischenstand zum Ansehen. Sie können später jederzeit weiter erzählen; die endgültige Fassung wird daraus erstellt.'}
-          </p>
-          <button onClick={() => setConfirmOpen(true)} disabled={remaining <= 0} style={{ fontSize: 15, padding: '11px 20px' }}>
-            📖 Zwischenstand ansehen
-          </button>
-          {remaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>{du ? `Du hast alle ${max} Vorschauen aufgebraucht.` : `Sie haben alle ${max} Vorschauen aufgebraucht.`}</p>}
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <button onClick={() => setConfirmOpen(true)} className="secondary" disabled={remaining <= 0} title={remaining <= 0 ? 'Keine Vorschauen mehr übrig' : ''} style={{ fontSize: 14, padding: '8px 16px' }}>↻ Neu erzeugen</button>
+      {book && !isPrint && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <button onClick={() => setConfirmZw(true)} className="secondary" disabled={zwRemaining <= 0} style={{ fontSize: 14, padding: '8px 16px' }}>↻ Zwischenstand neu erzeugen</button>
           </div>
-          <article style={{ fontFamily: 'Georgia, serif', color: '#1c1917' }}>
-            <h1 style={{ fontSize: 26, fontWeight: 700, textAlign: 'center', margin: '10px 0 4px' }}>{book.title}</h1>
-            {book.subtitle && <p style={{ textAlign: 'center', fontStyle: 'italic', color: '#78716c', marginTop: 0 }}>{book.subtitle}</p>}
-            {(book.chapters || []).map((c, i) => (
-              <section key={i} style={{ marginTop: 28 }}>
-                <div style={{ textAlign: 'center', fontSize: 12, color: '#a8a29e', letterSpacing: 1 }}>KAPITEL {c.number}</div>
-                <h2 style={{ fontSize: 21, fontWeight: 700, textAlign: 'center', margin: '4px 0 14px' }}>{c.heading}</h2>
-                {String(c.body || '').split('\n\n').map((p, k) => p.trim() && (
-                  <p key={k} style={{ fontSize: 16, lineHeight: 1.75, textAlign: 'justify', margin: '0 0 12px' }}>{p.trim()}</p>
-                ))}
-              </section>
-            ))}
-          </article>
-        </>
+          <BookRead book={book} imgUrl={imgUrl} />
+          <hr style={{ border: 0, borderTop: '1px solid #e7e5e4', margin: '24px 0' }} />
+        </div>
       )}
 
-      {confirmOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }} onClick={() => setConfirmOpen(false)}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: '1.6rem', maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Zwischenstand erstellen?</h3>
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
-              {du
-                ? <>Dein Buch wird jetzt aus deinen bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das ist eine KI-Generierung und zählt zu deinen Vorschauen: Du hast danach noch <b>{Math.max(0, remaining - 1)} von {max}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird dabei ersetzt' : ''}.</>
-                : <>Ihr Buch wird jetzt aus Ihren bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das ist eine KI-Generierung und zählt zu Ihren Vorschauen: Sie haben danach noch <b>{Math.max(0, remaining - 1)} von {max}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird dabei ersetzt' : ''}.</>}
+      <div style={{ display: 'grid', gap: 12 }}>
+        {!book && (
+          <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>📖 Zwischenstand</div>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#57534e', marginTop: 0 }}>
+              {du ? 'Eine erste Textfassung aus deinen bisherigen Antworten — nur zum Ansehen. Du kannst danach jederzeit weiter erzählen.' : 'Eine erste Textfassung aus Ihren bisherigen Antworten — nur zum Ansehen. Sie können danach jederzeit weiter erzählen.'}
             </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="secondary" onClick={() => setConfirmOpen(false)} style={{ fontSize: 14 }}>Abbrechen</button>
-              <button onClick={generate} style={{ fontSize: 14 }}>Jetzt erstellen</button>
-            </div>
+            <button onClick={() => setConfirmZw(true)} disabled={zwRemaining <= 0} style={{ fontSize: 15, padding: '10px 18px' }}>📖 Zwischenstand ansehen</button>
+            {zwRemaining <= 0 && <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 10 }}>{du ? `Du hast alle ${proofMax} Vorschauen aufgebraucht.` : `Sie haben alle ${proofMax} Vorschauen aufgebraucht.`}</p>}
           </div>
+        )}
+        <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem' }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>📕 Vorläufige Druckversion</div>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#57534e', marginTop: 0 }}>
+            Das fertige Buch <b>mit Bildern</b> zum Ansehen und für den Feinschliff (Text bearbeiten, Bilder neu generieren). <b>Achtung:</b> Der Interview-Teil wird damit <b>endgültig abgeschlossen</b> und kann nicht mehr genutzt werden.
+          </p>
+          <button onClick={() => setConfirmPrint(true)} style={{ fontSize: 15, padding: '10px 18px' }}>📕 Druckversion erstellen</button>
         </div>
+      </div>
+
+      {confirmZw && (
+        <PModal onClose={() => setConfirmZw(false)}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Zwischenstand erstellen?</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
+            {du
+              ? <>Dein Buch wird jetzt aus deinen bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das zählt zu deinen Vorschauen: danach noch <b>{Math.max(0, zwRemaining - 1)} von {proofMax}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird ersetzt' : ''}.</>
+              : <>Ihr Buch wird jetzt aus Ihren bisherigen Antworten erzeugt (reiner Text, ohne Bilder). Das zählt zu Ihren Vorschauen: danach noch <b>{Math.max(0, zwRemaining - 1)} von {proofMax}</b> übrig{book ? '. Ein vorhandener Zwischenstand wird ersetzt' : ''}.</>}
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button className="secondary" onClick={() => setConfirmZw(false)} style={{ fontSize: 14 }}>Abbrechen</button>
+            <button onClick={generateInterim} style={{ fontSize: 14 }}>Jetzt erstellen</button>
+          </div>
+        </PModal>
+      )}
+
+      {confirmPrint && (
+        <PModal onClose={() => setConfirmPrint(false)}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>Druckversion erstellen?</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>
+            {du ? 'Damit wird dein Interview endgültig abgeschlossen und kann nicht mehr genutzt werden.' : 'Damit wird Ihr Interview endgültig abgeschlossen und kann nicht mehr genutzt werden.'} Anschließend entsteht das Buch mit Bildern, das {du ? 'du' : 'Sie'} noch bearbeiten {du ? 'kannst' : 'können'}. Das kann einige Minuten dauern.
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button className="secondary" onClick={() => setConfirmPrint(false)} style={{ fontSize: 14 }}>Abbrechen</button>
+            <button onClick={createPrint} style={{ fontSize: 14 }}>Ja, abschließen &amp; erstellen</button>
+          </div>
+        </PModal>
       )}
     </div>
   )
@@ -1177,6 +1387,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       address: memorial.intake?.address || f.address || 'Sie',
     }))
   }, [isSelf, memorial])
+  // Ist der Interview-Teil (nach Start der Druckversion) endgültig abgeschlossen,
+  // direkt in den Probedruck-Tab wechseln — der Interview-Tab zeigt dann nur einen Hinweis.
+  useEffect(() => {
+    if (memorial?.interview_closed && tab === 'interview') setTab('proof')
+  }, [memorial]) // eslint-disable-line
   // Schreibrichtung: Hebräisch/Arabisch laufen von rechts nach links. Wir setzen
   // die Richtung auf das ganze Dokument (nicht nur einen Container), damit auch
   // Eingabefelder, Chat-Blasen und die Buchansicht korrekt spiegeln. Beim Verlassen
@@ -1375,7 +1590,14 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       )}
 
       {!needLang && view === 'interview' && memorial && (() => {
-        const vi = (
+        // Nach Abschluss der Druckversion ist das Interview gesperrt — nur ein Hinweis.
+        const vi = memorial.interview_closed ? (
+          <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
+            <div style={{ fontSize:34, marginBottom:8 }}>✅</div>
+            <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Interview abgeschlossen</h2>
+            <p style={{ ...S.muted, maxWidth:360, margin:'0 auto' }}>Der Interview-Teil ist abgeschlossen. Deine vorläufige Druckversion findest du im Tab „{t.tabProof || 'Probedruck'}".</p>
+          </div>
+        ) : (
           <VoiceInterview
             memorial={memorial}
             contribForm={isSelf ? { ...contribForm, relationship: SELF_REL } : contribForm}

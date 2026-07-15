@@ -59,7 +59,7 @@ function sanitizeBook(book) {
 // wurde dann bereits gesendet).
 async function authAndLoad(req, res, code) {
   const { data: m } = await supabase.from('memorials')
-    .select('id, name, product_category, proof_enabled, proof_max, proof_used, edit_lock, book_v2, interview_closed, book_finalized')
+    .select('id, name, product_category, proof_enabled, proof_max, proof_used, edit_lock, book_v2, interview_closed, book_finalized, image_regen, image_style')
     .eq('id', code).maybeSingle()
   if (!m) { res.status(404).json({ error: 'Buch nicht gefunden.' }); return null }
   if (m.product_category !== LIFEWORK) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
@@ -91,20 +91,26 @@ module.exports = async function handler(req, res) {
     // Endnutzer seines EIGENEN Lebenswerks ist die Textvorschau hier aber ok.
     if (action === 'get-book') {
       const book = sanitizeBook(m.book_v2)
-      // Kapitelbilder signieren (Bucket privat) — image_url pro Kapitel anhängen.
+      // ALLE Bildpfade signieren (aktuelles Bild + Historie jedes Kapitels), damit
+      // der Client jede Version anzeigen kann. Rückgabe als Map path→signierte URL.
+      const signed = {}
       if (book && Array.isArray(book.chapters)) {
-        const paths = book.chapters.map(c => c.image_path).filter(Boolean)
+        const all = new Set()
+        for (const c of book.chapters) {
+          if (c.image_path) all.add(c.image_path)
+          if (Array.isArray(c.image_history)) for (const p of c.image_history) if (p) all.add(p)
+        }
+        const paths = [...all]
         if (paths.length) {
           try {
-            const { data: signed } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls(paths, 3600)
-            const map = {}; for (const s of (signed || [])) if (s?.path && s?.signedUrl) map[s.path] = s.signedUrl
-            for (const c of book.chapters) if (c.image_path && map[c.image_path]) c.image_url = map[c.image_path]
+            const { data: sg } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls(paths, 3600)
+            for (const s of (sg || [])) if (s?.path && s?.signedUrl) signed[s.path] = s.signedUrl
           } catch {}
         }
       }
       const lk = m.edit_lock
       const lock = lockActive(lk) ? { holder: lk.holder || null, expires: lk.expires } : null
-      return res.json({ book, proof_used: m.proof_used || 0, proof_max: m.proof_max ?? 3, lock, interview_closed: !!m.interview_closed, book_finalized: !!m.book_finalized })
+      return res.json({ book, signed, proof_used: m.proof_used || 0, proof_max: m.proof_max ?? 3, image_regen: m.image_regen || {}, lock, interview_closed: !!m.interview_closed, book_finalized: !!m.book_finalized })
     }
 
     // ── Lock holen/erneuern ──
