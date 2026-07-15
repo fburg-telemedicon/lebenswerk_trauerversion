@@ -1027,8 +1027,11 @@ export function ContributorFlow({ code, endUserToken = null }) {
         if (!memorial.photo_upload_tab) return vi
         // Mit Option: alle Panels bleiben gemountet (Interview-Fortschritt bleibt
         // erhalten), nur Sichtbarkeit per Tab. Untere Tab-Leiste schaltet um.
-        // Der Einstellungs-Tab existiert nur für den eingeloggten Endnutzer.
-        const withSettings = isSelf && Boolean(endUserToken)
+        // Der Einstellungs-Tab gehört JEDEM Lebenswerk-Endnutzer — auch dem, der
+        // ohne Login über den Code-Link kommt (E-Mail ist optional). Die Änderung
+        // läuft dann code-basiert (updateOwnMemorial ohne Token; Server erlaubt das
+        // nur beim Lebenswerk).
+        const withSettings = isSelf
         return (
           <div style={{ paddingBottom: 64 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>

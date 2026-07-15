@@ -20,13 +20,25 @@ const supabase = createClient(
 
 // PATCH /api/memorial?code=ABC123  { imageStyle?, bookLayout? }
 // Der EINSTELLUNGS-Tab des Endnutzers (Kategorie Lebenswerk): Er darf Grafikstil
-// und Buchlayout SEINES eigenen Buchs ändern — mehr nicht. Autorisiert allein der
-// `eu`-Claim seines Tokens (der Buch-Code); ein fremder Code wird abgewiesen.
+// und Buchlayout SEINES eigenen Buchs ändern — mehr nicht. Zwei Wege sind erlaubt:
+//  (a) eingeloggter Endnutzer — Token mit `eu`-Claim == code, oder
+//  (b) NUR beim Lebenswerk: der Buch-Code allein (ohne Login). Beim Lebenswerk ist
+//      die E-Mail/das Login optional; dann ist der Code die einzige Berechtigung —
+//      dasselbe Vertrauensmodell wie beim Namen-Nachtragen und beim Absenden von
+//      Antworten. Grafikstil/Buchlayout sind risikoarm.
 async function handleEnduserPatch(req, res, code) {
-  if (!checkAuth(req, res)) return
-  if (!req.auth.eu || req.auth.eu !== code) {
-    return res.status(403).json({ error: 'Kein Zugriff auf dieses Buch.' })
+  const { data: m } = await supabase
+    .from('memorials').select('id, product_category').eq('id', code).maybeSingle()
+  if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
+  const hasToken = /^Bearer\s/.test(req.headers.authorization || '')
+  let ok = false
+  if (hasToken) {
+    if (!checkAuth(req, res)) return                 // ungültiges Token → 401 (in checkAuth)
+    ok = req.auth.eu === code
+  } else {
+    ok = m.product_category === LIFEWORK             // Code-basiert nur beim Lebenswerk
   }
+  if (!ok) return res.status(403).json({ error: 'Kein Zugriff auf dieses Buch.' })
   const { imageStyle, bookLayout } = req.body || {}
   const update = {}
   if (imageStyle !== undefined) {
