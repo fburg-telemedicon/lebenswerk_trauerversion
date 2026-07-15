@@ -109,9 +109,17 @@ export function cutoffString(funeralDate, days = 7) {
   return d ? d.toLocaleDateString('de-DE') : '—'
 }
 
+// Einzelauflistung (Kategorie-/Event-Tabelle): bis zu 4 Nachkommastellen, damit
+// Cent-Bruchteile einzelner Events nicht auf 0,00 gerundet verschwinden.
 export function formatEur(n) {
   const v = Number(n || 0)
   return v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 })
+}
+
+// Summen im Dashboard (Gesamtkosten je Buch, Buchliste): genau 2 Nachkommastellen.
+export function formatEurSum(n) {
+  const v = Number(n || 0)
+  return v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const COST_KIND_LABEL = {

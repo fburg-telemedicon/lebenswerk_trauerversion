@@ -5,7 +5,7 @@
 import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
-import { formatEur, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
+import { formatEur, formatEurSum, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
@@ -146,8 +146,8 @@ export function CostsView({ selected, costData, costsLoading, err, setView, logo
             <>
               <div style={{ ...S.card, marginBottom:'1.5rem', textAlign:'center' }}>
                 <Lbl>Gesamtkosten dieses Buchs</Lbl>
-                <div style={{ fontSize:32, fontWeight:700, fontFamily:'Georgia,serif', marginTop:6 }}>{formatEur(costData.total_eur)}</div>
-                <div style={{ fontSize:13, color:'#78716c', marginTop:4 }}>≈ {Number(costData.total_usd || 0).toFixed(4)} USD</div>
+                <div style={{ fontSize:32, fontWeight:700, fontFamily:'Georgia,serif', marginTop:6 }}>{formatEurSum(costData.total_eur)}</div>
+                <div style={{ fontSize:13, color:'#78716c', marginTop:4 }}>≈ {Number(costData.total_usd || 0).toFixed(2)} USD</div>
               </div>
 
               <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Aufschlüsselung nach Kategorie</h3>
@@ -753,7 +753,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
       { key: 'variant',   label: 'Variante',      val: m => m.book_variant || 0, disp: m => m.book_variant ? `Variante ${m.book_variant}` : '—' },
       { key: 'cutoff',    label: 'Erfassung bis', val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
       { key: 'answers',   label: 'Antworten',     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} Antworten` },
-      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0, disp: m => formatEur(m.cost_total_eur) }] : []),
+      ...(auth.admin ? [{ key: 'cost', label: 'Kosten', val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
     ]
     const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
     const distinctVals = col => [...new Set(memorials.map(col.disp))].sort((a, b) => String(a).localeCompare(String(b), 'de', { numeric: true }))
@@ -944,7 +944,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                           }}
                         >
                           <span aria-hidden="true">💶</span>
-                          <span style={{ textDecoration:'underline', textUnderlineOffset:2 }}>{formatEur(m.cost_total_eur)}</span>
+                          <span style={{ textDecoration:'underline', textUnderlineOffset:2 }}>{formatEurSum(m.cost_total_eur)}</span>
                         </button>
                       </td>
                       )}

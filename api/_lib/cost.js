@@ -26,20 +26,24 @@ const PRICING = {
   // 2026-06-22 mit dem OpenAI-Sprach-Fallback entfernt – TTS/STT laufen nur
   // noch über Azure AI Speech (EU). Alte cost_events behalten ihre cost_eur-Werte.
 
-  // Azure AI Speech – Stand 2026, gegen Azure-Speech-Preisliste prüfen.
-  'azure-stt':        { perMinute: 0.0167 }, // ~$1 / Stunde Audio
-  'azure-tts-neural': { perMChars: 15.0 },   // Neural-TTS ~$15 / 1M Zeichen
+  // Azure AI Speech – Stand Juli 2026 (Azure-Speech-Preisliste).
+  // STT läuft über „Fast Transcription" = $0.36 / Stunde Audio → $0.006 / Minute
+  // (NICHT der alte Standard-Tarif $1/h; wir nutzen ausdrücklich Fast Transcription).
+  'azure-stt':        { perMinute: 0.006 },  // Fast Transcription, $0.36 / Std.
+  'azure-tts-neural': { perMChars: 16.0 },   // Prebuilt Neural-TTS ~$16 / 1M Zeichen
 
   // Hinweis: gpt-image-1 / DALL-E (OpenAI) wurden am 2026-06-21 als Bildmodul
   // entfernt – einziges Bildmodell ist jetzt FLUX.2 [pro]. Bereits verbuchte
   // cost_events behalten ihre gespeicherten EUR-Werte (Anzeige liest cost_eur,
   // nicht PRICING), daher ist das Entfernen der alten Keys unkritisch.
 
-  // Azure Foundry – FLUX.2 [pro] (Black Forest Labs). Abrechnung pro Megapixel
-  // (~$0,03/MP, Stand 2026 – gegen Azure-Foundry-Preisliste prüfen). Key =
-  // `flux-2-pro-${size}`. 1536×1024 ≈ 1,57 MP → ~$0,047/Bild (vs. $0,25 bei
-  // gpt-image-1 high). Bei anderer Auflösung neuen Key ergänzen.
-  'flux-2-pro-1536x1024': { perImage: 0.047 },
+  // Azure Foundry – FLUX.2 [pro] (Black Forest Labs). Gestaffelt pro Megapixel:
+  // erste MP $0,03, jede weitere MP $0,015; Auflösung wird pro Bild auf die nächste
+  // MP AUFGERUNDET (Stand Juli 2026). 1536×1024 = 1,57 MP → aufgerundet 2 MP →
+  // $0,03 + $0,015 = $0,045/Bild (vs. $0,25 bei gpt-image-1 high). Key =
+  // `flux-2-pro-${size}`; bei anderer Auflösung neuen Key ergänzen. Hinweis: Ein
+  // img2img-Referenzbild kostet zusätzlich $0,015/MP (hier nicht separat verbucht).
+  'flux-2-pro-1536x1024': { perImage: 0.045 },
 }
 
 // Token-Kosten für ein Chat-Modell aus PRICING (Key = Azure-Deployment-Name).
