@@ -96,7 +96,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [recSpeaker, setRecSpeaker] = useState('self')
   const speakerRef = useRef('self')
   const companionInitRef = useRef(true)
-  const companionRunRef  = useRef(0)
   const [transcript, setTranscript] = useState('')
   // Anzeigemodus: mit Transkript (+ Löschen/Neu einsprechen) oder reines Sprach-
   // Interview. Das Interview startet IMMER ohne Transkript (ruhiger Einstieg); die
@@ -174,38 +173,19 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     wasActiveRef.current = active
   }, [active]) // eslint-disable-line
 
-  // Begleiteter Modus ein-/ausgeschaltet: Die KI bestätigt kurz (Chat-Blase +
-  // automatisch vorgelesen über den Autoplay-Effekt). AN → sie tritt zurück und
-  // stellt keine Frage; AUS → sie meldet sich zurück und stellt die nächste Frage.
-  // Der Steuer-Hinweis (userTurn) wird NICHT gespeichert, nur die KI-Antwort.
+  // Begleiteter Modus ein-/ausgeschaltet: Die KI bestätigt kurz mit einem FESTEN,
+  // lokalisierten Satz (Chat-Blase + automatisch vorgelesen über den Autoplay-Effekt).
+  // Bewusst KEIN LLM-Aufruf: Eine reine Umschalt-Bestätigung braucht kein Modell und
+  // war über die KI unzuverlässig (Azure-Prompt-Shield stufte die imperative
+  // Moduswechsel-Anweisung teils als Angriff ein → 500 → Bestätigung kam nie).
   useEffect(() => {
     if (companionInitRef.current) { companionInitRef.current = false; return }
-    // Run-Zähler: nur der JÜNGSTE Umschalt-Lauf darf das Ergebnis anwenden UND
-    // aiLoading zurücksetzen. Sonst blieb bei schnellem Umschalten ein überholter
-    // Lauf mit aiLoading=true hängen → der Autoplay der Bestätigung (verlangt
-    // !aiLoading) feuerte beim erneuten Wechsel nicht mehr ("nur einmal").
-    const myRun = ++companionRunRef.current
-    ;(async () => {
-      setAiLoading(true)
-      try {
-        // WICHTIG: Die Modus-Anweisung gehört in den SYSTEM-Prompt, nicht in eine
-        // User-Nachricht. Als imperative User-Nachricht ("Bestätige …, stelle KEINE
-        // Frage") stuft Azures Jailbreak-/Prompt-Shield-Filter sie als Angriff ein
-        // und der Call schlägt fehl (500) — dann wurde die alte Frage einfach wieder
-        // vorgelesen und die Bestätigung kam nie.
-        const modeDirective = companionOn
-          ? '\n\n[MODUSWECHSEL: Der begleitete Modus wurde eingeschaltet — eine Begleitperson führt jetzt mit. Bestätige das in EINEM sehr kurzen, warmen Satz (höchstens 8 Wörter), tritt zurück und stelle KEINE Frage.]'
-          : '\n\n[MODUSWECHSEL: Der begleitete Modus wurde ausgeschaltet — du übernimmst wieder. Melde dich in EINEM sehr kurzen, warmen Satz (höchstens 10 Wörter) zurück und stelle dann die nächste passende Frage.]'
-        const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang) + modeDirective
-        const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current], { memorialCode: memorial?.id, kind: 'interview' })
-        if (companionRunRef.current !== myRun) return
-        const finalMsgs = [...messagesRef.current, { role: 'assistant', content: reply }]
-        applyMessages(finalMsgs)
-        onSave?.(finalMsgs)
-      } catch (e) { if (companionRunRef.current === myRun) setErr(e.message) }
-      finally { if (companionRunRef.current === myRun) setAiLoading(false) }
-    })()
-  }, [companionOn])
+    const msg = companionOn ? t.companionOnMsg : t.companionOffMsg
+    if (!msg) return
+    const finalMsgs = [...messagesRef.current, { role: 'assistant', content: msg }]
+    applyMessages(finalMsgs)
+    onSave?.(finalMsgs)
+  }, [companionOn]) // eslint-disable-line
 
   function playText(text) {
     stopSpeaking()
