@@ -449,6 +449,26 @@ ${flow}
   }
 }
 
+// ── Zeitform: Die Hauptperson LEBT ───────────────────────────────
+// Alle Kategorien, die diese generischen Bauer nutzen, handeln von lebenden
+// Menschen (Geburtstagskind, Jubelpaar, verabschiedete Person, Jubilar, Kind,
+// Schwerkranker) bzw. einer bestehenden Organisation. Nur das Gedenkbuch handelt
+// von einer verstorbenen Person — es hat eigene Prompts (memorialV1Outline & Co.)
+// und kommt hier nie vorbei.
+//
+// Ohne ausdrückliche Regel verfällt die KI durchgehend ins Präteritum: Sie erzählt
+// Erinnerungen nach (dort ist es richtig) und beschreibt dann auch den Menschen
+// selbst so („Sie war ein herzlicher Mensch") — das liest sich wie ein Nachruf.
+// Gemeldet 2026-07-16 für das Geburtstagsbuch; beim Mutmachbuch für Schwerkranke
+// wäre derselbe Fehler besonders verletzend.
+function aliveRule(p, memorial) {
+  const subj = memorial?.name || 'Die Person'
+  if (p.subjectIsOrg) {
+    return `ZEITFORM: ${subj} besteht weiterhin — dies ist KEINE Chronik eines untergegangenen Hauses. Vergangene Ereignisse stehen im Präteritum; alles, was WEITERHIN GILT (Werte, Kultur, Menschen, Bedeutung), steht im PRÄSENS. Verboten sind Formulierungen, die ein Ende nahelegen: „hinterließ", „wird uns fehlen", „in Erinnerung bleiben".`
+  }
+  return `ZEITFORM (WICHTIG): ${subj} LEBT — dies ist KEIN Nachruf. Erzählte Ereignisse und Erinnerungen stehen selbstverständlich im Präteritum („Damals fuhren wir …"). Alles aber, was WEITERHIN GILT — Wesenszüge, Eigenheiten, Beziehungen, Talente, Bedeutung für andere — steht im PRÄSENS: „Sie ist herzlich", NICHT „Sie war herzlich". Verboten sind Formulierungen, die ein abgeschlossenes Leben nahelegen: „zeitlebens", „hinterließ", „wird uns fehlen", „in Erinnerung bleiben", „ihr Andenken".`
+}
+
 function makeV1Outline(p) {
   return (memorial, contributions) => {
     const g = genderNote(memorial)
@@ -465,6 +485,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 Regeln:
 - "title" persönlich, ${p.titleTone}, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
+- ${aliveRule(p, memorial)}
 - Auf Deutsch
 - Gültiges JSON, keine trailing commas
 
@@ -535,6 +556,7 @@ Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - ${NO_FILLER_RULE}
 - "body": ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie aus. ${chapterLengthRule(band.min, band.max)} Ein knapper Beitrag ergibt ein kurzes Kapitel — strecke ihn NICHT. Absätze durch \\n\\n trennen${textStyleRule(memorial)}
+- ${aliveRule(p, memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -571,6 +593,7 @@ Regeln:
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
 - "title" persönlich, ${p.titleTone}, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
+- ${aliveRule(p, memorial)}
 - Auf Deutsch
 - Gültiges JSON, keine trailing commas
 
@@ -601,6 +624,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 Regeln:
 - ${NO_FILLER_RULE}
 - "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
+- ${aliveRule(p, memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -627,6 +651,7 @@ ${styleBlock}
 Anforderungen:
 ${greetRule}
 - ${p.finalToneRule}
+- ${aliveRule(p, memorial)}
 - Webe konkrete Erinnerungen und Geschichten aus den Beiträgen ein, ohne die Quellen einzeln zu nennen
 - Ton: gesprochene Sprache, gut zum Vorlesen geeignet — kurze Sätze sind willkommen
 - Auf Deutsch
@@ -869,6 +894,9 @@ const PROFILES = {
       'Gute Wünsche und Abschluss', 'Gute Wünsche für den neuen Lebensabschnitt und ein herzlicher Abschluss. Ca. 80–140 Wörter.'),
   },
   company: {
+    // Einzige Kategorie, deren Hauptperson keine Person ist — die Zeitform-Regel
+    // (aliveRule) formuliert deshalb „besteht weiterhin" statt „lebt".
+    subjectIsOrg: true,
     interviewRole: 'wertschätzender, interessierter Gesprächspartner',
     relationClause: (m, g) => ` für ein Jubiläumsbuch über die Organisation ${m.name}`,
     interviewGoal: 'Geschichten, Meilensteine und Anekdoten über die Organisation für ein Jubiläumsbuch sammeln.',
