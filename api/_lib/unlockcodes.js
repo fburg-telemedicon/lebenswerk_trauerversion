@@ -59,6 +59,15 @@ async function ensureUnlockSchema() {
       email_sent_at     timestamptz
     )
   `)
+  // Nachträglich ergänzt: Wer den Code eingelöst hat. Beides ist eine MOMENTAUFNAHME
+  // aus dem Buch (Name) bzw. dem zugehörigen Konto (Inhaber) zum Zeitpunkt des
+  // Einlösens — bewusst kopiert statt gejoint, damit die Zuordnung erhalten bleibt,
+  // wenn das Buch später gelöscht oder umbenannt wird.
+  await pool().query(`
+    alter table unlock_codes
+      add column if not exists redeemed_name  text,
+      add column if not exists redeemed_owner text
+  `)
   schemaReady = true
 }
 

@@ -34,9 +34,14 @@ function toPublic(row) {
     created_at: row.created_at,
     redeemed_at: row.redeemed_at,
     redeemed_memorial: row.redeemed_memorial,
+    redeemed_name: row.redeemed_name || '',
+    redeemed_owner: row.redeemed_owner || '',
     email_sent_at: row.email_sent_at,
   }
 }
+
+// Spaltenliste für alle Abfragen (Anzeige-Objekt siehe toPublic).
+const COLS = 'code, recipient_name, recipient_email, note, created_at, redeemed_at, redeemed_memorial, redeemed_name, redeemed_owner, email_sent_at'
 
 // Einen garantiert freien Rohcode würfeln (Kollisionen sind extrem unwahrscheinlich,
 // aber der Primärschlüssel-Konflikt würde sonst als 500 durchschlagen).
@@ -60,7 +65,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('unlock_codes')
-        .select('code, recipient_name, recipient_email, note, created_at, redeemed_at, redeemed_memorial, email_sent_at')
+        .select(COLS)
         .order('created_at', { ascending: false })
       if (error) throw error
       return res.json({ codes: (data || []).map(toPublic) })
@@ -77,7 +82,7 @@ module.exports = async function handler(req, res) {
       const code = await freshCode()
       const { data, error } = await supabase.from('unlock_codes')
         .insert({ code, recipient_name, recipient_email, note, created_by: req.auth.uid || null })
-        .select('code, recipient_name, recipient_email, note, created_at, redeemed_at, redeemed_memorial, email_sent_at').single()
+        .select(COLS).single()
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'unlock.create', target: code, detail: { recipient_email } })
 

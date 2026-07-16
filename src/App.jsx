@@ -3149,7 +3149,7 @@ Regeln:
 
   // ── FREISCHALTCODES (nur Admin) ──
   if (view === 'unlock-codes') return (
-    <CodesView err={err} codesData={codesData} codeForm={codeForm} busy={busy} codeMsg={codeMsg} logout={logout} setView={setView} setCodeForm={setCodeForm} submitCode={submitCode} sendCode={sendCode} removeCode={removeCode} copyCode={copyCode} />
+    <CodesView err={err} codesData={codesData} codeForm={codeForm} busy={busy} codeMsg={codeMsg} memorials={memorials} logout={logout} setView={setView} setCodeForm={setCodeForm} submitCode={submitCode} sendCode={sendCode} removeCode={removeCode} copyCode={copyCode} openMemorial={openMemorial} />
   )
 
   // ── SUPPORT-ANFRAGEN (nur Admin) ──

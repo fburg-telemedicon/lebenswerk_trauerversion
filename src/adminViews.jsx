@@ -689,7 +689,7 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
 // ── Freischaltcodes (nur Admin) ──
 // Codes der Form XXXX-XXXX-XXXX, mit denen ein Endnutzer das Zeitlimit seines
 // Testkontos aufhebt. Einmalig, generisch (nicht an ein Konto gebunden).
-export function CodesView({ err, codesData, codeForm, busy, codeMsg, logout, setView, setCodeForm, submitCode, sendCode, removeCode, copyCode }) {
+export function CodesView({ err, codesData, codeForm, busy, codeMsg, memorials = [], logout, setView, setCodeForm, submitCode, sendCode, removeCode, copyCode, openMemorial }) {
   const t = useAdminT()
   const codes = codesData.codes || []
   const fmtDate = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
@@ -763,11 +763,36 @@ export function CodesView({ err, codesData, codeForm, busy, codeMsg, logout, set
                     {t('Erstellt', 'Created')}: {fmtDate(c.created_at)}
                     {c.email_sent_at && ` · ${t('E-Mail gesendet', 'Email sent')}: ${fmtDate(c.email_sent_at)}`}
                   </div>
-                  {redeemed && (
-                    <div style={{ color:'#57534e' }}>
-                      {t('Eingelöst', 'Redeemed')}: {fmtDate(c.redeemed_at)}{c.redeemed_memorial ? ` · ${t('Buch', 'Book')} ${c.redeemed_memorial}` : ''}
-                    </div>
-                  )}
+                  {redeemed && (() => {
+                    // Das Buch kann inzwischen gelöscht sein (Aufbewahrungsfrist) —
+                    // dann bleibt der Code-Eintrag stehen, nur ohne Verknüpfung.
+                    const book = c.redeemed_memorial ? memorials.find(m => m.id === c.redeemed_memorial) : null
+                    return (
+                      <div style={{ color:'#57534e' }}>
+                        <div>
+                          {t('Eingelöst', 'Redeemed')}: {fmtDate(c.redeemed_at)}
+                          {c.redeemed_memorial && (
+                            <>
+                              {` · ${t('Buch', 'Book')} `}
+                              {book ? (
+                                <button
+                                  onClick={() => openMemorial(book)}
+                                  title={t('Buch-Details öffnen', 'Open book details')}
+                                  style={{ background:'none', border:'none', padding:0, font:'inherit', fontWeight:700, color:'#1c1917', textDecoration:'underline', cursor:'pointer' }}
+                                >
+                                  {c.redeemed_memorial}
+                                </button>
+                              ) : (
+                                <span title={t('Buch nicht mehr vorhanden', 'Book no longer exists')}>{c.redeemed_memorial}</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {c.redeemed_name && <div>{t('Name', 'Name')}: {c.redeemed_name}</div>}
+                        {c.redeemed_owner && <div>{t('Inhaber', 'Owner')}: {c.redeemed_owner}</div>}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )

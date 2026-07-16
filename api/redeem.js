@@ -18,6 +18,22 @@ const { audit } = require('./_lib/audit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
+// Konto-Bezeichnung des Buch-Inhabers (Manager oder — bei Selbstregistrierung —
+// Endnutzer). `username` ist bei Endnutzer-Konten die E-Mail-Adresse.
+async function resolveOwner(m) {
+  if (m.owner_user) {
+    const { data } = await supabase
+      .from('app_users').select('username').eq('id', m.owner_user).maybeSingle()
+    return data?.username || null
+  }
+  // Kein Manager → Endnutzer-Konto suchen. `limit(1)` statt maybeSingle: sollten je
+  // mehrere Konten auf dasselbe Buch zeigen, ist der erste Treffer besser als gar keiner.
+  const { data } = await supabase
+    .from('app_users').select('username')
+    .eq('enduser_memorial', m.id).eq('is_enduser', true).limit(1)
+  return data?.[0]?.username || null
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -35,7 +51,7 @@ module.exports = async function handler(req, res) {
     // Buch muss existieren und tatsächlich ein Zeitlimit haben — sonst gibt es
     // nichts aufzuheben, und der Code wird NICHT verbraucht.
     const { data: m } = await supabase
-      .from('memorials').select('id, interview_timer_seconds').eq('id', memorialCode).maybeSingle()
+      .from('memorials').select('id, name, owner_user, interview_timer_seconds').eq('id', memorialCode).maybeSingle()
     if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
     const timer = parseInt(m.interview_timer_seconds, 10) || 0
     if (timer <= 0) {
@@ -51,13 +67,28 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Dieser Freischaltcode ist ungültig oder wurde bereits eingelöst.' })
     }
 
-    // Einlösen: Code an dieses Buch binden + verbrauchen. Der Guard
+    // Inhaber des Buchs bestimmen: bei Manager-Büchern das Manager-Konto, bei der
+    // Selbstregistrierung (owner_user = null) das Endnutzer-Konto, das auf dieses
+    // Buch zeigt. Nur fürs Protokoll — schlägt die Suche fehl, wird trotzdem
+    // eingelöst (der Code darf daran nicht scheitern).
+    const ownerLabel = await resolveOwner(m).catch(e => {
+      console.error('/api/redeem owner lookup:', e)
+      return null
+    })
+
+    // Einlösen: Code an dieses Buch binden + verbrauchen. Name/Inhaber werden als
+    // Momentaufnahme mitgeschrieben (siehe unlockcodes.js). Der Guard
     // `is('redeemed_at', null)` verhindert die doppelte Einlösung bei gleichzeitigen
     // Anfragen (nur EINE Aktualisierung trifft die noch offene Zeile).
     const nowIso = new Date().toISOString()
     const { data: claimed, error: claimErr } = await supabase
       .from('unlock_codes')
-      .update({ redeemed_at: nowIso, redeemed_memorial: memorialCode })
+      .update({
+        redeemed_at: nowIso,
+        redeemed_memorial: memorialCode,
+        redeemed_name: m.name || null,
+        redeemed_owner: ownerLabel,
+      })
       .eq('code', raw).is('redeemed_at', null)
       .select('code').maybeSingle()
     if (claimErr) throw claimErr
