@@ -9,6 +9,7 @@
 // den Status. Bricht die Browser-Verbindung ab, läuft der Job serverseitig weiter.
 
 const { checkAuth } = require('../_lib/auth')
+const { enforceBudget } = require('../_lib/cost')
 const genjobs = require('../_lib/genjobs')
 
 // 'tree' = Stammbaum, 'poster' = Lebensposter (Lebenswerk-Nebenprodukte; laufen
@@ -56,6 +57,8 @@ module.exports = async function handler(req, res) {
       if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
       if (!ALLOWED_KINDS.has(kind)) return res.status(400).json({ error: 'Ungültige Generierungsart.' })
       if (!(await accessibleMemorial(req, code))) return res.status(403).json({ error: 'Kein Zugriff auf dieses Buchprojekt.' })
+      // Kosten-Obergrenze je Buch erschöpft → keine neue Generierung starten (402).
+      if (!(await enforceBudget(res, code.toUpperCase()))) return
       // Rede nutzt params.steps, Buch params.chapterSteps, Stammbaum/Poster einen
       // einzelnen params.system-Prompt — eines davon muss da sein.
       const hasWork = params && (

@@ -2,11 +2,19 @@
 // Gemeinsame Pricing-Konstanten + recordCost-Helper für alle Serverless-Endpoints.
 // Wird von ask.js, speak.js, transcribe.js und admin/generate-image.js benutzt.
 
-const { createClient } = require('./store')
+const { createClient, pool } = require('./store')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const USD_TO_EUR = parseFloat(process.env.USD_TO_EUR || '0.92')
+
+// Kosten-Obergrenze je Buchprojekt (EUR). Wird sie erreicht, verweigern alle
+// kostenpflichtigen Endpunkte (Interview/TTS/STT, Buch-/Bild-/Redegenerierung)
+// weitere Aufrufe für dieses Buch — Schutz vor unerwartet hohen Kosten. 0/negativ
+// schaltet die Grenze ab. Per Env `MEMORIAL_COST_CAP_EUR` änderbar (Default 50 €).
+const BUDGET_CAP_EUR = parseFloat(process.env.MEMORIAL_COST_CAP_EUR || '50')
+const BUDGET_MESSAGE =
+  'Für dieses Buchprojekt wurde die Kosten-Obergrenze erreicht. Zum Schutz vor unerwarteten Kosten sind alle KI-Funktionen (Interview, Sprachausgabe sowie Buch-, Text- und Bilderzeugung) für dieses Buch vorerst gestoppt. Bitte wenden Sie sich an support@lebensgeschichten.ai.'
 
 // Alle Preise in USD. Quelle: anbieter-Doku (Stand 2026). Bei Preisänderung anpassen.
 const PRICING = {
@@ -84,8 +92,42 @@ async function recordCost(event) {
   }
 }
 
+// Summe der bereits verbuchten EUR-Kosten eines Buchs.
+async function memorialCostEur(memorialId) {
+  if (!memorialId) return 0
+  try {
+    const r = await pool().query(
+      'SELECT COALESCE(SUM(cost_eur),0)::float AS eur FROM cost_events WHERE memorial_id = $1',
+      [memorialId]
+    )
+    return r.rows?.[0]?.eur || 0
+  } catch (e) {
+    // Fail-open: Ist die Summe nicht ermittelbar, NICHT sperren (lieber weiterlaufen
+    // als den Betrieb wegen eines DB-Hakelns lahmlegen). Der Fehler wird geloggt.
+    console.error('memorialCostEur error:', e.message)
+    return 0
+  }
+}
+
+// true, wenn das Buch seine Kosten-Obergrenze erreicht/überschritten hat.
+async function budgetExceeded(memorialId) {
+  if (!(BUDGET_CAP_EUR > 0) || !memorialId) return false
+  return (await memorialCostEur(memorialId)) >= BUDGET_CAP_EUR
+}
+
+// Endpunkt-Guard: Ist das Budget erschöpft, antwortet 402 + Meldung und gibt false
+// zurück (der Aufrufer bricht dann mit `return` ab). Sonst true.
+async function enforceBudget(res, memorialId) {
+  if (await budgetExceeded(memorialId)) {
+    res.status(402).json({ error: BUDGET_MESSAGE, code: 'budget_exceeded' })
+    return false
+  }
+  return true
+}
+
 module.exports = {
   USD_TO_EUR, PRICING,
+  BUDGET_CAP_EUR, BUDGET_MESSAGE,
   costLLM, costTTS, costSTT, costImage,
-  recordCost,
+  recordCost, memorialCostEur, budgetExceeded, enforceBudget,
 }

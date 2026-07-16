@@ -9,7 +9,7 @@
 //   AZURE_SPEECH_ENDPOINT  optional (sonst aus Region gebildet)
 
 const { createClient } = require('./_lib/store')
-const { costSTT, recordCost } = require('./_lib/cost')
+const { costSTT, recordCost, enforceBudget } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
@@ -70,6 +70,8 @@ module.exports = async function handler(req, res) {
     if (!(await memorialExists(supabase, code))) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
+    // Kosten-Obergrenze je Buch erschöpft → keine Spracherkennung mehr (402).
+    if (!(await enforceBudget(res, code))) return
 
     const buffer = Buffer.from(audio, 'base64')
     const ext    = mimeType?.includes('ogg') ? 'ogg'

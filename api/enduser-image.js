@@ -18,7 +18,7 @@ const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 const { checkAuth } = require('./_lib/auth')
 const { LIFEWORK } = require('./_lib/lifework')
-const { costImage, recordCost } = require('./_lib/cost')
+const { costImage, recordCost, enforceBudget } = require('./_lib/cost')
 const { normalizeStyle, styleDirective, styleAnchor, DEFAULT_STYLE } = require('./_lib/image-styles')
 const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 
@@ -149,6 +149,8 @@ module.exports = async function handler(req, res) {
 
     const m = await authAndLoad(req, res, code)
     if (!m) return
+    // Kosten-Obergrenze je Buch erschöpft → keine Bilderzeugung mehr (402).
+    if (!(await enforceBudget(res, code))) return
     if (!m.proof_enabled) return res.status(403).json({ error: 'Nicht freigeschaltet.' })
     if (m.book_finalized) return res.status(409).json({ error: 'Das Buch ist bereits abgeschlossen.' })
     if (!lockActive(m.edit_lock) || m.edit_lock.token !== String(token || '') || m.edit_lock.holder !== 'enduser') {

@@ -14,7 +14,7 @@
 //            chapterSteps:[{system,user,meta:{number,heading?,contribution_id?,contributor_name?,relationship?}}] }
 
 const { callAzure } = require('../_lib/llm')
-const { costLLM, recordCost } = require('../_lib/cost')
+const { costLLM, recordCost, budgetExceeded, BUDGET_MESSAGE } = require('../_lib/cost')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
@@ -576,6 +576,12 @@ async function processPoster(job, deadline) {
 
 
 async function processJob(job, deadline) {
+  // Kosten-Obergrenze je Buch erschöpft → Job nicht ausführen, sondern mit klarer
+  // Meldung als fehlgeschlagen markieren (das Dashboard zeigt den Grund an).
+  if (await budgetExceeded(job.memorial_id)) {
+    await genjobs.failJob(job.id, BUDGET_MESSAGE)
+    return 'error'
+  }
   const rt = job.params?.resultType
   if (rt === 'text-join') return processTextJoin(job, deadline)
   if (rt === 'book') return processBook(job, deadline)

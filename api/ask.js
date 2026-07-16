@@ -16,7 +16,7 @@
 //                             "preview" bzw. keine; KEINE Datums-Version wie 2024-…)
 
 const { createClient } = require('./_lib/store')
-const { costLLM, recordCost } = require('./_lib/cost')
+const { costLLM, recordCost, enforceBudget } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { verifyToken } = require('./_lib/auth')
@@ -47,6 +47,8 @@ module.exports = async function handler(req, res) {
     if (!(await memorialExists(supabase, code))) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
+    // Kosten-Obergrenze je Buch: erschöpft → alle KI-Funktionen gestoppt (402).
+    if (!(await enforceBudget(res, code))) return
 
     // Einziges LLM: Azure OpenAI (EU). Kein Fallback – ist Azure nicht
     // erreichbar oder unkonfiguriert, wirft callAzure und der Handler

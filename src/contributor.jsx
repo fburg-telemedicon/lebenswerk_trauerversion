@@ -20,6 +20,22 @@ import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocal
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
 
+// ── Mikrofon-Auto-Stopp (Kostenschutz gegen ein vergessenes/offenes Mikrofon) ──
+// Zwei Mechanismen greifen ineinander:
+//  1) STILLE: Sinkt der Pegel für MIC_SILENCE_STOP_MS unter die Schwelle, wird die
+//     Aufnahme beendet. Das erkennt „niemand spricht" in einer ruhigen Umgebung
+//     (leises Zimmer) sowie „Beitrag zu Ende" nach einer längeren Sprechpause.
+//  2) HÖCHSTDAUER: Unabhängig vom Pegel stoppt die Aufnahme spätestens nach
+//     MIC_MAX_MS. Das ist der Schutz für LAUTE Umgebungen (Bahnhof, laufender
+//     Fernseher), in denen der Pegel dauerhaft hoch bleibt und die Stille-Erkennung
+//     deshalb nicht auslöst — der Nutzer tippt danach einfach erneut aufs Mikro.
+// HINWEIS: Ein einfacher Lautstärke-Schwellwert kann Sprache NICHT sicher von
+// gleichmäßigem Störgeräusch (TV/Menschenmenge) unterscheiden — dort trägt allein
+// die Höchstdauer. Werte bewusst konservativ; bei Bedarf hier anpassen.
+const MIC_SILENCE_THRESHOLD = 0.025   // RMS (0..1) unterhalb dessen es als „still" gilt
+const MIC_SILENCE_STOP_MS   = 10000   // 10 s durchgehende Stille → Auto-Stopp
+const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Auto-Stopp
+
 // ── Schallwellen-Animation ────────────────────────────────────────
 // Liest den Live-Pegel des Aufnahme-Streams (Web Audio AnalyserNode) und
 // zeichnet symmetrische, animierte Balken auf ein Canvas. Reagiert in Echtzeit
@@ -91,6 +107,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // micState: idle | recording | processing
   const [micState,   setMicState]   = useState('idle')
   const [micStream,  setMicStream]  = useState(null) // aktiver Aufnahme-Stream → Schallwellen-Animation
+  const [micNote,    setMicNote]    = useState('')   // dezenter Hinweis nach Auto-Stopp (Stille/Höchstdauer)
   // Begleiteter Modus: wer spricht gerade? 'self' (Endnutzer, rot) | 'companion'
   // (Begleitperson, blau). Bestimmt Zuordnung der Antwort + Farbe der Schallwelle.
   const [recSpeaker, setRecSpeaker] = useState('self')
@@ -301,6 +318,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
     unlockAudio()
 
+    setMicNote('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const rec    = new MediaRecorder(stream)
@@ -308,12 +326,67 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       chunksRef.current   = []
       let recStartedAt = 0
 
+      // ── Auto-Stopp-Analyse: Pegel messen (RMS im Zeitbereich) ──────────────
+      // sawSpeech = wurde je die Sprach-/Lautschwelle überschritten? (steuert, ob
+      // nach reiner Stille überhaupt transkribiert wird → sonst KEINE Kosten).
+      // stopReason merkt, WARUM automatisch gestoppt wurde (für den Hinweistext).
+      let audioCtx = null, silenceTimer = null
+      let sawSpeech = false
+      let stopReason = null   // 'silence' | 'max' | null (= manuell gestoppt)
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext
+        if (AC) {
+          audioCtx = new AC()
+          const srcNode  = audioCtx.createMediaStreamSource(stream)
+          const analyser = audioCtx.createAnalyser()
+          analyser.fftSize = 512
+          srcNode.connect(analyser)
+          const buf = new Uint8Array(analyser.fftSize)
+          let lastLoudAt = Date.now()
+          silenceTimer = setInterval(() => {
+            analyser.getByteTimeDomainData(buf)
+            let sumSq = 0
+            for (let i = 0; i < buf.length; i++) { const d = (buf[i] - 128) / 128; sumSq += d * d }
+            const rms = Math.sqrt(sumSq / buf.length)   // 0..1
+            const now = Date.now()
+            if (rms >= MIC_SILENCE_THRESHOLD) { lastLoudAt = now; sawSpeech = true }
+            // Höchstdauer zuerst prüfen (greift auch in lauter Umgebung).
+            if (recStartedAt && now - recStartedAt >= MIC_MAX_MS) {
+              stopReason = 'max'
+              if (rec.state === 'recording') rec.stop()
+              return
+            }
+            if (now - lastLoudAt >= MIC_SILENCE_STOP_MS) {
+              stopReason = 'silence'
+              if (rec.state === 'recording') rec.stop()
+            }
+          }, 200)
+        }
+      } catch { /* Pegel-Analyse ist optional; ohne sie bleibt nur manuelles Stoppen */ }
+
+      const cleanupAnalysis = () => {
+        if (silenceTimer) { clearInterval(silenceTimer); silenceTimer = null }
+        if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null }
+      }
+
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
 
       rec.onstop = async () => {
+        cleanupAnalysis()
         stream.getTracks().forEach(t => t.stop())
         setMicStream(null)
         const audioSeconds = recStartedAt ? (Date.now() - recStartedAt) / 1000 : 0
+
+        // Reine Stille (nie über die Schwelle) → NICHT transkribieren: spart die
+        // STT-Kosten für eine Aufnahme ohne jede Sprache (z. B. vergessenes Mikro
+        // im ruhigen Raum). Nur ein dezenter Hinweis.
+        if (!sawSpeech) {
+          setMicState('idle')
+          setTranscript('')
+          setMicNote(t.micNoSound || 'Kein Ton erkannt – das Mikrofon wurde automatisch gestoppt. Zum Sprechen erneut tippen.')
+          return
+        }
+
         setMicState('processing')
         try {
           const mimeType = rec.mimeType || 'audio/webm'
@@ -334,6 +407,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           const text = data.text || ''
           setTranscript(text)
           setMicState('idle')
+          // Nach Erreichen der Höchstdauer: freundlicher Hinweis, dass man für einen
+          // längeren Beitrag einfach weiter aufnehmen kann (die nächste Aufnahme wird
+          // als weitere Antwort angehängt).
+          if (stopReason === 'max') {
+            setMicNote(t.micAutoStopped || 'Aufnahme automatisch beendet (Höchstdauer erreicht). Zum Weitererzählen erneut aufs Mikrofon tippen.')
+          }
           // Antwort immer automatisch abschicken. Im Transkript-Modus erscheint sie
           // als Chat-Blase und trägt dort dauerhaft „Löschen"/„Neu einsprechen"
           // (siehe sendAnswer + undoFrom/redoFrom).
@@ -581,6 +660,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
+            {micNote && micState === 'idle' && (
+              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
+                ⏸ {micNote}
+              </div>
+            )}
             {/* Begleitmodus wird direkt am Mikrofon geschaltet (nicht im Menü):
                 grafisches Personen-Symbol + Umschalter, blau wenn aktiv. */}
             {memorial?.companion_mode === true && (

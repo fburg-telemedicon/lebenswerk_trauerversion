@@ -16,7 +16,7 @@
 
 const { createClient } = require('../_lib/store')
 const crypto = require('crypto')
-const { costImage, recordCost } = require('../_lib/cost')
+const { costImage, recordCost, enforceBudget } = require('../_lib/cost')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
@@ -338,6 +338,8 @@ module.exports = async function handler(req, res) {
     if (access.error) return res.status(access.status).json({ error: access.error })
 
     const code = String(memorialCode).toUpperCase().trim()
+    // Kosten-Obergrenze je Buch erschöpft → keine Bilderzeugung mehr (402).
+    if (!(await enforceBudget(res, code))) return
 
     // Grafikstil bestimmen: primär aus dem Request (der Generierungs-Loop kennt den
     // Stil des Buchs), sonst defensiv aus der DB, sonst Default. So bleibt jedes

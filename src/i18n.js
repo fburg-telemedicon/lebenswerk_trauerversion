@@ -172,6 +172,8 @@ ${url}
   unlockCancel: 'Abbrechen',
   unlockSuccess: '✓ Zeitlimit aufgehoben – Sie können jetzt unbegrenzt weitererzählen.',
   unlockInvalid: 'Dieser Freischaltcode ist ungültig oder wurde bereits eingelöst.',
+  micNoSound: 'Kein Ton erkannt – das Mikrofon wurde automatisch gestoppt. Zum Sprechen erneut tippen.',
+  micAutoStopped: 'Aufnahme automatisch beendet (Höchstdauer erreicht). Zum Weitererzählen erneut aufs Mikrofon tippen.',
   tabInterview: 'Interview',
   tabPhoto: 'Foto-Upload',
   // Lebenswerk / Endnutzer
@@ -299,6 +301,8 @@ ${url}
   unlockCancel: 'Anuluj',
   unlockSuccess: '✓ Limit czasu zniesiony – możesz teraz opowiadać bez ograniczeń.',
   unlockInvalid: 'Ten kod aktywacyjny jest nieprawidłowy lub został już wykorzystany.',
+  micNoSound: 'Nie wykryto dźwięku – mikrofon został automatycznie wyłączony. Dotknij ponownie, aby mówić.',
+  micAutoStopped: 'Nagrywanie zakończone automatycznie (osiągnięto maksymalny czas). Dotknij mikrofonu ponownie, aby mówić dalej.',
   tabInterview: 'Wywiad',
   tabPhoto: 'Zdjęcia',
   // Dzieło życia / użytkownik końcowy
@@ -426,6 +430,8 @@ ${url}
   unlockCancel: 'Cancel',
   unlockSuccess: '✓ Time limit lifted – you can now continue without any limit.',
   unlockInvalid: 'This unlock code is invalid or has already been redeemed.',
+  micNoSound: 'No sound detected – the microphone stopped automatically. Tap again to speak.',
+  micAutoStopped: 'Recording ended automatically (maximum length reached). Tap the microphone again to keep talking.',
   tabInterview: 'Interview',
   tabPhoto: 'Photos',
   // Life’s work / end user

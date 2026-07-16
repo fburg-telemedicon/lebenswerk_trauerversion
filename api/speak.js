@@ -9,7 +9,7 @@
 //   AZURE_SPEECH_TTS_VOICE  optional (Default de-DE-KatjaNeural)
 
 const { createClient } = require('./_lib/store')
-const { costTTS, recordCost } = require('./_lib/cost')
+const { costTTS, recordCost, enforceBudget } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
@@ -103,6 +103,8 @@ module.exports = async function handler(req, res) {
     if (!(await memorialExists(supabase, code))) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
+    // Kosten-Obergrenze je Buch erschöpft → keine Sprachausgabe mehr (402).
+    if (!(await enforceBudget(res, code))) return
 
     let result
     try {
