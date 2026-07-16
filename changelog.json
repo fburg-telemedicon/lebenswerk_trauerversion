@@ -21,7 +21,8 @@
         "Bearbeitungs-Sperre: Ist ein Buch noch gesperrt (z. B. weil das Dashboard es kurz offen hatte), fragt der Endnutzer-Probedruck jetzt aktiv nach und gibt automatisch frei, sobald die Sperre frei wird — ohne neu zu laden. Zusätzlich läuft eine ungenutzte Sperre schneller ab (5 statt 15 Minuten).",
         "„Bearbeitung freigeben“ im Dashboard funktioniert wieder zuverlässig: Nach der Freigabe übernimmt der Admin die Bearbeitung selbst, die Ansicht ist sofort bearbeitbar (nicht mehr „nur Ansicht“).",
         "Probedruck-Überarbeitung per KI: Soll ein Abschnitt gelöscht werden, bleibt er jetzt wirklich leer — der frühere Platzhaltertext „[Kein Text, da der Abschnitt rausgelassen werden soll.]“ erscheint nicht mehr und wird auch aus bereits gespeicherten Büchern beim Laden entfernt.",
-        "HTML-Buchansicht im Dashboard: Beim Lebenswerk wird keine Mitwirkenden-/Namensliste mehr angezeigt (dort erzählt nur der Endnutzer selbst)."
+        "HTML-Buchansicht im Dashboard: Beim Lebenswerk wird keine Mitwirkenden-/Namensliste mehr angezeigt (dort erzählt nur der Endnutzer selbst).",
+        "Einführungs-Feature: „Diese Einführung nicht mehr anzeigen“ wird jetzt zuverlässiger gemerkt (zusätzlich global), sodass die Einführung nach dem ersten Wegklicken unabhängig vom Öffnungsweg (Login oder Link) ausbleibt."
       ]
     },
     {
