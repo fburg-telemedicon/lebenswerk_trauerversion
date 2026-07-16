@@ -27,7 +27,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -478,7 +478,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Der Name ist Pflicht — außer beim Lebenswerk: Kennt der Manager den Namen
       // des Endnutzers nicht, trägt dieser ihn beim ersten Start selbst nach
@@ -562,11 +562,14 @@ module.exports = async function handler(req, res) {
         proof_enabled: isLifework ? proofEnabled === true : false,
         proof_max: isLifework ? sanitizeProofMax(proofMax) : 0,
         proof_used: 0,
+        // Einführungs-/Onboarding-Overlay beim ersten Öffnen (alle Kategorien).
+        // Standard AN; nur explizit false schaltet es ab.
+        show_onboarding: showOnboarding !== false,
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
@@ -576,6 +579,7 @@ module.exports = async function handler(req, res) {
         delete insertRow.proof_enabled
         delete insertRow.proof_max
         delete insertRow.proof_used
+        delete insertRow.show_onboarding
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }
       if (error) throw error
@@ -751,6 +755,7 @@ module.exports = async function handler(req, res) {
         if ('companionMode' in meta) update.companion_mode = meta.companionMode === true
         if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
         if ('proofMax' in meta)      update.proof_max = sanitizeProofMax(meta.proofMax)
+        if ('showOnboarding' in meta) update.show_onboarding = meta.showOnboarding !== false
         // Verbrauchte Probedrucke zurücksetzen (Admin gewährt neue Versuche).
         if (meta.resetProofUsed === true) update.proof_used = 0
         // Bearbeitungs-Lock des Endnutzers aus der Ferne lösen (Fern-Freigabe).
@@ -760,7 +765,7 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|column/i.test(error.message || '')) {
           delete update.image_style
           delete update.book_layout
           delete update.text_style
@@ -771,6 +776,7 @@ module.exports = async function handler(req, res) {
           delete update.proof_max
           delete update.proof_used
           delete update.edit_lock
+          delete update.show_onboarding
           if (Object.keys(update).length) { ({ error } = await supabase.from('memorials').update(update).eq('id', code)) }
           else error = null
         }

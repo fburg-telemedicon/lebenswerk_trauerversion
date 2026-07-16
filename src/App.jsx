@@ -197,6 +197,7 @@ const EMPTY_CREATE = {
   timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
   companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
+  showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
   enduserEmail: '',
 }
@@ -813,6 +814,7 @@ function Dashboard() {
       companionMode: m.companion_mode === true,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
+      showOnboarding: m.show_onboarding !== false,
     })
     setOrderEdit(true)
   }
@@ -840,6 +842,7 @@ function Dashboard() {
         companionMode: d.companionMode === true,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
+        showOnboarding: d.showOnboarding !== false,
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -867,6 +870,7 @@ function Dashboard() {
         companion_mode: d.companionMode === true,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
+        show_onboarding: d.showOnboarding !== false,
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
@@ -990,6 +994,7 @@ function Dashboard() {
         companionMode: createForm.companionMode === true,
         proofEnabled: createForm.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
+        showOnboarding: createForm.showOnboarding !== false,
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,

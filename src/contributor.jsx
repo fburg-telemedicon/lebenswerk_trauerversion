@@ -1495,6 +1495,125 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
   )
 }
 
+// ── Einführungs-Overlay („Onboarding") beim ersten Öffnen ─────────────────────
+// Zeigt in einem Wisch-/Weiter-Karussell kurz die für DIESES Buch freigeschalteten
+// Funktionen — mit Seitenpunkten und „Nicht mehr anzeigen" (Standard AN). Die
+// „Screenshots" sind stilisierte Platzhalter-Illustrationen (echte Screenshots
+// können später als Bild-URL je Slide eingesetzt werden).
+const ONBOARD_L10N = {
+  de: {
+    next: 'Weiter', back: 'Zurück', start: 'Los geht’s', skip: 'Überspringen',
+    dontShow: 'Diese Einführung nicht mehr anzeigen',
+    slides: {
+      interview: ['Frei erzählen', 'Tippen Sie auf das Mikrofon und sprechen Sie ganz frei. Sie dürfen jederzeit Pausen machen und in Ruhe nachdenken — die Aufnahme wartet.'],
+      transcript: ['Text mitlesen', 'Über den Transkript-Schalter sehen Sie Ihre Antworten als Text und können einzelne Antworten löschen oder neu einsprechen.'],
+      companion: ['Begleitung', 'Im begleiteten Modus kann eine zweite Person mithelfen und ergänzen — praktisch zu zweit.'],
+      photo: ['Fotos hinzufügen', 'Laden Sie eigene Fotos hoch. Sie werden für das Buch berücksichtigt.'],
+      proof: ['Probedruck ansehen', 'Sehen Sie Ihr Buch als Vorschau, bearbeiten Sie Texte und erzeugen Sie Kapitelbilder.'],
+      settings: ['Stil & Layout', 'Wählen Sie Grafikstil, Buchlayout und Schreibstil Ihres Buchs.'],
+      menu: ['Alles im Menü', 'Oben rechts öffnet ☰ das Menü — mit allen weiteren Funktionen sowie Datenschutz, Impressum und Support.'],
+    },
+    heading: 'Willkommen', intro: 'Kurz die wichtigsten Funktionen:',
+  },
+  en: {
+    next: 'Next', back: 'Back', start: 'Get started', skip: 'Skip',
+    dontShow: 'Do not show this introduction again',
+    slides: {
+      interview: ['Just talk', 'Tap the microphone and speak freely. You may pause and think at any time — the recording waits for you.'],
+      transcript: ['Read along', 'With the transcript switch you can see your answers as text and delete or re-record individual answers.'],
+      companion: ['Companion', 'In companion mode a second person can help and add to your story.'],
+      photo: ['Add photos', 'Upload your own photos. They will be considered for the book.'],
+      proof: ['Preview print', 'See your book as a preview, edit texts and generate chapter images.'],
+      settings: ['Style & layout', 'Choose the graphic style, book layout and writing style of your book.'],
+      menu: ['Everything in the menu', 'The ☰ menu (top right) holds all other functions, plus privacy, imprint and support.'],
+    },
+    heading: 'Welcome', intro: 'The most important functions at a glance:',
+  },
+  pl: {
+    next: 'Dalej', back: 'Wstecz', start: 'Zaczynamy', skip: 'Pomiń',
+    dontShow: 'Nie pokazuj więcej tego wprowadzenia',
+    slides: {
+      interview: ['Mów swobodnie', 'Dotknij mikrofonu i mów swobodnie. Możesz w każdej chwili zrobić przerwę i spokojnie pomyśleć — nagranie czeka.'],
+      transcript: ['Czytaj na bieżąco', 'Za pomocą przełącznika transkrypcji zobaczysz swoje odpowiedzi jako tekst i możesz je usuwać lub nagrywać ponownie.'],
+      companion: ['Towarzysz', 'W trybie towarzyszącym druga osoba może pomóc i uzupełnić historię.'],
+      photo: ['Dodaj zdjęcia', 'Prześlij własne zdjęcia. Zostaną uwzględnione w książce.'],
+      proof: ['Podgląd wydruku', 'Zobacz podgląd książki, edytuj teksty i twórz ilustracje rozdziałów.'],
+      settings: ['Styl i układ', 'Wybierz styl graficzny, układ i styl pisania swojej książki.'],
+      menu: ['Wszystko w menu', 'Menu ☰ (u góry po prawej) zawiera pozostałe funkcje oraz prywatność, notę prawną i pomoc.'],
+    },
+    heading: 'Witamy', intro: 'Najważniejsze funkcje w skrócie:',
+  },
+}
+
+function OnboardMock({ icon, color }) {
+  // Stilisierte „Screenshot"-Platzhalter: kleines Geräte-Rähmchen mit Icon +
+  // Skeleton-Zeilen. (Echte Screenshots später via Bild-URL je Slide möglich.)
+  return (
+    <div style={{ width:200, maxWidth:'70%', margin:'0 auto', aspectRatio:'9/13', background:'#fff', border:'8px solid #1c1917', borderRadius:22, boxShadow:'0 10px 30px rgba(0,0,0,.18)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:12 }}>
+      <div style={{ width:56, height:56, borderRadius:'50%', background:color || '#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>{icon}</div>
+      <div style={{ width:'80%', height:9, borderRadius:5, background:'#e7e5e4' }} />
+      <div style={{ width:'60%', height:9, borderRadius:5, background:'#efece9' }} />
+      <div style={{ width:'70%', height:9, borderRadius:5, background:'#efece9' }} />
+    </div>
+  )
+}
+
+function OnboardingCarousel({ memorial, lang = 'de', onClose }) {
+  const s = ONBOARD_L10N[lang] || ONBOARD_L10N.de
+  const isSelf = memorial?.product_category === 'lifework'
+  // Slides aus der Buch-Konfiguration ableiten — nur freigeschaltete Funktionen.
+  const slides = []
+  const add = (key, icon, color) => slides.push({ key, icon, color, title: s.slides[key][0], body: s.slides[key][1] })
+  add('interview', '🎙️', '#fee2e2')
+  if (memorial?.show_transcript !== false) add('transcript', '📝', '#e0f2fe')
+  if (memorial?.companion_mode === true) add('companion', '👥', '#dbeafe')
+  if (memorial?.photo_upload_tab === true && !memorial?.book_finalized) add('photo', '📷', '#dcfce7')
+  if (isSelf && memorial?.proof_enabled === true) add('proof', '📖', '#fef3c7')
+  if (isSelf) add('settings', '⚙️', '#f3e8ff')
+  add('menu', '☰', '#f5f5f4')
+
+  const [i, setI] = useState(0)
+  const [dontShow, setDontShow] = useState(true)   // Standard: aktiviert (nur beim ersten Mal)
+  const last = i >= slides.length - 1
+  const finish = () => onClose?.(dontShow)
+  const cur = slides[i]
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:250, background:'rgba(28,25,23,.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div style={{ width:'100%', maxWidth:400, background:'#fff', borderRadius:18, padding:'20px 20px 18px', boxShadow:'0 16px 50px rgba(0,0,0,.3)', textAlign:'center' }}>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:2 }}>
+          <button onClick={finish} style={{ background:'none', border:'none', fontSize:13, color:'#a8a29e', cursor:'pointer' }}>{s.skip} ✕</button>
+        </div>
+        <div style={{ padding:'6px 0 14px' }}>
+          <OnboardMock icon={cur.icon} color={cur.color} />
+        </div>
+        <h2 style={{ fontSize:19, fontWeight:700, margin:'0 0 8px' }}>{cur.title}</h2>
+        <p style={{ fontSize:14.5, lineHeight:1.6, color:'#57534e', margin:'0 auto 16px', maxWidth:320 }}>{cur.body}</p>
+
+        {/* Seitenpunkte */}
+        <div style={{ display:'flex', gap:7, justifyContent:'center', marginBottom:16 }}>
+          {slides.map((_, k) => (
+            <span key={k} onClick={() => setI(k)} style={{ width: k === i ? 20 : 8, height:8, borderRadius:4, background: k === i ? '#1c1917' : '#d6d3d1', cursor:'pointer', transition:'width .2s,background .2s' }} />
+          ))}
+        </div>
+
+        <div style={{ display:'flex', gap:10, alignItems:'center', justifyContent:'space-between' }}>
+          <button onClick={() => setI(v => Math.max(0, v - 1))} disabled={i === 0} className="ghost"
+            style={{ fontSize:14, padding:'9px 12px', color: i === 0 ? '#d6d3d1' : '#78716c' }}>{s.back}</button>
+          <button onClick={() => last ? finish() : setI(v => v + 1)} style={{ fontSize:15, padding:'10px 22px', minWidth:120 }}>
+            {last ? s.start : s.next}
+          </button>
+        </div>
+
+        <label style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', marginTop:16, fontSize:12.5, color:'#78716c', cursor:'pointer' }}>
+          <input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} style={{ width:15, height:15, cursor:'pointer', accentColor:'#1c1917' }} />
+          {s.dontShow}
+        </label>
+      </div>
+    </div>
+  )
+}
+
 // `endUserToken` gesetzt → der Erzähler ist der Endnutzer eines Lebenswerks: Er
 // erzählt sein EIGENES Leben (keine Beziehungsangabe), kann Fotos hochladen und
 // bekommt einen Einstellungs-Tab für Grafik- und Textstil seines Buchs.
@@ -1534,6 +1653,18 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   // (Der eigentliche Umschalt-Effekt steht weiter unten, wo `view` bekannt ist.)
   const setHideFooter = useContext(FooterVisibilityCtx)
   const openSupport = useSupport()
+
+  // Einführungs-Overlay beim ERSTEN Öffnen: nur wenn am Buch aktiviert
+  // (show_onboarding !== false) UND lokal noch nicht „nicht mehr anzeigen" gesetzt.
+  const [showOnboard, setShowOnboard] = useState(false)
+  const onboardCheckedRef = useRef(false)
+  useEffect(() => {
+    if (!memorial || onboardCheckedRef.current) return
+    onboardCheckedRef.current = true
+    try {
+      if (memorial.show_onboarding !== false && !localStorage.getItem('lw_onboarded_' + code)) setShowOnboard(true)
+    } catch { /* privater Modus → dann eben jedes Mal (unkritisch) */ }
+  }, [memorial])
 
   useEffect(() => {
     if (!memorial || bootedRef.current) return
@@ -1751,6 +1882,14 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
 
   return (
     <>
+      {/* Einführungs-Overlay beim ersten Öffnen (über allem, blockiert bis „Los geht’s"
+          bzw. Überspringen). „Nicht mehr anzeigen" merkt sich das lokal je Buch. */}
+      {showOnboard && memorial && (
+        <OnboardingCarousel memorial={memorial} lang={L} onClose={(dont) => {
+          if (dont) { try { localStorage.setItem('lw_onboarded_' + code, '1') } catch { /* privater Modus */ } }
+          setShowOnboard(false)
+        }} />
+      )}
       {/* Endnutzer (Lebenswerk mit eigenem Login) braucht jederzeit einen Logout —
           fest oben rechts, über allen Ansichten (aber unter den Vollbild-Modals). */}
       {endUserToken && onLogout && (

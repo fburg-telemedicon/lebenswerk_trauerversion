@@ -203,7 +203,8 @@ async function ensureLifeworkSchema() {
       add column if not exists interview_closed boolean,
       add column if not exists book_finalized boolean,
       add column if not exists book_finalized_at timestamptz,
-      add column if not exists image_regen jsonb
+      add column if not exists image_regen jsonb,
+      add column if not exists show_onboarding boolean
   `)
   schemaReady = true
 }

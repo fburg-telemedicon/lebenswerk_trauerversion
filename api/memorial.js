@@ -148,10 +148,16 @@ module.exports = async function handler(req, res) {
       // intake (kategorie-spezifische Notizen) und owner_user bleiben intern.
       // image_style/book_layout sind für den Einstellungs-Tab des Endnutzers nötig
       // (Kategorie Lebenswerk); sie verraten nichts über die Inhalte des Buchs.
-      const PUBLIC_FIELDS =
+      // `show_onboarding` ist neu — fehlt die Spalte noch (Migration lief noch nicht),
+      // wird OHNE sie erneut gelesen, damit der Beitragenden-Flow NIE an einer
+      // Migration hängt (analog zum Fallback der Admin-Liste).
+      const PUBLIC_FIELDS_BASE =
         'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, text_style, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, intake, created_at'
-      const { data, error } = await supabase
-        .from('memorials').select(PUBLIC_FIELDS).eq('id', code).single()
+      let { data, error } = await supabase
+        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding`).eq('id', code).single()
+      if (error && /show_onboarding|column/i.test(error.message || '')) {
+        ;({ data, error } = await supabase.from('memorials').select(PUBLIC_FIELDS_BASE).eq('id', code).single())
+      }
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
 
       // Lock-Zustand nach außen NUR als Zusammenfassung (Inhaber + Ablauf) — das

@@ -1399,6 +1399,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           {expertMode ? t('⚙ Expertenmodus ausblenden', '⚙ Hide expert mode') : t('⚙ Expertenmodus (weitere Optionen)', '⚙ Expert mode (more options)')}
         </button>
         {expertMode && (<>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Einführung beim ersten Öffnen</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.showOnboarding !== false} onChange={e => setCreateForm({ ...createForm, showOnboarding: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Kurze Einführung der Funktionen beim ersten Öffnen zeigen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Standard: aktiv. Beim ersten Öffnen sieht der Nutzer eine kurze Vorstellung der für ihn freigeschalteten Funktionen (mit „Weiter"-Button und Seitenpunkten). Über „Nicht mehr anzeigen" erscheint sie danach nicht erneut.
+          </p>
+        </div>
         {/* Welche Fragen gestellt werden, entscheidet allein die Katalogauswahl
             weiter unten („kein Katalog“ = freie KI-Fragen). Eine zweite Checkbox
             dafür gab es einmal — sie war dieselbe Entscheidung an zweiter Stelle. */}
@@ -2658,6 +2668,14 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   {odExpert ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
                 </button>
                 {odExpert && (<>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Einführung beim ersten Öffnen</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.showOnboarding !== false} onChange={e => setOd({ showOnboarding: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Kurze Einführung der Funktionen beim ersten Öffnen zeigen</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Standard: aktiv. Beim ersten Öffnen sieht der Nutzer eine kurze Vorstellung der freigeschalteten Funktionen; „Nicht mehr anzeigen" blendet sie danach aus.</p>
+                </div>
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Sprachen *</Lbl>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
