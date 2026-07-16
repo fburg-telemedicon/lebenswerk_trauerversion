@@ -15,25 +15,20 @@ import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.j
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
 import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
 import { S, PartnerBanner, Dots, Err, Lbl, FooterVisibilityCtx } from './ui.jsx'
+import { useSupport } from './support.jsx'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
 
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
 
 // ── Mikrofon-Auto-Stopp (Kostenschutz gegen ein vergessenes/offenes Mikrofon) ──
-// Zwei Mechanismen greifen ineinander:
-//  1) STILLE: Sinkt der Pegel für MIC_SILENCE_STOP_MS unter die Schwelle, wird die
-//     Aufnahme beendet. Das erkennt „niemand spricht" in einer ruhigen Umgebung
-//     (leises Zimmer) sowie „Beitrag zu Ende" nach einer längeren Sprechpause.
-//  2) HÖCHSTDAUER: Unabhängig vom Pegel stoppt die Aufnahme spätestens nach
-//     MIC_MAX_MS. Das ist der Schutz für LAUTE Umgebungen (Bahnhof, laufender
-//     Fernseher), in denen der Pegel dauerhaft hoch bleibt und die Stille-Erkennung
-//     deshalb nicht auslöst — der Nutzer tippt danach einfach erneut aufs Mikro.
-// HINWEIS: Ein einfacher Lautstärke-Schwellwert kann Sprache NICHT sicher von
-// gleichmäßigem Störgeräusch (TV/Menschenmenge) unterscheiden — dort trägt allein
-// die Höchstdauer. Werte bewusst konservativ; bei Bedarf hier anpassen.
+// NUR HÖCHSTDAUER: Die Aufnahme stoppt spätestens nach MIC_MAX_MS. Danach tippt der
+// Nutzer einfach erneut aufs Mikrofon, um weiterzuerzählen (die Fortsetzung wird als
+// weitere Antwort angehängt). BEWUSST KEIN Stille-Auto-Stopp — jemand darf beliebig
+// lange über seine Antwort nachdenken, ohne dass das Mikro vorzeitig abschaltet.
+// Der Pegel wird nur noch gemessen, um eine Aufnahme OHNE jede Sprache (reine Stille)
+// gar nicht erst zur Erkennung zu schicken (spart die STT-Kosten).
 const MIC_SILENCE_THRESHOLD = 0.025   // RMS (0..1) unterhalb dessen es als „still" gilt
-const MIC_SILENCE_STOP_MS   = 10000   // 10 s durchgehende Stille → Auto-Stopp
 const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Auto-Stopp
 
 // ── Schallwellen-Animation ────────────────────────────────────────
@@ -94,6 +89,7 @@ function Waveform({ stream, color = '#dc2626' }) {
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch }) {
   const t = uiText(lang)
+  const openSupport = useSupport()
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
   // Immer aktuelle Nachrichtenliste (verhindert veraltete Closures beim Auto-Senden
@@ -342,25 +338,18 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           analyser.fftSize = 512
           srcNode.connect(analyser)
           const buf = new Uint8Array(analyser.fftSize)
-          let lastLoudAt = Date.now()
           silenceTimer = setInterval(() => {
             analyser.getByteTimeDomainData(buf)
             let sumSq = 0
             for (let i = 0; i < buf.length; i++) { const d = (buf[i] - 128) / 128; sumSq += d * d }
             const rms = Math.sqrt(sumSq / buf.length)   // 0..1
-            const now = Date.now()
-            if (rms >= MIC_SILENCE_THRESHOLD) { lastLoudAt = now; sawSpeech = true }
-            // Höchstdauer zuerst prüfen (greift auch in lauter Umgebung).
-            if (recStartedAt && now - recStartedAt >= MIC_MAX_MS) {
+            if (rms >= MIC_SILENCE_THRESHOLD) sawSpeech = true   // nur fürs Kosten-Skippen
+            // Höchstdauer: einziger automatischer Stopp (kein Stille-Stopp — s. o.).
+            if (recStartedAt && Date.now() - recStartedAt >= MIC_MAX_MS) {
               stopReason = 'max'
               if (rec.state === 'recording') rec.stop()
-              return
             }
-            if (now - lastLoudAt >= MIC_SILENCE_STOP_MS) {
-              stopReason = 'silence'
-              if (rec.state === 'recording') rec.stop()
-            }
-          }, 200)
+          }, 250)
         }
       } catch { /* Pegel-Analyse ist optional; ohne sie bleibt nur manuelles Stoppen */ }
 
@@ -574,6 +563,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           </div>
         )}
         <Err msg={err} />
+        {err && (
+          <div style={{ marginTop:-4, marginBottom:12, textAlign:'center' }}>
+            <button onClick={() => openSupport({ role: memorial?.product_category === 'lifework' ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, suggestedName: contribForm?.name })}
+              className="secondary" style={{ fontSize:12.5, padding:'6px 14px' }}>
+              ✉ {t.supportButton || 'Support kontaktieren'}
+            </button>
+          </div>
+        )}
         {saveErr && <div style={{ ...S.err }}>⚠ {t.saveLabel}: {saveErr}</div>}
         {memorial.funeral_date && (() => {
           const d = cutoffDate(memorial.funeral_date, cutoffDays(memorial))
@@ -975,7 +972,7 @@ function MiniSwitch({ on, color = '#1c1917' }) {
 // Ansicht wechseln (Interview/Foto/Probedruck/Einstellungen), die Modus-Schalter
 // (Transkript & Korrektur, Begleitet) und „Später fortsetzen oder beenden". Die
 // Interview-Ansicht ist der oberste Menüpunkt → man kommt immer schnell zurück.
-function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, onPause }) {
+function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, onPause, onSupport }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
@@ -1014,6 +1011,12 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showT
               <div style={sep} />
               <button onClick={() => { setOpen(false); onPause() }} style={{ ...row, color:'#78716c' }}>
                 <span style={{ fontSize:19 }}>⏸️</span><span>{t.pauseEnd || 'Später fortsetzen oder beenden'}</span>
+              </button>
+            </>)}
+            {onSupport && (<>
+              <div style={sep} />
+              <button onClick={() => { setOpen(false); onSupport() }} style={{ ...row, color:'#78716c' }}>
+                <span style={{ fontSize:19 }}>✉️</span><span>{t.supportButton || 'Support kontaktieren'}</span>
               </button>
             </>)}
             {/* Rechtslinks: hierher verlagert aus dem Seiten-Footer (der im Interview
@@ -1530,6 +1533,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   // liegen die Links im ☰-Menü. In Info-/Fertig-Schritten bleibt der Footer.
   // (Der eigentliche Umschalt-Effekt steht weiter unten, wo `view` bekannt ist.)
   const setHideFooter = useContext(FooterVisibilityCtx)
+  const openSupport = useSupport()
 
   useEffect(() => {
     if (!memorial || bootedRef.current) return
@@ -1693,6 +1697,13 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
   // globale Footer ausgeblendet. In den übrigen Schritten (Info/Fertig) bleibt er.
   useEffect(() => { setHideFooter?.(view === 'interview'); return () => setHideFooter?.(false) }, [view])
+  // Support-Formular mit dem aktuellen Kontext (Buch, Rolle, Ansicht, Sprache) öffnen.
+  const openSupportHere = (extra = {}) => openSupport({
+    role: isSelf ? 'enduser' : 'contributor',
+    code, category: memorial?.product_category, view, lang: L,
+    suggestedName: contribForm?.name || undefined,
+    ...extra,
+  })
   // Beim Lebenswerk gibt es nur EINE Person — den Endnutzer. Was der Manager bei
   // der Buchanlage schon erfasst hat (Name, Geschlecht, Anredeform), fragt der
   // Start nicht noch einmal ab; gefragt wird nur, was fehlt.
@@ -1893,6 +1904,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
           <button disabled={(askName && !contribForm.name)||(askGender && !contribForm.gender)||(!isSelf && !contribForm.relationship)||(askAddress && !contribForm.address)||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             {ct.interviewButton}
           </button>
+          <div style={{ textAlign:'center', marginTop:14 }}>
+            <button type="button" onClick={() => openSupportHere({ view: 'info' })}
+              style={{ background:'none', border:'none', color:'#78716c', fontSize:13, cursor:'pointer', textDecoration:'underline' }}>
+              {t.supportButton || 'Support kontaktieren'}
+            </button>
+          </div>
           </div>
         </>
       )}
@@ -1987,7 +2004,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
-              onPause={tab === 'interview' ? handlePause : null} />
+              onPause={tab === 'interview' ? handlePause : null}
+              onSupport={() => openSupportHere({ view: 'interview' })} />
           </div>
         )
       })()}

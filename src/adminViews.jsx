@@ -14,6 +14,7 @@ import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.j
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
 import { useAdminT, AdminLangToggle } from './adminI18n.jsx'
+import { useSupport } from './support.jsx'
 
 // Anzeigename eines Buchs im Dashboard: Buchname → (Lebenswerk-)Endnutzer-E-Mail
 // → interne Notiz → sonst leer (Aufrufer zeigt dann „Name folgt").
@@ -903,6 +904,7 @@ function bookStatus(m, t) {
 
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
+    const openSupport = useSupport()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
@@ -987,6 +989,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           {myUid && (
             <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Einstellungen', 'Settings')}</button>
           )}
+          <button className="secondary" onClick={() => openSupport({ role: auth.admin ? 'admin' : 'manager', view: 'dashboard', suggestedEmail: myName, suggestedName: myName })} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Support', 'Support')}</button>
           <AdminLangToggle />
           <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
         </div>

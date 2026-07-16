@@ -53,6 +53,7 @@ function CoverPreview({ prep, posKey, width = 420 }) {
 }
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
+import { SupportProvider, useSupport } from './support.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th, FooterVisibilityCtx } from './ui.jsx'
 import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
@@ -3415,14 +3416,16 @@ export default function App() {
         @keyframes lw-spin { to{transform:rotate(360deg)} }
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-      <FooterVisibilityCtx.Provider value={setHideFooter}>
-        <ErrorBoundary>
-          {inviteFromURL ? <InviteFlow token={inviteFromURL} />
-            : registerFromURL ? <RegisterFlow />
-            : codeFromURL ? <ContributorFlow code={codeFromURL} />
-            : <AdminLangProvider><Dashboard /></AdminLangProvider>}
-        </ErrorBoundary>
-      </FooterVisibilityCtx.Provider>
+      <SupportProvider>
+        <FooterVisibilityCtx.Provider value={setHideFooter}>
+          <ErrorBoundary>
+            {inviteFromURL ? <InviteFlow token={inviteFromURL} />
+              : registerFromURL ? <RegisterFlow />
+              : codeFromURL ? <ContributorFlow code={codeFromURL} />
+              : <AdminLangProvider><Dashboard /></AdminLangProvider>}
+          </ErrorBoundary>
+        </FooterVisibilityCtx.Provider>
+      </SupportProvider>
       {!hideFooter && <LegalFooter />}
     </>
   )

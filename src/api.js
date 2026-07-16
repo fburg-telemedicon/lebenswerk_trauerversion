@@ -261,6 +261,17 @@ export async function redeemUnlockCode(memorialCode, code) {
   })
   return parseResponse(res) // { ok, already? }
 }
+// ── Support-Anfrage (öffentlich) ──────────────────────────────────
+// Nachricht/Fehlermeldung + Antwort-Adresse + Diagnose-Kontext an den Betreiber.
+export async function sendSupport({ message, replyEmail, name, context }) {
+  const res = await fetch('/api/support', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, replyEmail, name, context }),
+  })
+  return parseResponse(res) // { ok, email_sent }
+}
+
 // Verwaltung (nur Admin).
 export async function adminListUnlockCodes(token) {
   const res = await fetch('/api/admin/unlock-codes', { headers: { Authorization: `Bearer ${token}` } })
