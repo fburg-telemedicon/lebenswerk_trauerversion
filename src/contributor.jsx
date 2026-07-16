@@ -491,6 +491,25 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // (sonst würde der ganze nachfolgende Gesprächsbaum verworfen).
   const lastUserIdx = history.map(m => m.role).lastIndexOf('user')
 
+  // Das Transkript zeigt standardmäßig NUR den aktuellen Frage-/Antwort-Block —
+  // also genau das, was noch änderbar ist. Alles davor ist reine Lektüre und liegt
+  // hinter „Vorherige anzeigen".
+  //
+  // Der Schnitt liegt bewusst auf der FRAGE, zu der die letzte Antwort gehört, nicht
+  // auf der Antwort selbst: Im Begleitmodus antwortet die KI nicht, dort hängen
+  // mehrere Beiträge (Erzähler/Begleitung) an derselben Frage — die müssen zusammen
+  // sichtbar bleiben. Im Normalfall ist der Block schlicht Frage + letzte Antwort.
+  // Alles rechnet sich bei jedem Rendern neu: Wird die letzte Antwort gelöscht,
+  // rückt die vorherige nach und der Block wandert automatisch mit.
+  const [showEarlier, setShowEarlier] = useState(false)
+  let blockStart = 0
+  for (let i = lastUserIdx; i >= 0; i--) {
+    if (history[i].role === 'assistant') { blockStart = i; break }
+  }
+  // Nur zählen, was das Transkript auch wirklich rendern würde (die jüngste Frage
+  // steht bereits prominent in der Frage-Karte und wird hier übersprungen).
+  const earlierCount = history.filter((_, i) => i < blockStart && i !== latestAssistantIdx).length
+
   const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
   const micAnim   = micState === 'recording' ? 'lw-mic 1.5s ease-in-out infinite' : 'none'
@@ -580,8 +599,18 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             </div>
           ) : null
         })()}
+        {showTx && earlierCount > 0 && (
+          <div style={{ textAlign:'center', marginBottom:10 }}>
+            <button className="ghost" onClick={() => setShowEarlier(v => !v)} style={{ fontSize:12.5, color:'#78716c', textDecoration:'underline' }}>
+              {showEarlier
+                ? (t.txHideEarlier || 'Vorherige ausblenden')
+                : `${t.txShowEarlier || 'Vorherige anzeigen'} (${earlierCount})`}
+            </button>
+          </div>
+        )}
         {showTx && history.map((m, i) => {
           if (i === latestAssistantIdx) return null   // steht schon prominent in der Frage-Karte
+          if (!showEarlier && i < blockStart) return null  // älterer Verlauf: eingeklappt
           const isCompanion = m.role === 'user' && m.speaker === 'companion'
           return (
           <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
