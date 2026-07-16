@@ -96,6 +96,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [recSpeaker, setRecSpeaker] = useState('self')
   const speakerRef = useRef('self')
   const companionInitRef = useRef(true)
+  const companionRunRef  = useRef(0)
   const [transcript, setTranscript] = useState('')
   // Anzeigemodus: mit Transkript (+ Löschen/Neu einsprechen) oder reines Sprach-
   // Interview. Das Interview startet IMMER ohne Transkript (ruhiger Einstieg); die
@@ -173,18 +174,36 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     wasActiveRef.current = active
   }, [active]) // eslint-disable-line
 
-  // Begleiteter Modus ein-/ausgeschaltet: Die KI bestätigt kurz mit einem FESTEN,
-  // lokalisierten Satz (Chat-Blase + automatisch vorgelesen über den Autoplay-Effekt).
-  // Bewusst KEIN LLM-Aufruf: Eine reine Umschalt-Bestätigung braucht kein Modell und
-  // war über die KI unzuverlässig (Azure-Prompt-Shield stufte die imperative
-  // Moduswechsel-Anweisung teils als Angriff ein → 500 → Bestätigung kam nie).
+  // Begleiteter Modus ein-/ausgeschaltet:
+  //  • AN  → die KI tritt zurück: FESTE, lokalisierte Bestätigung, kein LLM (sofort).
+  //  • AUS → die KI übernimmt wieder: feste Bestätigung + sie stellt gleich die
+  //          nächste Frage (normaler Interview-Aufruf, KEIN imperativer Moduswechsel-
+  //          Text → kein Prompt-Shield-Problem). Scheitert der Aufruf, bleibt es bei
+  //          der Bestätigung (Fallback), das Interview läuft mit der nächsten Antwort
+  //          normal weiter.
+  // Run-Zähler: nur der jüngste Umschalt-Lauf wendet an und managt aiLoading.
   useEffect(() => {
     if (companionInitRef.current) { companionInitRef.current = false; return }
-    const msg = companionOn ? t.companionOnMsg : t.companionOffMsg
-    if (!msg) return
-    const finalMsgs = [...messagesRef.current, { role: 'assistant', content: msg }]
-    applyMessages(finalMsgs)
-    onSave?.(finalMsgs)
+    const myRun = ++companionRunRef.current
+    if (companionOn) {
+      const finalMsgs = [...messagesRef.current, { role: 'assistant', content: t.companionOnMsg }]
+      applyMessages(finalMsgs); onSave?.(finalMsgs)
+      setAiLoading(false)  // falls ein vorheriger AUS-Lauf aiLoading noch true ließ
+      return
+    }
+    ;(async () => {
+      setAiLoading(true)
+      let content = t.companionOffMsg
+      try {
+        const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+        const q = String(await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current], { memorialCode: memorial?.id, kind: 'interview' }) || '').trim()
+        if (q) content = `${t.companionOffMsg} ${q}`
+      } catch { /* Fallback: nur die feste Bestätigung */ }
+      if (companionRunRef.current !== myRun) return  // überholt → neuer Lauf managt State
+      const finalMsgs = [...messagesRef.current, { role: 'assistant', content }]
+      applyMessages(finalMsgs); onSave?.(finalMsgs)
+      setAiLoading(false)
+    })()
   }, [companionOn]) // eslint-disable-line
 
   function playText(text) {
