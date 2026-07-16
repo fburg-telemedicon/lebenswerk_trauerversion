@@ -4,7 +4,7 @@
 // wird exportiert (die übrigen sind intern). ACHTUNG: enthält Audio/MediaRecorder —
 // nach Änderungen ein echtes Interview live testen.
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useContext } from 'react'
 import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { proofT } from './proofI18n.js'
@@ -14,7 +14,7 @@ import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
 import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
-import { S, PartnerBanner, Dots, Err, Lbl } from './ui.jsx'
+import { S, PartnerBanner, Dots, Err, Lbl, FooterVisibilityCtx } from './ui.jsx'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
 
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
@@ -932,6 +932,15 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showT
                 <span style={{ fontSize:19 }}>⏸️</span><span>{t.pauseEnd || 'Später fortsetzen oder beenden'}</span>
               </button>
             </>)}
+            {/* Rechtslinks: hierher verlagert aus dem Seiten-Footer (der im Interview
+                ausgeblendet ist). Öffnen die statischen Rechtsseiten in einem neuen Tab. */}
+            <div style={sep} />
+            <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
+              <span style={{ fontSize:19 }}>🔒</span><span>{t.consentLink || 'Datenschutzerklärung'}</span>
+            </a>
+            <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
+              <span style={{ fontSize:19 }}>§</span><span>{t.imprintLink || 'Impressum'}</span>
+            </a>
           </div>
         </div>
       )}
@@ -1433,6 +1442,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       .catch(e => { setErr(e.message); setView('error') })
   }, [code])
 
+  // Globalen Rechts-Footer (Datenschutz/Impressum) im Interview ausblenden — dort
+  // liegen die Links im ☰-Menü. In Info-/Fertig-Schritten bleibt der Footer.
+  // (Der eigentliche Umschalt-Effekt steht weiter unten, wo `view` bekannt ist.)
+  const setHideFooter = useContext(FooterVisibilityCtx)
+
   useEffect(() => {
     if (!memorial || bootedRef.current) return
     bootedRef.current = true
@@ -1592,6 +1606,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   // die Beziehung wird intern fest gesetzt (die Spalte ist NOT NULL).
   const isSelf = memorial?.product_category === 'lifework'
   const SELF_REL = 'Ich selbst'
+  // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
+  // globale Footer ausgeblendet. In den übrigen Schritten (Info/Fertig) bleibt er.
+  useEffect(() => { setHideFooter?.(view === 'interview'); return () => setHideFooter?.(false) }, [view])
   // Beim Lebenswerk gibt es nur EINE Person — den Endnutzer. Was der Manager bei
   // der Buchanlage schon erfasst hat (Name, Geschlecht, Anredeform), fragt der
   // Start nicht noch einmal ab; gefragt wird nur, was fehlt.
@@ -1758,6 +1775,16 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             </div>
           </div>
           )}
+          {/* Einwilligung: Liegt sie bereits vor (frühere Sitzung im selben Browser
+              oder aus der gespeicherten Antwort), wird sie NICHT erneut abgefragt —
+              nur ein kurzer Hinweis. Sie deckt die Verarbeitung, nicht die einzelne
+              Sitzung, gilt also auch für einen Neubeginn. Sonst der Zustimmungshaken. */}
+          {consentAt ? (
+            <div style={{ ...S.card, background:'#f0fdf4', borderColor:'#bbf7d0', marginBottom:18, fontSize:13, color:'#3f6212', lineHeight:1.6 }}>
+              ✓ {t.consentAlready || 'Ihre Datenschutz-Einwilligung liegt bereits vor.'}{' '}
+              <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#3f6212', textDecoration:'underline' }}>{t.consentLink}</a>
+            </div>
+          ) : (
           <div style={{ ...S.card, background:'#fffbeb', borderColor:'#fde68a', marginBottom:18 }}>
             <label style={{ display:'flex', gap:11, alignItems:'flex-start', cursor:'pointer', fontSize:13.5, lineHeight:1.6, color:'#57534e' }}>
               <input
@@ -1778,6 +1805,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
               </span>
             </label>
           </div>
+          )}
           <button disabled={(askName && !contribForm.name)||(askGender && !contribForm.gender)||(!isSelf && !contribForm.relationship)||(askAddress && !contribForm.address)||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             {ct.interviewButton}
           </button>
@@ -1818,9 +1846,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         // Nach Abschluss des Buchs kein Foto-Upload mehr.
         const withPhoto    = memorial.photo_upload_tab === true && !memorial.book_finalized
         const withProof    = isSelf && memorial.proof_enabled === true
-        // Menü (Hamburger) vorhanden = Tab-Leiste. Dann steckt „Später fortsetzen/
-        // beenden" schon im Menü → der In-Interview-Button entfällt.
-        const hasMenu = withPhoto || withProof
+        // Das ☰-Menü ist im Interview IMMER vorhanden — auch für Beitragende ohne
+        // Foto-/Probedruck-Tab. „Später fortsetzen/beenden", der Transkript-Umschalter
+        // und die Rechtslinks (Datenschutz/Impressum) liegen dort; der In-Interview-
+        // Pause-Button entfällt deshalb.
         // Nach Start der Druckversion ODER Abschluss des Buchs ist das Interview
         // gesperrt — nur ein Hinweis.
         const vi = (memorial.interview_closed || memorial.book_finalized) ? (
@@ -1836,7 +1865,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             lang={L}
             onSave={saveProgress}
             onPause={handlePause}
-            hidePause={hasMenu}
+            hidePause={true}
             saveErr={saveErr}
             initialMessages={initialMessages}
             showTx={showTx}
@@ -1847,11 +1876,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)}
           />
         )
-        // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt
-        // (der Einstellungs-Tab erschien schon bisher nur zusammen mit der Tab-Leiste).
-        if (!withPhoto && !withProof) return vi
-        // paddingTop lässt Platz für den fixierten ☰-Button (oben rechts), damit er
-        // keine Kopfzeile (z. B. „Vorschauen") überdeckt.
+        // Das ☰-Menü ist immer vorhanden (auch ohne Foto-/Probedruck-Tab), damit
+        // Beitragende Transkript, „Später fortsetzen/beenden" und die Rechtslinks
+        // erreichen. paddingTop lässt Platz für den fixierten ☰-Button (oben rechts).
         return (
           <div style={{ paddingTop: 52, paddingBottom: 24 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>

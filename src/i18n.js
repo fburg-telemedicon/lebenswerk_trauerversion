@@ -80,6 +80,8 @@ const DE = {
   consentText: (noun, special) =>
     `Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich möglicher Angaben zu ${special} (besondere Kategorien personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des ${noun} verarbeitet werden. Die Verarbeitung erfolgt durch KI-Dienste, die ausschließlich in der EU laufen (Microsoft Azure); eine Übermittlung in ein Drittland findet nicht statt. Die Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der `,
   consentLink: 'Datenschutzerklärung',
+  imprintLink: 'Impressum',
+  consentAlready: 'Ihre Datenschutz-Einwilligung liegt bereits vor.',
   introSkip: 'Überspringen →',
   doneTitle: 'Herzlichen Dank',
   doneBody: (noun) => `Ihr Beitrag ist jetzt Teil des gemeinsamen ${noun}s und wird bewahrt.`,
@@ -207,6 +209,8 @@ const PL = {
   consentText: (noun, special) =>
     `Wyrażam wyraźną zgodę na to, by moje dane i mój wywiad – w tym możliwe informacje dotyczące ${special} (szczególne kategorie danych osobowych zgodnie z art. 9 RODO) – były przetwarzane w celu stworzenia: ${noun}. Przetwarzanie odbywa się za pomocą usług AI działających wyłącznie w UE (Microsoft Azure); nie następuje przekazanie danych do państwa trzeciego. Zgoda jest dobrowolna i można ją w każdej chwili odwołać ze skutkiem na przyszłość. Szczegóły w `,
   consentLink: 'polityce prywatności',
+  imprintLink: 'Nota prawna',
+  consentAlready: 'Twoja zgoda na przetwarzanie danych została już udzielona.',
   introSkip: 'Pomiń →',
   doneTitle: 'Serdecznie dziękujemy',
   doneBody: (noun) => `Twój wkład jest teraz częścią wspólnej księgi (${noun}) i zostanie zachowany.`,
@@ -332,6 +336,8 @@ const EN = {
   consentText: (noun, special) =>
     `I expressly consent to my information and my interview – including possible details about ${special} (special categories of personal data under Art. 9 GDPR) – being processed to create the ${noun}. Processing is carried out using AI services that run exclusively in the EU (Microsoft Azure); no transfer to a third country takes place. Consent is voluntary and can be withdrawn at any time with future effect. Details in the `,
   consentLink: 'privacy policy',
+  imprintLink: 'Imprint',
+  consentAlready: 'Your data-protection consent is already on record.',
   introSkip: 'Skip →',
   doneTitle: 'Thank you very much',
   doneBody: (noun) => `Your contribution is now part of the shared ${noun} and will be preserved.`,

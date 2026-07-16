@@ -1,6 +1,13 @@
 // src/ui.jsx — geteilte UI-Primitive (Styles + kleine Präsentationskomponenten).
 // Aus App.jsx ausgelagert, damit weitere Views sie ohne Import-Zyklus nutzen können.
 
+import { createContext } from 'react'
+
+// Sichtbarkeit des globalen Rechts-Footers (Datenschutz/Impressum). Der Beitragenden-/
+// Interview-Flow blendet den Footer aus und bietet die Links stattdessen im ☰-Menü an.
+// Wert = setHideFooter(boolean). Default no-op, damit Nutzung ohne Provider nicht kracht.
+export const FooterVisibilityCtx = createContext(() => {})
+
 export const S = {
   page:    { maxWidth: 600, margin: '0 auto', padding: '1.5rem' },
   card:    { background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.25rem' },

@@ -5,7 +5,10 @@
       "date": "2026-07-16",
       "items": [
         "Freischaltcodes: Endnutzer mit zeitlich begrenztem Testzugang können das Zeitlimit jetzt selbst aufheben. Oben bei der Restzeit (und nach Ablauf) gibt es die Schaltfläche „Freischaltcode eingeben“; nach Eingabe eines gültigen Codes (Form XXXX-XXXX-XXXX) läuft das Interview ohne Begrenzung weiter.",
-        "Neuer Dashboard-Bereich „Freischaltcodes“ (nur Admin): Codes erstellen (optional mit Name, E-Mail und Notiz), auf Wunsch direkt per E-Mail an den Empfänger senden, kopieren, erneut senden und löschen. Jeder Code ist einmalig und gilt für ein beliebiges Konto; die Liste zeigt Status (offen/eingelöst), wann und für welches Buch ein Code eingelöst wurde."
+        "Neuer Dashboard-Bereich „Freischaltcodes“ (nur Admin): Codes erstellen (optional mit Name, E-Mail und Notiz), auf Wunsch direkt per E-Mail an den Empfänger senden, kopieren, erneut senden und löschen. Jeder Code ist einmalig und gilt für ein beliebiges Konto; die Liste zeigt Status (offen/eingelöst), wann und für welches Buch ein Code eingelöst wurde.",
+        "Dashboard-Buchliste: Spalte „Variante“ entfernt; stattdessen zeigt eine neue Spalte „E-Mail“ (direkt neben „Name“) die hinterlegte Endnutzer-Adresse.",
+        "Interview-Ansicht: Datenschutzerklärung und Impressum sind aus dem Seitenfuß ins ☰-Menü gewandert. Das ☰-Menü gibt es jetzt für ALLE Beitragenden (auch ohne Foto-/Probedruck-Tab) und enthält Transkript-Umschalter, „Später fortsetzen/beenden“ sowie die Rechtslinks.",
+        "Datenschutz-Einwilligung: Liegt bereits eine Einwilligung vor (frühere Sitzung im selben Browser oder aus der gespeicherten Antwort), wird sie beim (Neu-)Start NICHT erneut als Häkchen abgefragt — es erscheint nur ein kurzer Hinweis „Einwilligung liegt bereits vor“. Neu erteilt wird sie weiterhin nur, wenn noch keine vorliegt."
       ]
     },
     {

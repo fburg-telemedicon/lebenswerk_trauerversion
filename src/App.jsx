@@ -53,7 +53,7 @@ function CoverPreview({ prep, posKey, width = 420 }) {
 }
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
-import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th } from './ui.jsx'
+import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th, FooterVisibilityCtx } from './ui.jsx'
 import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
@@ -3396,6 +3396,9 @@ function RegisterFlow() {
 
 export default function App() {
   const [hash, setHash] = useState(() => window.location.hash)
+  // Der Interview-/Beitragenden-Flow blendet den globalen Rechts-Footer aus (die
+  // Links liegen dort im ☰-Menü). ContributorFlow schaltet das per Context.
+  const [hideFooter, setHideFooter] = useState(false)
   useEffect(() => {
     const onHash = () => setHash(window.location.hash)
     window.addEventListener('hashchange', onHash)
@@ -3412,13 +3415,15 @@ export default function App() {
         @keyframes lw-spin { to{transform:rotate(360deg)} }
         @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-      <ErrorBoundary>
-        {inviteFromURL ? <InviteFlow token={inviteFromURL} />
-          : registerFromURL ? <RegisterFlow />
-          : codeFromURL ? <ContributorFlow code={codeFromURL} />
-          : <AdminLangProvider><Dashboard /></AdminLangProvider>}
-      </ErrorBoundary>
-      <LegalFooter />
+      <FooterVisibilityCtx.Provider value={setHideFooter}>
+        <ErrorBoundary>
+          {inviteFromURL ? <InviteFlow token={inviteFromURL} />
+            : registerFromURL ? <RegisterFlow />
+            : codeFromURL ? <ContributorFlow code={codeFromURL} />
+            : <AdminLangProvider><Dashboard /></AdminLangProvider>}
+        </ErrorBoundary>
+      </FooterVisibilityCtx.Provider>
+      {!hideFooter && <LegalFooter />}
     </>
   )
 }
