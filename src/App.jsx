@@ -3371,6 +3371,10 @@ function RegisterFlow() {
   const [err, setErr]     = useState('')
   const [done, setDone]   = useState(null)   // { email_sent }
 
+  // Der globale Tab-Titel aus index.html ist der Gedenkbuch-Titel; die
+  // Selbstregistrierung gehört zum Lebenswerk und trägt dessen Namen.
+  useEffect(() => { document.title = 'Lebenswerk.ai' }, [])
+
   const T = regT(lang)
   const rtl = lang === 'he' || lang === 'ar'
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
