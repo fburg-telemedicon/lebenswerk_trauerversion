@@ -1496,10 +1496,9 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
 }
 
 // ── Einführungs-Overlay („Onboarding") beim ersten Öffnen ─────────────────────
-// Zeigt in einem Wisch-/Weiter-Karussell kurz die für DIESES Buch freigeschalteten
-// Funktionen — mit Seitenpunkten und „Nicht mehr anzeigen" (Standard AN). Die
-// „Screenshots" sind stilisierte Platzhalter-Illustrationen (echte Screenshots
-// können später als Bild-URL je Slide eingesetzt werden).
+// Zeigt in einem Weiter-Karussell kurz die für DIESES Buch freigeschalteten
+// Funktionen — mit Seitenpunkten und „Nicht mehr anzeigen" (Standard AN). Je Slide
+// ein echter Screenshot aus public/onboarding/<key>.png (Fallback: Illustration).
 const ONBOARD_L10N = {
   de: {
     next: 'Weiter', back: 'Zurück', start: 'Los geht’s', skip: 'Überspringen',
@@ -1546,15 +1545,26 @@ const ONBOARD_L10N = {
 }
 
 function OnboardMock({ icon, color }) {
-  // Stilisierte „Screenshot"-Platzhalter: kleines Geräte-Rähmchen mit Icon +
-  // Skeleton-Zeilen. (Echte Screenshots später via Bild-URL je Slide möglich.)
+  // Fallback-Illustration, falls ein Screenshot (noch) nicht lädt.
   return (
-    <div style={{ width:200, maxWidth:'70%', margin:'0 auto', aspectRatio:'9/13', background:'#fff', border:'8px solid #1c1917', borderRadius:22, boxShadow:'0 10px 30px rgba(0,0,0,.18)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:12 }}>
-      <div style={{ width:56, height:56, borderRadius:'50%', background:color || '#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>{icon}</div>
-      <div style={{ width:'80%', height:9, borderRadius:5, background:'#e7e5e4' }} />
-      <div style={{ width:'60%', height:9, borderRadius:5, background:'#efece9' }} />
-      <div style={{ width:'70%', height:9, borderRadius:5, background:'#efece9' }} />
+    <div style={{ width:170, maxWidth:'60%', margin:'0 auto', aspectRatio:'9/16', background:'#fff', border:'6px solid #1c1917', borderRadius:18, boxShadow:'0 10px 30px rgba(0,0,0,.18)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:12 }}>
+      <div style={{ width:52, height:52, borderRadius:'50%', background:color || '#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26 }}>{icon}</div>
+      <div style={{ width:'80%', height:8, borderRadius:5, background:'#e7e5e4' }} />
+      <div style={{ width:'60%', height:8, borderRadius:5, background:'#efece9' }} />
+      <div style={{ width:'70%', height:8, borderRadius:5, background:'#efece9' }} />
     </div>
+  )
+}
+
+// Echter Screenshot in einem Geräte-Rähmchen; fällt bei Ladefehler auf die
+// Illustration zurück (z. B. falls die Bilddatei fehlt).
+function OnboardShot({ slideKey, icon, color }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <OnboardMock icon={icon} color={color} />
+  return (
+    <img src={`/onboarding/${slideKey}.png`} alt="" loading="lazy" onError={() => setFailed(true)}
+      style={{ display:'block', margin:'0 auto', height:300, maxHeight:'40vh', width:'auto', maxWidth:'100%',
+        borderRadius:16, border:'6px solid #1c1917', boxShadow:'0 10px 30px rgba(0,0,0,.18)', background:'#fff' }} />
   )
 }
 
@@ -1585,7 +1595,7 @@ function OnboardingCarousel({ memorial, lang = 'de', onClose }) {
           <button onClick={finish} style={{ background:'none', border:'none', fontSize:13, color:'#a8a29e', cursor:'pointer' }}>{s.skip} ✕</button>
         </div>
         <div style={{ padding:'6px 0 14px' }}>
-          <OnboardMock icon={cur.icon} color={cur.color} />
+          <OnboardShot slideKey={cur.key} icon={cur.icon} color={cur.color} />
         </div>
         <h2 style={{ fontSize:19, fontWeight:700, margin:'0 0 8px' }}>{cur.title}</h2>
         <p style={{ fontSize:14.5, lineHeight:1.6, color:'#57534e', margin:'0 auto 16px', maxWidth:320 }}>{cur.body}</p>
