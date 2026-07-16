@@ -1717,8 +1717,18 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       return
     }
     const local = loadLocalSession(code)
-    if (local) setResumePrompt(local)
-    else setView('info')
+    if (!local) { setView('info'); return }
+    // Der Merker heißt lw_session_<BUCH-CODE> — er hängt am BUCH, nicht an der Person.
+    //  • Lebenswerk: ein Buch = genau eine erzählende Person (eigener Code, eigener
+    //    Login). Eine fremde Sitzung kann hier gar nicht liegen → ohne Rückfrage
+    //    fortsetzen. Der Preis: keine Nutzer-Geste, also kann iOS die Sprachausgabe
+    //    der ersten Frage blocken (siehe primeAudio) — bewusst in Kauf genommen,
+    //    das Mikrofon-Tippen schaltet den Ton wieder frei.
+    //  • Alle anderen Kategorien: ALLE Beitragenden teilen denselben ?code-Link und
+    //    damit denselben Merker. Ohne Rückfrage landet die zweite Person auf einem
+    //    gemeinsamen Gerät im Beitrag der ersten und verfälscht ihn → hier wird gefragt.
+    if (memorial.product_category === 'lifework') { resumeSession(local); return }
+    setResumePrompt(local)
   }, [memorial])
 
   async function fetchContribution(memCode, id) {
@@ -1741,12 +1751,18 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
     saveLocalSession(code, { contribId: contrib.id, contribForm: form, consentAt: contrib.consent_at || null })
   }
 
-  async function resumeLocal() {
+  // Aus dem Dialog heraus fortsetzen (geteilte Bücher).
+  function resumeLocal() {
     if (!resumePrompt) return
     // In dieser Nutzer-Geste (Tap auf „Fortsetzen") das TTS-Element freischalten,
     // damit auf iOS auch die erste Frage nach dem Fortsetzen hörbar ist.
     unlockAudio()
-    const local = resumePrompt
+    resumeSession(resumePrompt)
+  }
+
+  // Eine gespeicherte Sitzung wiederherstellen — aus dem Dialog ODER (beim
+  // Lebenswerk) automatisch beim Start.
+  async function resumeSession(local) {
     setResumePrompt(null); setView('loading')
     const contrib = await fetchContribution(code, local.contribId)
     if (contrib) {
@@ -2202,7 +2218,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         </div>
       )}
 
-      {/* Overlay: localStorage-Fortsetzung anbieten */}
+      {/* Overlay: localStorage-Fortsetzung anbieten. Nur bei den GETEILTEN Büchern —
+          das Lebenswerk setzt ohne Rückfrage fort (siehe Boot-Effekt oben).
+          Fortsetzen ist der Normalfall und deshalb der einzige echte Knopf; der
+          Wechsel auf einen neuen Beitrag ist ein kleiner Link daneben. Er löscht
+          nichts (startFresh legt nur einen NEUEN Beitrag an) — der Hinweis darunter
+          sagt das ausdrücklich, damit niemand Datenverlust befürchtet. */}
       {resumePrompt && (
         <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem' }}>
           <div style={{ ...S.card, maxWidth: 460, width:'100%' }}>
@@ -2211,9 +2232,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
               {t.resumeLast(new Date(resumePrompt.savedAt).toLocaleString(t.locale))}<br />
               {t.resumeQ}
             </p>
-            <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-              <button onClick={resumeLocal} style={{ fontSize:14, padding:'10px 16px' }}>{t.resumeContinue}</button>
-              <button className="secondary" onClick={startFresh} style={{ fontSize:14, padding:'10px 16px' }}>{t.resumeFresh}</button>
+            <button onClick={resumeLocal} style={{ fontSize:15, padding:'12px 20px', width:'100%' }}>{t.resumeContinue}</button>
+            <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
+              <button className="ghost" onClick={startFresh} style={{ fontSize:13, color:'#78716c', textDecoration:'underline' }}>{t.resumeFresh}</button>
+              <p style={{ ...S.muted, fontSize:12, margin:'4px 0 0' }}>{t.resumeKeep}</p>
             </div>
           </div>
         </div>

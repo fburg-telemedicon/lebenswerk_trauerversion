@@ -579,6 +579,13 @@ function Dashboard() {
 
   async function login(e) {
     e.preventDefault()
+    // Endnutzer (Lebenswerk) landen nach dem Login SOFORT im Interview und setzen dort
+    // ohne Rückfrage fort — der Tap auf „Fortsetzen" als Audio-Freigabe entfällt also.
+    // Dieser Klick ist die letzte Nutzer-Geste davor: Hier das TTS-Element freischalten,
+    // sonst bliebe die erste Frage auf iOS stumm. Muss VOR dem ersten await stehen
+    // (danach zählt es nicht mehr als Geste) — und damit bevor bekannt ist, ob es
+    // überhaupt ein Endnutzer ist. Für alle anderen Rollen ist es ein No-op.
+    unlockAudio()
     setLoading(true); setErr('')
     try {
       const res = await fetch('/api/admin/login', {
