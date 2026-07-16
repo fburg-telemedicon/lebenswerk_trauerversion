@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-16",
+      "items": [
+        "Freischaltcodes: Endnutzer mit zeitlich begrenztem Testzugang können das Zeitlimit jetzt selbst aufheben. Oben bei der Restzeit (und nach Ablauf) gibt es die Schaltfläche „Freischaltcode eingeben“; nach Eingabe eines gültigen Codes (Form XXXX-XXXX-XXXX) läuft das Interview ohne Begrenzung weiter.",
+        "Neuer Dashboard-Bereich „Freischaltcodes“ (nur Admin): Codes erstellen (optional mit Name, E-Mail und Notiz), auf Wunsch direkt per E-Mail an den Empfänger senden, kopieren, erneut senden und löschen. Jeder Code ist einmalig und gilt für ein beliebiges Konto; die Liste zeigt Status (offen/eingelöst), wann und für welches Buch ein Code eingelöst wurde."
+      ]
+    },
+    {
       "date": "2026-07-15",
       "items": [
         "Begleiteter Modus: Die kurze Bestätigung beim Ein- und Ausschalten kommt jetzt zuverlässig (fester, übersetzter Hinweis statt KI-Antwort, die vom Sicherheitsfilter teils blockiert wurde) – in allen 9 Sprachen. Beim Ausschalten übernimmt die KI wieder und stellt gleich die nächste Frage, sodass das Interview normal weiterläuft.",

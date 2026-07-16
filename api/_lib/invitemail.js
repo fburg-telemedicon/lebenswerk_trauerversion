@@ -230,4 +230,25 @@ async function sendAccessMail({ to, url, kind = 'invite', lang = 'de' }) {
   return sendMail({ to, subject: t.subject, text, html, replyTo: REPLY_TO, bcc: BCC })
 }
 
-module.exports = { sendAccessMail, baseUrl, inviteLink }
+// Freischaltcode-Mail: liefert dem Empfänger seinen Code (XXXX-XXXX-XXXX), mit dem
+// er das Zeitlimit seines Testkontos aufhebt. Bewusst nur deutsch (Betreiber-/
+// Manager-Kontext). BCC an den Betreiber wie bei den Zugangs-Mails.
+async function sendUnlockCodeMail({ to, code, name }) {
+  const greeting = name ? `Hallo ${name},` : 'Hallo,'
+  const subject = 'Ihr Freischaltcode für Lebensgeschichten'
+  const intro = 'anbei Ihr persönlicher Freischaltcode. Damit heben Sie das Zeitlimit Ihres Testzugangs auf und können ohne Begrenzung weitererzählen.'
+  const howTo = 'Öffnen Sie Ihr Interview und tippen Sie oben bei der Restzeit auf „Freischaltcode eingeben". Geben Sie dort den folgenden Code ein:'
+  const text = `${greeting}\n\n${intro}\n\n${howTo}\n\n${code}\n\nDer Code kann einmalig eingelöst werden.\n\n— Lebensgeschichten`
+  const html = `<!doctype html><html lang="de"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+  <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
+    <h1 style="font-size:20px;font-weight:700;margin:0 0 14px;">Ihr Freischaltcode</h1>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 8px;color:#44403c;">${esc(greeting)}</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 18px;color:#44403c;">${esc(intro)}</p>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 12px;color:#44403c;">${esc(howTo)}</p>
+    <p style="margin:0 0 22px;text-align:center;"><span style="display:inline-block;background:#1c1917;color:#fff;padding:14px 26px;border-radius:8px;font-size:22px;font-weight:700;letter-spacing:2px;font-family:'SFMono-Regular',Consolas,monospace;">${esc(code)}</span></p>
+    <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">Der Code kann einmalig eingelöst werden. Falls Sie dies nicht erwartet haben, können Sie diese E-Mail ignorieren.<br>— Lebensgeschichten</p>
+  </div></body></html>`
+  return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
+}
+
+module.exports = { sendAccessMail, sendUnlockCodeMail, baseUrl, inviteLink }

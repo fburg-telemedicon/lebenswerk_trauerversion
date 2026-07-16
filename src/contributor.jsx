@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
@@ -76,7 +76,7 @@ function Waveform({ stream, color = '#dc2626' }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch }) {
   const t = uiText(lang)
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -138,6 +138,40 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   }, [timerActive, timerSeconds, memorial?.id])
   const expired = timerActive && remaining <= 0
   const fmtMMSS = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+  // Freischaltcode: Der Endnutzer hebt sein Zeitlimit selbst auf, indem er einen
+  // Code (XXXX-XXXX-XXXX) eingibt. Bei Erfolg setzt der Server das Limit am Buch
+  // auf 0 (unbegrenzt); wir spiegeln das sofort ins UI (onMemorialPatch) und
+  // entfernen die lokale Deadline, damit der Countdown verschwindet.
+  const [unlockOpen, setUnlockOpen]     = useState(false)
+  const [unlockCode, setUnlockCode]     = useState('')
+  const [unlockBusy, setUnlockBusy]     = useState(false)
+  const [unlockErr,  setUnlockErr]      = useState('')
+  const [unlockDone, setUnlockDone]     = useState(false)
+  // Tipphilfe: automatisch in Gruppen zu 4 Zeichen mit Bindestrich gliedern.
+  function onUnlockInput(v) {
+    const raw = String(v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)
+    setUnlockCode(raw.replace(/(.{4})(?=.)/g, '$1-'))
+  }
+  async function submitUnlock() {
+    if (unlockBusy || !memorial?.id) return
+    setUnlockBusy(true); setUnlockErr('')
+    try {
+      await redeemUnlockCode(memorial.id, unlockCode)
+      // Lokale Countdown-Deadline entfernen (alle Timer-Werte dieses Buchs).
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i)
+          if (k && k.startsWith(`lw_timer_${memorial.id}_`)) localStorage.removeItem(k)
+        }
+      } catch { /* privater Modus */ }
+      onMemorialPatch?.({ interview_timer_seconds: 0 })
+      setUnlockDone(true)
+      setTimeout(() => { setUnlockOpen(false); setUnlockDone(false); setUnlockCode('') }, 2500)
+    } catch (e) {
+      setUnlockErr(e.message || (t.unlockInvalid || 'Dieser Freischaltcode ist ungültig oder wurde bereits eingelöst.'))
+    } finally { setUnlockBusy(false) }
+  }
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiLoading])
   useEffect(() => { if (messages.length === 0) loadFirst() }, [])
@@ -412,12 +446,46 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         {!hidePause && <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>}
       </div>
       {timerActive && (
-        <div style={{ textAlign:'center', padding:'8px 12px', borderBottom:'1px solid #e7e5e4', fontSize:14, fontWeight:700,
-          background: expired ? '#fef2f2' : (remaining <= 60 ? '#fff7ed' : '#eff6ff'),
-          color: expired ? '#b91c1c' : (remaining <= 60 ? '#c2410c' : '#1d4ed8') }}>
-          {expired
-            ? (t.timerExpiredShort || '⏳ Testzeit abgelaufen')
-            : `⏳ ${t.timerRemaining || 'Verbleibende Testzeit'}: ${fmtMMSS(remaining)}`}
+        <div style={{ padding:'8px 12px', borderBottom:'1px solid #e7e5e4',
+          background: expired ? '#fef2f2' : (remaining <= 60 ? '#fff7ed' : '#eff6ff') }}>
+          <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            <span style={{ fontSize:14, fontWeight:700, color: expired ? '#b91c1c' : (remaining <= 60 ? '#c2410c' : '#1d4ed8') }}>
+              {expired
+                ? (t.timerExpiredShort || '⏳ Testzeit abgelaufen')
+                : `⏳ ${t.timerRemaining || 'Verbleibende Testzeit'}: ${fmtMMSS(remaining)}`}
+            </span>
+            <button onClick={() => { setUnlockOpen(v => !v); setUnlockErr('') }} className="secondary"
+              style={{ fontSize:12, padding:'5px 12px', background:'#fff' }}>
+              🔓 {t.unlockButton || 'Freischaltcode eingeben'}
+            </button>
+          </div>
+          {unlockOpen && (
+            <div style={{ maxWidth:340, margin:'10px auto 2px', background:'#fff', border:'1px solid #e7e5e4', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
+              {unlockDone ? (
+                <p style={{ fontSize:13, fontWeight:600, color:'#15803d', margin:0, lineHeight:1.5 }}>
+                  {t.unlockSuccess || '✓ Zeitlimit aufgehoben – Sie können jetzt unbegrenzt weitererzählen.'}
+                </p>
+              ) : (
+                <form onSubmit={e => { e.preventDefault(); submitUnlock() }}>
+                  <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px', lineHeight:1.5, fontWeight:400 }}>
+                    {t.unlockHint || 'Geben Sie Ihren Code ein, um das Zeitlimit dauerhaft aufzuheben.'}
+                  </p>
+                  <input value={unlockCode} onChange={e => onUnlockInput(e.target.value)} placeholder="XXXX-XXXX-XXXX"
+                    autoFocus autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                    style={{ width:'100%', textAlign:'center', letterSpacing:2, fontSize:16, fontWeight:700, textTransform:'uppercase', marginBottom:8 }} />
+                  {unlockErr && <p style={{ fontSize:12, color:'#b91c1c', margin:'0 0 8px', lineHeight:1.4 }}>⚠ {unlockErr}</p>}
+                  <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
+                    <button type="submit" disabled={unlockBusy || unlockCode.replace(/-/g,'').length < 12} style={{ fontSize:13, padding:'7px 16px' }}>
+                      {unlockBusy ? '…' : (t.unlockSubmit || 'Einlösen')}
+                    </button>
+                    <button type="button" className="ghost" onClick={() => { setUnlockOpen(false); setUnlockErr('') }} style={{ fontSize:13, padding:'7px 12px', color:'#78716c' }}>
+                      {t.unlockCancel || 'Abbrechen'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       )}
       <div style={{ padding: '1.25rem 1.5rem' }}>
@@ -1776,6 +1844,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             companionOn={companionOn}
             setCompanionOn={setCompanionOn}
             active={tab === 'interview'}
+            onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)}
           />
         )
         // Ohne Foto-Upload UND ohne Probedruck keine Tab-Leiste — Interview wie gehabt

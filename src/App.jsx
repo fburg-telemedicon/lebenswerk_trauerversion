@@ -11,6 +11,7 @@ import {
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
   adminGetBookDefaults, adminSaveBookDefaults, adminResetBookDefaults,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
+  adminListUnlockCodes, adminCreateUnlockCode, adminSendUnlockCode, adminDeleteUnlockCode,
   getSettings, saveSettings, changeOwnPassword, saveOwnLang,
   getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
@@ -60,7 +61,7 @@ import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
-import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
+import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
 import { formatEur, costKindLabel } from './shared.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -446,6 +447,9 @@ function Dashboard() {
   const [usersData, setUsersData]     = useState({ users: [] })
   const [userForm, setUserForm]       = useState({ username: '', cats: [], demo: true, lang: '' })
   const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
+  const [codesData, setCodesData]     = useState({ codes: [] })
+  const [codeForm, setCodeForm]       = useState({ recipient_name: '', recipient_email: '', note: '', send: false })
+  const [codeMsg, setCodeMsg]         = useState('')
   const [auditData, setAuditData]     = useState({ entries: [] })
   const [qmData, setQmData]           = useState([])
   const [auditLoading, setAuditLoading] = useState(false)
@@ -1137,6 +1141,49 @@ function Dashboard() {
     setErr('')
     try { await adminDeleteUser(token, user.id); await loadUsers() }
     catch (e) { setErr(e.message) }
+  }
+
+  // ── Freischaltcodes (nur Admin) ──
+  async function loadCodes() {
+    setErr(''); setCodeMsg('')
+    try { setCodesData(await adminListUnlockCodes(token)) }
+    catch (e) { setErr(e.message) }
+  }
+  async function submitCode() {
+    setErr(''); setCodeMsg(''); setBusy(true)
+    try {
+      const c = await adminCreateUnlockCode(token, {
+        recipient_name: codeForm.recipient_name.trim() || null,
+        recipient_email: codeForm.recipient_email.trim() || null,
+        note: codeForm.note.trim() || null,
+        send: codeForm.send,
+      })
+      let msg = `Code ${c.code_display} erstellt.`
+      if (codeForm.send && codeForm.recipient_email.trim()) {
+        msg += c.email_sent ? ` E-Mail an ${c.recipient_email} gesendet.` : ` ⚠ E-Mail konnte nicht gesendet werden${c.email_error ? ` (${c.email_error})` : ''}.`
+      }
+      setCodeMsg(msg)
+      setCodeForm({ recipient_name: '', recipient_email: '', note: '', send: false })
+      await loadCodes()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function sendCode(c) {
+    setErr(''); setCodeMsg('')
+    try {
+      await adminSendUnlockCode(token, c.code)
+      setCodeMsg(`E-Mail mit Code ${c.code_display} an ${c.recipient_email} gesendet.`)
+      await loadCodes()
+    } catch (e) { setErr(e.message) }
+  }
+  async function removeCode(c) {
+    if (!window.confirm(`Freischaltcode ${c.code_display} löschen?`)) return
+    setErr('')
+    try { await adminDeleteUnlockCode(token, c.code); await loadCodes() }
+    catch (e) { setErr(e.message) }
+  }
+  function copyCode(c) {
+    navigator.clipboard?.writeText(c.code_display)
+    setCodeMsg(`Code ${c.code_display} in die Zwischenablage kopiert.`)
   }
 
   // ── Tagesreport-Empfänger (nur Admin) ──
@@ -3005,7 +3052,7 @@ Regeln:
 
   // ── LISTE ──
   if (view === 'list') return (
-    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
+    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
   )
 
   // ── BUCH-STANDARDWERTE (nur Admin) ──
@@ -3044,6 +3091,11 @@ Regeln:
 
   if (view === 'users') return (
     <UsersView err={err} usersData={usersData} createdInvite={createdInvite} userForm={userForm} busy={busy} logout={logout} setView={setView} resetUserPassword={resetUserPassword} copyInviteLink={copyInviteLink} regenerateInvite={regenerateInvite} removeUser={removeUser} saveUserCats={saveUserCats} setCreatedInvite={setCreatedInvite} setUserForm={setUserForm} toggleUserFormCat={toggleUserFormCat} submitUser={submitUser} />
+  )
+
+  // ── FREISCHALTCODES (nur Admin) ──
+  if (view === 'unlock-codes') return (
+    <CodesView err={err} codesData={codesData} codeForm={codeForm} busy={busy} codeMsg={codeMsg} logout={logout} setView={setView} setCodeForm={setCodeForm} submitCode={submitCode} sendCode={sendCode} removeCode={removeCode} copyCode={copyCode} />
   )
 
   // ── FRAGENKATALOGE (nur Admin) ──

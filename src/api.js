@@ -249,6 +249,45 @@ export async function adminDeleteUser(token, id) {
   })
   return parseResponse(res)
 }
+
+// ── Freischaltcodes ───────────────────────────────────────────────
+// Endnutzer löst einen Code ein, um das Zeitlimit seines Buchs aufzuheben
+// (öffentlich; Buch-Code genügt als Berechtigung).
+export async function redeemUnlockCode(memorialCode, code) {
+  const res = await fetch('/api/redeem', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ memorial: memorialCode, code }),
+  })
+  return parseResponse(res) // { ok, already? }
+}
+// Verwaltung (nur Admin).
+export async function adminListUnlockCodes(token) {
+  const res = await fetch('/api/admin/unlock-codes', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { codes }
+}
+export async function adminCreateUnlockCode(token, { recipient_name, recipient_email, note, send } = {}) {
+  const res = await fetch('/api/admin/unlock-codes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ recipient_name, recipient_email, note, send }),
+  })
+  return parseResponse(res) // created code (+ email_sent?)
+}
+export async function adminSendUnlockCode(token, code, recipient_email) {
+  const res = await fetch(`/api/admin/unlock-codes?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'send', ...(recipient_email ? { recipient_email } : {}) }),
+  })
+  return parseResponse(res) // { ok, email_sent, email_sent_at }
+}
+export async function adminDeleteUnlockCode(token, code) {
+  const res = await fetch(`/api/admin/unlock-codes?code=${encodeURIComponent(code)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { ok }
+}
 // Audit-Log lesen (admin-only). In users.js eingebettet (?audit=1) wegen
 // des Vercel-12-Funktionen-Limits.
 // Qualitätsmanagement: Beitragenden-Bewertungen (Feedback) aller zugänglichen Bücher.

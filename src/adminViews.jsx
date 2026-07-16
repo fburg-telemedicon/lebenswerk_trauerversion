@@ -685,6 +685,99 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
   )
 }
 
+// ── Freischaltcodes (nur Admin) ──
+// Codes der Form XXXX-XXXX-XXXX, mit denen ein Endnutzer das Zeitlimit seines
+// Testkontos aufhebt. Einmalig, generisch (nicht an ein Konto gebunden).
+export function CodesView({ err, codesData, codeForm, busy, codeMsg, logout, setView, setCodeForm, submitCode, sendCode, removeCode, copyCode }) {
+  const t = useAdminT()
+  const codes = codesData.codes || []
+  const fmtDate = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button><span style={{ fontWeight: 700, fontSize: 16 }}>Lebenswerk Admin</span></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
+      </div>
+      <div style={{ maxWidth: 760, margin: '2rem auto', padding: '0 1.5rem' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('Freischaltcodes', 'Unlock codes')}</h2>
+        <p style={{ ...S.muted, marginBottom: '1.5rem' }}>
+          {t('Ein Freischaltcode hebt das Zeitlimit eines Test-Zugangs dauerhaft auf. Jeder Code ist einmalig und gilt für ein beliebiges Konto – der Endnutzer gibt ihn im Interview oben bei der Restzeit ein.',
+             'An unlock code permanently lifts the time limit of a trial account. Each code is single-use and works for any account – the end user enters it in the interview next to the remaining time.')}
+        </p>
+        <Err msg={err} />
+
+        {/* Neuer Code */}
+        <div style={{ ...S.card, marginBottom:24 }}>
+          <Lbl>{t('Neuen Freischaltcode erstellen', 'Create a new unlock code')}</Lbl>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, margin:'6px 0 10px' }}>
+            <div>
+              <span style={{ ...S.muted, fontSize:12, display:'block', marginBottom:3 }}>{t('Name (optional)', 'Name (optional)')}</span>
+              <input value={codeForm.recipient_name} onChange={e => setCodeForm({ ...codeForm, recipient_name: e.target.value })} placeholder={t('z. B. Maria Muster', 'e.g. Jane Doe')} />
+            </div>
+            <div>
+              <span style={{ ...S.muted, fontSize:12, display:'block', marginBottom:3 }}>{t('E-Mail (optional)', 'Email (optional)')}</span>
+              <input type="email" value={codeForm.recipient_email} onChange={e => setCodeForm({ ...codeForm, recipient_email: e.target.value })} placeholder={t('name@beispiel.de', 'name@example.com')} />
+            </div>
+          </div>
+          <span style={{ ...S.muted, fontSize:12, display:'block', marginBottom:3 }}>{t('Notiz (optional)', 'Note (optional)')}</span>
+          <input value={codeForm.note} onChange={e => setCodeForm({ ...codeForm, note: e.target.value })} placeholder={t('z. B. Rechnung 2026-014', 'e.g. invoice 2026-014')} style={{ marginBottom:12 }} />
+          <label style={{ display:'flex', alignItems:'center', gap:8, margin:'0 0 14px', cursor:'pointer', fontSize:14 }}>
+            <input type="checkbox" checked={codeForm.send} onChange={e => setCodeForm({ ...codeForm, send: e.target.checked })} />
+            <span>{t('Nach dem Erstellen direkt per E-Mail an die angegebene Adresse senden', 'Send by email to the address above right after creating')}</span>
+          </label>
+          <button onClick={submitCode} disabled={busy} style={{ fontSize:14, padding:'9px 16px' }}>{busy ? t('Wird erstellt …', 'Creating …') : t('Code erstellen', 'Create code')}</button>
+          {codeMsg && <p style={{ fontSize:13, color:'#3f6212', margin:'12px 0 0', fontWeight:600 }}>{codeMsg}</p>}
+        </div>
+
+        {/* Bestehende Codes */}
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {codes.map(c => {
+            const redeemed = Boolean(c.redeemed_at)
+            return (
+              <div key={c.code} style={{ ...S.card, opacity: redeemed ? 0.72 : 1 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                    <code style={{ fontSize:16, fontWeight:700, letterSpacing:1.5, background:'#f5f5f4', padding:'4px 10px', borderRadius:6, textDecoration: redeemed ? 'line-through' : 'none' }}>{c.code_display}</code>
+                    {redeemed
+                      ? <span style={{ fontSize:11, color:'#78716c', fontWeight:600 }}>{t('eingelöst', 'redeemed')}</span>
+                      : <span style={{ fontSize:11, color:'#15803d', fontWeight:600 }}>{t('offen', 'open')}</span>}
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button className="secondary" onClick={() => copyCode(c)} style={{ fontSize:12, padding:'5px 10px' }}>{t('Kopieren', 'Copy')}</button>
+                    {!redeemed && c.recipient_email && (
+                      <button className="secondary" onClick={() => sendCode(c)} style={{ fontSize:12, padding:'5px 10px' }}>{c.email_sent_at ? t('Erneut senden', 'Resend') : t('Per E-Mail senden', 'Send by email')}</button>
+                    )}
+                    <button className="secondary" onClick={() => removeCode(c)} style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>{t('Löschen', 'Delete')}</button>
+                  </div>
+                </div>
+                <div style={{ ...S.muted, fontSize:12, marginTop:8, lineHeight:1.6 }}>
+                  {(c.recipient_name || c.recipient_email) && (
+                    <div>{c.recipient_name}{c.recipient_name && c.recipient_email ? ' · ' : ''}{c.recipient_email}</div>
+                  )}
+                  {c.note && <div>{t('Notiz', 'Note')}: {c.note}</div>}
+                  <div>
+                    {t('Erstellt', 'Created')}: {fmtDate(c.created_at)}
+                    {c.email_sent_at && ` · ${t('E-Mail gesendet', 'Email sent')}: ${fmtDate(c.email_sent_at)}`}
+                  </div>
+                  {redeemed && (
+                    <div style={{ color:'#57534e' }}>
+                      {t('Eingelöst', 'Redeemed')}: {fmtDate(c.redeemed_at)}{c.redeemed_memorial ? ` · ${t('Buch', 'Book')} ${c.redeemed_memorial}` : ''}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          {codes.length === 0 && <p style={S.muted}>{t('Noch keine Freischaltcodes.', 'No unlock codes yet.')}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function CatalogsView({ err, catalogForm, catalogs, busy, logout, setView, setCatalogForm, saveCatalog, setErr, newCatalog, editCatalog, removeCatalog }) {
   const t = useAdminT()
   return (
@@ -808,7 +901,7 @@ function bookStatus(m, t) {
   return                        { rank: 0, label: t('In Arbeit', 'In progress'),               color: '#3f6212', bg: '#f7fee7', border: '#d9f99d' }
 }
 
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
@@ -878,6 +971,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           )}
           {auth.admin && (
             <button className="secondary" onClick={() => { loadCatalogs(); setCatalogForm(null); setErr(''); setView('catalogs') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Fragenkataloge', 'Question catalogs')}</button>
+          )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadCodes(); setErr(''); setView('unlock-codes') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Freischaltcodes', 'Unlock codes')}</button>
           )}
           {auth.admin && (
             <button className="secondary" onClick={openBookDefaults} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Standardwerte', 'Defaults')}</button>
