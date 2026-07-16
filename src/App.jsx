@@ -3417,7 +3417,7 @@ function RegisterFlow() {
           {LANGUAGES.map(l => (
             <button key={l.code} type="button"
               onClick={() => { setLang(l.code); setErr(''); setStep('email') }}
-              style={{ width: '100%', padding: '12px 14px', fontSize: 15, textAlign: 'left', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, cursor: 'pointer' }}>
+              style={{ width: '100%', padding: '12px 14px', fontSize: 15, textAlign: 'left', background: '#fff', color: '#1c1917', border: '1px solid #e7e5e4', borderRadius: 8, cursor: 'pointer' }}>
               {l.label} <span style={{ float: 'right', color: '#a8a29e' }}>›</span>
             </button>
           ))}
