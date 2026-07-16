@@ -26,7 +26,7 @@ const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
-const LOCK_TTL_MS = 15 * 60 * 1000   // 15 Min ohne Heartbeat → Lock läuft ab
+const LOCK_TTL_MS = 5 * 60 * 1000    // 5 Min ohne Heartbeat → Lock läuft ab (Heartbeat alle 90 s)
 // „Buch fertig – muss gedruckt werden" geht IMMER an den Betreiber (Manager
 // drucken nicht selbst). Per Env überschreibbar.
 const FINALIZE_NOTIFY = process.env.FINALIZE_NOTIFY || process.env.INVITE_BCC || 'florian.burg@lebensgeschichten.ai'
@@ -34,13 +34,26 @@ const FINALIZE_NOTIFY = process.env.FINALIZE_NOTIFY || process.env.INVITE_BCC ||
 // Buch säubern und gegen Größenmissbrauch begrenzen. Bilder-Felder (image_path für
 // die vorläufige Druckversion + Historie/Regenerierungszähler) bleiben erhalten;
 // der textbasierte Zwischenstand hat sie schlicht nicht.
+// KI-Platzhalter für „leer/entfernt" entfernen. Früher schrieb die Überarbeitung
+// bei einer Lösch-Anweisung z. B. „[Kein Text, da der Abschnitt rausgelassen werden
+// soll.]" in den Text — das landete so im Buch/PDF. Solche Klammer-Hinweise werden
+// hier zentral entfernt (greift auch für bereits gespeicherte Bücher beim Laden).
+function stripEmptyPlaceholders(s) {
+  if (typeof s !== 'string' || !s) return s
+  return s
+    .replace(/\[[^\]]*(rausgelassen|weggelassen|ausgelassen|kein\s+text|nichts\s+stehen|absichtlich\s+leer|leer\s+gelassen)[^\]]*\]/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function sanitizeBook(book) {
   if (!book || typeof book !== 'object') return null
   const clip = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '')
   const chapters = Array.isArray(book.chapters) ? book.chapters.slice(0, 60).map((c, i) => ({
     number: Number.isFinite(c?.number) ? c.number : (i + 1),
     heading: clip(c?.heading, 300),
-    body: clip(c?.body, 40000),
+    body: stripEmptyPlaceholders(clip(c?.body, 40000)),
     ...(c?.contributor_name ? { contributor_name: clip(c.contributor_name, 200) } : {}),
     ...(c?.relationship ? { relationship: clip(c.relationship, 200) } : {}),
     ...(c?.contribution_id ? { contribution_id: clip(c.contribution_id, 40) } : {}),
@@ -177,26 +190,37 @@ module.exports = async function handler(req, res) {
       }
       const book = sanitizeBook(req.body?.book)
       if (!book) return res.status(400).json({ error: 'Kein gültiges Buch übergeben.' })
-      const { error } = await supabase.from('memorials').update({ book_v2: book }).eq('id', code)
+      // Die Druckversion (print=true) schließt das Interview endgültig ab — aber ERST
+      // hier, beim tatsächlichen Speichern (nicht schon beim Start), damit ein
+      // Fehlschlag der Erzeugung das Interview nicht fälschlich schließt.
+      const patch = { book_v2: book }
+      if (book.print === true && !m.interview_closed) patch.interview_closed = true
+      const { error } = await supabase.from('memorials').update(patch).eq('id', code)
       if (error) throw error
-      return res.json({ ok: true })
+      return res.json({ ok: true, interview_closed: !!patch.interview_closed })
     }
 
-    // ── Vorläufige Druckversion starten: Interview ENDGÜLTIG abschließen ──
-    // Danach ist die Buchvorschau editierbar (mit Bildern); das Interview kann nicht
-    // mehr genutzt werden. Holt zugleich den Bearbeitungs-Lock.
+    // ── Vorläufige Druckversion starten: NUR den Bearbeitungs-Lock holen ──
+    // Das Interview wird hier NOCH NICHT abgeschlossen — erst wenn die Druckversion
+    // tatsächlich erzeugt und gespeichert ist (save-book mit print=true). So bleibt
+    // das Interview offen, falls die Erstellung scheitert (z. B. keine Antworten).
     if (action === 'start-print') {
       if (!m.proof_enabled) return res.status(403).json({ error: 'Nicht freigeschaltet.' })
       if (m.book_finalized) return res.status(409).json({ error: 'Das Buch ist bereits abgeschlossen.' })
+      // Ohne erfasste Antworten gibt es nichts zu drucken → gar nicht erst starten
+      // (verhindert, dass das Interview fälschlich als „abgeschlossen" markiert wird).
+      const { rows: hasContent } = await pool().query(
+        `select 1 from contributions where memorial_id = $1 and messages @> '[{"role":"user"}]'::jsonb limit 1`, [code])
+      if (!hasContent.length) return res.status(400).json({ error: 'Es sind noch keine Antworten erfasst. Bitte zuerst das Interview führen, bevor Sie die Druckversion erstellen.' })
       const token = crypto.randomBytes(18).toString('base64url')
       const lock = { holder: 'enduser', token, at: new Date().toISOString(), expires: new Date(Date.now() + LOCK_TTL_MS).toISOString() }
       const { rows } = await pool().query(
-        `update memorials set interview_closed = true, edit_lock = $2::jsonb
+        `update memorials set edit_lock = $2::jsonb
            where id = $1
              and (edit_lock is null or (edit_lock->>'expires')::timestamptz < now() or edit_lock->>'holder' = 'enduser')
          returning id`, [code, JSON.stringify(lock)])
       if (!rows.length) return res.status(409).json({ error: 'Das Buch wird gerade an anderer Stelle bearbeitet.' })
-      return res.json({ ok: true, token, expires: lock.expires, interview_closed: true })
+      return res.json({ ok: true, token, expires: lock.expires, interview_closed: false })
     }
 
     // ── Bearbeitung ABSCHLIESSEN (unwiderruflich) ──

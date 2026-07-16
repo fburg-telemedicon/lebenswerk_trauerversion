@@ -1026,7 +1026,7 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showT
               <span style={{ fontSize:19 }}>🔒</span><span>{t.consentLink || 'Datenschutzerklärung'}</span>
             </a>
             <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
-              <span style={{ fontSize:19 }}>§</span><span>{t.imprintLink || 'Impressum'}</span>
+              <span style={{ fontSize:19 }}>📄</span><span>{t.imprintLink || 'Impressum'}</span>
             </a>
           </div>
         </div>
@@ -1154,8 +1154,27 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
     return () => { alive = false; stopHeartbeat(); if (lockRef.current) releaseEditLock(code, token, lockRef.current).catch(() => {}) }
   }, [code]) // eslint-disable-line
 
+  // Ist das Buch anderweitig gesperrt (der Manager hat es im Dashboard offen oder ein
+  // alter Lock ist noch nicht abgelaufen), fassen wir aktiv nach und geben automatisch
+  // frei, sobald der Lock verschwindet — der Endnutzer muss nicht neu laden.
+  useEffect(() => {
+    if (!lockedByOther) return
+    const id = setInterval(async () => {
+      try {
+        const d = await getEnduserBook(code, token)
+        if (!d.lock) {
+          setBook(d.book || null); bookRef.current = d.book || null
+          setSigned(d.signed || {}); setImageRegen(d.image_regen || {})
+          setProofUsed(d.proof_used || 0); setProofMax(d.proof_max ?? 3)
+          setFinalized(!!d.book_finalized); setLockedByOther(false)
+        }
+      } catch { /* weiter gesperrt oder kurzer Aussetzer → beim nächsten Tick erneut */ }
+    }, 15000)
+    return () => clearInterval(id)
+  }, [lockedByOther, code, token]) // eslint-disable-line
+
   function stopHeartbeat() { if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null } }
-  function startHeartbeat() { stopHeartbeat(); hbRef.current = setInterval(() => { if (lockRef.current) heartbeatEditLock(code, token, lockRef.current).catch(() => {}) }, 5 * 60 * 1000) }
+  function startHeartbeat() { stopHeartbeat(); hbRef.current = setInterval(() => { if (lockRef.current) heartbeatEditLock(code, token, lockRef.current).catch(() => {}) }, 90 * 1000) }
   async function ensureLock() { if (lockRef.current) return lockRef.current; const r = await acquireEditLock(code, token); lockRef.current = r.token; startHeartbeat(); return r.token }
   async function release() { stopHeartbeat(); const tk = lockRef.current; lockRef.current = null; if (tk) { try { await releaseEditLock(code, token, tk) } catch {} } }
   function applyBook(nb) { bookRef.current = nb; setBook(nb) }
@@ -1186,14 +1205,14 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
   async function createPrint() {
     setConfirmPrint(false); setErr(''); setBusy(true); setPct(0); setProgress(P.progInterview); cancelRef.current = false
     try {
-      const sp = await startPrintVersion(code, token)   // schließt Interview endgültig + Lock
+      const sp = await startPrintVersion(code, token)   // holt nur den Lock (schließt Interview NOCH nicht)
       lockRef.current = sp.token; startHeartbeat()
-      onMemorialPatch?.({ interview_closed: true })      // Status sofort aktualisieren
       const c = await loadContribution()
       setProgress(P.progText)
       const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(Math.round(p.pct * 0.4)); setProgress(p.text) } })
       nb.print = true
-      await saveEnduserBook(code, token, lockRef.current, nb)
+      await saveEnduserBook(code, token, lockRef.current, nb)   // DAMIT wird das Interview endgültig geschlossen
+      onMemorialPatch?.({ interview_closed: true })             // Status erst jetzt aktualisieren (Erzeugung war erfolgreich)
       applyBook(nb)
       const chs = nb.chapters || []
       for (let i = 0; i < chs.length; i++) {
@@ -1325,9 +1344,16 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
       + (isHeading
           ? `Überarbeite die bereitgestellte ÜBERSCHRIFT gemäß der Anweisung — kurz und prägnant, ohne abschließenden Punkt. `
           : `Überarbeite AUSSCHLIESSLICH den bereitgestellten Abschnitt gemäß der Anweisung. Behalte Ich-Perspektive, Zeitform und den warmen, persönlichen Ton bei. `)
-      + `Behalte die Sprache bei. Erfinde keine neuen Fakten. Gib NUR den überarbeiteten Text zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar.`
-    const revised = String(await askLLM(sys, [{ role: 'user', content: `${isHeading ? 'ÜBERSCHRIFT' : 'ABSCHNITT'}:\n${segment}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
-    if (!revised) return
+      + `Behalte die Sprache bei. Erfinde keine neuen Fakten. Gib NUR den überarbeiteten Text zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar. `
+      + `Soll der Text laut Anweisung entfernt werden oder leer bleiben, antworte AUSSCHLIESSLICH mit dem Wort LEER (nichts sonst) – schreibe KEINE Platzhalter, keine Klammern und keine Erklärung.`
+    let revised = String(await askLLM(sys, [{ role: 'user', content: `${isHeading ? 'ÜBERSCHRIFT' : 'ABSCHNITT'}:\n${segment}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
+    if (!revised) return   // KI-Aussetzer (leere Antwort) → Text unverändert lassen
+    // Soll der Abschnitt leer sein: das Sentinel „LEER" ODER ein von der KI trotzdem
+    // erzeugter Platzhalter in Klammern („[… rausgelassen …]") wird zu echtem Leertext.
+    if (/^\[?\s*leer\s*\]?$/i.test(revised) ||
+        /^\[[^\]]*(rausgelassen|weggelassen|ausgelassen|entfernt|kein text|leer)[^\]]*\]$/i.test(revised)) {
+      revised = ''
+    }
     const newText = hasSel ? spliceText(text, t.start, t.end, revised) : revised
     writeField(t, newText)
     try { const tk = await ensureLock(); await saveEnduserBook(code, token, tk, bookRef.current) } catch (e) { setErr(e.message) }
@@ -1672,7 +1698,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
     if (!memorial || onboardCheckedRef.current) return
     onboardCheckedRef.current = true
     try {
-      if (memorial.show_onboarding !== false && !localStorage.getItem('lw_onboarded_' + code)) setShowOnboard(true)
+      // „Nicht mehr anzeigen" wird zweifach gemerkt: pro Buch UND global. So bleibt
+      // die Einführung nach dem ersten Wegklicken zuverlässig aus — unabhängig davon,
+      // über welchen Weg (Login oder ?code=-Link) das Buch geöffnet wird.
+      const dismissed = localStorage.getItem('lw_onboarded_' + code) || localStorage.getItem('lw_onboarded_all')
+      if (memorial.show_onboarding !== false && !dismissed) setShowOnboard(true)
     } catch { /* privater Modus → dann eben jedes Mal (unkritisch) */ }
   }, [memorial])
 
@@ -1893,10 +1923,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   return (
     <>
       {/* Einführungs-Overlay beim ersten Öffnen (über allem, blockiert bis „Los geht’s"
-          bzw. Überspringen). „Nicht mehr anzeigen" merkt sich das lokal je Buch. */}
+          bzw. Überspringen). „Nicht mehr anzeigen" merkt sich das lokal (je Buch + global). */}
       {showOnboard && memorial && (
         <OnboardingCarousel memorial={memorial} lang={L} onClose={(dont) => {
-          if (dont) { try { localStorage.setItem('lw_onboarded_' + code, '1') } catch { /* privater Modus */ } }
+          if (dont) { try { localStorage.setItem('lw_onboarded_' + code, '1'); localStorage.setItem('lw_onboarded_all', '1') } catch { /* privater Modus */ } }
           setShowOnboard(false)
         }} />
       )}

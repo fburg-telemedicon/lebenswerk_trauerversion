@@ -661,7 +661,7 @@ module.exports = async function handler(req, res) {
       // Bedingung nur eigenen/abgelaufenen/leeren Lock zulässt).
       if (req.body && req.body.lock) {
         const { action, token: ltok } = req.body.lock
-        const TTL = 15 * 60 * 1000
+        const TTL = 5 * 60 * 1000   // 5 Min ohne Heartbeat → Lock läuft ab (Heartbeat alle 90 s)
         if (action === 'acquire') {
           const tk = crypto.randomUUID()
           const val = JSON.stringify({ holder: 'admin', token: tk, at: new Date().toISOString(), expires: new Date(Date.now() + TTL).toISOString() })

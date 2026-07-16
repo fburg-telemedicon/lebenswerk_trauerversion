@@ -762,7 +762,7 @@ function Dashboard() {
         if (!alive) { adminLockAction(token, code, 'release', r.token).catch(() => {}); return }
         adminLockRef.current = r.token
         setEnduserEditing(false)
-        adminHbRef.current = setInterval(() => { if (adminLockRef.current) adminLockAction(token, code, 'heartbeat', adminLockRef.current).catch(() => {}) }, 5 * 60 * 1000)
+        adminHbRef.current = setInterval(() => { if (adminLockRef.current) adminLockAction(token, code, 'heartbeat', adminLockRef.current).catch(() => {}) }, 90 * 1000)
       } catch { if (alive) setEnduserEditing(true) } // 409 → Endnutzer bearbeitet gerade
     })()
     return () => {
@@ -884,13 +884,26 @@ function Dashboard() {
   async function adminProofAction(meta) {
     if (!selected) return
     setErr('')
+    const code = selected.id
     try {
-      await adminUpdateMemorialMeta(token, selected.id, meta)
+      await adminUpdateMemorialMeta(token, code, meta)
       const local = {}
       if (meta.resetProofUsed) local.proof_used = 0
       if (meta.releaseLock) local.edit_lock = null
       setSelected(s => ({ ...s, ...local }))
-      setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
+      setMemorials(ms => ms.map(x => x.id === code ? { ...x, ...local } : x))
+      // Nach der Fern-Freigabe den Admin-Lock SELBST übernehmen — sonst bleibt die
+      // Detailansicht „nur Ansicht" (der Server-Lock war zwar frei, aber der Admin
+      // hielt keinen eigenen). Danach ist die Ansicht sofort bearbeitbar.
+      if (meta.releaseLock) {
+        try {
+          const r = await adminLockAction(token, code, 'acquire')
+          adminLockRef.current = r.token
+          if (adminHbRef.current) clearInterval(adminHbRef.current)
+          adminHbRef.current = setInterval(() => { if (adminLockRef.current) adminLockAction(token, code, 'heartbeat', adminLockRef.current).catch(() => {}) }, 90 * 1000)
+          setEnduserEditing(false)
+        } catch { /* Lock konnte nicht geholt werden → bleibt vorerst read-only */ }
+      }
     } catch (e) { setErr(e.message) }
   }
 
@@ -1000,6 +1013,19 @@ function Dashboard() {
         enduserEmail: createForm.enduserEmail?.trim() || null,
       })
       setCreatedCode(code)
+      // Direkt in die Detailansicht des neuen Buchs wechseln (dort gibt es Link + QR
+      // UND alle weiteren Optionen). Dazu die Liste neu laden und das Buch öffnen;
+      // klappt das nicht, bleibt der bisherige „Erstellt"-Screen als Fallback.
+      try {
+        const res = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.status === 401) { logout(); return }
+        const list = await res.json()
+        if (res.ok && Array.isArray(list)) {
+          setMemorials(list)
+          const m = list.find(x => x.id === code)
+          if (m) { await openMemorial(m); return }
+        }
+      } catch { /* Fallback unten */ }
       setView('created')
     } catch (e) { setErr(e.message) }
     finally { setBusy(false) }

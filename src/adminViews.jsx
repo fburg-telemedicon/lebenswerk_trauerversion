@@ -1920,7 +1920,9 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 </div>
               </div>
             ))}
-            {contributions.length > 0 && (
+            {/* Mitwirkenden-Liste: NICHT beim Lebenswerk (dort erzählt nur der
+                Endnutzer selbst) und nur, wenn die Namensliste aktiviert ist. */}
+            {contributions.length > 0 && selected.product_category !== 'lifework' && selected.show_contributors !== false && (
               <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
                 <h3 style={{ fontSize:24, fontWeight:700, ...headFont, marginBottom:'1.5rem' }}>{bt.contributorsHeading}</h3>
                 {dedupeContributors(contributions).map(c => (
