@@ -4,6 +4,9 @@
     {
       "date": "2026-07-16",
       "items": [
+        "Freischaltcodes: Beim Einlösen wird jetzt zusätzlich festgehalten, WER den Code eingelöst hat — Name des Buchs und Konto des Inhabers (Manager bzw. bei Selbstregistrierung die E-Mail des Endnutzer-Kontos). Für den Endnutzer ändert sich nichts, er gibt weiterhin nur den Code ein. In der Freischaltcode-Liste im Dashboard führt der Buch-Code beim eingelösten Eintrag jetzt per Klick direkt in die Buch-Detailansicht. Hinweis: Bereits vorher eingelöste Codes bleiben bei Name/Inhaber leer.",
+        "Registrierungsseite (?register): Sprachwahl war unlesbar — die Sprach-Schaltflächen zeigten weiße Schrift auf weißem Grund. Behoben; alle übrigen Sprachwahl-Dialoge waren nicht betroffen.",
+        "Registrierungsseite (?register): Der Browser-Tab heißt dort jetzt „Lebenswerk.ai“ statt „Lebensgeschichten – Gemeinsames Gedenkbuch“.",
         "Freischaltcodes: Endnutzer mit zeitlich begrenztem Testzugang können das Zeitlimit jetzt selbst aufheben. Oben bei der Restzeit (und nach Ablauf) gibt es die Schaltfläche „Freischaltcode eingeben“; nach Eingabe eines gültigen Codes (Form XXXX-XXXX-XXXX) läuft das Interview ohne Begrenzung weiter.",
         "Neuer Dashboard-Bereich „Freischaltcodes“ (nur Admin): Codes erstellen (optional mit Name, E-Mail und Notiz), auf Wunsch direkt per E-Mail an den Empfänger senden, kopieren, erneut senden und löschen. Jeder Code ist einmalig und gilt für ein beliebiges Konto; die Liste zeigt Status (offen/eingelöst), wann und für welches Buch ein Code eingelöst wurde.",
         "Dashboard-Buchliste: Spalte „Variante“ entfernt; stattdessen zeigt eine neue Spalte „E-Mail“ (direkt neben „Name“) die hinterlegte Endnutzer-Adresse.",
