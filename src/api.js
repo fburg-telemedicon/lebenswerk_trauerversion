@@ -272,6 +272,26 @@ export async function sendSupport({ message, replyEmail, name, context }) {
   return parseResponse(res) // { ok, email_sent }
 }
 
+// Support-Tickets verwalten (nur Admin).
+export async function adminListSupport(token) {
+  const res = await fetch('/api/support', { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res) // { tickets }
+}
+export async function adminSetSupportHandled(token, id, handled) {
+  const res = await fetch(`/api/support?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ handled }),
+  })
+  return parseResponse(res) // { ok, handled }
+}
+export async function adminDeleteSupport(token, id) {
+  const res = await fetch(`/api/support?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { ok }
+}
+
 // Verwaltung (nur Admin).
 export async function adminListUnlockCodes(token) {
   const res = await fetch('/api/admin/unlock-codes', { headers: { Authorization: `Bearer ${token}` } })

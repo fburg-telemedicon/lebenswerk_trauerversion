@@ -12,6 +12,7 @@ import {
   adminGetBookDefaults, adminSaveBookDefaults, adminResetBookDefaults,
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   adminListUnlockCodes, adminCreateUnlockCode, adminSendUnlockCode, adminDeleteUnlockCode,
+  adminListSupport, adminSetSupportHandled, adminDeleteSupport,
   getSettings, saveSettings, changeOwnPassword, saveOwnLang,
   getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
@@ -62,7 +63,7 @@ import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
-import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
+import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
 import { formatEur, costKindLabel } from './shared.js'
 
 // ── URL params ────────────────────────────────────────────────────
@@ -451,6 +452,8 @@ function Dashboard() {
   const [codesData, setCodesData]     = useState({ codes: [] })
   const [codeForm, setCodeForm]       = useState({ recipient_name: '', recipient_email: '', note: '', send: false })
   const [codeMsg, setCodeMsg]         = useState('')
+  const [supportData, setSupportData] = useState([])
+  const [supportLoading, setSupportLoading] = useState(false)
   const [auditData, setAuditData]     = useState({ entries: [] })
   const [qmData, setQmData]           = useState([])
   const [auditLoading, setAuditLoading] = useState(false)
@@ -1185,6 +1188,25 @@ function Dashboard() {
   function copyCode(c) {
     navigator.clipboard?.writeText(c.code_display)
     setCodeMsg(`Code ${c.code_display} in die Zwischenablage kopiert.`)
+  }
+
+  // ── Support-Anfragen (nur Admin) ──
+  async function loadSupport() {
+    setErr(''); setSupportLoading(true)
+    try { const d = await adminListSupport(token); setSupportData(d.tickets || []) }
+    catch (e) { setErr(e.message) } finally { setSupportLoading(false) }
+  }
+  async function toggleSupportHandled(id, handled) {
+    setSupportData(rows => rows.map(r => String(r.id) === String(id) ? { ...r, handled } : r))
+    try { await adminSetSupportHandled(token, id, handled) }
+    catch (e) { setErr(e.message); setSupportData(rows => rows.map(r => String(r.id) === String(id) ? { ...r, handled: !handled } : r)) }
+  }
+  async function deleteSupport(id) {
+    if (!window.confirm('Diese Support-Anfrage wirklich löschen?')) return
+    const prev = supportData
+    setSupportData(rows => rows.filter(r => String(r.id) !== String(id)))
+    try { await adminDeleteSupport(token, id) }
+    catch (e) { setErr(e.message); setSupportData(prev) }
   }
 
   // ── Tagesreport-Empfänger (nur Admin) ──
@@ -3053,7 +3075,7 @@ Regeln:
 
   // ── LISTE ──
   if (view === 'list') return (
-    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
+    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} loadSupport={loadSupport} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} />
   )
 
   // ── BUCH-STANDARDWERTE (nur Admin) ──
@@ -3097,6 +3119,11 @@ Regeln:
   // ── FREISCHALTCODES (nur Admin) ──
   if (view === 'unlock-codes') return (
     <CodesView err={err} codesData={codesData} codeForm={codeForm} busy={busy} codeMsg={codeMsg} logout={logout} setView={setView} setCodeForm={setCodeForm} submitCode={submitCode} sendCode={sendCode} removeCode={removeCode} copyCode={copyCode} />
+  )
+
+  // ── SUPPORT-ANFRAGEN (nur Admin) ──
+  if (view === 'support') return (
+    <SupportView supportData={supportData} loading={supportLoading} err={err} setView={setView} logout={logout} toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport} />
   )
 
   // ── FRAGENKATALOGE (nur Admin) ──

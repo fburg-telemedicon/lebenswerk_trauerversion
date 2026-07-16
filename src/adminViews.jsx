@@ -902,7 +902,7 @@ function bookStatus(m, t) {
   return                        { rank: 0, label: t('In Arbeit', 'In progress'),               color: '#3f6212', bg: '#f7fee7', border: '#d9f99d' }
 }
 
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
     const openSupport = useSupport()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
@@ -978,6 +978,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
             <button className="secondary" onClick={() => { loadCodes(); setErr(''); setView('unlock-codes') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Freischaltcodes', 'Unlock codes')}</button>
           )}
           {auth.admin && (
+            <button className="secondary" onClick={() => { loadSupport(); setErr(''); setView('support') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Support-Anfragen', 'Support requests')}</button>
+          )}
+          {auth.admin && (
             <button className="secondary" onClick={openBookDefaults} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Standardwerte', 'Defaults')}</button>
           )}
           {auth.admin && (
@@ -989,7 +992,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           {myUid && (
             <button className="secondary" onClick={openSettings} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Einstellungen', 'Settings')}</button>
           )}
-          <button className="secondary" onClick={() => openSupport({ role: auth.admin ? 'admin' : 'manager', view: 'dashboard', suggestedEmail: myName, suggestedName: myName })} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Support', 'Support')}</button>
+          {!auth.admin && (
+            <button className="secondary" onClick={() => openSupport({ role: 'manager', view: 'dashboard', suggestedEmail: myName, suggestedName: myName })} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Support', 'Support')}</button>
+          )}
           <AdminLangToggle />
           <button className="secondary" onClick={logout} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Abmelden', 'Log out')}</button>
         </div>
@@ -2905,6 +2910,91 @@ export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDo
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Support-Tickets (nur Admin) ──
+// Eingegangene In-App-Support-Anfragen: Nachricht, Antwort-Adresse (direkt
+// beantwortbar), Diagnose-Kontext; als erledigt markier- und löschbar.
+export function SupportView({ supportData, loading, err, setView, logout, toggleSupportHandled, deleteSupport }) {
+  const t = useAdminT()
+  const rows = Array.isArray(supportData) ? supportData : []
+  const openCount = rows.filter(r => !r.handled).length
+  const fmt = ts => { try { return new Date(ts).toLocaleString('de-DE', { dateStyle:'medium', timeStyle:'short' }) } catch { return ts } }
+  const CTX_LABEL = { role:'Rolle', code:'Buch-Code', category:'Kategorie', view:'Ansicht', lang:'Sprache', lastError:'Letzte Meldung', browser:'Browser', bundle:'App-Version', time:'Zeitpunkt' }
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button>
+          <span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
+      </div>
+      <div style={{ maxWidth:820, margin:'2rem auto', padding:'0 1.5rem' }}>
+        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{t('Support-Anfragen', 'Support requests')}</h2>
+        <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
+          {t('Nachrichten aus dem In-App-Support, neueste zuerst. Antworten Sie direkt per E-Mail an die angegebene Adresse.', 'Messages from in-app support, newest first. Reply directly by email to the given address.')}
+          {rows.length > 0 && <> · {openCount} {t('offen', 'open')} / {rows.length} {t('gesamt', 'total')}</>}
+        </p>
+        <Err msg={err} />
+        {loading ? (
+          <p style={S.muted}>{t('Wird geladen …', 'Loading …')}</p>
+        ) : rows.length === 0 ? (
+          <div style={{ ...S.card, textAlign:'center', padding:'1.5rem' }}>
+            <p style={S.muted}>{t('Noch keine Support-Anfragen.', 'No support requests yet.')}</p>
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {rows.map(r => {
+              const ctx = r.context && typeof r.context === 'object' ? r.context : {}
+              const ctxRows = Object.entries(ctx).filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
+              const mailto = `mailto:${r.reply_email}?subject=${encodeURIComponent('Re: Ihre Support-Anfrage – Lebensgeschichten')}`
+              return (
+                <div key={r.id} style={{ ...S.card, opacity: r.handled ? 0.62 : 1, borderColor: r.handled ? '#e7e5e4' : '#d6d3d1' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap', marginBottom:8 }}>
+                    <div>
+                      <strong style={{ fontSize:15 }}>{r.name || '—'}</strong>
+                      <a href={mailto} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>{r.reply_email}</a>
+                      <div style={{ ...S.muted, fontSize:12, marginTop:2 }}>
+                        {fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
+                        {!r.handled && <span style={{ marginLeft:8, color:'#15803d', fontWeight:600 }}>{t('offen', 'open')}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <a href={mailto} className="secondary" style={{ fontSize:12, padding:'5px 10px', textDecoration:'none', display:'inline-block' }}>{t('Antworten', 'Reply')}</a>
+                      <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#57534e', cursor:'pointer', whiteSpace:'nowrap' }}>
+                        <input type="checkbox" checked={!!r.handled} onChange={e => toggleSupportHandled?.(r.id, e.target.checked)}
+                          style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />
+                        {t('Erledigt', 'Done')}
+                      </label>
+                      <button className="secondary" onClick={() => deleteSupport?.(r.id)}
+                        style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>{t('Löschen', 'Delete')}</button>
+                    </div>
+                  </div>
+                  <div style={{ whiteSpace:'pre-wrap', fontSize:14, lineHeight:1.6, color:'#1c1917', background:'#fafaf9', border:'1px solid #f0efec', borderRadius:8, padding:'10px 12px' }}>{r.message}</div>
+                  {ctxRows.length > 0 && (
+                    <details style={{ marginTop:8 }}>
+                      <summary style={{ fontSize:12, color:'#78716c', cursor:'pointer' }}>{t('Diagnose-Angaben', 'Diagnostic details')}</summary>
+                      <div style={{ marginTop:6 }}>
+                        {ctxRows.map(([k, v]) => (
+                          <div key={k} style={{ fontSize:12, color:'#57534e', lineHeight:1.55, wordBreak:'break-word' }}>
+                            <span style={{ color:'#a8a29e' }}>{CTX_LABEL[k] || k}:</span> {String(v)}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

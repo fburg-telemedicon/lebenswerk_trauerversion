@@ -11,6 +11,7 @@
 const { createClient, pool } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 const { sendSupportMail } = require('./_lib/invitemail')
+const { checkAuth } = require('./_lib/auth')
 const { audit } = require('./_lib/audit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -35,9 +36,51 @@ async function ensureSupportSchema() {
   schemaReady = true
 }
 
+// ── Verwaltung (nur Admin): Tickets lesen / erledigt markieren / löschen ──────
+async function handleAdmin(req, res) {
+  if (!checkAuth(req, res)) return
+  if (!req.auth.admin) return res.status(403).json({ error: 'Nur Administratoren.' })
+  await ensureSupportSchema()
+
+  if (req.method === 'GET') {
+    const { data, error } = await supabase
+      .from('support_requests')
+      .select('id, created_at, memorial_id, name, reply_email, message, context, handled')
+      .order('created_at', { ascending: false })
+      .limit(500)
+    if (error) throw error
+    return res.json({ tickets: data || [] })
+  }
+
+  if (req.method === 'PATCH') {
+    const id = String(req.query.id || '').trim()
+    if (!id) return res.status(400).json({ error: 'id fehlt.' })
+    const handled = Boolean((req.body || {}).handled)
+    const { error } = await supabase.from('support_requests').update({ handled }).eq('id', id)
+    if (error) throw error
+    await audit(req, { actor: req.auth, action: 'support.update', target: id, detail: { handled } })
+    return res.json({ ok: true, handled })
+  }
+
+  if (req.method === 'DELETE') {
+    const id = String(req.query.id || '').trim()
+    if (!id) return res.status(400).json({ error: 'id fehlt.' })
+    const { error } = await supabase.from('support_requests').delete().eq('id', id)
+    if (error) throw error
+    await audit(req, { actor: req.auth, action: 'support.delete', target: id })
+    return res.json({ ok: true })
+  }
+
+  return res.status(405).end()
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  // Verwaltung (Admin) läuft über GET/PATCH/DELETE; das öffentliche Absenden über POST.
+  if (req.method !== 'POST') {
+    try { return await handleAdmin(req, res) }
+    catch (e) { console.error('/api/support admin:', e); return res.status(500).json({ error: e.message }) }
+  }
   try {
     // Jede Anfrage schreibt eine DB-Zeile und verschickt eine Mail → begrenzen.
     if (!(await enforce(req, res, { name: 'support-ip', limit: 10, windowSeconds: 3600 }))) return
