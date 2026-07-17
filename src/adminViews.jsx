@@ -1237,14 +1237,18 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     // Einladungslink wie bei den anderen Kategorien. Eine ANGEGEBENE Adresse muss
     // aber gültig sein, sonst geht die Einladung ins Leere.
     const isLifework = createForm.productCategory === 'lifework'
+    const isAnamnesis = createForm.productCategory === 'anamnesis'
+    // Endnutzer-Kategorien (Lebenswerk, Anamnese): EIN Endnutzer/Patient bekommt
+    // einen eigenen Zugang; kein Organisator, kein Buch, Name/Geschlecht optional.
+    const isEnduser = ci.useEnduser === true
     const euMail = (createForm.enduserEmail || '').trim()
-    const emailOk = !isLifework || !euMail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(euMail)
-    // Beim Lebenswerk ist bei der Anlage ALLES optional (Name, Geschlecht, Anrede) —
-    // der Endnutzer ergänzt beim Start, was fehlt. Deshalb hängt der Anlage-Button
-    // dort nur an einer gültigen (oder leeren) E-Mail. Bei den anderen Kategorien
-    // bleiben Name/Organisator/Geschlecht Pflicht wie bisher.
-    const canSubmit = isLifework
-      ? (emailOk && !busy)
+    const emailOk = !isEnduser || !euMail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(euMail)
+    // Bei Endnutzer-Kategorien ist bei der Anlage ALLES optional (Name, Geschlecht,
+    // Anrede) — der Endnutzer ergänzt beim Start, was fehlt. Deshalb hängt der
+    // Anlage-Button dort nur an einer gültigen (oder leeren) E-Mail. Bei der
+    // Anamnese ist zusätzlich die Indikation Pflicht (sie steuert den Fragenast).
+    const canSubmit = isEnduser
+      ? (emailOk && (!isAnamnesis || !!createForm.intake?.indication) && !busy)
       : (createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && emailOk && !busy)
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
@@ -1267,7 +1271,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <Lbl>{ci.subjectLabel}</Lbl>
           <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder={ci.subjectPlaceholder} />
         </div>
-        {isLifework && (
+        {isEnduser && (
           <div style={{ marginBottom: 14 }}>
             <Lbl>E-Mail-Adresse des Endnutzers (optional)</Lbl>
             <input
@@ -1284,7 +1288,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </p>
           </div>
         )}
-        {isLifework && (
+        {isEnduser && (
           <div style={{ marginBottom: 14 }}>
             <Lbl>Sprache des Endnutzers *</Lbl>
             <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px', lineHeight:1.5 }}>
@@ -1370,16 +1374,27 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
         {(ci.extra || []).map(f => (
           <div key={f.key} style={{ marginBottom: 14 }}>
             <Lbl>{f.label}</Lbl>
-            <input
-              value={createForm.intake?.[f.key] || ''}
-              onChange={e => setCreateForm({ ...createForm, intake: { ...createForm.intake, [f.key]: e.target.value } })}
-              placeholder={f.placeholder || ''}
-            />
+            {f.type === 'select' ? (
+              <select
+                value={createForm.intake?.[f.key] || ''}
+                onChange={e => setCreateForm({ ...createForm, intake: { ...createForm.intake, [f.key]: e.target.value } })}
+                style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
+              >
+                <option value="">{f.placeholder || 'Bitte wählen …'}</option>
+                {(f.options || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            ) : (
+              <input
+                value={createForm.intake?.[f.key] || ''}
+                onChange={e => setCreateForm({ ...createForm, intake: { ...createForm.intake, [f.key]: e.target.value } })}
+                placeholder={f.placeholder || ''}
+              />
+            )}
           </div>
         ))}
-        {/* Lebenswerk: Es gibt keinen Organisator — der Endnutzer erzählt sein
-            eigenes Leben, es sammelt niemand Beiträge Dritter ein. */}
-        {!isLifework && (
+        {/* Endnutzer-Kategorien: Es gibt keinen Organisator — der Endnutzer/Patient
+            spricht selbst, es sammelt niemand Beiträge Dritter ein. */}
+        {!isEnduser && (
         <div style={{ marginBottom: 14 }}>
           <Lbl>{t('Ihr Name (Organisator) *', 'Your name (organizer) *')}</Lbl>
           <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder={t('Ihr Name', 'Your name')} />
@@ -1409,9 +1424,9 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </p>
           </div>
         )}
-        {/* Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie) —
-            bei EINEM Erzähler ergäbe „ein Beitrag = ein Kapitel" kein Buch. */}
-        {!isLifework && (
+        {/* Lebenswerk kennt nur Variante 2; die Anamnese kennt gar kein Buch. Bei
+            EINEM Erzähler/Patienten ergäbe „ein Beitrag = ein Kapitel" kein Buch. */}
+        {!isEnduser && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>{t('Buch-Variante *', 'Book variant *')}</Lbl>
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
@@ -1459,9 +1474,9 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             Standard: aktiv. Das Interview startet immer als reines Sprach-Gespräch (kein Transkript). Ist diese Option aktiv, {isLifework ? 'sieht der Endnutzer' : 'sehen Beitragende'} einen Schalter, mit dem das Transkript der Antworten eingeblendet und einzelne Antworten gelöscht oder neu eingesprochen werden können. Deaktiviert: kein Schalter, reines Sprach-Interview.
           </p>
         </div>
-        {/* Beim Lebenswerk erzählt nur der Endnutzer selbst — eine Namensliste der
-            Beitragenden gibt es dort nicht, also auch keine Option dafür. */}
-        {!isLifework && (
+        {/* Bei Endnutzer-Kategorien spricht nur der Endnutzer/Patient selbst — eine
+            Namensliste der Beitragenden gibt es dort nicht, also keine Option dafür. */}
+        {!isEnduser && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Namensliste der Beitragenden im Buch</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2101,6 +2116,9 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
     const isLifework = selected?.product_category === 'lifework'
+    // Anamnese: einziges Produkt ist der Bogen (eulogy). Buch/Bilder/Stammbaum/
+    // Poster sind ausgeblendet.
+    const isAnamnesis = selected?.product_category === 'anamnesis'
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
@@ -2329,8 +2347,8 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
               onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
             />
 
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Buch & {GENERATORS.eulogy.label}</h3>
-            {(() => {
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{isAnamnesis ? GENERATORS.eulogy.label : `Buch & ${GENERATORS.eulogy.label}`}</h3>
+            {!isAnamnesis && (() => {
               const variant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
               return (
                 <div style={{ ...S.card, marginBottom:'1rem', background:'#f5f5f4', borderColor:'#e7e5e4' }}>
@@ -2362,14 +2380,16 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
             })()}
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:'1.5rem' }}>
               {[
-                // Lebenswerk kennt nur Variante 2 (eine Autobiographie), und das
-                // Nebenprodukt heißt hier Pflegeexzerpt statt Rede.
-                ...(isLifework ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
-                { key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                // Lebenswerk kennt nur Variante 2 (eine Autobiographie); die
+                // Anamnese kennt gar kein Buch (nur den Bogen).
+                ...((isLifework || isAnamnesis) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
+                ...(isAnamnesis ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
                   ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
-                  : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') },
-                { key:'eulogy',  icon: isLifework ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
+                  : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') }]),
+                { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
                   ? t('Zweiseitige Zusammenfassung für die Pflegeakte – Sprache wird beim Erzeugen abgefragt.', 'Two-page summary for the care record – language is asked when generating.')
+                  : isAnamnesis
+                  ? t('Strukturierter Anamnesebogen für die ärztliche Aufnahme – immer auf Deutsch, aus den Angaben des Patienten.', 'Structured medical intake form for the admission – always in German, from the patient’s answers.')
                   : t(`KI verfasst einen persönlichen Text (${GENERATORS.eulogy.noun}) zum Vorlesen.`, `The AI writes a personal text (${GENERATORS.eulogy.noun}) to read aloud.`) },
               ].map(({ key, icon, title, sub }) => {
                 const gen   = GENERATORS[key]
@@ -2655,7 +2675,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   [oci.subjectLabel || 'Name', selected.name || dash],
                   ['Organisator', selected.organizer || dash],
                   ...(oci.useGender ? [['Geschlecht', selected.gender || dash]] : []),
-                  ...((oci.extra || []).map(f => [f.label, selected.intake?.[f.key] || dash])),
+                  ...((oci.extra || []).map(f => [f.label.replace(/\s*\*$/, ''), (f.options?.find(o => o.value === selected.intake?.[f.key])?.label) || selected.intake?.[f.key] || dash])),
                   ...(oci.useDate ? [[oci.dateLabel, selected.funeral_date ? new Date(selected.funeral_date).toLocaleDateString('de-DE') : dash]] : []),
                   ...(oci.useCutoff ? [['Erfassung bis', selected.funeral_date ? `${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : `${cutoffDays(selected)} Tage vorher`]] : []),
                   ['Sprachen', orderLangLabels],
@@ -2705,7 +2725,15 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 {(oci.extra || []).map(f => (
                   <div key={f.key} style={{ marginBottom:14 }}>
                     <Lbl>{f.label}</Lbl>
-                    <input value={od.intake?.[f.key] || ''} onChange={e => setOd({ intake: { ...od.intake, [f.key]: e.target.value } })} placeholder={f.placeholder || ''} />
+                    {f.type === 'select' ? (
+                      <select value={od.intake?.[f.key] || ''} onChange={e => setOd({ intake: { ...od.intake, [f.key]: e.target.value } })}
+                        style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}>
+                        <option value="">{f.placeholder || 'Bitte wählen …'}</option>
+                        {(f.options || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    ) : (
+                      <input value={od.intake?.[f.key] || ''} onChange={e => setOd({ intake: { ...od.intake, [f.key]: e.target.value } })} placeholder={f.placeholder || ''} />
+                    )}
                   </div>
                 ))}
                 {oci.useDate && (

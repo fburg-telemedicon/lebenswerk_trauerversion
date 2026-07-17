@@ -1834,7 +1834,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
     //  • Alle anderen Kategorien: ALLE Beitragenden teilen denselben ?code-Link und
     //    damit denselben Merker. Ohne Rückfrage landet die zweite Person auf einem
     //    gemeinsamen Gerät im Beitrag der ersten und verfälscht ihn → hier wird gefragt.
-    if (memorial.product_category === 'lifework') { resumeSession(local); return }
+    // Lebenswerk UND Anamnese: ein Buch = genau eine erzählende Person (eigener
+    // Code/Login) → ohne Rückfrage fortsetzen.
+    if (memorial.product_category === 'lifework' || memorial.product_category === 'anamnesis') { resumeSession(local); return }
     setResumePrompt(local)
   }, [memorial])
 
@@ -1984,9 +1986,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   const needLang = !!memorial && langs.length > 1 && !lang
   const t  = uiText(L)
   const ct = contributorL10n(memorial?.product_category, L)
-  // Lebenswerk: Der Erzähler IST die Hauptperson — keine Beziehungsangabe, und
-  // die Beziehung wird intern fest gesetzt (die Spalte ist NOT NULL).
-  const isSelf = memorial?.product_category === 'lifework'
+  // Selbst-Erzähler (Lebenswerk, Anamnese): Die Person IST die Hauptperson — keine
+  // Beziehungsangabe, die Beziehung wird intern fest gesetzt (Spalte ist NOT NULL).
+  // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck, Logo) hängen dagegen
+  // an isLifework, nicht an isSelf.
+  const isSelf = memorial?.product_category === 'lifework' || memorial?.product_category === 'anamnesis'
+  const isLifework = memorial?.product_category === 'lifework'
   const SELF_REL = 'Ich selbst'
   // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
   // globale Footer ausgeblendet. In den übrigen Schritten (Info/Fertig) bleibt er.
@@ -2030,7 +2035,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   }, [L])
 
   // Ohne Firmenlogo trägt ein Lebenswerk das Lebenswerk-Logo statt des Standard-Logos.
-  const bannerLogo = memorial?.owner_logo || (isSelf ? '/lebenswerk-logo.png' : null)
+  const bannerLogo = memorial?.owner_logo || (isLifework ? '/lebenswerk-logo.png' : null)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
 
   function copyResumeUrl() {
@@ -2088,10 +2093,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
                 return (
                   <button key={lc} onClick={() => {
                     setLang(lc)
-                    // Lebenswerk: die Wahl festschreiben (Buch auf diese eine Sprache
-                    // pinnen), damit die Sprachauswahl nicht bei jedem Start erneut
-                    // erscheint – weder beim Endnutzer-Login noch über den Code-Link.
-                    if (memorial?.product_category === 'lifework' && memorial?.id) {
+                    // Endnutzer-Kategorien (Lebenswerk, Anamnese): die Wahl festschreiben
+                    // (Buch auf diese eine Sprache pinnen), damit die Sprachauswahl nicht
+                    // bei jedem Start erneut erscheint – weder beim Login noch über den Code-Link.
+                    if ((memorial?.product_category === 'lifework' || memorial?.product_category === 'anamnesis') && memorial?.id) {
                       pinMemorialLang(memorial.id, lc).catch(() => { /* nicht kritisch */ })
                     }
                   }} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>
@@ -2245,10 +2250,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         // ohne Login über den Code-Link kommt (E-Mail ist optional). Die Änderung
         // läuft dann code-basiert (updateOwnMemorial ohne Token; Server erlaubt das
         // nur beim Lebenswerk).
-        const withSettings = isSelf
+        // Einstellungen (Grafik-/Textstil) und Probedruck gibt es nur beim
+        // Lebenswerk — die Anamnese hat kein Buch und keine Bilder.
+        const withSettings = isLifework
         // Nach Abschluss des Buchs kein Foto-Upload mehr.
         const withPhoto    = memorial.photo_upload_tab === true && !memorial.book_finalized
-        const withProof    = isSelf && memorial.proof_enabled === true
+        const withProof    = isLifework && memorial.proof_enabled === true
         // Das ☰-Menü ist im Interview IMMER vorhanden — auch für Beitragende ohne
         // Foto-/Probedruck-Tab. „Später fortsetzen/beenden", der Transkript-Umschalter
         // und die Rechtslinks (Datenschutz/Impressum) liegen dort; der In-Interview-

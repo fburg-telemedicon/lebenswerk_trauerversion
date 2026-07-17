@@ -15,6 +15,10 @@ const { normalizeTextStyle } = require('./_lib/text-styles')
 const { LIFEWORK } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
 
+// Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und darf über den
+// Buch-Code (ohne Login) seine eigenen Stammdaten/Sprache nachtragen.
+function isEnduserCategory(c) { return c === LIFEWORK || c === 'anamnesis' }
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -74,7 +78,7 @@ async function handleEnduserStart(req, res, code, body) {
   const { data: m } = await supabase
     .from('memorials').select('id, name, gender, intake, product_category').eq('id', code).maybeSingle()
   if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
-  if (m.product_category !== LIFEWORK) return res.status(403).json({ error: 'Kein Zugriff.' })
+  if (!isEnduserCategory(m.product_category)) return res.status(403).json({ error: 'Kein Zugriff.' })
 
   const update = {}
   const name = String(body.name || '').trim().slice(0, 120)
@@ -103,7 +107,7 @@ async function handleLangPin(req, res, code, lang) {
   const { data: m } = await supabase
     .from('memorials').select('id, product_category, languages').eq('id', code).maybeSingle()
   if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
-  if (m.product_category !== LIFEWORK) return res.status(403).json({ error: 'Kein Zugriff.' })
+  if (!isEnduserCategory(m.product_category)) return res.status(403).json({ error: 'Kein Zugriff.' })
   const offered = Array.isArray(m.languages) ? m.languages : []
   if (offered.length === 1) return res.json({ ok: true, languages: offered })   // schon gepinnt
   if (offered.length && !offered.includes(l)) return res.status(400).json({ error: 'Sprache nicht angeboten.' })

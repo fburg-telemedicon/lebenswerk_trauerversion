@@ -67,6 +67,14 @@ const PATHS = {
       <circle cx="12" cy="16.6" r="3.2" />
     </>
   ),
+  // Klemmbrett mit Pulslinie (Anamnesebogen)
+  anamnesis: (
+    <>
+      <rect x="5.5" y="4.5" width="13" height="16" rx="1.6" />
+      <rect x="9" y="2.8" width="6" height="3" rx="1" />
+      <polyline points="8 13 10 13 11 10.5 13 15 14 13 16 13" />
+    </>
+  ),
   // Regenbogen (Mutmachbuch)
   encouragement: (
     <>

@@ -846,6 +846,140 @@ Anforderungen:
 ${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
 }
 
+// ════════════════════════════════════════════════════════════════
+// ANAMNESE (anamnesis) — strukturierter Anamnesebogen für die
+// ganztägig ambulante Reha (Vorbild ZAR). Eine Person spricht über
+// SICH SELBST; einziges Produkt ist der Bogen (kein Buch, keine
+// Bilder). Der Bogen ist IMMER auf Deutsch (für den Arzt); der Patient
+// prüft/bearbeitet/bestätigt ihn in seiner Interviewsprache (Step 2).
+// KEIN Medizinprodukt: keine Diagnosen, keine Bewertung, keine Triage.
+// ════════════════════════════════════════════════════════════════
+
+// Fünf Indikationen (Referenzanbieter ZAR). Beim Anlegen gewählt
+// (memorial.intake.indication). `focus` lenkt die Interview-Fragen auf
+// den jeweiligen Fragenast; `label` erscheint im Bogen als Kontext.
+export const ANAMNESIS_INDICATIONS = [
+  { key: 'ortho', label: 'Orthopädie',
+    focus: 'Erkrankungen/Verletzungen des Bewegungsapparats: betroffene Region (Wirbelsäule, Gelenke), Schmerzart/-ort und -verlauf, zurückliegende Operationen (z. B. Endoprothese, Bandscheibe), aktuelle Belastbarkeit, Gehstrecke, Treppensteigen, genutzte Hilfsmittel (Gehstützen, Orthesen).' },
+  { key: 'kardio', label: 'Kardiologie',
+    focus: 'Herz-Kreislauf: auslösendes Ereignis (Herzinfarkt, Bypass, Stent, Herzschwäche), Belastungsluftnot, Brustenge/Angina, Herzstolpern, Belastbarkeit im Alltag (Stockwerke, Wegstrecke), bekannte Risikofaktoren, die der Patient selbst nennt.' },
+  { key: 'neuro', label: 'Neurologie',
+    focus: 'Neurologische Erkrankung (z. B. Schlaganfall, Parkinson, MS): betroffene Funktionen, Lähmungen/Gefühlsstörungen, Sprech-/Sprachprobleme, Gedächtnis/Konzentration, Gleichgewicht und Sturzneigung, Selbstständigkeit im Alltag. Bei Sprach-/Verständnisproblemen sind Angaben der Begleitperson (Fremdanamnese) besonders wichtig.' },
+  { key: 'onko', label: 'Onkologie',
+    focus: 'Tumorerkrankung: betroffenes Organ (soweit der Patient es benennt), aktuelle/abgeschlossene Therapiephase (Operation, Chemotherapie, Bestrahlung), Erschöpfung/Fatigue, Ernährung und Gewichtsverlauf, Schmerzen, seelische Belastung durch die Erkrankung.' },
+  { key: 'psycho', label: 'Psychosomatik',
+    focus: 'Psychosomatische/psychische Beschwerden: Hauptbelastung, Stimmung, Antrieb, Schlaf, Ängste, körperliche Beschwerden ohne klaren Organbefund, auslösende und aufrechterhaltende Belastungen (Arbeit, Familie), vorhandene Ressourcen und Bewältigungsstrategien. Besonders behutsam fragen.' },
+]
+
+function anamnesisIndication(memorial) {
+  const key = memorial?.intake?.indication
+  return ANAMNESIS_INDICATIONS.find(i => i.key === key) || null
+}
+
+// Rote Flaggen: Wenn der Patient akute, potenziell gefährliche Dinge
+// äußert, gibt die KI einen NEUTRALEN Standardhinweis (kein Bewerten,
+// kein Triagieren) und fährt dann mit dem Interview fort. Dieselben
+// Flaggen werden im Bogen sichtbar markiert (siehe anamnesisSection).
+const ANAMNESIS_REDFLAG_RULE = `ROTE FLAGGEN – Sicherheit (kein Medizinprodukt, keine Bewertung, keine Triage): Schildert die Person AKUTE, potenziell gefährliche Dinge — insbesondere (a) akute starke Brustschmerzen/Luftnot JETZT oder (b) Gedanken, sich das Leben zu nehmen bzw. sich zu schaden —, dann tue ausschließlich Folgendes: unterbrich das übliche Fragen, gib EINEN kurzen, ruhigen, NEUTRALEN Standardhinweis und mache danach behutsam weiter. Standardhinweise (wörtlich sinngemäß, in der Gesprächssprache):
+  • Akute Brustschmerzen/Luftnot: „Wenn Sie sich gerade akut bedroht fühlen oder starke Beschwerden haben, wählen Sie bitte sofort den Notruf 112."
+  • Gedanken an Selbsttötung/Selbstverletzung: „Es tut mir leid, dass es Ihnen so geht. Wenn Sie daran denken, sich etwas anzutun, wenden Sie sich bitte an die Telefonseelsorge (kostenlos 0800 111 0 111 oder 0800 111 0 222) oder im Notfall an den Notruf 112."
+  Bewerte NICHT, ob es „ernst" ist, stelle KEINE Verdachtsdiagnose, triagiere NICHT. Der Hinweis ist eine feste Standardinformation, kein ärztlicher Rat.`
+
+// Bogen-Abschnitte (feste Gliederung). `greets:false` überall — der Bogen
+// wird nicht vorgelesen, sondern gedruckt. Reihenfolge = Reihenfolge im Bogen.
+const ANAMNESIS_SECTIONS = [
+  { key: 'anlass', label: 'Anlass und Zuweisungsdiagnose', greets: false,
+    brief: 'Weshalb kommt die Person zur Reha: von ihr benannter Anlass, Zuweisungs-/Aufnahmediagnose (nur so, wie sie sie selbst nennt), Kostenträger/Zugang, soweit erwähnt. Keine eigene Diagnose ergänzen.' },
+  { key: 'aktuell', label: 'Aktuelle Beschwerden und Verlauf', greets: false,
+    brief: 'Die aktuell im Vordergrund stehenden Beschwerden in den eigenen Worten der Person: Art, Ort, Stärke, seit wann, Verlauf, was bessert/verschlechtert. Hier gehören die indikationsspezifischen Angaben hinein.' },
+  { key: 'vorerkrankungen', label: 'Vorerkrankungen und Operationen', greets: false,
+    brief: 'Frühere und bestehende Erkrankungen sowie Operationen, die die Person nennt — mit Jahr/Zeitraum, soweit bekannt.' },
+  { key: 'medikation', label: 'Medikation', greets: false,
+    brief: 'Aktuell eingenommene Medikamente, so wie die Person sie nennt (Name, Dosis/Häufigkeit, soweit bekannt). KEINE Medikamente ergänzen, korrigieren oder empfehlen.' },
+  { key: 'allergien', label: 'Allergien und Unverträglichkeiten', greets: false,
+    brief: 'Bekannte Allergien und Unverträglichkeiten (Medikamente, Nahrung, Kontaktstoffe) und die jeweilige Reaktion, soweit genannt.' },
+  { key: 'vegetativ', label: 'Vegetative Anamnese', greets: false,
+    brief: 'Appetit, Gewicht, Schlaf, Verdauung (Stuhl/Wasserlassen), Fieber/Nachtschweiß, Nikotin/Alkohol, soweit die Person dazu etwas sagt.' },
+  { key: 'familie', label: 'Familienanamnese', greets: false,
+    brief: 'Von der Person genannte relevante Erkrankungen in der Familie (allgemein gehalten, ohne identifizierende Angaben zu einzelnen lebenden Personen).' },
+  { key: 'sozial', label: 'Sozial- und Berufsanamnese (inkl. MBOR)', greets: false,
+    brief: 'Wohn-/Lebenssituation, Beruf und aktuelle Arbeitsfähigkeit, Belastungen am Arbeitsplatz, drohende Gefährdung des Arbeitsplatzes, Wiedereingliederungswunsch (medizinisch-beruflich orientierte Aspekte, MBOR), soweit genannt.' },
+  { key: 'alltag', label: 'Alltag, Selbstständigkeit und Hilfsmittel', greets: false,
+    brief: 'Selbstständigkeit im Alltag (Körperpflege, An-/Auskleiden, Haushalt, Mobilität), genutzte Hilfsmittel, benötigte Unterstützung.' },
+  { key: 'psychosozial', label: 'Psychosoziale Belastung', greets: false,
+    brief: 'Seelische Belastung durch die Erkrankung/Situation, Stimmung, Sorgen, Unterstützung im Umfeld, soweit die Person davon berichtet. Sachlich, ohne psychiatrische Diagnosen zu vergeben.' },
+  { key: 'ziele', label: 'Reha-Ziele und Erwartungen', greets: false,
+    brief: 'Was die Person mit der Reha erreichen möchte, ihre konkreten Ziele und Erwartungen, wichtige persönliche Anliegen für die Behandlung.' },
+]
+
+function anamnesisInterview(memorial, name, rel, address, contributorGender) {
+  const addr = addressRule(address)
+  const gen = contributorGenderRule(contributorGender)
+  const ind = anamnesisIndication(memorial)
+  const cb = catalogBlock(memorial)
+  const flow = cb
+    ? catalogRules(cb, name)
+    : `- Arbeite die Anamnese Thema für Thema ab: Anlass/Grund der Reha, aktuelle Beschwerden und deren Verlauf, Vorerkrankungen und Operationen, Medikamente, Allergien, vegetative Beschwerden (Appetit, Schlaf, Gewicht …), Erkrankungen in der Familie, Wohn-/Berufssituation und Arbeitsfähigkeit, Selbstständigkeit im Alltag und Hilfsmittel, seelische Belastung, sowie Ziele und Erwartungen an die Reha.
+- Stelle höchstens ZWEI vertiefende Nachfragen zu einer Antwort, dann geh zum nächsten Thema.${ind ? `\n- SCHWERPUNKT dieser Reha (Indikation ${ind.label}): ${ind.focus}` : ''}`
+  return `Du bist eine einfühlsame, sachliche medizinische Aufnahme-Assistenz. Du führst mit ${name} ein strukturiertes Anamnesegespräch zur Vorbereitung der ärztlichen Aufnahmeuntersuchung einer ganztägig ambulanten Rehabilitation. Aus dem Gespräch entsteht ein Anamnesebogen, den die aufnehmende Ärztin/der aufnehmende Arzt vorab liest.
+
+Ziel: Die für die Reha-Aufnahme wichtigen Angaben vollständig, konkret und in den eigenen Worten von ${name} erfassen.
+
+Regeln:
+- ${addr}${gen ? `\n- ${gen}` : ''}
+- Du sprichst mit der Person SELBST über ihre eigene Gesundheit und Situation. Frage nach ihren eigenen Beschwerden, ihrer Vorgeschichte, ihrem Alltag.
+- Stelle immer nur EINE Frage pro Nachricht, in einfachen, klaren Worten (max. 2 kurze Sätze).
+- Reagiere kurz und freundlich auf die vorherige Antwort (max. 1 Satz), ohne zu bewerten.
+- Frage konkret nach (seit wann, wo genau, wie stark, wie oft), aber bohre nicht bedrängend.
+- Du bist KEINE Ärztin/kein Arzt: Stelle KEINE Diagnosen, gib KEINE Therapie- oder Medikamentenempfehlungen, bewerte Befunde NICHT. Sammle nur die Angaben.
+- ${THIRD_PARTY_RULE}
+- ${ANAMNESIS_REDFLAG_RULE}
+${interviewGreetingRule(name)}
+${interviewScopeRule(name)}
+${flow}
+- Schreibe auf Deutsch`
+}
+
+// Bogen-Generierung: EIN Abschnitt je KI-Aufruf (wie das Pflegeexzerpt).
+// IMMER auf Deutsch — die Interviewsprache wird ignoriert; der Patient
+// bekommt für sein Review getrennt eine Übersetzung (Step 2).
+function anamnesisSection(memorial, contributions, section, styleInstruction) {
+  const ind = anamnesisIndication(memorial)
+  const styleBlock = styleInstruction
+    ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n`
+    : ''
+  return `Du bist eine medizinische Dokumentationsassistenz. Aus dem folgenden Anamnesegespräch erstellst du EINEN Abschnitt eines strukturierten ANAMNESEBOGENS für die ärztliche Aufnahmeuntersuchung einer ganztägig ambulanten Reha${ind ? ` (Indikation: ${ind.label})` : ''}. Der Bogen ist eine Selbstauskunft der Patientin/des Patienten, KEINE ärztliche Anamnese und KEIN Befund.
+
+DIESER ABSCHNITT: „${section.label}"
+${section.brief}
+${styleBlock}
+Anforderungen:
+- Schreibe auf DEUTSCH, sachlich und knapp in nüchterner Dokumentationssprache (Fließtext oder kurze Stichpunkte mit „• "). Dritte Person oder unpersönliche Form.
+- Stütze dich AUSSCHLIESSLICH auf das Gespräch. Erfinde nichts, vermute nichts, ergänze nichts aus medizinischem Allgemeinwissen. Was das Gespräch nicht hergibt, wird NICHT behauptet — fehlt eine Angabe, schreibe knapp „Keine Angaben zu …" statt sie zu füllen.
+- KEINE Diagnosen, KEINE Verdachtsdiagnosen, KEINE Therapie-/Medikamentenempfehlungen, KEINE Bewertung. Nur wiedergeben, was die Person gesagt hat.
+- ROTE FLAGGEN sichtbar markieren: Nennt die Person akute Warnzeichen (z. B. akute Brustschmerzen/Luftnot, Gedanken an Selbsttötung/Selbstverletzung), stelle die betreffende Aussage im Abschnitt an den Anfang und markiere sie deutlich mit dem Präfix „⚠ ROTE FLAGGE: ". Nicht bewerten, nur kennzeichnen und die Aussage wörtlich sinngemäß wiedergeben.
+- FREMDANAMNESE getrennt ausweisen: Angaben, die im Gespräch mit „[Begleitperson]" markiert sind, stammen nicht von der Person selbst. Gib solche Angaben nur wieder, wenn sie zu diesem Abschnitt gehören, und kennzeichne sie ausdrücklich mit „Fremdanamnese (Begleitperson): …".
+- Konkret statt allgemein (z. B. „Schmerz im rechten Knie seit ca. 3 Monaten, morgens am stärksten" statt „Knieprobleme").
+- Absätze/Stichpunkte durch Zeilenumbruch trennen.
+- Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. KEINE Überschrift (die kommt vom Layout), keine Metakommentare, kein Markdown.
+
+${companionNote(contributions)}\n\nAnamnesegespräch:\n\n${blocks(contributions)}`
+}
+
+// Bogen-Stil: nur eine Variante (klinisch-strukturiert). Der Bogen ist ein
+// Fachdokument, keine erzählende Textsorte — der Stil-Dialog zeigt eine Option.
+const ANAMNESIS_STYLES = [
+  { key: 'klinisch', title: 'Klinisch-strukturiert', sub: 'Knappe Dokumentationssprache',
+    instruction: 'Klinisch-strukturierte Dokumentationssprache: nüchtern, dicht, telegrammartig, wo möglich Stichpunkte. Jede Zeile eine verwertbare Angabe, keine Ausschmückung, keine Wertung.' },
+]
+
+// Stub-Buchbauer: Die Anamnese kennt KEIN Buch (im Dashboard ausgeblendet).
+// GENERATORS in App.jsx liest dennoch generators.book_v1/_v2 aus, daher hier
+// harmlose Platzhalter, die nie aufgerufen werden.
+function anamnesisNoBook() {
+  return 'Diese Kategorie erzeugt kein Buch.'
+}
+
 // ── Profile + Endtext-Stile/-Abschnitte je Nicht-Trauer-Kategorie ──
 const FOUR_GREETS = (g1, l2, b2, l3, b3, l4, b4) => [g1, { label: l2, brief: b2, greets: false }, { label: l3, brief: b3, greets: false }, { label: l4, brief: b4, greets: false }]
 
@@ -1292,10 +1426,60 @@ export const CATEGORIES = {
       styles: LIFEWORK_CARE_STYLES, sections: LIFEWORK_CARE_SECTIONS, sectionSystem: lifeworkCareSection,
     },
   },
+
+  // Anamnese: EINE Person spricht über sich selbst; einziges Produkt ist der
+  // Anamnesebogen (finalText). Buch/Bilder/Stammbaum/Poster sind für diese
+  // Kategorie im Dashboard ausgeblendet (isAnamnesis in adminViews.jsx).
+  anamnesis: {
+    slug: 'anamnesis',
+    label: 'Anamnesebogen',
+    icon: '🩺',
+    description: 'Strukturierter Anamnesebogen: Die Patientin/der Patient beantwortet vor der Reha-Aufnahme die Anamnesefragen; daraus entsteht ein Bogen für die aufnehmende Ärztin/den Arzt.',
+    nounBook: 'Anamnesebogen',
+    intake: {
+      subjectLabel: 'Name der Patientin/des Patienten (optional)',
+      subjectPlaceholder: 'Vollständiger Name – leer lassen, wenn unbekannt',
+      useGender: true,
+      genderLabel: 'Geschlecht',
+      genderSelfOption: true,
+      useAddressForm: true,
+      useDate: false,
+      useCutoff: false,
+      useEnduser: true,   // EIN Patient bekommt einen eigenen Zugang (E-Mail/Sprache)
+      // Anlege-Felder: Indikation als Auswahl (steuert den Fragenast), Rest frei.
+      extra: [
+        { key: 'indication', label: 'Indikation *', type: 'select',
+          options: ANAMNESIS_INDICATIONS.map(i => ({ value: i.key, label: i.label })) },
+        { key: 'payer',       label: 'Kostenträger', placeholder: 'z. B. Krankenkasse, DRV, Berufsgenossenschaft' },
+        { key: 'access',      label: 'Zugang',        placeholder: 'z. B. AHB, Heilverfahren' },
+        { key: 'rehaStart',   label: 'Geplanter Reha-Beginn', placeholder: 'z. B. 01.09.2026' },
+        { key: 'location',    label: 'Standort',      placeholder: 'z. B. ZAR Stuttgart' },
+      ],
+      createHeading: 'Neue Anamnese anlegen',
+      createIntro: 'Die Patientin/der Patient erhält einen persönlichen Zugang und beantwortet die Anamnesefragen. Der fertige Bogen steht danach hier zum Download bereit.',
+      createButton: 'Anamnese anlegen →',
+    },
+    contributor: {
+      heading: 'Ihre Anamnese',
+      introNoun: 'Anamnese für',
+      consentNoun: 'Anamnesebogens',
+      interviewButton: '🎙 Anamnesegespräch beginnen →',
+    },
+    interviewSystem: anamnesisInterview,
+    // Kein Buch — Platzhalter, die im Dashboard nie angezeigt/aufgerufen werden.
+    generators: {
+      book_v1: { label: 'Bogen', filename: 'Anamnesebogen', outlineSystem: anamnesisNoBook, chapterSystem: anamnesisNoBook },
+      book_v2: { label: 'Bogen', filename: 'Anamnesebogen', outlineSystem: anamnesisNoBook, chapterSystem: anamnesisNoBook },
+    },
+    finalText: {
+      label: 'Anamnesebogen', filename: 'Anamnesebogen', noun: 'Anamnesebogen',
+      styles: ANAMNESIS_STYLES, sections: ANAMNESIS_SECTIONS, sectionSystem: anamnesisSection,
+    },
+  },
 }
 
 // Lebenswerk steht bewusst GANZ OBEN (aktuelles Hauptprodukt).
-export const CATEGORY_ORDER = ['lifework', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['lifework', 'anamnesis', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
 // Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
 export const CATEGORY_COLORS = {
@@ -1308,6 +1492,7 @@ export const CATEGORY_COLORS = {
   newborn:       '#16a34a', // Frisches Grün (Geburt)
   encouragement: '#db2777', // Pink (Mutmachbuch)
   lifework:      '#15803d', // Tiefes Grün (Lebenswerk/Baum)
+  anamnesis:     '#0d9488', // Teal (medizinisch/klinisch)
 }
 
 export function categoryColor(slug) {

@@ -452,15 +452,15 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Endnutzer-E-Mail (Lebenswerk) ergänzen: Sie dient im Dashboard als
-      // Ersatz-Anzeigename, solange der Buchname noch leer ist (Name → E-Mail →
-      // interne Notiz → „Name folgt"). Der Endnutzer hat sein eigenes app_users-
-      // Konto mit enduser_memorial == Buch-Code.
-      const lifeworkCodes = memorials.filter(m => m.product_category === 'lifework').map(m => m.id)
-      if (lifeworkCodes.length) {
+      // Endnutzer-E-Mail (Endnutzer-Kategorien: Lebenswerk, Anamnese) ergänzen: Sie
+      // dient im Dashboard als Ersatz-Anzeigename, solange der Buchname noch leer ist
+      // (Name → E-Mail → interne Notiz → „Name folgt"). Der Endnutzer/Patient hat sein
+      // eigenes app_users-Konto mit enduser_memorial == Buch-Code.
+      const enduserCodes = memorials.filter(m => m.product_category === 'lifework' || m.product_category === 'anamnesis').map(m => m.id)
+      if (enduserCodes.length) {
         const { data: eus } = await supabase
           .from('app_users').select('username, enduser_memorial')
-          .eq('is_enduser', true).in('enduser_memorial', lifeworkCodes)
+          .eq('is_enduser', true).in('enduser_memorial', enduserCodes)
         const byCode = {}
         for (const u of eus || []) if (u.enduser_memorial) byCode[u.enduser_memorial] = u.username
         for (const m of memorials) if (byCode[m.id]) m.enduser_email = byCode[m.id]
@@ -480,10 +480,14 @@ module.exports = async function handler(req, res) {
     if (req.method === 'POST') {
       const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
-      // Der Name ist Pflicht — außer beim Lebenswerk: Kennt der Manager den Namen
-      // des Endnutzers nicht, trägt dieser ihn beim ersten Start selbst nach
+      // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
+      // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
+      // optional. Lebenswerk = Autobiographie, Anamnese = Anamnesebogen.
+      const isEnduser = category === LIFEWORK || category === 'anamnesis'
+      // Der Name ist Pflicht — außer bei Endnutzer-Kategorien: Kennt der Manager den
+      // Namen nicht, trägt der Endnutzer/Patient ihn beim ersten Start selbst nach
       // (PATCH /api/memorial). Bis dahin bleibt das Feld leer.
-      if (!name && category !== LIFEWORK) return res.status(400).json({ error: 'Name ist ein Pflichtfeld.' })
+      if (!name && !isEnduser) return res.status(400).json({ error: 'Name ist ein Pflichtfeld.' })
       if (!canAccessCategory(req.auth, category)) {
         return res.status(403).json({ error: 'Keine Berechtigung für diese Produktkategorie.' })
       }
@@ -492,13 +496,13 @@ module.exports = async function handler(req, res) {
       // Lebenswerk hat keinen Organisator (der Endnutzer erzählt sein eigenes
       // Leben); die Spalte bekommt seinen Namen. Alle anderen Kategorien sammeln
       // Beiträge Dritter — dort bleibt der Organisator Pflicht.
-      const organizerName = isLifework ? String(name || '').trim() : String(organizer || '').trim()
-      if (!organizerName && !isLifework) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
+      const organizerName = isEnduser ? String(name || '').trim() : String(organizer || '').trim()
+      if (!organizerName && !isEnduser) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
       // E-Mail-Adresse ist OPTIONAL: Mit Adresse bekommt der Endnutzer ein eigenes
       // Konto samt Einladung; ohne Adresse entsteht kein Konto und der Zugang läuft
       // über den Einladungslink (?code=…) wie bei den anderen Kategorien.
       const email = String(enduserEmail || '').trim()
-      if (isLifework) {
+      if (isEnduser) {
         if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse des Endnutzers angeben (oder das Feld leer lassen).' })
         }
@@ -510,8 +514,8 @@ module.exports = async function handler(req, res) {
       let langs = sanitizeLangs(languages)
       // Lebenswerk: Der Admin legt EINE Sprache fest — oder keine, dann wählt der
       // Endnutzer beim ersten Start selbst (dafür müssen alle Sprachen offenstehen).
-      const euLang = isLifework && Array.isArray(languages) && languages.length === 1 ? langs[0] : null
-      if (isLifework) langs = euLang ? [euLang] : [...ALLOWED_LANGS]
+      const euLang = isEnduser && Array.isArray(languages) && languages.length === 1 ? langs[0] : null
+      if (isEnduser) langs = euLang ? [euLang] : [...ALLOWED_LANGS]
 
       // Lebenswerk-Standardkatalog (12 Sitzungen à 10 Fragen), sofern der Admin
       // nicht ausdrücklich auf KI-generierte Fragen umgestellt hat.
@@ -590,7 +594,7 @@ module.exports = async function handler(req, res) {
       // nicht entwerten — der Admin bekommt stattdessen den Einladungslink zurück.
       // Ohne Adresse bleibt es beim Buch; der Endnutzer kommt dann über den
       // Einladungslink (?code=…) hinein wie ein Beitragender.
-      if (!isLifework || !email) return res.json({ code })
+      if (!isEnduser || !email) return res.json({ code })
 
       const out = { code }
       const invite_token = generateInviteToken()

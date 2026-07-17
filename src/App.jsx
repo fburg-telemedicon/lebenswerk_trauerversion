@@ -1926,12 +1926,18 @@ function Dashboard() {
         // seine Überschrift (in ALLEN Stilvarianten identisch — sie kommt vom
         // Layout, nicht von der KI). Eine Rede dagegen wird am Stück vorgelesen und
         // bleibt ohne Zwischenüberschriften.
-        const withHeadings = selected?.product_category === 'lifework'
-        const steps = sections.map(section => ({
+        const isAnamnesis = selected?.product_category === 'anamnesis'
+        const withHeadings = selected?.product_category === 'lifework' || isAnamnesis
+        // Fester Kopf des Anamnesebogens (Selbstauskunft, KI-generiert, nicht
+        // ärztlich validiert) — wird dem ersten Abschnitt vorangestellt.
+        const anamnesisHeader = isAnamnesis
+          ? `# Anamnesebogen (Selbstauskunft)\n\n_Hinweis: Dieser Bogen wurde aus der Patientenselbstauskunft KI-generiert. Er ist nicht ärztlich validiert und ersetzt keine ärztliche Anamnese oder Untersuchung._\n\n${[selected?.name && `Name: ${selected.name}`, (getCategory(selected?.product_category).intake.extra || []).map(f => selected?.intake?.[f.key] && `${f.label.replace(/\s*\*$/, '')}: ${(f.options?.find(o => o.value === selected.intake[f.key])?.label) || selected.intake[f.key]}`).filter(Boolean).join(' · ')].filter(Boolean).join('\n')}`
+          : null
+        const steps = sections.map((section, i) => ({
           system: gen.sectionSystem(selected, contributions, section, extraArg) + dir,
           user: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.`,
           label: `Abschnitt: ${section.label}`,
-          ...(withHeadings ? { prefix: `## ${section.label}` } : {}),
+          ...(withHeadings ? { prefix: `${i === 0 && anamnesisHeader ? anamnesisHeader + '\n\n' : ''}## ${section.label}` } : {}),
         }))
         stepsTotal = steps.length
         setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
@@ -2311,7 +2317,10 @@ Regeln:
   // Speichern gefragt und der Text dann übersetzt (siehe pickDlLang).
   function genLangs(key) {
     const langs = (selected?.languages && selected.languages.length) ? selected.languages : [DEFAULT_LANGUAGE]
-    if (key === 'eulogy' && selected?.product_category === 'lifework') return ['de']
+    // Pflegeexzerpt (Lebenswerk) und Anamnesebogen (Anamnese) entstehen IMMER
+    // auf Deutsch — beim Lebenswerk wird die Zielsprache erst beim Download
+    // gefragt, beim Anamnesebogen prüft der Patient in seiner Interviewsprache.
+    if (key === 'eulogy' && (selected?.product_category === 'lifework' || selected?.product_category === 'anamnesis')) return ['de']
     return langs
   }
   function pickGenLang(code) {
