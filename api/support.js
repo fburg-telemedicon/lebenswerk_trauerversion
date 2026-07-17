@@ -1,9 +1,14 @@
 // api/support.js
-// POST /api/support  { message, replyEmail, name?, context? }   (öffentlich, rate-limited)
+// POST /api/support  { message, replyEmail?, replyPhone?, preferredChannel?, name?, context? }
+//                                                              (öffentlich, rate-limited)
 //
 // In-App-Support: Nutzer (Endnutzer, Beitragende oder Manager) schicken eine
 // Nachricht/Fehlermeldung, die als E-Mail beim Betreiber landet (Reply-To = die
-// angegebene Antwort-Adresse, damit direkt geantwortet werden kann). Die Anfrage
+// angegebene Antwort-Adresse, damit direkt geantwortet werden kann). Als
+// Rückkanal genügt WAHLWEISE eine E-Mail-Adresse ODER eine Telefonnummer —
+// mindestens eines von beidem muss da sein, sonst könnten wir nicht antworten.
+// `preferredChannel` ('email' | 'phone') ist der Wunsch des Nutzers, wie er
+// kontaktiert werden möchte; ohne Angabe entscheidet der Support. Die Anfrage
 // wird ZUSÄTZLICH in der DB abgelegt, damit nichts verloren geht, falls der
 // Mailversand hakt. `context` ist ein kleines Diagnose-Objekt (Buch-Code, Ansicht,
 // Browser …), das dem Nutzer vor dem Absenden transparent angezeigt wurde.
@@ -17,6 +22,11 @@ const { audit } = require('./_lib/audit')
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Telefonnummern bewusst nur grob prüfen: Ziffern, Leerzeichen, +, /, -, (), mind.
+// 6 Ziffern. Strenger wäre hier falsch — internationale Schreibweisen sind zu
+// vielfältig, und eine abgewiesene Nummer kostet uns eine echte Support-Anfrage.
+const PHONE_RE = /^[+()/\-.\s\d]{6,}$/
+const CHANNELS = ['email', 'phone']
 
 let schemaReady = false
 async function ensureSupportSchema() {
@@ -33,6 +43,13 @@ async function ensureSupportSchema() {
       handled      boolean not null default false
     )
   `)
+  // Nachträglich ergänzt: Telefon als alternativer Rückkanal + Kontaktwunsch.
+  // `reply_email` ist damit nicht mehr Pflicht (nur noch E-Mail ODER Telefon).
+  await pool().query(`
+    alter table support_requests
+      add column if not exists reply_phone       text,
+      add column if not exists preferred_channel text
+  `)
   schemaReady = true
 }
 
@@ -45,7 +62,7 @@ async function handleAdmin(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('support_requests')
-      .select('id, created_at, memorial_id, name, reply_email, message, context, handled')
+      .select('id, created_at, memorial_id, name, reply_email, reply_phone, preferred_channel, message, context, handled')
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) throw error
@@ -85,17 +102,33 @@ module.exports = async function handler(req, res) {
     // Jede Anfrage schreibt eine DB-Zeile und verschickt eine Mail → begrenzen.
     if (!(await enforce(req, res, { name: 'support-ip', limit: 10, windowSeconds: 3600 }))) return
 
-    let { message, replyEmail, name, context } = req.body || {}
+    let { message, replyEmail, replyPhone, preferredChannel, name, context } = req.body || {}
     message = String(message || '').trim()
     replyEmail = String(replyEmail || '').trim()
+    replyPhone = String(replyPhone || '').trim().slice(0, 40)
     name = String(name || '').trim().slice(0, 120) || null
     if (message.length < 3) return res.status(400).json({ error: 'Bitte beschreiben Sie Ihr Anliegen kurz.' })
     if (message.length > 5000) message = message.slice(0, 5000)
-    // Ohne gültige Antwort-Adresse könnten wir nicht antworten → Pflicht.
-    if (!EMAIL_RE.test(replyEmail)) return res.status(400).json({ error: 'Bitte eine gültige Antwort-E-Mail-Adresse angeben, damit wir antworten können.' })
 
-    // Zusätzliche Drossel pro Antwort-Adresse (Missbrauch/Spam gegen das Postfach).
-    if (!(await enforce(req, res, { name: 'support-email', limit: 6, windowSeconds: 3600, key: replyEmail.toLowerCase() }))) return
+    // Rückkanal: E-Mail ODER Telefon genügt, aber ohne beides könnten wir nicht antworten.
+    if (!replyEmail && !replyPhone) {
+      return res.status(400).json({ error: 'Bitte eine E-Mail-Adresse oder eine Telefonnummer angeben, damit wir antworten können.' })
+    }
+    if (replyEmail && !EMAIL_RE.test(replyEmail)) {
+      return res.status(400).json({ error: 'Bitte eine gültige Antwort-E-Mail-Adresse angeben (oder das Feld leer lassen).' })
+    }
+    if (replyPhone && !PHONE_RE.test(replyPhone)) {
+      return res.status(400).json({ error: 'Bitte eine gültige Telefonnummer angeben (oder das Feld leer lassen).' })
+    }
+    // Kontaktwunsch nur übernehmen, wenn der gewünschte Kanal auch hinterlegt ist —
+    // sonst stünde im Ticket „am liebsten telefonisch" ohne Nummer.
+    preferredChannel = CHANNELS.includes(preferredChannel) ? preferredChannel : null
+    if (preferredChannel === 'email' && !replyEmail) preferredChannel = null
+    if (preferredChannel === 'phone' && !replyPhone) preferredChannel = null
+
+    // Zusätzliche Drossel pro Rückkanal (Missbrauch/Spam gegen das Postfach).
+    const rlKey = (replyEmail || replyPhone).toLowerCase()
+    if (!(await enforce(req, res, { name: 'support-email', limit: 6, windowSeconds: 3600, key: rlKey }))) return
 
     // Kontext defensiv aufnehmen (nur ein flaches Objekt, Größe begrenzt).
     let ctx = null
@@ -114,20 +147,23 @@ module.exports = async function handler(req, res) {
     let stored = true
     try {
       await supabase.from('support_requests').insert({
-        memorial_id: memorialId, name, reply_email: replyEmail, message, context: ctx,
+        memorial_id: memorialId, name, reply_email: replyEmail || null, reply_phone: replyPhone || null,
+        preferred_channel: preferredChannel, message, context: ctx,
       })
     } catch (e) { console.error('/api/support store:', e); stored = false }
 
     let email_sent = true
     try {
-      await sendSupportMail({ replyTo: replyEmail, name, message, context: ctx })
+      // Ohne Antwort-Adresse bleibt Reply-To der Standard (siehe invitemail.js) —
+      // die Mail geht trotzdem raus, Telefonnummer + Kontaktwunsch stehen darin.
+      await sendSupportMail({ replyTo: replyEmail || null, phone: replyPhone || null, preferredChannel, name, message, context: ctx })
     } catch (e) { console.error('/api/support mail:', e); email_sent = false }
 
     if (!stored && !email_sent) {
       // Weder gespeichert noch versendet → dem Nutzer ehrlich einen Fehler melden.
       return res.status(502).json({ error: 'Ihre Nachricht konnte nicht übermittelt werden. Bitte später erneut versuchen oder direkt an support@lebensgeschichten.ai schreiben.' })
     }
-    await audit(req, { actor: { name: replyEmail }, action: 'support.submit', target: memorialId, detail: { email_sent, stored } })
+    await audit(req, { actor: { name: replyEmail || replyPhone }, action: 'support.submit', target: memorialId, detail: { email_sent, stored } })
     return res.json({ ok: true, email_sent })
   } catch (e) {
     console.error('/api/support error:', e)

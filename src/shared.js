@@ -122,6 +122,29 @@ export function formatEurSum(n) {
   return v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Bruttopreis eines Gutscheins/Freischaltcodes: liegt als ganzzahliger CENT-Wert
+// in der DB (siehe api/_lib/unlockcodes.js), damit nichts wegrundet.
+// Eingabe des Admins ("49,90", "49.90", "49 €") → Cent. null = leer, NaN = ungültig.
+export function parsePriceCents(input) {
+  if (input === null || input === undefined) return null
+  const s = String(input).replace(/[€\s]/g, '').replace(',', '.').trim()
+  if (!s) return null
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return NaN
+  return Math.round(parseFloat(s) * 100)
+}
+
+// Cent → "49,90 €" (leerer Preis → null, damit der Aufrufer die Zeile weglassen kann).
+export function formatPriceCents(cents) {
+  if (cents === null || cents === undefined || cents === '') return null
+  return formatEurSum(Number(cents) / 100)
+}
+
+// Cent → "49,90" fürs Eingabefeld (ohne Währungszeichen).
+export function priceCentsToInput(cents) {
+  if (cents === null || cents === undefined || cents === '') return ''
+  return (Number(cents) / 100).toFixed(2).replace('.', ',')
+}
+
 const COST_KIND_LABEL = {
   interview:  'Interview-Fragen (KI)',
   reasoning:  'Sonstiges KI-Reasoning',

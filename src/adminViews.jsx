@@ -5,7 +5,7 @@
 import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
-import { formatEur, formatEurSum, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
+import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
@@ -723,8 +723,17 @@ export function CodesView({ err, codesData, codeForm, busy, codeMsg, memorials =
               <input type="email" value={codeForm.recipient_email} onChange={e => setCodeForm({ ...codeForm, recipient_email: e.target.value })} placeholder={t('name@beispiel.de', 'name@example.com')} />
             </div>
           </div>
-          <span style={{ ...S.muted, fontSize:12, display:'block', marginBottom:3 }}>{t('Notiz (optional)', 'Note (optional)')}</span>
-          <input value={codeForm.note} onChange={e => setCodeForm({ ...codeForm, note: e.target.value })} placeholder={t('z. B. Rechnung 2026-014', 'e.g. invoice 2026-014')} style={{ marginBottom:12 }} />
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+            <div>
+              <span style={{ ...S.muted, fontSize:12, display:'block', marginBottom:3 }}>{t('Notiz (optional)', 'Note (optional)')}</span>
+              <input value={codeForm.note} onChange={e => setCodeForm({ ...codeForm, note: e.target.value })} placeholder={t('z. B. Rechnung 2026-014', 'e.g. invoice 2026-014')} />
+            </div>
+            <div>
+              <span style={{ ...S.muted, fontSize:12, display:'block', marginBottom:3 }}>{t('Bruttopreis (optional)', 'Gross price (optional)')}</span>
+              <input value={codeForm.gross_price} onChange={e => setCodeForm({ ...codeForm, gross_price: e.target.value })} inputMode="decimal" placeholder={t('z. B. 49,90', 'e.g. 49.90')} />
+              <span style={{ ...S.muted, fontSize:11, display:'block', marginTop:3 }}>{t('Verkaufspreis inkl. MwSt. in Euro.', 'Sales price incl. VAT, in euros.')}</span>
+            </div>
+          </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, margin:'0 0 14px', cursor:'pointer', fontSize:14 }}>
             <input type="checkbox" checked={codeForm.send} onChange={e => setCodeForm({ ...codeForm, send: e.target.checked })} />
             <span>{t('Nach dem Erstellen direkt per E-Mail an die angegebene Adresse senden', 'Send by email to the address above right after creating')}</span>
@@ -759,6 +768,9 @@ export function CodesView({ err, codesData, codeForm, busy, codeMsg, memorials =
                     <div>{c.recipient_name}{c.recipient_name && c.recipient_email ? ' · ' : ''}{c.recipient_email}</div>
                   )}
                   {c.note && <div>{t('Notiz', 'Note')}: {c.note}</div>}
+                  {formatPriceCents(c.gross_price_cents) && (
+                    <div>{t('Bruttopreis', 'Gross price')}: {formatPriceCents(c.gross_price_cents)}</div>
+                  )}
                   <div>
                     {t('Erstellt', 'Created')}: {fmtDate(c.created_at)}
                     {c.email_sent_at && ` · ${t('E-Mail gesendet', 'Email sent')}: ${fmtDate(c.email_sent_at)}`}
@@ -2084,7 +2096,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
   )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing }) {
+export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -2101,6 +2113,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
     const setOd  = patch => setOrderDraft(o => ({ ...o, ...patch }))
     const setOdPa = patch => setOrderDraft(o => ({ ...o, pickupAddress: { ...o.pickupAddress, ...patch } }))
     const dash = '—'
+    const fmtDateTime = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
     const orderVariant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
     const orderLangLabels = (selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
@@ -2180,6 +2193,41 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
               </button>
             </div>
           </div>
+
+          {/* Gutscheinnutzung: Freischaltcodes, die für DIESES Buch eingelöst wurden.
+              Wird nur für Admins geladen (bookCodes bleibt sonst leer). */}
+          {bookCodes.length > 0 && (
+            <div style={{ ...S.card, marginBottom:'1.5rem' }}>
+              <Lbl>{t('Gutscheinnutzung', 'Voucher usage')}</Lbl>
+              <p style={{ ...S.muted, fontSize:12.5, margin:'4px 0 10px' }}>
+                {bookCodes.length === 1
+                  ? t('Für dieses Buch wurde ein Freischaltcode eingelöst — das Zeitlimit ist aufgehoben.',
+                      'One unlock code was redeemed for this book — the time limit is lifted.')
+                  : t(`Für dieses Buch wurden ${bookCodes.length} Freischaltcodes eingelöst.`,
+                      `${bookCodes.length} unlock codes were redeemed for this book.`)}
+              </p>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {bookCodes.map(c => (
+                  <div key={c.code} style={{ background:'#fafaf9', border:'1px solid #f0efec', borderRadius:8, padding:'9px 12px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                      <code style={{ fontSize:14, fontWeight:700, letterSpacing:1.2 }}>{c.code_display}</code>
+                      {formatPriceCents(c.gross_price_cents) && (
+                        <span style={{ fontSize:13, fontWeight:600, color:'#1c1917' }}>{formatPriceCents(c.gross_price_cents)}</span>
+                      )}
+                    </div>
+                    <div style={{ ...S.muted, fontSize:12, marginTop:4, lineHeight:1.6 }}>
+                      <div>{t('Eingelöst', 'Redeemed')}: {fmtDateTime(c.redeemed_at)}</div>
+                      {(c.recipient_name || c.recipient_email) && (
+                        <div>{t('Gutschein für', 'Voucher for')}: {c.recipient_name}{c.recipient_name && c.recipient_email ? ' · ' : ''}{c.recipient_email}</div>
+                      )}
+                      {c.redeemed_owner && <div>{t('Eingelöst von', 'Redeemed by')}: {c.redeemed_owner}</div>}
+                      {c.note && <div>{t('Notiz', 'Note')}: {c.note}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <Err msg={err} />
           {loading ? (
@@ -3002,19 +3050,30 @@ export function SupportView({ supportData, loading, err, setView, logout, toggle
               const ctx = r.context && typeof r.context === 'object' ? r.context : {}
               const ctxRows = Object.entries(ctx).filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
               const mailto = `mailto:${r.reply_email}?subject=${encodeURIComponent('Re: Ihre Support-Anfrage – Lebensgeschichten')}`
+              // Rückkanal: E-Mail und/oder Telefon (mind. eines ist da). Der
+              // Kontaktwunsch bestimmt, welcher Kanal als Antwort-Button erscheint.
+              const wantsPhone = r.preferred_channel === 'phone' || !r.reply_email
+              const replyHref  = wantsPhone && r.reply_phone ? `tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}` : mailto
               return (
                 <div key={r.id} style={{ ...S.card, opacity: r.handled ? 0.62 : 1, borderColor: r.handled ? '#e7e5e4' : '#d6d3d1' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap', marginBottom:8 }}>
                     <div>
                       <strong style={{ fontSize:15 }}>{r.name || '—'}</strong>
-                      <a href={mailto} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>{r.reply_email}</a>
+                      {r.reply_email && <a href={mailto} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>{r.reply_email}</a>}
+                      {r.reply_phone && (
+                        <a href={`tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}`} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>📞 {r.reply_phone}</a>
+                      )}
                       <div style={{ ...S.muted, fontSize:12, marginTop:2 }}>
                         {fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
+                        {r.preferred_channel === 'phone' && ` · ${t('am liebsten telefonisch', 'prefers phone')}`}
+                        {r.preferred_channel === 'email' && ` · ${t('am liebsten per E-Mail', 'prefers email')}`}
                         {!r.handled && <span style={{ marginLeft:8, color:'#15803d', fontWeight:600 }}>{t('offen', 'open')}</span>}
                       </div>
                     </div>
                     <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <a href={mailto} className="secondary" style={{ fontSize:12, padding:'5px 10px', textDecoration:'none', display:'inline-block' }}>{t('Antworten', 'Reply')}</a>
+                      <a href={replyHref} className="secondary" style={{ fontSize:12, padding:'5px 10px', textDecoration:'none', display:'inline-block' }}>
+                        {wantsPhone && r.reply_phone ? t('Anrufen', 'Call') : t('Antworten', 'Reply')}
+                      </a>
                       <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#57534e', cursor:'pointer', whiteSpace:'nowrap' }}>
                         <input type="checkbox" checked={!!r.handled} onChange={e => toggleSupportHandled?.(r.id, e.target.checked)}
                           style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />

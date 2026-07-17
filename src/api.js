@@ -263,11 +263,13 @@ export async function redeemUnlockCode(memorialCode, code) {
 }
 // ── Support-Anfrage (öffentlich) ──────────────────────────────────
 // Nachricht/Fehlermeldung + Antwort-Adresse + Diagnose-Kontext an den Betreiber.
-export async function sendSupport({ message, replyEmail, name, context }) {
+// Rückkanal: replyEmail ODER replyPhone genügt (mindestens eines ist Pflicht).
+// preferredChannel: 'email' | 'phone' | null (Kontaktwunsch des Nutzers).
+export async function sendSupport({ message, replyEmail, replyPhone, preferredChannel, name, context }) {
   const res = await fetch('/api/support', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, replyEmail, name, context }),
+    body: JSON.stringify({ message, replyEmail, replyPhone, preferredChannel, name, context }),
   })
   return parseResponse(res) // { ok, email_sent }
 }
@@ -293,15 +295,17 @@ export async function adminDeleteSupport(token, id) {
 }
 
 // Verwaltung (nur Admin).
-export async function adminListUnlockCodes(token) {
-  const res = await fetch('/api/admin/unlock-codes', { headers: { Authorization: `Bearer ${token}` } })
+// `memorial` (optional) → nur die für DIESES Buch eingelösten Codes (Buch-Detailseite).
+export async function adminListUnlockCodes(token, memorial) {
+  const qs = memorial ? `?memorial=${encodeURIComponent(memorial)}` : ''
+  const res = await fetch(`/api/admin/unlock-codes${qs}`, { headers: { Authorization: `Bearer ${token}` } })
   return parseResponse(res) // { codes }
 }
-export async function adminCreateUnlockCode(token, { recipient_name, recipient_email, note, send } = {}) {
+export async function adminCreateUnlockCode(token, { recipient_name, recipient_email, note, gross_price_cents, send } = {}) {
   const res = await fetch('/api/admin/unlock-codes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ recipient_name, recipient_email, note, send }),
+    body: JSON.stringify({ recipient_name, recipient_email, note, gross_price_cents, send }),
   })
   return parseResponse(res) // created code (+ email_sent?)
 }

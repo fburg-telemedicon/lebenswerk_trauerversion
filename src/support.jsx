@@ -17,15 +17,24 @@ const SupportCtx = createContext(() => {})
 export const useSupport = () => useContext(SupportCtx)
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Bewusst grob (wie serverseitig in api/support.js): internationale Schreibweisen
+// sind zu vielfältig, um hier streng zu sein.
+const PHONE_RE = /^[+()/\-.\s\d]{6,}$/
 
 // Kompakte Übersetzungen (de/en/pl; sonst Deutsch). Der Manager sieht Deutsch.
 const L10N = {
   de: {
     title: 'Support kontaktieren',
-    intro: 'Beschreiben Sie kurz Ihr Anliegen oder das Problem. Wir melden uns per E-Mail.',
+    intro: 'Beschreiben Sie kurz Ihr Anliegen oder das Problem. Wir melden uns bei Ihnen.',
     name: 'Name (optional)',
     email: 'Ihre Antwort-E-Mail-Adresse',
-    emailHint: 'Damit wir Ihnen antworten können.',
+    emailHint: 'E-Mail oder Telefonnummer – mindestens eines von beidem, damit wir Ihnen antworten können.',
+    phone: 'Ihre Telefonnummer (optional)',
+    phonePh: '+49 …',
+    channel: 'Wie möchten Sie am liebsten kontaktiert werden? (optional)',
+    channelAny: 'Keine Vorliebe',
+    channelEmail: 'Per E-Mail',
+    channelPhone: 'Telefonisch',
     message: 'Ihre Nachricht',
     messagePh: 'Was ist passiert? Was möchten Sie uns mitteilen?',
     ctxLabel: 'Diese technischen Angaben werden zur Fehlersuche automatisch mitgeschickt:',
@@ -33,16 +42,24 @@ const L10N = {
     sending: 'Wird gesendet …',
     cancel: 'Abbrechen',
     close: 'Schließen',
-    sent: 'Vielen Dank! Ihre Nachricht ist bei uns eingegangen – wir melden uns per E-Mail.',
+    sent: 'Vielen Dank! Ihre Nachricht ist bei uns eingegangen – wir melden uns bei Ihnen.',
     errEmail: 'Bitte eine gültige E-Mail-Adresse angeben.',
+    errPhone: 'Bitte eine gültige Telefonnummer angeben.',
+    errContact: 'Bitte geben Sie eine E-Mail-Adresse oder eine Telefonnummer an, damit wir Ihnen antworten können.',
     errMessage: 'Bitte beschreiben Sie Ihr Anliegen kurz.',
   },
   en: {
     title: 'Contact support',
-    intro: 'Briefly describe your request or the problem. We will reply by email.',
+    intro: 'Briefly describe your request or the problem. We will get back to you.',
     name: 'Name (optional)',
     email: 'Your reply email address',
-    emailHint: 'So we can get back to you.',
+    emailHint: 'Email or phone number – at least one of the two, so we can get back to you.',
+    phone: 'Your phone number (optional)',
+    phonePh: '+49 …',
+    channel: 'How would you prefer to be contacted? (optional)',
+    channelAny: 'No preference',
+    channelEmail: 'By email',
+    channelPhone: 'By phone',
     message: 'Your message',
     messagePh: 'What happened? What would you like to tell us?',
     ctxLabel: 'These technical details are attached automatically to help us investigate:',
@@ -50,16 +67,24 @@ const L10N = {
     sending: 'Sending …',
     cancel: 'Cancel',
     close: 'Close',
-    sent: 'Thank you! Your message has reached us – we will reply by email.',
+    sent: 'Thank you! Your message has reached us – we will get back to you.',
     errEmail: 'Please enter a valid email address.',
+    errPhone: 'Please enter a valid phone number.',
+    errContact: 'Please provide an email address or a phone number so we can get back to you.',
     errMessage: 'Please describe your request briefly.',
   },
   pl: {
     title: 'Kontakt z pomocą',
-    intro: 'Opisz krótko swoją sprawę lub problem. Odpowiemy e-mailem.',
+    intro: 'Opisz krótko swoją sprawę lub problem. Skontaktujemy się z Tobą.',
     name: 'Imię (opcjonalnie)',
     email: 'Twój adres e-mail do odpowiedzi',
-    emailHint: 'Abyśmy mogli odpowiedzieć.',
+    emailHint: 'E-mail lub numer telefonu – przynajmniej jedno z nich, abyśmy mogli odpowiedzieć.',
+    phone: 'Twój numer telefonu (opcjonalnie)',
+    phonePh: '+48 …',
+    channel: 'Jak najchętniej chcesz być kontaktowany? (opcjonalnie)',
+    channelAny: 'Bez preferencji',
+    channelEmail: 'E-mailem',
+    channelPhone: 'Telefonicznie',
     message: 'Twoja wiadomość',
     messagePh: 'Co się stało? Co chcesz nam przekazać?',
     ctxLabel: 'Te dane techniczne są dołączane automatycznie, aby pomóc w diagnozie:',
@@ -67,8 +92,10 @@ const L10N = {
     sending: 'Wysyłanie …',
     cancel: 'Anuluj',
     close: 'Zamknij',
-    sent: 'Dziękujemy! Twoja wiadomość dotarła – odpowiemy e-mailem.',
+    sent: 'Dziękujemy! Twoja wiadomość dotarła – skontaktujemy się z Tobą.',
     errEmail: 'Podaj prawidłowy adres e-mail.',
+    errPhone: 'Podaj prawidłowy numer telefonu.',
+    errContact: 'Podaj adres e-mail lub numer telefonu, abyśmy mogli odpowiedzieć.',
     errMessage: 'Opisz krótko swoją sprawę.',
   },
 }
@@ -109,6 +136,8 @@ function SupportModal({ opts, onClose }) {
   const context = buildContext(opts)
   const [name, setName]   = useState(opts.suggestedName || '')
   const [email, setEmail] = useState(opts.suggestedEmail || '')
+  const [phone, setPhone] = useState('')
+  const [channel, setChannel] = useState('')   // '' = keine Vorliebe | 'email' | 'phone'
   const [message, setMessage] = useState('')
   const [busy, setBusy]   = useState(false)
   const [err, setErr]     = useState('')
@@ -117,11 +146,23 @@ function SupportModal({ opts, onClose }) {
   async function submit(e) {
     e?.preventDefault()
     if (busy) return
-    if (!EMAIL_RE.test(email.trim())) { setErr(s.errEmail); return }
-    if (message.trim().length < 3)    { setErr(s.errMessage); return }
+    const em = email.trim(), ph = phone.trim()
+    // Rückkanal: E-Mail ODER Telefon genügt, aber eines von beiden brauchen wir.
+    if (!em && !ph)                  { setErr(s.errContact); return }
+    if (em && !EMAIL_RE.test(em))    { setErr(s.errEmail); return }
+    if (ph && !PHONE_RE.test(ph))    { setErr(s.errPhone); return }
+    if (message.trim().length < 3)   { setErr(s.errMessage); return }
     setBusy(true); setErr('')
     try {
-      await sendSupport({ message: message.trim(), replyEmail: email.trim(), name: name.trim() || null, context })
+      await sendSupport({
+        message: message.trim(),
+        replyEmail: em || null,
+        replyPhone: ph || null,
+        // Der Wunsch zählt nur, wenn der Kanal auch hinterlegt ist.
+        preferredChannel: (channel === 'email' && em) || (channel === 'phone' && ph) ? channel : null,
+        name: name.trim() || null,
+        context,
+      })
       setDone(true)
     } catch (e2) { setErr(e2.message || 'Fehler') }
     finally { setBusy(false) }
@@ -152,8 +193,23 @@ function SupportModal({ opts, onClose }) {
             <label style={lbl}>{s.name}</label>
             <input value={name} onChange={e => setName(e.target.value)} style={inp} />
             <label style={lbl}>{s.email}</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} dir="ltr" placeholder="name@beispiel.de" style={{ ...inp, marginBottom:4 }} />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} dir="ltr" placeholder="name@beispiel.de" style={{ ...inp, marginBottom:8 }} />
+            <label style={lbl}>{s.phone}</label>
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} dir="ltr" placeholder={s.phonePh} style={{ ...inp, marginBottom:4 }} />
             <div style={{ fontSize:11.5, color:'#a8a29e', marginBottom:12 }}>{s.emailHint}</div>
+
+            {/* Kontaktwunsch: nur sinnvoll, wenn beide Kanäle hinterlegt sind. */}
+            {email.trim() && phone.trim() && (
+              <>
+                <label style={lbl}>{s.channel}</label>
+                <select value={channel} onChange={e => setChannel(e.target.value)} style={inp}>
+                  <option value="">{s.channelAny}</option>
+                  <option value="email">{s.channelEmail}</option>
+                  <option value="phone">{s.channelPhone}</option>
+                </select>
+              </>
+            )}
+
             <label style={lbl}>{s.message}</label>
             <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder={s.messagePh}
               style={{ width:'100%', marginBottom:12, resize:'vertical', minHeight:96, fontFamily:'inherit' }} />

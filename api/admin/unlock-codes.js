@@ -2,11 +2,13 @@
 // Verwaltung der Freischaltcodes (NUR für Admins).
 //
 //   GET    /api/admin/unlock-codes                 → { codes: [...] }
-//   POST   /api/admin/unlock-codes                 { recipient_name?, recipient_email?, note?, send? }
+//   GET    /api/admin/unlock-codes?memorial=CODE   → { codes: [...] } nur die für DIESES Buch
+//                                                     eingelösten Codes (Buch-Detailseite)
+//   POST   /api/admin/unlock-codes                 { recipient_name?, recipient_email?, note?, gross_price_cents?, send? }
 //            → erzeugt einen neuen (einmaligen, generischen) Code; mit send:true und
 //              Empfänger-Adresse wird er zusätzlich per E-Mail verschickt.
 //   PATCH  /api/admin/unlock-codes?code=…          { action:'send' }        → E-Mail (erneut) senden
-//                                                  { recipient_name?, recipient_email?, note? } → Notiz-Felder ändern
+//                                                  { recipient_name?, recipient_email?, note?, gross_price_cents? } → Notiz-Felder ändern
 //   DELETE /api/admin/unlock-codes?code=…          → Code löschen
 //
 // Ein Freischaltcode hebt das Zeitlimit (interview_timer_seconds) des Buchs auf,
@@ -15,7 +17,7 @@
 
 const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
-const { ensureUnlockSchema, genUnlockCode, formatUnlockCode } = require('../_lib/unlockcodes')
+const { ensureUnlockSchema, genUnlockCode, formatUnlockCode, parsePriceCents } = require('../_lib/unlockcodes')
 const { sendUnlockCodeMail } = require('../_lib/invitemail')
 const { audit } = require('../_lib/audit')
 
@@ -31,6 +33,7 @@ function toPublic(row) {
     recipient_name: row.recipient_name || '',
     recipient_email: row.recipient_email || '',
     note: row.note || '',
+    gross_price_cents: row.gross_price_cents ?? null,
     created_at: row.created_at,
     redeemed_at: row.redeemed_at,
     redeemed_memorial: row.redeemed_memorial,
@@ -41,7 +44,15 @@ function toPublic(row) {
 }
 
 // Spaltenliste für alle Abfragen (Anzeige-Objekt siehe toPublic).
-const COLS = 'code, recipient_name, recipient_email, note, created_at, redeemed_at, redeemed_memorial, redeemed_name, redeemed_owner, email_sent_at'
+const COLS = 'code, recipient_name, recipient_email, note, gross_price_cents, created_at, redeemed_at, redeemed_memorial, redeemed_name, redeemed_owner, email_sent_at'
+
+// Preis aus dem Request lesen. Akzeptiert `gross_price_cents` (Zahl) — das Frontend
+// rechnet die Eingabe bereits um. Rückgabe wie parsePriceCents: null = leer, NaN = ungültig.
+function priceFromBody(v) {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'number') return Number.isInteger(v) && v >= 0 && v <= 100_000_00 ? v : NaN
+  return parsePriceCents(v)
+}
 
 // Einen garantiert freien Rohcode würfeln (Kollisionen sind extrem unwahrscheinlich,
 // aber der Primärschlüssel-Konflikt würde sonst als 500 durchschlagen).
@@ -63,10 +74,11 @@ module.exports = async function handler(req, res) {
     await ensureUnlockSchema()
 
     if (req.method === 'GET') {
-      const { data, error } = await supabase
-        .from('unlock_codes')
-        .select(COLS)
-        .order('created_at', { ascending: false })
+      // ?memorial=CODE → nur die für dieses Buch eingelösten Codes (Buch-Detailseite).
+      const memorial = String(req.query.memorial || '').toUpperCase().trim()
+      let q = supabase.from('unlock_codes').select(COLS)
+      if (memorial) q = q.eq('redeemed_memorial', memorial)
+      const { data, error } = await q.order('created_at', { ascending: false })
       if (error) throw error
       return res.json({ codes: (data || []).map(toPublic) })
     }
@@ -79,9 +91,13 @@ module.exports = async function handler(req, res) {
       if (recipient_email && !EMAIL_RE.test(recipient_email)) {
         return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben (oder das Feld leer lassen).' })
       }
+      const gross_price_cents = priceFromBody(body.gross_price_cents)
+      if (Number.isNaN(gross_price_cents)) {
+        return res.status(400).json({ error: 'Bitte einen gültigen Bruttopreis angeben (z. B. 49,90) oder das Feld leer lassen.' })
+      }
       const code = await freshCode()
       const { data, error } = await supabase.from('unlock_codes')
-        .insert({ code, recipient_name, recipient_email, note, created_by: req.auth.uid || null })
+        .insert({ code, recipient_name, recipient_email, note, gross_price_cents, created_by: req.auth.uid || null })
         .select(COLS).single()
       if (error) throw error
       await audit(req, { actor: req.auth, action: 'unlock.create', target: code, detail: { recipient_email } })
@@ -140,6 +156,11 @@ module.exports = async function handler(req, res) {
         patch.recipient_email = em || null
       }
       if (body.note !== undefined) patch.note = String(body.note || '').trim().slice(0, 500) || null
+      if (body.gross_price_cents !== undefined) {
+        const p = priceFromBody(body.gross_price_cents)
+        if (Number.isNaN(p)) return res.status(400).json({ error: 'Bitte einen gültigen Bruttopreis angeben (z. B. 49,90) oder das Feld leer lassen.' })
+        patch.gross_price_cents = p
+      }
       if (!Object.keys(patch).length) return res.status(400).json({ error: 'Keine Änderung übergeben.' })
       const { error } = await supabase.from('unlock_codes').update(patch).eq('code', code)
       if (error) throw error

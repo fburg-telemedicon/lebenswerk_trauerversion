@@ -64,7 +64,7 @@ import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadP
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
-import { formatEur, costKindLabel } from './shared.js'
+import { formatEur, costKindLabel, parsePriceCents } from './shared.js'
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -451,7 +451,8 @@ function Dashboard() {
   const [userForm, setUserForm]       = useState({ username: '', cats: [], demo: true, lang: '' })
   const [createdInvite, setCreatedInvite] = useState(null) // { username, url } – nach Neuanlage angezeigt
   const [codesData, setCodesData]     = useState({ codes: [] })
-  const [codeForm, setCodeForm]       = useState({ recipient_name: '', recipient_email: '', note: '', send: false })
+  const [bookCodes, setBookCodes]     = useState([])   // Gutscheine, die für das offene Buch eingelöst wurden
+  const [codeForm, setCodeForm]       = useState({ recipient_name: '', recipient_email: '', note: '', gross_price: '', send: false })
   const [codeMsg, setCodeMsg]         = useState('')
   const [supportData, setSupportData] = useState([])
   const [supportLoading, setSupportLoading] = useState(false)
@@ -744,12 +745,21 @@ function Dashboard() {
   async function openMemorial(memorial) {
     setSelected(memorial); setLoading(true); setErr('')
     setOrderEdit(false); setOrderDraft(null)
+    setBookCodes([])
     try {
       const contribsRes = await fetch(`/api/admin/contributions?code=${memorial.id}`, { headers: { Authorization: `Bearer ${token}` } })
       if (contribsRes.status === 401) { logout(); return }
       const d = await contribsRes.json()
       if (!contribsRes.ok) throw new Error(d.error)
       setContribs(d)
+      // Gutscheinnutzung: für dieses Buch eingelöste Freischaltcodes (nur Admin —
+      // der Endpunkt ist admin-only). Scheitert das, bleibt die Karte einfach weg;
+      // die Detailseite darf daran nicht hängen.
+      if (auth.admin) {
+        adminListUnlockCodes(token, memorial.id)
+          .then(r => setBookCodes(r.codes || []))
+          .catch(e => console.error('unlock codes for memorial:', e))
+      }
       setView('detail')
       resumeActiveJobs(memorial.id) // laufende serverseitige Jobs weiter anzeigen
     } catch (e) { setErr(e.message) }
@@ -1192,12 +1202,23 @@ function Dashboard() {
     catch (e) { setErr(e.message) }
   }
   async function submitCode() {
-    setErr(''); setCodeMsg(''); setBusy(true)
+    setErr(''); setCodeMsg('')
+    // Bruttopreis ist optional; steht etwas drin, muss es ein Betrag sein
+    // ("49,90" oder "49.90"). Vor dem Request prüfen, damit der Admin die
+    // Meldung direkt am Formular sieht.
+    const priceRaw = codeForm.gross_price.trim()
+    const priceCents = priceRaw ? parsePriceCents(priceRaw) : null
+    if (priceRaw && !Number.isInteger(priceCents)) {
+      setErr('Bitte einen gültigen Bruttopreis angeben (z. B. 49,90) oder das Feld leer lassen.')
+      return
+    }
+    setBusy(true)
     try {
       const c = await adminCreateUnlockCode(token, {
         recipient_name: codeForm.recipient_name.trim() || null,
         recipient_email: codeForm.recipient_email.trim() || null,
         note: codeForm.note.trim() || null,
+        gross_price_cents: priceCents,
         send: codeForm.send,
       })
       let msg = `Code ${c.code_display} erstellt.`
@@ -1205,7 +1226,7 @@ function Dashboard() {
         msg += c.email_sent ? ` E-Mail an ${c.recipient_email} gesendet.` : ` ⚠ E-Mail konnte nicht gesendet werden${c.email_error ? ` (${c.email_error})` : ''}.`
       }
       setCodeMsg(msg)
-      setCodeForm({ recipient_name: '', recipient_email: '', note: '', send: false })
+      setCodeForm({ recipient_name: '', recipient_email: '', note: '', gross_price: '', send: false })
       await loadCodes()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -3176,7 +3197,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} />
+    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} bookCodes={bookCodes} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

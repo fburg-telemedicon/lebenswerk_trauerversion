@@ -68,7 +68,24 @@ async function ensureUnlockSchema() {
       add column if not exists redeemed_name  text,
       add column if not exists redeemed_owner text
   `)
+  // Bruttopreis (inkl. MwSt.) des verkauften Gutscheins, in CENT — ganzzahlig, damit
+  // keine Rundungsfehler entstehen. Reine Kaufmanns-Notiz beim Code (wie `note`);
+  // das Einlösen prüft den Preis nicht.
+  await pool().query(`
+    alter table unlock_codes
+      add column if not exists gross_price_cents integer
+  `)
   schemaReady = true
+}
+
+// Preiseingabe des Admins ("49,90", "49.90", "49 €") → Cent (ganzzahlig).
+// Rückgabe: null für leer, NaN für ungültig (der Aufrufer meldet das dem Admin).
+function parsePriceCents(input) {
+  if (input === null || input === undefined) return null
+  const s = String(input).replace(/[€\s]/g, '').replace(',', '.').trim()
+  if (!s) return null
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return NaN
+  return Math.round(parseFloat(s) * 100)
 }
 
 module.exports = {
@@ -76,5 +93,6 @@ module.exports = {
   genUnlockCode,
   formatUnlockCode,
   normalizeUnlockCode,
+  parsePriceCents,
   ensureUnlockSchema,
 }
