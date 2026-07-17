@@ -1489,13 +1489,15 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
         </div>
         )}
         <div style={{ marginBottom: 24 }}>
-          <Lbl>Foto-Upload als Tab im Interview</Lbl>
+          <Lbl>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview' : 'Foto-Upload als Tab im Interview'}</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
             <input type="checkbox" checked={createForm.photoUploadTab === true} onChange={e => setCreateForm({ ...createForm, photoUploadTab: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-            <span style={{ fontSize:14 }}>Foto-Upload schon während des Interviews als Tab anbieten</span>
+            <span style={{ fontSize:14 }}>{isAnamnesis ? 'Dokumenten-Upload während des Interviews als Tab anbieten' : 'Foto-Upload schon während des Interviews als Tab anbieten'}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
-            Standard: nicht aktiv. Wenn aktiviert, sehen Beitragende unten eine Tab-Leiste („Interview" / „Foto-Upload") und können Fotos hochladen. Ohne diese Option gibt es keine Möglichkeit, Fotos hochzuladen.
+            {isAnamnesis
+              ? 'Standard: aktiv. Der Patient sieht unten eine Tab-Leiste („Interview" / „Dokumente") und kann medizinische Unterlagen (Arztbriefe, Befunde, Medikamentenpläne …) fotografieren oder als Bild hochladen. Ohne diese Option gibt es keinen Dokumenten-Upload.'
+              : 'Standard: nicht aktiv. Wenn aktiviert, sehen Beitragende unten eine Tab-Leiste („Interview" / „Foto-Upload") und können Fotos hochladen. Ohne diese Option gibt es keine Möglichkeit, Fotos hochzuladen.'}
           </p>
         </div>
         <div style={{ marginBottom: 24 }}>
@@ -1538,6 +1540,9 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Blendet für den Endnutzer einen Tab ein, in dem sein Buch aus den bisherigen Antworten erzeugt und als Textansicht angezeigt wird (ohne Bilder). Jede Erzeugung ist eine KI-Generierung und zählt gegen dieses Limit. Der Endnutzer kann den Text bearbeiten; Änderungen werden gespeichert.</p>
         </div>
         )}
+        {/* Die Anamnese erzeugt kein Buch und keine Bilder — kein Schreib-/Text-/
+            Bildstil. Diese Auswahl entfällt für die Kategorie. */}
+        {!isAnamnesis && (<>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Textstil des Buchs</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Später im Dashboard änderbar.</p>
@@ -1553,6 +1558,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Gleiches Format, unterschiedliche Typografie. Später im Dashboard änderbar.</p>
           <BookLayoutPicker value={createForm.bookLayout} onChange={k => setCreateForm({ ...createForm, bookLayout: k })} />
         </div>
+        </>)}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
@@ -2360,6 +2366,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
             <ManagerPhotos
               code={selected.id}
               token={token}
+              category={selected.product_category}
               uploads={selected.uploaded_images}
               contributions={contributions}
               onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
@@ -2715,7 +2722,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
                   ['Transkript-Anzeige', selected.show_transcript !== false ? 'Ja' : 'Nein'],
                   ['Namensliste im Buch', selected.show_contributors !== false ? 'Ja' : 'Nein'],
-                  ['Foto-Upload als Tab', selected.photo_upload_tab === true ? 'Ja' : 'Nein'],
+                  [isAnamnesis ? 'Dokumenten-Upload als Tab' : 'Foto-Upload als Tab', selected.photo_upload_tab === true ? 'Ja' : 'Nein'],
                   ['Bemerkung', selected.note || dash],
                   ['Sammelbestellungs-Adresse', selected.pickup_address
                     ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
@@ -2881,6 +2888,8 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   </div>
                 </div>
                 )}
+                {/* Anamnese: kein Buch/keine Bilder → kein Text-/Grafik-/Layoutstil. */}
+                {!isAnamnesis && (<>
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Textstil des Buchs</Lbl>
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Wirkt auf die nächste Buch-Generierung.</p>
@@ -2896,6 +2905,7 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wirkt sofort auf Leseansicht und die nächsten Exporte (DOCX/Druck-PDF); der Buchinhalt bleibt gleich.</p>
                   <BookLayoutPicker value={od.bookLayout} onChange={k => setOd({ bookLayout: k })} />
                 </div>
+                </>)}
                 {selected.product_category === 'memorial' && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Einführungsvideo</Lbl>
@@ -2933,11 +2943,11 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                 </div>
                 )}
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>Foto-Upload als Tab im Interview</Lbl>
+                  <Lbl>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview' : 'Foto-Upload als Tab im Interview'}</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
                     <input type="checkbox" checked={od.photoUploadTab === true} onChange={e => setOd({ photoUploadTab: e.target.checked })}
                       style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-                    <span style={{ fontSize:14 }}>Foto-Upload als Tab im Interview (ohne diese Option kein Foto-Upload)</span>
+                    <span style={{ fontSize:14 }}>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview (ohne diese Option kein Upload)' : 'Foto-Upload als Tab im Interview (ohne diese Option kein Foto-Upload)'}</span>
                   </label>
                 </div>
                 <div style={{ marginBottom:14 }}>

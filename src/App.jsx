@@ -259,9 +259,12 @@ function highlightParagraph(text, marks) {
 // hochgeladene Fotos ansehen, Bildunterschrift/Beschreibung bearbeiten, löschen
 // und eigene Fotos hinzufügen. `uploads` = selected.uploaded_images (mit
 // signierten image_url/image_thumb_url); `onChange` aktualisiert selected.
-function ManagerPhotos({ code, token, uploads, contributions, onChange }) {
+function ManagerPhotos({ code, token, uploads, contributions, onChange, category }) {
   const list = Array.isArray(uploads) ? uploads : []
   const contribs = Array.isArray(contributions) ? contributions : []
+  // Anamnese: derselbe Upload-Mechanismus, aber es sind medizinische DOKUMENTE
+  // (Arztbriefe, Befunde …), kein Bildmaterial fürs Buch — nur Wortlaut angepasst.
+  const docMode = category === 'anamnesis'
   // Wer hat das Foto hochgeladen? Beitragende-Uploads tragen eine contribution_id
   // (Name über den Beitrag auflösen); Manager-Uploads sind als solche markiert.
   const uploaderLabel = u => {
@@ -301,7 +304,7 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange }) {
     } catch (e2) { setErr(e2.message) } finally { setBusy(false) }
   }
   async function remove(id) {
-    if (!window.confirm('Dieses Foto entfernen?')) return
+    if (!window.confirm(docMode ? 'Dieses Dokument entfernen?' : 'Dieses Foto entfernen?')) return
     setBusy(true); setErr('')
     try { await adminDeleteUpload(token, code, id); onChange(list.filter(u => u.id !== id)) }
     catch (e2) { setErr(e2.message) } finally { setBusy(false) }
@@ -318,10 +321,12 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange }) {
 
   return (
     <div style={{ marginBottom:'1.5rem' }}>
-      <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>Fotos ({list.length})</h3>
+      <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{docMode ? 'Dokumente' : 'Fotos'} ({list.length})</h3>
       <div style={{ ...S.card }}>
         <p style={{ ...S.muted, fontSize:13, marginTop:0, marginBottom:12 }}>
-          Hochgeladene Fotos werden bei der Bucherstellung berücksichtigt: die KI schlägt passende Kapitel vor, Hochkant-/mehrere Bilder werden auf der Doppelseite gruppiert. Die Bildunterschrift wird – wenn angegeben – ins Buch übernommen; die Beschreibung dient nur der Einordnung.
+          {docMode
+            ? 'Vom Patienten hochgeladene medizinische Unterlagen (Arztbriefe, Befunde, Medikamentenpläne …). Sie stehen hier zur Ansicht und zum Herunterladen für die Aufnahme bereit. Titel und Notiz dienen nur der Einordnung.'
+            : 'Hochgeladene Fotos werden bei der Bucherstellung berücksichtigt: die KI schlägt passende Kapitel vor, Hochkant-/mehrere Bilder werden auf der Doppelseite gruppiert. Die Bildunterschrift wird – wenn angegeben – ins Buch übernommen; die Beschreibung dient nur der Einordnung.'}
         </p>
         <Err msg={err} />
         {list.length > 0 && (
@@ -389,7 +394,7 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange }) {
           </div>
         ) : (
           <label className="secondary" style={{ display:'inline-block', cursor: busy ? 'default' : 'pointer', padding:'9px 16px', borderRadius:8, fontSize:14, opacity: busy ? 0.6 : 1 }}>
-            {busy ? 'Wird hochgeladen …' : '＋ Foto hochladen'}
+            {busy ? 'Wird hochgeladen …' : (docMode ? '＋ Dokument hochladen' : '＋ Foto hochladen')}
             <input type="file" accept="image/*,.heic,.heif" onChange={onPick} disabled={busy} style={{ display:'none' }} />
           </label>
         )}
@@ -956,6 +961,9 @@ function Dashboard() {
       pickupAddress: { ...EMPTY_PICKUP, ...(d.pickupAddress || {}) },
       languages: d.languages?.length ? [...d.languages] : [DEFAULT_LANGUAGE],
     }
+    // Anamnese: der Dokumenten-Upload (umgewidmeter Foto-Upload) ist standardmäßig an
+    // — der Patient kann Arztbriefe/Befunde beitragen. Kein Buch/Bild/Stil.
+    if (slug === 'anamnesis') return { ...base, photoUploadTab: true }
     if (slug !== 'lifework') return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,

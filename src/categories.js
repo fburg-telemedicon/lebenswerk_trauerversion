@@ -876,6 +876,21 @@ function anamnesisIndication(memorial) {
   return ANAMNESIS_INDICATIONS.find(i => i.key === key) || null
 }
 
+// Nanz-medico-/ZAR-Standorte (Quelle: zar.de/standorte) — als Dropdown beim Anlegen
+// wählbar. Bei Änderungen der Standortliste hier pflegen.
+export const ANAMNESIS_LOCATIONS = [
+  'ZAR Aalen', 'ZAR Augsburg', 'ZAR Berlin', 'ZAR Berlin-Spandau', 'ZAR Bielefeld',
+  'ZAR Bochum', 'ZAR Braunschweig', 'ZAR Erding', 'ZAR Esslingen', 'ZAR Frankfurt',
+  'ZAR Friedrichshafen', 'ZAR Fulda', 'ZAR GZ Bad Wörishofen', 'ZAR Göppingen',
+  'ZAR Heilbronn', 'ZAR Jena', 'ZAR Kaiserslautern', 'ZAR Kaufbeuren', 'ZAR Kiel',
+  'ZAR Königsbrunn', 'ZAR Landstuhl', 'ZAR Leipzig', 'ZAR Ludwigshafen Klinikum',
+  'ZAR Ludwigshafen Marienkrankenhaus', 'ZAR Mainz', 'ZAR Mannheim',
+  'ZAR MineralBad Cannstatt', 'ZAR München Nord', 'ZAR München Süd', 'ZAR München West',
+  'ZAR Oberhausen', 'ZAR Ottobrunn', 'ZAR Paderborn', 'ZAR Regensburg', 'ZAR Saarbrücken',
+  'ZAR Stuttgart', 'ZAR Trier', 'ZAR Tübingen', 'ZAR Ulm', 'ZAR Wolfsburg',
+].map(s => ({ value: s, label: s }))
+  .concat([{ value: 'ZAR Gütersloh', label: 'ZAR Gütersloh (ab Frühjahr 2027)' }])
+
 // Rote Flaggen: Wenn der Patient akute, potenziell gefährliche Dinge
 // äußert, gibt die KI einen NEUTRALEN Standardhinweis (kein Bewerten,
 // kein Triagieren) und fährt dann mit dem Interview fort. Dieselben
@@ -1467,7 +1482,7 @@ export const CATEGORIES = {
         { key: 'payer',       label: 'Kostenträger', placeholder: 'z. B. Krankenkasse, DRV, Berufsgenossenschaft' },
         { key: 'access',      label: 'Zugang',        placeholder: 'z. B. AHB, Heilverfahren' },
         { key: 'rehaStart',   label: 'Geplanter Reha-Beginn', placeholder: 'z. B. 01.09.2026' },
-        { key: 'location',    label: 'Standort',      placeholder: 'z. B. ZAR Stuttgart' },
+        { key: 'location',    label: 'Standort', type: 'select', placeholder: 'Standort wählen …', options: ANAMNESIS_LOCATIONS },
       ],
       createHeading: 'Neue Anamnese anlegen',
       createIntro: 'Die Patientin/der Patient erhält einen persönlichen Zugang und beantwortet die Anamnesefragen. Der fertige Bogen steht danach hier zum Download bereit.',

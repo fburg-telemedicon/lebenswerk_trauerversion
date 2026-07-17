@@ -1080,11 +1080,11 @@ function MiniSwitch({ on, color = '#1c1917' }) {
 // Ansicht wechseln (Interview/Foto/Probedruck/Einstellungen), die Modus-Schalter
 // (Transkript & Korrektur, Begleitet) und „Später fortsetzen oder beenden". Die
 // Interview-Ansicht ist der oberste Menüpunkt → man kommt immer schnell zurück.
-function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, showTx, onToggleTx, onPause, onSupport }) {
+function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
-    ...(withPhoto    ? [{ id:'photo',    icon:'📷', label:t.tabPhoto }] : []),
+    ...(withPhoto    ? [{ id:'photo',    icon: photoIcon || '📷', label: photoLabel || t.tabPhoto }] : []),
     ...(withProof    ? [{ id:'proof',    icon:'📖', label:t.tabProof || 'Probedruck' }] : []),
     ...(withBogen    ? [{ id:'bogen',    icon:'🩺', label:bogenLabel || 'Anamnesebogen' }] : []),
     ...(withSettings ? [{ id:'settings', icon:'⚙️', label:t.tabSettings }] : []),
@@ -1271,6 +1271,46 @@ function anamneseT(lang) {
   return ANAMNESE_REVIEW_L10N[lang]
     || ANAMNESE_REVIEW_L10N[String(lang || '').split('-')[0]]
     || (isGermanReview(lang) ? ANAMNESE_REVIEW_L10N.de : ANAMNESE_REVIEW_L10N.en)
+}
+
+// Dokumenten-Upload (Anamnese): der bestehende Foto-Upload wird für diese Kategorie
+// vollständig auf Dokumente umformuliert (Arztbriefe, Befunde, Medikamentenpläne …).
+// Overlay über die uiText-Upload-Strings; nicht überschriebene Schlüssel fallen auf
+// die Basissprache zurück. de + en (Fallback en, Muster wie das Review-l10n).
+const ANAMNESE_DOC_L10N = {
+  de: {
+    tabPhoto: 'Dokumente',
+    uploadStepTitle: 'Unterlagen hochladen',
+    uploadStepIntro: 'Hier können Sie relevante medizinische Unterlagen beitragen – z. B. Arztbriefe, Befunde, Bildgebungs- oder Laborberichte, Medikamentenpläne oder den Reha-Bescheid. Fotografieren Sie das Dokument oder laden Sie ein Bild davon hoch. Zu jedem Dokument können Sie optional einen Titel und eine kurze Notiz angeben.',
+    uploadPick: '＋ Dokument auswählen',
+    uploadCaption: 'Titel des Dokuments (optional)',
+    uploadCaptionHint: 'Kurze Bezeichnung, z. B. „Arztbrief Kardiologie 05/2026".',
+    uploadDesc: 'Notiz (optional)',
+    uploadDescHint: 'Nur zur Einordnung für die aufnehmende Praxis/Klinik.',
+    uploadSubmit: 'Dokument hochladen',
+    uploadConsent: 'Ich bin berechtigt, diese Unterlagen hochzuladen. Sie werden ausschließlich zur Vorbereitung meiner Reha-Aufnahme verarbeitet und der aufnehmenden Praxis/Klinik zur Verfügung gestellt. Die Verarbeitung erfolgt über IT-/KI-Dienste, die ausschließlich in der EU laufen.',
+    uploadConsentRequired: 'Bitte bestätigen Sie die Einverständniserklärung, um Unterlagen hochzuladen.',
+    uploadError: 'Diese Datei konnte nicht verarbeitet werden. Bitte laden Sie ein Foto oder Bild des Dokuments hoch.',
+  },
+  en: {
+    tabPhoto: 'Documents',
+    uploadStepTitle: 'Upload documents',
+    uploadStepIntro: 'Here you can add relevant medical documents – e.g. doctor’s letters, findings, imaging or lab reports, medication plans or the rehab approval. Photograph the document or upload an image of it. For each document you can optionally add a title and a short note.',
+    uploadPick: '＋ Choose document',
+    uploadCaption: 'Document title (optional)',
+    uploadCaptionHint: 'Short label, e.g. “Cardiology letter 05/2026”.',
+    uploadDesc: 'Note (optional)',
+    uploadDescHint: 'Only to help the admitting practice/clinic classify it.',
+    uploadSubmit: 'Upload document',
+    uploadConsent: 'I am entitled to upload these documents. They are processed solely to prepare my rehab admission and made available to the admitting practice/clinic. Processing is carried out using IT/AI services that run exclusively in the EU.',
+    uploadConsentRequired: 'Please confirm the declaration of consent to upload documents.',
+    uploadError: 'This file could not be processed. Please upload a photo or image of the document.',
+  },
+}
+function anamneseDocT(lang) {
+  return ANAMNESE_DOC_L10N[lang]
+    || ANAMNESE_DOC_L10N[String(lang || '').split('-')[0]]
+    || (isGermanReview(lang) ? ANAMNESE_DOC_L10N.de : ANAMNESE_DOC_L10N.en)
 }
 
 function AnamnesisReview({ code, token, memorial, contribId, lang, onDone }) {
@@ -2569,7 +2609,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
             {withPhoto && (
               <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
                 <div style={{ ...S.page, paddingTop:'2rem' }}>
-                  <ContributorPhotoUpload code={code} contribId={contribId} t={t} />
+                  {/* Anamnese: derselbe Upload, aber vollständig auf Dokumente umformuliert. */}
+                  <ContributorPhotoUpload code={code} contribId={contribId} t={isAnamnesis ? { ...t, ...anamneseDocT(L) } : t} />
                 </div>
               </div>
             )}
@@ -2591,6 +2632,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
               </div>
             )}
             <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
+              photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : null} photoIcon={isAnamnesis ? '📄' : null}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
               onPause={tab === 'interview' ? handlePause : null}
