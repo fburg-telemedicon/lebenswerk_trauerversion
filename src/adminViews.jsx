@@ -1568,14 +1568,25 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <input value={pa.country} onChange={e => setPa({ country: e.target.value })} placeholder="Land" />
         </div>
         {(() => {
-          const avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
-          if (avail.length === 0) return null
+          let avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
+          // Der geseedete Anamnese-Standard erscheint als „"-Default — nicht zusätzlich
+          // als eigener Eintrag doppeln.
+          if (isAnamnesis) avail = avail.filter(c => c.name !== 'Anamnese – Standardfragebogen')
+          // Anamnese IMMER anzeigen (fester Fragebogen vs. freie Fragen), auch ohne
+          // eigene Kataloge; sonst nur, wenn passende Kataloge existieren.
+          if (avail.length === 0 && !isAnamnesis) return null
+          // Vertiefungsfragen gelten, solange NICHT „frei" gewählt ist.
+          const usesCatalog = isLifework
+            || (isAnamnesis && createForm.catalogId !== '__free__')
+            || (!!createForm.catalogId && createForm.catalogId !== '__free__')
           return (
             <div style={{ marginBottom: 24 }}>
-              <Lbl>Fragenkatalog</Lbl>
+              <Lbl>{isAnamnesis ? 'Fragebogen' : 'Fragenkatalog'}</Lbl>
               <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
                 {isLifework
                   ? 'Das Lebenswerk folgt dem Standardkatalog (12 Sitzungen mit je 10 Fragen). Wird kein Katalog gewählt, überlegt sich die KI die Fragen selbst.'
+                  : isAnamnesis
+                  ? 'Standard: fester Anamnese-Fragebogen (medizinisches Schema) mit KI-Vertiefungsfragen. Alternativ freie Fragen – die KI stellt die Anamnesefragen selbst. Empfohlen ist der feste Fragebogen.'
                   : 'Standard: die KI überlegt sich die Interviewfragen selbst. Alternativ führt sie das Interview entlang eines vordefinierten Katalogs.'}
               </p>
               <select
@@ -1583,12 +1594,19 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
                 onChange={e => setCreateForm({ ...createForm, catalogId: e.target.value })}
                 style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
               >
-                <option value="">{isLifework ? 'Lebenswerk-Standardkatalog' : 'KI überlegt selbst (Standard)'}</option>
+                {isAnamnesis ? (
+                  <>
+                    <option value="">Anamnese-Standardfragebogen (empfohlen)</option>
+                    <option value="__free__">Freie Fragen – KI überlegt selbst</option>
+                  </>
+                ) : (
+                  <option value="">{isLifework ? 'Lebenswerk-Standardkatalog' : 'KI überlegt selbst (Standard)'}</option>
+                )}
                 {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              {createForm.catalogId && (
+              {usesCatalog && (
                 <div style={{ marginTop:12 }}>
-                  <Lbl>Nachfragen pro Frage (max.)</Lbl>
+                  <Lbl>{isAnamnesis ? 'Vertiefungsfragen pro Frage (max.)' : 'Nachfragen pro Frage (max.)'}</Lbl>
                   <input
                     type="number" min={0} max={30} step={1}
                     value={createForm.followups}
@@ -1596,7 +1614,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
                     style={{ width:120 }}
                   />
                   <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
-                    Wie viele vertiefende Nachfragen die KI höchstens zu jeder Katalogfrage stellt. Der Beitragende kann jederzeit „weiter" sagen. Standard: 7.
+                    Wie viele vertiefende Nachfragen die KI höchstens zu jeder Frage stellt. Der {isEnduser ? (isAnamnesis ? 'Patient' : 'Endnutzer') : 'Beitragende'} kann jederzeit „weiter" sagen. Standard: 7.
                   </p>
                 </div>
               )}

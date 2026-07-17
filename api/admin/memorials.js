@@ -14,6 +14,7 @@ const { normalizeStyle, DEFAULT_STYLE } = require('../_lib/image-styles')
 const { normalizeTextStyle, defaultTextStyle } = require('../_lib/text-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
 const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
+const { ensureAnamnesisCatalog } = require('../_lib/anamnesis')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 const { ALLOWED_LANGS, sanitizeLangs } = require('../_lib/languages')
@@ -522,8 +523,13 @@ module.exports = async function handler(req, res) {
       // Beim Lebenswerk führt der Standardkatalog das Interview, solange kein
       // anderer gewählt wurde. (Die frühere zweite Checkbox „nur KI-Fragen" war
       // dieselbe Entscheidung an zweiter Stelle und ist entfallen.)
-      let catalog = catalogId || null
+      // Anamnese: fester Standard-Fragebogen ist Default (Technik wie Lebenswerk,
+      // Inhalt eigen/medizinisch). Der Manager kann in den Experteneinstellungen auf
+      // FREIE Fragen umstellen — dann sendet die Form den Sentinel '__free__'.
+      const isAnamnesis = category === 'anamnesis'
+      let catalog = catalogId === '__free__' ? null : (catalogId || null)
       if (isLifework && !catalog) catalog = await ensureLifeworkCatalog(supabase)
+      else if (isAnamnesis && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisCatalog(supabase)
 
       const code = genCode()
       // Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie).
@@ -750,7 +756,8 @@ module.exports = async function handler(req, res) {
         }
         if ('note' in meta)          update.note = (typeof meta.note === 'string' && meta.note.trim()) ? meta.note.trim() : null
         if ('pickupAddress' in meta) update.pickup_address = sanitizePickupAddress(meta.pickupAddress)
-        if ('catalogId' in meta)     update.catalog_id = meta.catalogId || null
+        // '__free__' (Anamnese: freie Fragen) → kein Katalog. Leer → kein Katalog.
+        if ('catalogId' in meta)     update.catalog_id = (meta.catalogId && meta.catalogId !== '__free__') ? meta.catalogId : null
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
         if ('imageStyle' in meta)    update.image_style = normalizeStyle(meta.imageStyle) || DEFAULT_STYLE
         if ('bookLayout' in meta)    update.book_layout = normalizeLayout(meta.bookLayout) || DEFAULT_BOOK_LAYOUT
