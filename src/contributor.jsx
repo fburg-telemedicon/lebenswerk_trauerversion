@@ -9,7 +9,7 @@ import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uplo
 import { generateProofBook } from './enduserProof.js'
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
-import { getCategory, defaultTextStyle } from './categories.js'
+import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -84,6 +84,56 @@ function Waveform({ stream, color = '#dc2626' }) {
     }
   }, [stream, color])
   return <canvas ref={canvasRef} style={{ width:'100%', height:56, display:'block' }} />
+}
+
+// ── Fortschritts-Marker (nur im Fragenkatalog-Modus) ──────────────
+// Die KI stellt jeder Frage ein [[K2.3]] / [[K2.3.1]] / [[ENDE]] voran (siehe
+// catalogRules in categories.js). Der Marker wird SOFORT beim Empfang vom Text
+// getrennt und als `pos` an der Nachricht abgelegt — damit landet er nie in der
+// Anzeige, in der Sprachausgabe, im Transkript oder in der Buch-Synthese.
+function toAssistantMsg(reply) {
+  const { text, pos } = splitQuestionPos(reply)
+  return pos ? { role: 'assistant', content: text, pos } : { role: 'assistant', content: text }
+}
+
+// Umgekehrter Weg: Beim Weiterreichen des Verlaufs an die KI bekommt jede Frage
+// ihren Marker zurück, sonst verliert die KI ihre Position im Katalog.
+function withPosMarkers(msgs) {
+  return msgs.map(m => (m.pos ? { ...m, content: posToMarker(m.pos) + m.content } : m))
+}
+
+// Fortschritt aus Katalog + letzter bekannter Position ableiten. Liefert null,
+// wenn es keinen Katalog gibt (freies Interview) oder noch/nicht mehr keine
+// gültige Position vorliegt — dann wird die Leiste einfach nicht gezeigt.
+function catalogProgress(memorial, messages) {
+  const chapters = Array.isArray(memorial?.catalog?.chapters) ? memorial.catalog.chapters : []
+  const qCount   = ch => (Array.isArray(ch?.questions) ? ch.questions.length : 0)
+  const totalQ   = chapters.reduce((n, ch) => n + qCount(ch), 0)
+  if (chapters.length === 0 || totalQ === 0) return null
+  // Jüngste Nachricht mit Marker gewinnt; vergisst die KI ihn einmal, bleibt die
+  // Anzeige auf der letzten bekannten Position stehen statt zu verschwinden.
+  let pos = null
+  for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].pos) { pos = messages[i].pos; break } }
+  if (!pos) return null
+  if (pos.done) return { done: true, pct: 100, totalQ }
+  // Halluzinierte Nummern abfangen: außerhalb des Katalogs → keine Anzeige.
+  const ci = pos.chapter - 1
+  if (!(ci >= 0 && ci < chapters.length)) return null
+  const inChapter = qCount(chapters[ci])
+  if (!(pos.question >= 1 && pos.question <= inChapter)) return null
+  let before = 0
+  for (let i = 0; i < ci; i++) before += qCount(chapters[i])
+  return {
+    done: false,
+    chapter: pos.chapter, chapterTotal: chapters.length, chapterTitle: (chapters[ci].title || '').trim(),
+    // „3" bzw. „3.2" bei einer Nachfrage — die Gesamtzahl der Nachfragen ist
+    // offen, daher steht hinter dem „von" immer die Zahl der Katalogfragen.
+    questionLabel: pos.followup ? `${pos.question}.${pos.followup}` : String(pos.question),
+    question: pos.question, questionTotal: inChapter,
+    // Balken = Fortschritt über den GANZEN Katalog (abgeschlossene Fragen).
+    pct: Math.round(((before + pos.question - 1) / totalQ) * 100),
+    totalQ,
+  }
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
@@ -241,13 +291,17 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     ;(async () => {
       setAiLoading(true)
       let content = t.companionOffMsg
+      let pos = null
       try {
         const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
-        const q = String(await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...messagesRef.current], { memorialCode: memorial?.id, kind: 'interview' }) || '').trim()
-        if (q) content = `${t.companionOffMsg} ${q}`
+        const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...withPosMarkers(messagesRef.current)], { memorialCode: memorial?.id, kind: 'interview' })
+        // Die feste Bestätigung und die KI-Frage werden zu EINER Nachricht — der
+        // Marker gehört an die Nachricht, nicht mitten in den Text.
+        const split = splitQuestionPos(String(reply || ''))
+        if (split.text) { content = `${t.companionOffMsg} ${split.text}`; pos = split.pos }
       } catch { /* Fallback: nur die feste Bestätigung */ }
       if (companionRunRef.current !== myRun) return  // überholt → neuer Lauf managt State
-      const finalMsgs = [...messagesRef.current, { role: 'assistant', content }]
+      const finalMsgs = [...messagesRef.current, pos ? { role: 'assistant', content, pos } : { role: 'assistant', content }]
       applyMessages(finalMsgs); onSave?.(finalMsgs)
       setAiLoading(false)
     })()
@@ -288,7 +342,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const q = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
-      applyMessages([{ role: 'assistant', content: q }])
+      applyMessages([toAssistantMsg(q)])
     } catch (e) { setErr(e.message) }
     finally { setAiLoading(false) }
   }
@@ -441,8 +495,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     setAiLoading(true)
     try {
       const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
-      const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...newMsgs], { memorialCode: memorial?.id, kind: 'interview' })
-      const finalMsgs = [...newMsgs, { role: 'assistant', content: reply }]
+      const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...withPosMarkers(newMsgs)], { memorialCode: memorial?.id, kind: 'interview' })
+      const finalMsgs = [...newMsgs, toAssistantMsg(reply)]
       applyMessages(finalMsgs)
       onSave?.(finalMsgs)
     } catch (e) { setErr(e.message) }
@@ -510,6 +564,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // steht bereits prominent in der Frage-Karte und wird hier übersprungen).
   const earlierCount = history.filter((_, i) => i < blockStart && i !== latestAssistantIdx).length
 
+  // Fortschritt im Fragenkatalog — nur bei einem vordefinierten Katalog; im
+  // freien Interview gibt es keine bekannte Gesamtzahl und damit keine Anzeige.
+  const prog = catalogProgress(memorial, messages)
+
   const micBg     = micState === 'recording' ? '#fee2e2' : '#f5f5f4'
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
   const micAnim   = micState === 'recording' ? 'lw-mic 1.5s ease-in-out infinite' : 'none'
@@ -532,6 +590,26 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         </div>
         {!hidePause && <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>}
       </div>
+      {prog && (
+        <div style={{ padding:'9px 1.5rem 11px', borderBottom:'1px solid #e7e5e4', background:'#fafaf9' }}>
+          {prog.done ? (
+            <div style={{ fontSize:12.5, fontWeight:600, color:'#15803d', textAlign:'center', marginBottom:7 }}>{t.progDone}</div>
+          ) : (
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, marginBottom:6 }}>
+              <span style={{ fontSize:12, color:'#78716c', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {t.progChapter(prog.chapter, prog.chapterTotal)}{prog.chapterTitle ? ` · ${prog.chapterTitle}` : ''}
+              </span>
+              <span style={{ fontSize:12.5, fontWeight:600, color:'#44403c', flexShrink:0 }}>
+                {t.progQuestion(prog.questionLabel, prog.questionTotal)}
+              </span>
+            </div>
+          )}
+          <div role="progressbar" aria-label={t.progAria} aria-valuenow={prog.pct} aria-valuemin={0} aria-valuemax={100}
+            style={{ height:5, borderRadius:3, background:'#e7e5e4', overflow:'hidden' }}>
+            <div style={{ width:`${prog.pct}%`, height:'100%', borderRadius:3, background: prog.done ? '#16a34a' : '#1c1917', transition:'width .35s ease' }} />
+          </div>
+        </div>
+      )}
       {timerActive && (
         <div style={{ padding:'8px 12px', borderBottom:'1px solid #e7e5e4',
           background: expired ? '#fef2f2' : (remaining <= 60 ? '#fff7ed' : '#eff6ff') }}>
@@ -761,7 +839,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
       const q = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }])
-      setMessages([{ role:'assistant', content:q }])
+      setMessages([toAssistantMsg(q)])
     } catch(e) { setErr(e.message) }
     finally { setLoading(false) }
   }
@@ -773,8 +851,8 @@ function TextInterview({ memorial, contribForm, onDone }) {
     setMessages(newMsgs); setRound(r=>r+1); setLoading(true)
     try {
       const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
-      const reply = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }, ...newMsgs])
-      setMessages([...newMsgs, { role:'assistant', content:reply }])
+      const reply = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }, ...withPosMarkers(newMsgs)])
+      setMessages([...newMsgs, toAssistantMsg(reply)])
     } catch(e) { setErr(e.message) }
     finally { setLoading(false) }
   }

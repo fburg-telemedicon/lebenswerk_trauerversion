@@ -191,10 +191,42 @@ function catalogBlock(memorial) {
   return { x: catalogFollowups(memorial.followups), name: cat.name || '', text: lines.join('\n') }
 }
 
+// ── Fortschritts-Marker ───────────────────────────────────────────
+// Im Katalog-Modus stellt die KI jeder Nachricht einen Marker voran, der sagt,
+// wo im Katalog sie gerade steht: [[K2.3]] = Kapitel 2, Frage 3; [[K2.3.1]] =
+// 1. Nachfrage dazu; [[ENDE]] = alle Fragen durch. Der Beitragenden-Flow liest
+// daraus die Fortschrittsanzeige und ENTFERNT den Marker aus dem Text, bevor er
+// angezeigt, vorgelesen oder gespeichert wird — er ist rein technisch.
+// Beim Weiterreichen des Verlaufs an die KI wird er wieder vorangestellt
+// (posToMarker), damit sie ihre eigene Position im Gespräch wiederfindet.
+const POS_MARKER = /\[\[\s*(?:K\s*(\d+)\s*\.\s*(\d+)(?:\s*\.\s*(\d+))?|(ENDE))\s*\]\]/i
+
+// Trennt Marker und Text einer KI-Nachricht. Ohne Marker (kein Katalog, oder die
+// KI hat ihn vergessen) bleibt der Text unverändert und pos ist null.
+export function splitQuestionPos(content) {
+  const s = String(content ?? '')
+  const m = s.match(POS_MARKER)
+  const text = s.replace(new RegExp(POS_MARKER.source, 'gi'), '').replace(/\s{2,}/g, ' ').trim()
+  if (!m) return { text, pos: null }
+  if (m[4]) return { text, pos: { done: true } }
+  return { text, pos: { chapter: parseInt(m[1], 10), question: parseInt(m[2], 10), followup: m[3] ? parseInt(m[3], 10) : 0 } }
+}
+
+export function posToMarker(pos) {
+  if (!pos) return ''
+  if (pos.done) return '[[ENDE]] '
+  return `[[K${pos.chapter}.${pos.question}${pos.followup ? `.${pos.followup}` : ''}]] `
+}
+
 // Die Regel-Bullets für den Katalog-Modus (ersetzen die freien „Themenfeld"-
 // Bullets). Werden zwischen die übrigen Interview-Regeln eingefügt.
 function catalogRules(cb, name) {
-  return `- Du folgst einem festen FRAGENKATALOG. Arbeite die Kapitel und Fragen GENAU in dieser Reihenfolge ab (Kapitel für Kapitel, Frage für Frage).
+  return `- FORTSCHRITTS-MARKER (Pflicht): Beginne JEDE deiner Nachrichten mit einem Marker in doppelten eckigen Klammern, der angibt, wo du im Katalog stehst. Die Nummern sind exakt die aus dem FRAGENKATALOG unten:
+  • Katalogfrage: [[K<Kapitel>.<Frage>]] — z. B. [[K2.3]] für die 3. Frage in Kapitel 2.
+  • Vertiefende Nachfrage: [[K<Kapitel>.<Frage>.<Nr>]] — z. B. [[K2.3.1]] für deine 1. Nachfrage zu Frage 3 in Kapitel 2, [[K2.3.2]] für die 2. Nachfrage usw.
+  • Abschluss, wenn alle Fragen aller Kapitel durch sind: [[ENDE]]
+  Der Marker steht IMMER ganz vorn, gefolgt von einem Leerzeichen und deinem Gesprächstext. Erwähne ihn NIE im Text und sprich ihn nicht aus — er wird technisch ausgewertet und dem Gegenüber nie gezeigt.
+- Du folgst einem festen FRAGENKATALOG. Arbeite die Kapitel und Fragen GENAU in dieser Reihenfolge ab (Kapitel für Kapitel, Frage für Frage).
 - Formuliere jede Katalogfrage natürlich und warm ins Gespräch eingebettet – nicht wörtlich ablesen, aber die Intention der Frage treffen.
 - Stelle zu jeder Antwort HÖCHSTENS ${cb.x} vertiefende Nachfragen (einzeln, eine pro Nachricht), um konkrete Geschichten und Details herauszukitzeln. Danach gehst du zur nächsten Katalogfrage.
 - Sobald ${name} in IRGENDEINER Formulierung signalisiert, weitermachen zu wollen (z. B. „weiter", „nächste Frage", „das reicht", „lass uns weitergehen"), springe SOFORT und ohne weitere Nachfrage zur nächsten Katalogfrage.
