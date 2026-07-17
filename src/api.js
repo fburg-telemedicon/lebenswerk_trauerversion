@@ -99,6 +99,21 @@ export async function pinMemorialLang(code, language) {
   return parseResponse(res) // { ok, languages }
 }
 
+// Anamnesebogen des Patienten speichern/bestätigen (Kategorie „anamnesis", Step 2).
+// Gespeichert wird der KANONISCH deutsche Bogen (eulogy_text); `confirmed:true` setzt
+// den Bestätigungs-Zeitstempel (Patient hat mit „ok" bestätigt). Autorisierung wie
+// beim Einstellungs-Tab: eingeloggter Endnutzer (Token) ODER der Buch-Code allein.
+export async function saveAnamneseBogen(code, token, { text, confirmed = false } = {}) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ anamneseBogen: { text, confirmed } }),
+  })
+  return parseResponse(res) // { ok, confirmed, bogen_confirmed_at }
+}
+
 // ── Buch-Standardwerte ────────────────────────────────────────────
 // Vorbelegung der Anlage-Maske. Lesen: jeder eingeloggte Benutzer (die Maske
 // braucht die Werte). Ändern/Zurücksetzen: nur Admin.

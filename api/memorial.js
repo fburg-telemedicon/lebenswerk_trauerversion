@@ -95,6 +95,34 @@ async function handleEnduserStart(req, res, code, body) {
   return res.json({ ok: true, ...update })
 }
 
+// Anamnesebogen des Patienten speichern/bestätigen (Kategorie „anamnesis", Step 2).
+// Der Patient prüft/bearbeitet den aus seinem Gespräch erzeugten Bogen im
+// Beitragenden-Flow und bestätigt ihn am Ende („ok"). Gespeichert wird der KANONISCH
+// deutsche Bogen als `eulogy_text` (den lädt der Manager im Dashboard herunter); die
+// Bestätigung als Zeitstempel in `intake.bogen_confirmed_at` (kein Schema-Umbau nötig).
+// Berechtigung: eingeloggter Endnutzer (Token eu==code) ODER — wie beim Absenden von
+// Beiträgen — der Buch-Code allein; der Patient bearbeitet seine EIGENEN Angaben.
+async function handleAnamneseBogen(req, res, code, payload) {
+  const { data: m } = await supabase
+    .from('memorials').select('id, product_category, intake').eq('id', code).maybeSingle()
+  if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
+  if (m.product_category !== 'anamnesis') return res.status(403).json({ error: 'Kein Zugriff.' })
+  const hasToken = /^Bearer\s/.test(req.headers.authorization || '')
+  if (hasToken) {
+    if (!checkAuth(req, res)) return                 // ungültiges Token → 401 (in checkAuth)
+    if (req.auth.eu !== code) return res.status(403).json({ error: 'Kein Zugriff auf diesen Bogen.' })
+  }
+  const text = typeof payload?.text === 'string' ? payload.text : ''
+  if (!text.trim()) return res.status(400).json({ error: 'Kein Bogentext übergeben.' })
+  const confirmed = payload.confirmed === true
+  const intake = (m.intake && typeof m.intake === 'object') ? { ...m.intake } : {}
+  if (confirmed) intake.bogen_confirmed_at = new Date().toISOString()
+  const { error } = await supabase.from('memorials')
+    .update({ eulogy_text: text.slice(0, 60000), intake }).eq('id', code)
+  if (error) throw error
+  return res.json({ ok: true, confirmed, bogen_confirmed_at: intake.bogen_confirmed_at || null })
+}
+
 // Sprachwahl des Endnutzers festschreiben: Beim Lebenswerk erzählt EINE Person.
 // Bietet der Manager mehrere Sprachen an („Endnutzer wählt selbst"), wählt der
 // Endnutzer die Sprache einmal — danach wird das Buch fest auf diese eine Sprache
@@ -131,6 +159,10 @@ module.exports = async function handler(req, res) {
       if (req.body && req.body.language !== undefined) {
         if (!(await enforce(req, res, { name: 'memorial-lang', limit: 10, windowSeconds: 600 }))) return
         return await handleLangPin(req, res, code, req.body.language)
+      }
+      if (req.body && req.body.anamneseBogen !== undefined) {
+        if (!(await enforce(req, res, { name: 'anamnese-bogen', limit: 30, windowSeconds: 600 }))) return
+        return await handleAnamneseBogen(req, res, code, req.body.anamneseBogen)
       }
       return await handleEnduserPatch(req, res, code)
     }
@@ -171,10 +203,25 @@ module.exports = async function handler(req, res) {
       const lockActive = lk && lk.expires && Date.now() < new Date(lk.expires).getTime()
       data.edit_lock = lockActive ? { holder: lk.holder || null, expires: lk.expires } : null
 
-      // Aus `intake` (kategorie-spezifische Notizen des Managers) darf nur EIN Feld
-      // nach außen: die Anredeform (Du/Sie) des Lebenswerks. Ist sie gesetzt, fragt
-      // der Beitragenden-Flow sie nicht noch einmal ab. Alles andere bleibt intern.
-      data.intake = data.intake?.address ? { address: String(data.intake.address) } : null
+      // Aus `intake` (kategorie-spezifische Notizen des Managers) darf nur wenig
+      // nach außen: die Anredeform (Du/Sie). Beim Anamnesebogen zusätzlich die
+      // administrativen Bogen-Kopf-Felder (Indikation/Kostenträger/Zugang/Reha-Beginn/
+      // Standort — der Patient kennt sie ohnehin und braucht sie für den Bogen-Kopf)
+      // sowie der Bestätigungs-Zeitstempel des Patienten-Reviews. Alles andere bleibt
+      // intern (insbesondere KEIN generierter Bogentext — der steht in eulogy_text und
+      // wird hier nie ausgeliefert).
+      if (data.product_category === 'anamnesis' && data.intake && typeof data.intake === 'object') {
+        const src = data.intake
+        const pub = {}
+        if (src.address) pub.address = String(src.address)
+        for (const k of ['indication', 'payer', 'access', 'rehaStart', 'location']) {
+          if (src[k]) pub[k] = String(src[k])
+        }
+        if (src.bogen_confirmed_at) pub.bogen_confirmed_at = String(src.bogen_confirmed_at)
+        data.intake = Object.keys(pub).length ? pub : null
+      } else {
+        data.intake = data.intake?.address ? { address: String(data.intake.address) } : null
+      }
 
       // Zugeordneten Fragenkatalog (Name + Kapitel/Fragen) mitliefern, damit der
       // Beitragenden-Flow das Interview daran entlangführen kann. Ohne Katalog

@@ -2348,6 +2348,20 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
             />
 
             <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{isAnamnesis ? GENERATORS.eulogy.label : `Buch & ${GENERATORS.eulogy.label}`}</h3>
+            {/* Anamnese: Hat der Patient den Bogen im Beitragenden-Flow selbst geprüft
+                und mit „ok" bestätigt (Step 2)? Dann ist eulogy_text die vom Patienten
+                bestätigte Fassung. */}
+            {isAnamnesis && (
+              selected.intake?.bogen_confirmed_at ? (
+                <div style={{ ...S.card, marginBottom:'1rem', background:'#f0fdf4', borderColor:'#bbf7d0', color:'#166534', fontSize:13.5, lineHeight:1.55 }}>
+                  ✓ {t('Vom Patienten geprüft und bestätigt', 'Reviewed and confirmed by the patient')} · {new Date(selected.intake.bogen_confirmed_at).toLocaleString('de-DE')}
+                </div>
+              ) : (
+                <div style={{ ...S.card, marginBottom:'1rem', background:'#fffbeb', borderColor:'#fde68a', color:'#92400e', fontSize:13.5, lineHeight:1.55 }}>
+                  ⏳ {t('Vom Patienten noch nicht bestätigt. Der Patient prüft und bestätigt den Bogen nach dem Anamnesegespräch selbst.', 'Not yet confirmed by the patient. The patient reviews and confirms the form after the intake interview.')}
+                </div>
+              )
+            )}
             {!isAnamnesis && (() => {
               const variant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
               return (

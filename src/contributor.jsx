@@ -5,8 +5,9 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef, useContext } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen } from './api.js'
 import { generateProofBook } from './enduserProof.js'
+import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker } from './categories.js'
@@ -1079,12 +1080,13 @@ function MiniSwitch({ on, color = '#1c1917' }) {
 // Ansicht wechseln (Interview/Foto/Probedruck/Einstellungen), die Modus-Schalter
 // (Transkript & Korrektur, Begleitet) und „Später fortsetzen oder beenden". Die
 // Interview-Ansicht ist der oberste Menüpunkt → man kommt immer schnell zurück.
-function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, showTx, onToggleTx, onPause, onSupport }) {
+function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, showTx, onToggleTx, onPause, onSupport }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
     ...(withPhoto    ? [{ id:'photo',    icon:'📷', label:t.tabPhoto }] : []),
     ...(withProof    ? [{ id:'proof',    icon:'📖', label:t.tabProof || 'Probedruck' }] : []),
+    ...(withBogen    ? [{ id:'bogen',    icon:'🩺', label:bogenLabel || 'Anamnesebogen' }] : []),
     ...(withSettings ? [{ id:'settings', icon:'⚙️', label:t.tabSettings }] : []),
   ]
   const go = id => { setTab(id); setOpen(false) }
@@ -1197,6 +1199,271 @@ function AutoGrowTextarea({ value, onChange, onFocus, style }) {
       onChange={e => { onChange(e); grow() }}
       style={{ ...style, overflow: 'hidden', resize: 'none' }}
     />
+  )
+}
+
+// ── Anamnesebogen-Review (Kategorie „anamnesis", Step 2) ──────────────────────
+// Der Patient prüft/bearbeitet/bestätigt den aus seinem Gespräch erzeugten Bogen
+// direkt im Beitragenden-Flow — per Tippen UND per KI-Sprachanweisung — und
+// bestätigt zum Schluss mit „ok" (Vorbild: Probedruck-/Finalize-Flow in ProofTab).
+// KANONISCH ist der DEUTSCHE Bogen (für die aufnehmende Ärztin/den Arzt); ist die
+// Interviewsprache eine andere, prüft der Patient eine Übersetzung, und seine
+// Änderungen fließen beim Bestätigen in die deutsche Fassung zurück (Rückübersetzung
+// nur der geänderten Abschnitte, siehe enduserAnamnesis.js). Nur de+en als UI-Chrome
+// (Fallback en, Muster wie ONBOARD_L10N) — der Bogen-INHALT ist voll übersetzt.
+const ANAMNESE_REVIEW_L10N = {
+  de: {
+    tab: 'Anamnesebogen',
+    title: 'Ihr Anamnesebogen',
+    introText: 'Aus Ihren Antworten erstellen wir einen Anamnesebogen für die aufnehmende Ärztin/den aufnehmenden Arzt. Bitte prüfen Sie ihn anschließend in Ruhe, korrigieren Sie, was nicht stimmt, und bestätigen Sie am Ende, dass alles richtig und vollständig ist.',
+    createBtn: 'Bogen erstellen und prüfen',
+    generating: 'Ihr Anamnesebogen wird erstellt …',
+    cancel: 'Abbrechen',
+    disclaimer: 'Dieser Bogen ist Ihre eigene Auskunft und wurde mit künstlicher Intelligenz aus Ihren Antworten erstellt. Er ist NICHT ärztlich geprüft. Bitte lesen Sie jeden Abschnitt und korrigieren Sie ihn, wo nötig.',
+    germanNote: 'Für die Ärztin/den Arzt wird der Bogen auf Deutsch erstellt. Sie prüfen und bearbeiten ihn hier in Ihrer Sprache — Ihre Änderungen werden in die deutsche Fassung übernommen.',
+    reviewHint: 'Sie können jeden Abschnitt direkt bearbeiten oder auf das Mikrofon tippen und einfach sagen, was geändert werden soll.',
+    audioIdle: '🎙 Änderung sprechen',
+    audioRecording: '⏹ Aufnahme stoppen',
+    audioBusy: '⏳ Wird übernommen …',
+    audioHint: 'Tippen Sie zuerst in einen Abschnitt, dann aufs Mikrofon — Sie können auch nur einen markierten Teil ändern.',
+    audioPickFirst: 'Bitte tippen Sie zuerst in den Abschnitt, den Sie ändern möchten.',
+    audioNoText: 'Es wurde keine Anweisung erkannt. Bitte erneut versuchen.',
+    confirmBtn: 'Bogen bestätigen',
+    confirmTitle: 'Anamnesebogen bestätigen',
+    confirmText: 'Bitte bestätigen Sie, dass der Bogen richtig und vollständig ist. Danach steht er der aufnehmenden Praxis/Klinik für Ihr Aufnahmegespräch zur Verfügung. Geben Sie zur Bestätigung „ok" ein.',
+    confirm: 'Bestätigen',
+    saving: 'Wird gespeichert …',
+    doneTitle: 'Vielen Dank!',
+    doneText: 'Ihr Anamnesebogen ist bestätigt und gespeichert. Die aufnehmende Praxis/Klinik kann ihn nun für Ihr Aufnahmegespräch nutzen.',
+    doneBtn: 'Fertig',
+    already: '✓ Ihr Anamnesebogen wurde bereits bestätigt und gespeichert.',
+    errNoAnswers: 'Es liegen noch keine Antworten vor — bitte zuerst das Anamnesegespräch führen.',
+  },
+  en: {
+    tab: 'Intake form',
+    title: 'Your medical intake form',
+    introText: 'From your answers we create a medical intake form for the admitting doctor. Please review it afterwards, correct anything that is wrong, and confirm at the end that everything is correct and complete.',
+    createBtn: 'Create and review the form',
+    generating: 'Your intake form is being created …',
+    cancel: 'Cancel',
+    disclaimer: 'This form is your own account and was created with artificial intelligence from your answers. It has NOT been checked by a doctor. Please read every section and correct it where needed.',
+    germanNote: 'For the doctor the form is written in German. You review and edit it here in your language — your changes are carried over into the German version.',
+    reviewHint: 'You can edit each section directly, or tap the microphone and simply say what should be changed.',
+    audioIdle: '🎙 Speak a change',
+    audioRecording: '⏹ Stop recording',
+    audioBusy: '⏳ Applying …',
+    audioHint: 'Tap into a section first, then the microphone — you can also change just a selected part.',
+    audioPickFirst: 'Please tap into the section you want to change first.',
+    audioNoText: 'No instruction was recognised. Please try again.',
+    confirmBtn: 'Confirm form',
+    confirmTitle: 'Confirm intake form',
+    confirmText: 'Please confirm that the form is correct and complete. It will then be available to the admitting practice/clinic for your admission interview. Type “ok” to confirm.',
+    confirm: 'Confirm',
+    saving: 'Saving …',
+    doneTitle: 'Thank you!',
+    doneText: 'Your intake form is confirmed and saved. The admitting practice/clinic can now use it for your admission interview.',
+    doneBtn: 'Done',
+    already: '✓ Your intake form has already been confirmed and saved.',
+    errNoAnswers: 'There are no answers yet — please complete the intake interview first.',
+  },
+}
+function anamneseT(lang) {
+  return ANAMNESE_REVIEW_L10N[lang]
+    || ANAMNESE_REVIEW_L10N[String(lang || '').split('-')[0]]
+    || (isGermanReview(lang) ? ANAMNESE_REVIEW_L10N.de : ANAMNESE_REVIEW_L10N.en)
+}
+
+function AnamnesisReview({ code, token, memorial, contribId, lang, onDone }) {
+  const A = anamneseT(lang)
+  const german = isGermanReview(lang)
+  const [phase, setPhase] = useState(memorial?.intake?.bogen_confirmed_at ? 'done' : 'intro') // intro | generating | review | done
+  const [sections, setSections] = useState([])
+  const [busy, setBusy]     = useState(false)
+  const [pct, setPct]       = useState(0)
+  const [progress, setProgress] = useState('')
+  const [err, setErr]       = useState('')
+  const [saving, setSaving] = useState(false)
+  const [finalizeOpen, setFinalizeOpen] = useState(false)
+  const [okText, setOkText] = useState('')
+  const [audioEdit, setAudioEdit] = useState(null)   // { state:'recording'|'processing' }
+  const cancelRef   = useRef(false)
+  const audioRecRef = useRef(null)
+  const audioChunks = useRef([])
+  const activeRef   = useRef(null)   // { idx, el } zuletzt fokussierter Abschnitt
+  const selRef      = useRef(null)   // { idx, start, end } zum Aufnahmestart erfasst
+  // Immer aktuelle Abschnittsliste — der Audio-Edit (rec.onstop, async) und das
+  // Bestätigen dürfen nicht auf einen veralteten Render-Closure lesen.
+  const sectionsRef = useRef(sections)
+  useEffect(() => { sectionsRef.current = sections }, [sections])
+
+  const setActive = (idx) => (e) => { activeRef.current = { idx, el: e.currentTarget } }
+
+  async function loadContribution() {
+    const c = await getContribution(contribId, code)
+    if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) throw new Error(A.errNoAnswers)
+    return c
+  }
+
+  async function generate() {
+    setErr(''); setBusy(true); setPct(0); setProgress(''); cancelRef.current = false; setPhase('generating')
+    try {
+      const c = await loadContribution()
+      const secs = await generateAnamnesisBogen({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(p.pct); setProgress(p.text) } })
+      setSections(secs); setPhase('review')
+    } catch (e) {
+      if (e.message !== '__CANCELLED__') setErr(e.message)
+      setPhase('intro')
+    } finally { setBusy(false) }
+  }
+
+  // Bearbeitung findet in der Anzeigesprache (`loc`) statt. Bei Deutsch ist `de`
+  // identisch und wird sofort mitgeführt; bei anderer Sprache wird der Abschnitt als
+  // „dirty" markiert und beim Bestätigen ins Deutsche zurückübersetzt.
+  function writeLoc(idx, val) {
+    setSections(ss => ss.map((s, j) => j === idx ? { ...s, loc: val, ...(german ? { de: val, dirty: false } : { dirty: true }) } : s))
+  }
+
+  // ── KI-Sprachänderung: EIN Icon, wirkt auf den zuletzt angetippten Abschnitt ──
+  async function toggleAudioEdit() {
+    if (audioEdit?.state === 'recording') { try { audioRecRef.current?.stop() } catch {}; return }
+    if (audioEdit) return
+    const a = activeRef.current
+    if (!a || !a.el) { setErr(A.audioPickFirst); return }
+    const el = a.el
+    const hasSel = el.selectionStart != null && el.selectionEnd > el.selectionStart
+    selRef.current = { idx: a.idx, start: hasSel ? el.selectionStart : null, end: hasSel ? el.selectionEnd : null }
+    setErr('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      audioRecRef.current = rec; audioChunks.current = []
+      rec.ondataavailable = e => { if (e.data.size > 0) audioChunks.current.push(e.data) }
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setAudioEdit({ state: 'processing' })
+        try {
+          const mimeType = rec.mimeType || 'audio/webm'
+          const blob = new Blob(audioChunks.current, { type: mimeType })
+          const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(blob) })
+          const resp = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio: base64, mimeType, memorialCode: code, language: lang }) })
+          const data = await resp.json()
+          if (!resp.ok) throw new Error(data.error)
+          const instruction = String(data.text || '').trim()
+          if (!instruction) throw new Error(A.audioNoText)
+          await applyAudioEdit(selRef.current, instruction)
+        } catch (e) { setErr(e.message) }
+        finally { setAudioEdit(null) }
+      }
+      rec.start(); setAudioEdit({ state: 'recording' })
+    } catch (e) { setErr(e.message); setAudioEdit(null) }
+  }
+
+  async function applyAudioEdit(t, instruction) {
+    if (!t) return
+    const sec = sectionsRef.current[t.idx]; if (!sec) return
+    const text = sec.loc
+    const hasSel = t.start != null && t.end > t.start
+    const segment = hasSel ? text.slice(t.start, t.end) : text
+    const revised = await reviseAnamnesisSection({ segment, instruction, lang, memorialCode: code })
+    if (revised == null) return   // KI-Aussetzer → Text unverändert lassen
+    writeLoc(t.idx, hasSel ? spliceText(text, t.start, t.end, revised) : revised)
+  }
+
+  async function doConfirm() {
+    setSaving(true); setErr('')
+    try {
+      let secs = sectionsRef.current
+      if (!german) {
+        // Nur die tatsächlich geänderten Abschnitte zurückübersetzen; unveränderte
+        // behalten ihr direkt aus dem Gespräch erzeugtes Deutsch (keine Round-Trips).
+        secs = sectionsRef.current.map(s => ({ ...s }))
+        for (let i = 0; i < secs.length; i++) {
+          if (secs[i].dirty) { secs[i].de = await translateToGerman(secs[i].loc, lang, code); secs[i].dirty = false }
+        }
+      }
+      const canonical = buildCanonical(memorial, secs)
+      await saveAnamneseBogen(code, token, { text: canonical, confirmed: true })
+      setSections(secs); setFinalizeOpen(false); setOkText(''); setPhase('done')
+    } catch (e) { setErr(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const page = { ...S.page, paddingTop: '1.5rem' }
+  const heading = <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>{A.title}</h2>
+
+  if (phase === 'done') return (
+    <div style={page}>
+      {heading}
+      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '14px 16px', marginBottom: 16, fontSize: 14.5, color: '#166534', lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>✓ {A.doneTitle}</div>
+        {A.doneText}
+      </div>
+      {onDone && <button onClick={onDone} style={{ fontSize: 15, padding: '10px 20px' }}>{A.doneBtn}</button>}
+    </div>
+  )
+
+  if (phase === 'generating' || busy) return (
+    <div style={page}>
+      {heading}
+      <div style={{ height: 8, background: '#e7e5e4', borderRadius: 999, overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: '#0d9488', transition: 'width .3s' }} />
+      </div>
+      <p style={{ ...S.muted, margin: 0 }}>{pct}% · {progress || A.generating}</p>
+      <button className="secondary" onClick={() => { cancelRef.current = true }} style={{ marginTop: 16, fontSize: 13 }}>{A.cancel}</button>
+    </div>
+  )
+
+  if (phase === 'intro') return (
+    <div style={page}>
+      {heading}
+      <Err msg={err} />
+      <div style={{ background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12, padding: '1.4rem', marginBottom: 16 }}>
+        <p style={{ fontSize: 14.5, lineHeight: 1.65, color: '#44403c', marginTop: 0 }}>{A.introText}</p>
+        {!german && <p style={{ fontSize: 13, lineHeight: 1.6, color: '#0f766e', margin: '0 0 14px' }}>{A.germanNote}</p>}
+        <button onClick={generate} style={{ fontSize: 15, padding: '11px 20px' }}>{A.createBtn}</button>
+      </div>
+    </div>
+  )
+
+  // ── REVIEW ──
+  return (
+    <div style={page}>
+      {heading}
+      <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: '11px 14px', marginBottom: 12, fontSize: 13, color: '#0c4a6e', lineHeight: 1.55 }}>
+        {A.disclaimer}{!german ? ` ${A.germanNote}` : ''}
+      </div>
+      <Err msg={err} />
+      {/* Immer sichtbare Aktionsleiste: EIN Mikrofon wirkt auf den zuletzt angetippten
+          Abschnitt (markierter Teil, sonst ganzer Abschnitt) + „Bogen bestätigen". */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fafaf9', display: 'flex', gap: 8, margin: '0 0 4px', padding: '8px 0', flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid #f0efec' }}>
+        <button onClick={toggleAudioEdit} disabled={audioEdit?.state === 'processing'}
+          className={audioEdit?.state === 'recording' ? '' : 'secondary'} style={{ fontSize: 13, padding: '8px 14px' }}>
+          {audioEdit?.state === 'recording' ? A.audioRecording : audioEdit?.state === 'processing' ? A.audioBusy : A.audioIdle}
+        </button>
+        <button onClick={() => setFinalizeOpen(true)} style={{ fontSize: 14, padding: '8px 16px' }}>{A.confirmBtn}</button>
+      </div>
+      <p style={{ fontSize: 11, color: '#a8a29e', margin: '0 0 12px' }}>{A.audioHint}</p>
+      {sections.map((s, i) => (
+        <section key={s.key} style={{ marginTop: 18, borderTop: '1px solid #f0efec', paddingTop: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#0f766e' }}>{s.labelLoc || s.label}</div>
+          <AutoGrowTextarea onFocus={setActive(i)} value={s.loc || ''} onChange={e => writeLoc(i, e.target.value)}
+            style={{ width: '100%', minHeight: 72, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+        </section>
+      ))}
+
+      {finalizeOpen && (
+        <PModal onClose={() => { if (!saving) { setFinalizeOpen(false); setOkText('') } }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 0, marginBottom: 10 }}>{A.confirmTitle}</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#44403c' }}>{A.confirmText}</p>
+          <input value={okText} onChange={e => setOkText(e.target.value)} placeholder="ok" autoFocus style={{ width: '100%', marginBottom: 14 }} />
+          {err && <p style={{ fontSize: 13, color: '#b91c1c', margin: '0 0 10px' }}>⚠ {err}</p>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="secondary" disabled={saving} onClick={() => { setFinalizeOpen(false); setOkText('') }} style={{ fontSize: 14 }}>{A.cancel}</button>
+            <button onClick={doConfirm} disabled={okText.trim().toLowerCase() !== 'ok' || saving} style={{ fontSize: 14 }}>{saving ? A.saving : A.confirm}</button>
+          </div>
+        </PModal>
+      )}
+    </div>
   )
 }
 
@@ -1977,7 +2244,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
     // erneuten Öffnen im selben Browser die bestehende Sitzung und bietet
     // Fortsetzen/Neu beginnen an (60-Tage-TTL). Ein echter Neustart ist über
     // „Neu beginnen" im Wiederaufnahme-Dialog jederzeit möglich.
-    setPaused(false); setView('done')
+    setPaused(false)
+    // Anamnese: der Patient prüft/bestätigt zuerst den Bogen (Tab „Anamnesebogen"),
+    // statt direkt auf den Abschluss-Screen zu springen — erst nach dem „ok" folgt der.
+    if (memorial?.product_category === 'anamnesis') { setTab('bogen'); return }
+    setView('done')
   }
 
   // Angebotene Sprachen + aktuell wirksame Sprache des Beitragenden.
@@ -1992,6 +2263,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
   // an isLifework, nicht an isSelf.
   const isSelf = memorial?.product_category === 'lifework' || memorial?.product_category === 'anamnesis'
   const isLifework = memorial?.product_category === 'lifework'
+  const isAnamnesis = memorial?.product_category === 'anamnesis'
   const SELF_REL = 'Ich selbst'
   // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
   // globale Footer ausgeblendet. In den übrigen Schritten (Info/Fertig) bleibt er.
@@ -2256,6 +2528,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
         // Nach Abschluss des Buchs kein Foto-Upload mehr.
         const withPhoto    = memorial.photo_upload_tab === true && !memorial.book_finalized
         const withProof    = isLifework && memorial.proof_enabled === true
+        // Anamnese: eigener Tab, in dem der Patient den Bogen prüft/bestätigt (Step 2).
+        const withBogen    = isAnamnesis
         // Das ☰-Menü ist im Interview IMMER vorhanden — auch für Beitragende ohne
         // Foto-/Probedruck-Tab. „Später fortsetzen/beenden", der Transkript-Umschalter
         // und die Rechtslinks (Datenschutz/Impressum) liegen dort; der In-Interview-
@@ -2305,12 +2579,18 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
                   onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)} />
               </div>
             )}
+            {withBogen && (
+              <div style={{ display: tab === 'bogen' ? 'block' : 'none' }}>
+                <AnamnesisReview code={code} token={endUserToken} memorial={memorial} contribId={contribId} lang={L}
+                  onDone={() => setView('done')} />
+              </div>
+            )}
             {withSettings && (
               <div style={{ display: tab === 'settings' ? 'block' : 'none' }}>
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
-            <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof}
+            <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
               onPause={tab === 'interview' ? handlePause : null}
