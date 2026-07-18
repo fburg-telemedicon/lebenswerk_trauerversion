@@ -837,6 +837,15 @@ function Dashboard() {
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       showOnboarding: m.show_onboarding !== false,
+      // Fragebogen (nur Anamnese im Detail editierbar): gespeicherte catalog_id auf
+      // die UI-Werte abbilden — Standard-Katalog → '' (empfohlen), keiner → '__free__'
+      // (freie Fragen), Custom → dessen id.
+      catalogId: (() => {
+        const stdId = catalogs.find(c => c.name === 'Anamnese – Standardfragebogen')?.id || null
+        if (m.product_category === 'anamnesis') return m.catalog_id == null ? '__free__' : (stdId && m.catalog_id === stdId ? '' : m.catalog_id)
+        return m.catalog_id || ''
+      })(),
+      followups: Number.isFinite(parseInt(m.followups, 10)) ? parseInt(m.followups, 10) : 7,
     })
     setOrderEdit(true)
   }
@@ -865,6 +874,9 @@ function Dashboard() {
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
+        // Fragebogen NUR bei der Anamnese mitschicken (dort gibt es den Detail-Picker).
+        // Bei anderen Kategorien nicht senden → deren catalog_id/followups bleiben unberührt.
+        ...(selected.product_category === 'anamnesis' ? { catalogId: d.catalogId, followups: d.followups } : {}),
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -3214,7 +3226,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} bookCodes={bookCodes} />
+    <DetailView selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} bookCodes={bookCodes} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

@@ -2135,7 +2135,7 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
   )
 }
 
-export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
+export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -2950,6 +2950,47 @@ export function DetailView({ selected, orderDraft, setOrderDraft, setView, reloa
                     <span style={{ fontSize:14 }}>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview (ohne diese Option kein Upload)' : 'Foto-Upload als Tab im Interview (ohne diese Option kein Foto-Upload)'}</span>
                   </label>
                 </div>
+                {/* Fragebogen — nur Anamnese ist im Detail editierbar (Standard-Bogen
+                    vs. freie Fragen, plus optionale Zusatzkataloge). App.jsx schickt
+                    catalogId/followups nur für die Anamnese mit. */}
+                {isAnamnesis && (() => {
+                  // Zusatzkataloge; der geseedete Standard erscheint als „"-Default,
+                  // also nicht doppelt als eigener Eintrag listen.
+                  const avail = catalogs.filter(c => (c.product_categories || []).includes('anamnesis') && c.name !== 'Anamnese – Standardfragebogen')
+                  // Vertiefungsfragen gelten, solange NICHT „frei" gewählt ist.
+                  const usesCatalog = od.catalogId !== '__free__'
+                  return (
+                    <div style={{ marginBottom:14 }}>
+                      <Lbl>Fragebogen</Lbl>
+                      <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>
+                        Standard: fester Anamnese-Fragebogen (medizinisches Schema) mit KI-Vertiefungsfragen. Alternativ freie Fragen – die KI stellt die Anamnesefragen selbst. Greift beim nächsten (Neu-)Start des Interviews.
+                      </p>
+                      <select
+                        value={od.catalogId}
+                        onChange={e => setOd({ catalogId: e.target.value })}
+                        style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
+                      >
+                        <option value="">Anamnese-Standardfragebogen (empfohlen)</option>
+                        <option value="__free__">Freie Fragen – KI überlegt selbst</option>
+                        {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      {usesCatalog && (
+                        <div style={{ marginTop:12 }}>
+                          <Lbl>Vertiefungsfragen pro Frage (max.)</Lbl>
+                          <input
+                            type="number" min={0} max={30} step={1}
+                            value={od.followups}
+                            onChange={e => { const v = e.target.value; setOd({ followups: v === '' ? '' : Math.max(0, Math.min(30, parseInt(v, 10) || 0)) }) }}
+                            style={{ width:120 }}
+                          />
+                          <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                            Wie viele vertiefende Nachfragen die KI höchstens zu jeder Frage stellt. Der Patient kann jederzeit „weiter" sagen. Standard: 7.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Bemerkung</Lbl>
                   <textarea value={od.note} onChange={e => setOd({ note: e.target.value })} rows={3}
