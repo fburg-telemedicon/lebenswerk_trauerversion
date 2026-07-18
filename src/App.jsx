@@ -78,8 +78,8 @@ const langFromURL   = (urlParams.get('lang') || '').trim()   // Login-Fenster in
 // Login-Fenster soll dann in ihrer Sprache erscheinen. Nur die wenigen sichtbaren
 // Strings des Login-Formulars; das Dashboard dahinter bleibt de/en.
 const LOGIN_L10N = {
-  de: { sub: 'Bitte melden Sie sich an.', email: 'E-Mail-Adresse', pw: 'Passwort', signIn: 'Anmelden', signingIn: 'Wird überprüft …', forgot: 'Passwort vergessen?' },
-  en: { sub: 'Please sign in.', email: 'Email address', pw: 'Password', signIn: 'Sign in', signingIn: 'Signing in …', forgot: 'Forgot password?' },
+  de: { sub: 'Bitte melden Sie sich an.', email: 'E-Mail-Adresse', pw: 'Passwort', signIn: 'Anmelden', signingIn: 'Wird überprüft …', forgot: 'Passwort vergessen?', remember: 'Angemeldet bleiben' },
+  en: { sub: 'Please sign in.', email: 'Email address', pw: 'Password', signIn: 'Sign in', signingIn: 'Signing in …', forgot: 'Forgot password?', remember: 'Stay signed in' },
   pl: { sub: 'Zaloguj się.', email: 'Adres e-mail', pw: 'Hasło', signIn: 'Zaloguj się', signingIn: 'Sprawdzanie …', forgot: 'Nie pamiętasz hasła?' },
   es: { sub: 'Inicie sesión.', email: 'Correo electrónico', pw: 'Contraseña', signIn: 'Iniciar sesión', signingIn: 'Comprobando …', forgot: '¿Olvidó su contraseña?' },
   it: { sub: 'Accedi.', email: 'Indirizzo e-mail', pw: 'Password', signIn: 'Accedi', signingIn: 'Verifica in corso …', forgot: 'Password dimenticata?' },
@@ -429,16 +429,48 @@ function decodeToken(token) {
 }
 
 // ── Admin-Dashboard (Standard-Eingang der Seite) ──────────────────
+// ── Session-Speicherung (Token + Auth-Info) ───────────────────────
+// „Angemeldet bleiben" → localStorage (überlebt App-/Browser-Neustart, bis der
+// Token serverseitig abläuft: 30 Tage). Sonst sessionStorage (nur aktuelle Sitzung).
+// Gelesen wird localStorage zuerst; geschrieben wird in genau EINEN der beiden
+// Speicher (der andere wird geleert), damit es keine Geister-Sitzung gibt.
+function readAdminToken() {
+  try { return localStorage.getItem('lw_admin_token') || sessionStorage.getItem('lw_admin_token') || '' } catch { return '' }
+}
+function readAdminAuth() {
+  try { return JSON.parse(localStorage.getItem('lw_admin_auth') || sessionStorage.getItem('lw_admin_auth') || 'null') } catch { return null }
+}
+function writeAdminSession(token, authInfo, remember) {
+  try {
+    const store = remember ? localStorage : sessionStorage
+    const other = remember ? sessionStorage : localStorage
+    store.setItem('lw_admin_token', token)
+    store.setItem('lw_admin_auth', JSON.stringify(authInfo))
+    other.removeItem('lw_admin_token'); other.removeItem('lw_admin_auth')
+  } catch { /* privater Modus o. Ä. */ }
+}
+// Auth-Info aktualisieren, ohne den Speicherort (remember-Zustand) zu ändern.
+function updateStoredAuth(authInfo) {
+  try {
+    if (localStorage.getItem('lw_admin_token')) localStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
+    else if (sessionStorage.getItem('lw_admin_token')) sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
+  } catch { /* ignore */ }
+}
+function clearAdminSession() {
+  try {
+    localStorage.removeItem('lw_admin_token'); localStorage.removeItem('lw_admin_auth')
+    sessionStorage.removeItem('lw_admin_token'); sessionStorage.removeItem('lw_admin_auth')
+  } catch { /* ignore */ }
+}
+
 function Dashboard() {
   const { setLang: setAdminLang } = useAdminLang()  // Dashboard-Sprache (de/en)
   const [view, setView]               = useState('login') // login|list|create-category|create|created|detail|book-v1|book-v2|users
-  const [token, setToken]             = useState(() => sessionStorage.getItem('lw_admin_token') || '')
-  const [auth, setAuth]               = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem('lw_admin_auth') || '') || { admin: false, cats: [], uid: null } }
-    catch { return { admin: false, cats: [], uid: null } }
-  })
+  const [token, setToken]             = useState(() => readAdminToken())
+  const [auth, setAuth]               = useState(() => readAdminAuth() || { admin: false, cats: [], uid: null })
   const [username, setUsername]       = useState('')
   const [password, setPassword]       = useState('')
+  const [remember, setRemember]       = useState(false)  // „Angemeldet bleiben" (Login)
   // Passwort-Reset am Login (Self-Service)
   const [showReset, setShowReset]     = useState(false)
   const [resetEmail, setResetEmail]   = useState('')
@@ -577,7 +609,7 @@ function Dashboard() {
         if (!d?.username) return
         setAuth(a => {
           const next = { ...a, username: d.username, uid: a.uid ?? uid }
-          sessionStorage.setItem('lw_admin_auth', JSON.stringify(next))
+          updateStoredAuth(next)
           return next
         })
       })
@@ -598,11 +630,10 @@ function Dashboard() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, remember }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
-      sessionStorage.setItem('lw_admin_token', d.token)
       // Dashboard-Sprache eines Managers: hat der Admin sie vorbelegt (d.lang), gilt
       // sie sofort; sonst wählt der Manager sie beim ersten Login (needLangPick).
       const isManager = !d.admin && !d.enduser
@@ -614,7 +645,7 @@ function Dashboard() {
         enduser: Boolean(d.enduser), code: d.code || null,
         needLangPick: isManager && !presetLang,
       }
-      sessionStorage.setItem('lw_admin_auth', JSON.stringify(authInfo))
+      writeAdminSession(d.token, authInfo, remember)
       setToken(d.token); setAuth(authInfo)
       if (!authInfo.enduser) await loadMemorials(d.token)
     } catch (e) { setErr(e.message) }
@@ -628,7 +659,7 @@ function Dashboard() {
     setAdminLang(choice)
     const next = { ...auth, needLangPick: false }
     setAuth(next)
-    try { sessionStorage.setItem('lw_admin_auth', JSON.stringify(next)) } catch {}
+    updateStoredAuth(next)
     try { await saveOwnLang(token, choice) } catch { /* nicht kritisch */ }
   }
 
@@ -970,8 +1001,7 @@ function Dashboard() {
   }
 
   function logout() {
-    sessionStorage.removeItem('lw_admin_token')
-    sessionStorage.removeItem('lw_admin_auth')
+    clearAdminSession()
     setToken(''); setAuth({ admin: false, cats: [], uid: null }); setView('login'); setUsername(''); setPassword('')
     setMemorials([]); setContribs([]); setSelected(null)
   }
@@ -3141,10 +3171,14 @@ Regeln:
           <Lbl>{LOGIN_T.email}</Lbl>
           <input value={username} onChange={e => setUsername(e.target.value)} dir="ltr" placeholder="name@beispiel.de" autoFocus />
         </div>
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 14 }}>
           <Lbl>{LOGIN_T.pw}</Lbl>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••" />
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, cursor: 'pointer', fontSize: 14, color: '#57534e' }}>
+          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: '#1c1917', cursor: 'pointer' }} />
+          <span>{LOGIN_T.remember || 'Angemeldet bleiben'}</span>
+        </label>
         <button type="submit" disabled={loading || !username || !password} style={{ width: '100%', padding: 12, fontSize: 15 }}>
           {loading ? LOGIN_T.signingIn : LOGIN_T.signIn}
         </button>
@@ -3347,13 +3381,15 @@ function InviteFlow({ token }) {
     setErr(''); setBusy(true)
     try {
       const d = await redeemInvite(token, pw, chosenLang)
-      sessionStorage.setItem('lw_admin_token', d.token)
-      sessionStorage.setItem('lw_admin_auth', JSON.stringify({
+      // Frisch eingerichtetes Konto auf eigenem Gerät → „angemeldet bleiben"
+      // (localStorage, dauerhaft), damit man in der installierten App nicht bei
+      // jedem Start neu ansteht. Der Token ist dafür langlebig (30 Tage).
+      writeAdminSession(d.token, {
         admin: Boolean(d.admin), cats: d.cats ?? [], uid: d.uid ?? null, username: d.username || username,
         // Endnutzer landen nach dem Einlösen direkt in ihrem Interview, nicht im Dashboard.
         enduser: Boolean(d.enduser), code: d.code || null,
-      }))
-      // Ohne ?invite neu laden – die Sitzung wird aus sessionStorage gelesen.
+      }, true)
+      // Ohne ?invite neu laden – die Sitzung wird aus dem Speicher gelesen.
       window.location.href = '/'
     } catch (e) { setErr(e.message); setBusy(false) }
   }

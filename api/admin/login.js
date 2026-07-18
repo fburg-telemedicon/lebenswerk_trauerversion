@@ -20,11 +20,11 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Antwort-Nutzlast eines erfolgreichen Logins. Endnutzer (Kategorie Lebenswerk)
 // bekommen zusätzlich ihren Buch-Code + die vom Admin gesetzte Sprache: Das
 // Frontend zeigt ihnen daraufhin kein Dashboard, sondern direkt ihr Interview.
-function sessionFor(user) {
+function sessionFor(user, remember = false) {
   const cats = Array.isArray(user.allowed_categories) ? user.allowed_categories : []
   const eu = user.is_enduser ? (user.enduser_memorial || null) : null
   return {
-    token: issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats, eu }),
+    token: issueToken({ uid: user.id, admin: Boolean(user.is_admin), cats, eu }, { remember }),
     admin: Boolean(user.is_admin),
     cats: user.is_admin ? '*' : cats,
     uid: user.id,
@@ -153,7 +153,9 @@ async function handleInvite(req, res, tok) {
     } catch (e) {
       console.error('/api/admin/login confirm mail:', e)
     }
-    return res.json(sessionFor(user))
+    // Frisch eingerichtetes Konto auf eigenem Gerät (v. a. Endnutzer/Handy):
+    // standardmäßig „angemeldet bleiben" (langer Token).
+    return res.json(sessionFor(user, true))
   }
   return res.status(405).end()
 }
@@ -177,6 +179,7 @@ module.exports = async function handler(req, res) {
   // Brute-Force-Bremse: max. 10 Login-Versuche pro 5 Minuten – einmal pro IP
   // und einmal pro Benutzername (fängt verteilte Angriffe auf EIN Konto ab).
   const { username, password } = req.body || {}
+  const remember = Boolean(req.body && req.body.remember)  // „Angemeldet bleiben" → langer Token
   if (!(await enforce(req, res, { name: 'login-ip', limit: 10, windowSeconds: 300 }))) return
   if (username && !(await enforce(req, res, {
     name: 'login-user', limit: 10, windowSeconds: 300,
@@ -186,7 +189,7 @@ module.exports = async function handler(req, res) {
   // 1. Env-Admin (Superuser)
   if (verifyCredentials(username, password)) {
     await audit(req, { actor: { uid: null, name: String(username), admin: true }, action: 'login.success', detail: { kind: 'env-admin' } })
-    return res.json({ token: issueToken({ admin: true }), admin: true, cats: '*', uid: null, username: String(username) })
+    return res.json({ token: issueToken({ admin: true }, { remember }), admin: true, cats: '*', uid: null, username: String(username) })
   }
 
   // 2. Benutzer aus app_users (Manager ODER Endnutzer)
@@ -200,7 +203,7 @@ module.exports = async function handler(req, res) {
 
     if (user && verifyPassword(password, user.pw_hash, user.pw_salt)) {
       await audit(req, { actor: { uid: user.id, name: user.username, admin: Boolean(user.is_admin) }, action: 'login.success' })
-      return res.json(sessionFor(user))
+      return res.json(sessionFor(user, remember))
     }
   } catch (e) {
     console.error('/api/admin/login lookup error:', e)

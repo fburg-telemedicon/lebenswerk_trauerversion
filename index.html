@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lebensgeschichten – Gemeinsames Gedenkbuch</title>
     <meta name="description" content="Familie, Freunde und Wegbegleiter erinnern sich gemeinsam und schaffen ein bleibendes Gedenkbuch." />
-    <!-- PWA: Installierbar als App aufs Handy (Home-Bildschirm). Das Manifest wird
-         je nach Produkt-Kontext per JS umgeschaltet (src/pwa.js): Standard =
-         Lebensgeschichten.ai, im Lebenswerk-Flow = Lebenswerk.ai. -->
-    <link rel="manifest" href="/manifest.webmanifest" id="pwa-manifest" />
+    <!-- PWA: Installierbar als App aufs Handy (Home-Bildschirm). Der Manifest-Link
+         hat BEWUSST kein Standard-href: nur der Interview-/Endnutzer-Flow
+         (ContributorFlow) aktiviert ihn per JS (src/pwa.js → setPwaProduct) und
+         wählt dabei das Produkt-Manifest (Lebenswerk.ai bzw. Lebensgeschichten.ai).
+         Das Manager-Dashboard aktiviert ihn nie → dort ist nichts installierbar. -->
+    <link rel="manifest" id="pwa-manifest" />
     <meta name="theme-color" content="#c1272d" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

@@ -15,7 +15,8 @@
 
 const crypto = require('crypto')
 
-const TOKEN_TTL_MS = 12 * 60 * 60 * 1000 // 12 Stunden
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000 // 12 Stunden (Standard)
+const REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 Tage („Angemeldet bleiben")
 const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000 // Einladungslink 14 Tage gültig
 
 function getConfig() {
@@ -67,10 +68,10 @@ function verifyCredentials(username, password) {
 //     eu    : Buch-Code eines ENDNUTZERS (Kategorie Lebenswerk) — ein solches
 //             Konto hat kein Dashboard, sondern nur Zugriff auf genau dieses
 //             eine Buch (sein eigenes). Bei allen anderen Konten null.
-function issueToken(claims = {}) {
+function issueToken(claims = {}, opts = {}) {
   const c = getConfig()
   const payload = base64url(JSON.stringify({
-    exp:   Date.now() + TOKEN_TTL_MS,
+    exp:   Date.now() + (opts.remember ? REMEMBER_TTL_MS : TOKEN_TTL_MS),
     uid:   claims.uid ?? null,
     admin: Boolean(claims.admin),
     cats:  claims.admin ? '*' : (Array.isArray(claims.cats) ? claims.cats : []),
