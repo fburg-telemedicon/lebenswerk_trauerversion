@@ -368,6 +368,23 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     } finally { setUnlockBusy(false) }
   }
 
+  // Mikrofon-Berechtigungsstatus (soweit der Browser die Permissions-API kennt):
+  // 'prompt' → freundlicher „Zulassen"-Hinweis vor dem ersten Tippen; 'denied' →
+  // proaktive Hilfe (eine blockierte Berechtigung kann nur der Nutzer in den
+  // Browser-Einstellungen wieder freigeben — das ist eine Browser-Sicherheitsregel).
+  const [micPerm, setMicPerm] = useState('unknown') // granted | denied | prompt | unknown
+  useEffect(() => {
+    if (!navigator.permissions?.query) return
+    let live = true, permStatus = null
+    navigator.permissions.query({ name: 'microphone' }).then(s => {
+      if (!live) return
+      permStatus = s
+      setMicPerm(s.state)
+      s.onchange = () => { if (live) setMicPerm(s.state) }
+    }).catch(() => {})
+    return () => { live = false; if (permStatus) permStatus.onchange = null }
+  }, [])
+
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiLoading])
   useEffect(() => { if (messages.length === 0) loadFirst() }, [])
 
@@ -937,6 +954,20 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             {micNote && micState === 'idle' && (
               <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
                 ⏸ {micNote}
+              </div>
+            )}
+            {micState === 'idle' && !micNote && micPerm === 'denied' && (
+              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
+                🎙 {String(lang || '').startsWith('en')
+                  ? 'The microphone is blocked for this site. Tap the lock icon in the address bar → Microphone → Allow, then reload.'
+                  : 'Das Mikrofon ist für diese Seite blockiert. Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Mikrofon" → „Zulassen" und laden Sie die Seite neu.'}
+              </div>
+            )}
+            {micState === 'idle' && !micNote && micPerm === 'prompt' && (
+              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12, lineHeight:1.5, color:'#78716c' }}>
+                {String(lang || '').startsWith('en')
+                  ? 'On the first tap your browser will ask for microphone access — please tap “Allow”.'
+                  : 'Beim ersten Antippen fragt der Browser nach dem Mikrofon — bitte auf „Zulassen" tippen.'}
               </div>
             )}
             {/* Begleitmodus wird direkt am Mikrofon geschaltet (nicht im Menü):
