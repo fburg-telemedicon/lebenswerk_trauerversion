@@ -33,8 +33,9 @@ export const DEFAULT_LOGO = '/logo-lebensgeschichten.png'
 // Lebenswerk das Lebenswerk-Logo und eine Anamnese das Anamni.ai-Logo statt des
 // Lebensgeschichten-Standardlogos.
 export function PartnerBanner({ logoUrl, category }) {
-  const fallback = category === 'lifework'  ? '/lebenswerk-logo.png'
-                 : category === 'anamnesis' ? '/logo-anamni.png'
+  const fallback = category === 'lifework'       ? '/lebenswerk-logo.png'
+                 : category === 'anamnesis_kvsw' ? '/logo-anamni-kvsw.svg'
+                 : category === 'anamnesis'      ? '/logo-anamni.png'
                  : DEFAULT_LOGO
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>

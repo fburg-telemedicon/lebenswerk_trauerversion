@@ -75,6 +75,14 @@ const PATHS = {
       <polyline points="8 13 10 13 11 10.5 13 15 14 13 16 13" />
     </>
   ),
+  // Krankenhaus mit Kreuz (Anamnese KVSW – Klinikaufnahme)
+  anamnesis_kvsw: (
+    <>
+      <rect x="4.5" y="8.5" width="15" height="12" rx="1.4" />
+      <path d="M12 3.5 4.5 8.5h15L12 3.5Z" />
+      <path d="M12 11.5v4M10 13.5h4" />
+    </>
+  ),
   // Regenbogen (Mutmachbuch)
   encouragement: (
     <>

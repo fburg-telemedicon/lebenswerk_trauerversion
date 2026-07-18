@@ -3,7 +3,7 @@ const CAT_LABELS = {
   memorial: 'Gedenken', birthday: 'Geburtstag', anniversary: 'Jubiläum',
   farewell: 'Abschied', service: 'Ruhestand', company: 'Firma',
   newborn: 'Geburt', encouragement: 'Ermutigung',
-  lifework: 'Lebenswerk', anamnesis: 'Anamnese',
+  lifework: 'Lebenswerk', anamnesis: 'Anamnese', anamnesis_kvsw: 'Anamnese KVSW',
 }
 const LANG_LABELS = { de: 'Deutsch', pl: 'Polnisch', en: 'Englisch' }
 const MODULE_LABELS = { llm: 'Text / KI', tts: 'Sprachausgabe', stt: 'Transkription', image: 'Bilder' }

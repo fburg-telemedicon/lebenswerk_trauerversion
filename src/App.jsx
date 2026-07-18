@@ -18,7 +18,7 @@ import {
   getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -268,7 +268,7 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange, category
   const contribs = Array.isArray(contributions) ? contributions : []
   // Anamnese: derselbe Upload-Mechanismus, aber es sind medizinische DOKUMENTE
   // (Arztbriefe, Befunde …), kein Bildmaterial fürs Buch — nur Wortlaut angepasst.
-  const docMode = category === 'anamnesis'
+  const docMode = isAnamnesis(category)
   // Wer hat das Foto hochgeladen? Beitragende-Uploads tragen eine contribution_id
   // (Name über den Beitrag auflösen); Manager-Uploads sind als solche markiert.
   const uploaderLabel = u => {
@@ -883,9 +883,9 @@ function Dashboard() {
       // Katalogliste noch nicht geladen war oder mehrere Standard-Zeilen existierten
       // (dann bekam das Dropdown eine id ohne passende Option und blieb leer).
       catalogId: (() => {
-        if (m.product_category !== 'anamnesis') return m.catalog_id || ''
+        if (!isAnamnesis(m.product_category)) return m.catalog_id || ''
         if (m.catalog_id == null) return '__free__'
-        const isCustom = catalogs.some(c => c.id === m.catalog_id && c.name !== 'Anamnese – Standardfragebogen')
+        const isCustom = catalogs.some(c => c.id === m.catalog_id && c.name !== anamnesisStdCatalogName(m.product_category))
         return isCustom ? m.catalog_id : ''
       })(),
       followups: Number.isFinite(parseInt(m.followups, 10)) ? parseInt(m.followups, 10) : 7,
@@ -902,7 +902,7 @@ function Dashboard() {
     // trägt seinen Namen ggf. beim Start selbst nach; der Arzt ist eine reine Notiz).
     // Bei Selbst-Interviews (Lebenswerk, Anamnese) sind Name + Organisator optional
     // — der Endnutzer/Patient trägt seinen Namen ggf. selbst beim Start nach.
-    if (selected.product_category !== 'anamnesis' && selected.product_category !== 'lifework' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
+    if (!isAnamnesis(selected.product_category) && selected.product_category !== 'lifework' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
     setOrderSaving(true); setErr('')
     try {
       await adminUpdateMemorialMeta(token, selected.id, {
@@ -926,7 +926,7 @@ function Dashboard() {
         showOnboarding: d.showOnboarding !== false,
         // Fragebogen NUR bei der Anamnese mitschicken (dort gibt es den Detail-Picker).
         // Bei anderen Kategorien nicht senden → deren catalog_id/followups bleiben unberührt.
-        ...(selected.product_category === 'anamnesis' ? { catalogId: d.catalogId, followups: d.followups } : {}),
+        ...(isAnamnesis(selected.product_category) ? { catalogId: d.catalogId, followups: d.followups } : {}),
       })
       // Lokal spiegeln (Backend-Normalisierung nachbilden), damit Detail- und
       // Listenansicht ohne Neuladen aktuell sind.
@@ -963,8 +963,8 @@ function Dashboard() {
         // nicht auf den alten Wert zurückspringt. Normalisierung wie im Backend:
         // '__free__' → kein Katalog, leer → Standard-Fragebogen, sonst der Custom-Katalog;
         // followups auf 0..30 begrenzt (Default 7).
-        ...(selected.product_category === 'anamnesis' ? (() => {
-          const stdId = catalogs.find(c => c.name === 'Anamnese – Standardfragebogen')?.id || null
+        ...(isAnamnesis(selected.product_category) ? (() => {
+          const stdId = catalogs.find(c => c.name === anamnesisStdCatalogName(selected.product_category))?.id || null
           const fu = parseInt(d.followups, 10)
           // Standard ('') → irgendeine NICHT-Custom, nicht-leere id, damit die (robuste)
           // Rückabbildung sie als Standard erkennt: bevorzugt der geseedete stdId, sonst
@@ -1051,7 +1051,7 @@ function Dashboard() {
     // Vertiefungsfragen bei der Anamnese standardmäßig 0 (die Anamnese arbeitet den
     // festen Fragenkatalog ab; Nachfragen macht die KI ohnehin situativ nach Schema).
     // Allgemeiner Default für alle anderen Produkte ist 2.
-    if (slug === 'anamnesis') return { ...base, photoUploadTab: true, followups: 0, languages: LANGUAGES.map(l => l.code) }
+    if (isAnamnesis(slug)) return { ...base, photoUploadTab: true, followups: 0, languages: LANGUAGES.map(l => l.code) }
     if (slug !== 'lifework') return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,
@@ -2043,11 +2043,11 @@ function Dashboard() {
         // seine Überschrift (in ALLEN Stilvarianten identisch — sie kommt vom
         // Layout, nicht von der KI). Eine Rede dagegen wird am Stück vorgelesen und
         // bleibt ohne Zwischenüberschriften.
-        const isAnamnesis = selected?.product_category === 'anamnesis'
-        const withHeadings = selected?.product_category === 'lifework' || isAnamnesis
+        const isAnamnesisBogen = isAnamnesis(selected?.product_category)
+        const withHeadings = selected?.product_category === 'lifework' || isAnamnesisBogen
         // Fester Kopf des Anamnesebogens (Selbstauskunft, KI-generiert, nicht
         // ärztlich validiert) — wird dem ersten Abschnitt vorangestellt.
-        const anamnesisHeader = isAnamnesis
+        const anamnesisHeader = isAnamnesisBogen
           ? `# Anamnesebogen (Selbstauskunft)\n\n_Hinweis: Dieser Bogen wurde aus der Patientenselbstauskunft KI-generiert. Er ist nicht ärztlich validiert und ersetzt keine ärztliche Anamnese oder Untersuchung._\n\n${[selected?.name && `Name: ${selected.name}`, (getCategory(selected?.product_category).intake.extra || []).map(f => selected?.intake?.[f.key] && `${f.label.replace(/\s*\*$/, '')}: ${(f.options?.find(o => o.value === selected.intake[f.key])?.label) || selected.intake[f.key]}`).filter(Boolean).join(' · ')].filter(Boolean).join('\n')}`
           : null
         const steps = sections.map((section, i) => ({
@@ -2437,7 +2437,7 @@ Regeln:
     // Pflegeexzerpt (Lebenswerk) und Anamnesebogen (Anamnese) entstehen IMMER
     // auf Deutsch — beim Lebenswerk wird die Zielsprache erst beim Download
     // gefragt, beim Anamnesebogen prüft der Patient in seiner Interviewsprache.
-    if (key === 'eulogy' && (selected?.product_category === 'lifework' || selected?.product_category === 'anamnesis')) return ['de']
+    if (key === 'eulogy' && (selected?.product_category === 'lifework' || isAnamnesis(selected?.product_category))) return ['de']
     return langs
   }
   function pickGenLang(code) {

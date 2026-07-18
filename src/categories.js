@@ -1024,6 +1024,154 @@ function anamnesisNoBook() {
   return 'Diese Kategorie erzeugt kein Buch.'
 }
 
+// ════════════════════════════════════════════════════════════════
+// ANAMNESE KVSW (anamnesis_kvsw) — 1:1-Variante der Anamnese, aber für die
+// KRANKENHAUS-AUFNAHME im Klinikverbund Südwest (Akutversorgung) statt für die
+// ambulante Reha. Verhalten identisch zur Anamnese (Endnutzer/Patient, kein Buch,
+// Bogen-Review Step 2, Gamification, Dokument-Upload …) — deshalb behandelt der
+// Code beide Slugs über isAnamnesis() gleich. Nur die INHALTE unterscheiden sich:
+// Indikationen = KVSW-Kern-Fachabteilungen, Fragebogen/Bogen = Aufnahmeanamnese
+// (Aufnahmegrund/geplanter Eingriff, Blutverdünner, Versorgung nach Entlassung,
+// Patientenverfügung) — die Reha-Themen (MBOR/Wiedereingliederung, Reha-Ziele,
+// Zuweisungsdiagnose zur Reha) entfallen. Die Reha-Anamnese oben bleibt unberührt.
+// ════════════════════════════════════════════════════════════════
+
+// Beide medizinischen Aufnahme-Kategorien. Der Code verzweigt fast überall gleich
+// für Anamnese (Reha) und Anamnese KVSW (Krankenhaus) — daher EIN Prädikat.
+export function isAnamnesis(cat) {
+  return cat === 'anamnesis' || cat === 'anamnesis_kvsw'
+}
+
+// Standard-Fragebogen je Kategorie (Name der geseedeten question_catalogs-Zeile).
+// MUSS mit api/_lib/anamnesis.js übereinstimmen. Wird in den Katalog-Filtern und
+// beim Ableiten der Standard-Katalog-ID gebraucht.
+export const ANAMNESIS_STD_CATALOG_NAMES = {
+  anamnesis:      'Anamnese – Standardfragebogen',
+  anamnesis_kvsw: 'Anamnese KVSW – Aufnahmefragebogen',
+}
+export function anamnesisStdCatalogName(cat) {
+  return ANAMNESIS_STD_CATALOG_NAMES[cat] || ANAMNESIS_STD_CATALOG_NAMES.anamnesis
+}
+
+// KVSW-Kern-Fachabteilungen (zertifizierte Zentren abgedeckt). `focus` lenkt die
+// Interview-Fragen auf den Aufnahmegrund der jeweiligen Abteilung; `label` erscheint
+// im Bogen als Kontext.
+export const ANAMNESIS_KVSW_INDICATIONS = [
+  { key: 'kardio', label: 'Kardiologie / Innere Medizin',
+    focus: 'Herz-Kreislauf-Erkrankung als Aufnahmegrund (z. B. Herzinfarkt, Herzschwäche, Herzrhythmusstörung, geplante Herzkatheter-Untersuchung/Bypass/Klappe): aktuelle Beschwerden (Brustenge/Angina, Luftnot, Herzstolpern, Beinödeme), Belastbarkeit (Stockwerke, Wegstrecke), bekannte Herzerkrankungen und Voreingriffe (Stent, Schrittmacher), blutverdünnende Medikamente.' },
+  { key: 'gastro', label: 'Gastroenterologie',
+    focus: 'Erkrankung des Verdauungstrakts als Aufnahmegrund (z. B. Blutung, Gelbsucht, entzündliche Darmerkrankung, Tumor, geplante Magen-/Darmspiegelung oder Bauch-OP): Bauchschmerzen (Ort/Art), Übelkeit/Erbrechen, Stuhlveränderungen, Blut im Stuhl, Appetit- und Gewichtsverlauf.' },
+  { key: 'onko', label: 'Hämatologie / Onkologie',
+    focus: 'Tumor- oder Bluterkrankung als Aufnahmegrund: betroffenes Organ/Diagnose (soweit benannt), aktuelle Therapiephase (Operation, Chemotherapie, Bestrahlung, Immuntherapie), Erschöpfung/Fatigue, Fieber/Infektneigung, Blutungs-/Blutergussneigung, Ernährung und Gewicht, blutverdünnende Medikamente.' },
+  { key: 'viszchir', label: 'Allgemein-/Viszeral-/Gefäßchirurgie',
+    focus: 'Geplanter oder akuter chirurgischer Eingriff (z. B. Hernie, Gallenblase, Darm, Krampfadern/Gefäß): aktueller Befund/Beschwerde, frühere Bauch-/Gefäßoperationen, blutverdünnende Medikamente und Gerinnung, Nüchternheit vor dem Eingriff.' },
+  { key: 'unfall', label: 'Unfallchirurgie / Orthopädie',
+    focus: 'Verletzung oder orthopädische Erkrankung als Aufnahmegrund (z. B. Sturz, Knochenbruch, Gelenkverschleiß, geplante Endoprothese/Gelenk-OP): betroffene Region, Schmerz und Belastbarkeit, Gehstrecke/Treppen, genutzte Hilfsmittel, frühere Operationen am Bewegungsapparat, blutverdünnende Medikamente.' },
+  { key: 'uro', label: 'Urologie',
+    focus: 'Urologischer Aufnahmegrund (z. B. Harnstein, Tumor von Niere/Blase/Prostata, Harnwegsinfekt, Prostatavergrößerung, geplante urologische OP): Beschwerden beim Wasserlassen, Blut im Urin, Schmerzen (Flanke/Unterbauch), frühere urologische Eingriffe, blutverdünnende Medikamente.' },
+  { key: 'gyn', label: 'Gynäkologie / Geburtshilfe',
+    focus: 'Gynäkologischer oder geburtshilflicher Aufnahmegrund (z. B. geplante Operation, Tumor, Blutung, Schwangerschaft/Geburt): aktuelle Beschwerden, Zyklus bzw. Schwangerschaftsverlauf (soweit zutreffend), frühere gynäkologische Operationen und Geburten, blutverdünnende Medikamente.' },
+  { key: 'neuro', label: 'Neurologie',
+    focus: 'Neurologischer Aufnahmegrund (z. B. Schlaganfall, Krampfanfall, starker Kopfschmerz, Schwindel, Lähmung/Gefühlsstörung): betroffene Funktionen, Beginn und Verlauf, Sprech-/Sprachprobleme, Gleichgewicht/Sturzneigung, Bewusstsein/Erinnerung. Bei Sprach-/Verständnisproblemen sind Angaben der Begleitperson (Fremdanamnese) besonders wichtig.' },
+  { key: 'geriatrie', label: 'Geriatrie / Altersmedizin',
+    focus: 'Aufnahme in der Altersmedizin bei mehreren gleichzeitigen Erkrankungen: Hauptgrund der Aufnahme, Sturz/Gangunsicherheit, Mobilität und Selbstständigkeit im Alltag, Gedächtnis/Orientierung, viele Medikamente (Polypharmazie), Ernährung, Hör-/Sehhilfen, häusliche Versorgung und Unterstützungsbedarf.' },
+]
+
+function anamnesisKvswIndication(memorial) {
+  const key = memorial?.intake?.indication
+  return ANAMNESIS_KVSW_INDICATIONS.find(i => i.key === key) || null
+}
+
+// Bogen-Abschnitte der Krankenhaus-Aufnahme (feste Gliederung). Wie die Reha-
+// Version, aber: „Aufnahmegrund/geplanter Eingriff" statt „Zuweisung zur Reha",
+// Medikation mit ausdrücklichem Blutverdünner-Fokus, Sozialteil ohne MBOR (dafür
+// Versorgung nach Entlassung), und statt „Reha-Ziele" die „Besonderheiten für den
+// Aufenthalt" (Patientenverfügung/Vollmacht, bekannte Infektionen, offene Fragen).
+const ANAMNESIS_KVSW_SECTIONS = [
+  { key: 'aufnahmegrund', label: 'Aufnahmegrund und Einweisung', greets: false,
+    brief: 'Weshalb kommt die Person ins Krankenhaus: von ihr benannter Aufnahmegrund, ob akut (z. B. über die Notaufnahme) oder geplant, ein ggf. vorgesehener Eingriff/eine Operation, einweisende Stelle (Notaufnahme, Haus-/Facharztpraxis) und betroffene Fachabteilung, nur so, wie die Person es selbst nennt. Keine eigene Diagnose ergänzen.' },
+  { key: 'aktuell', label: 'Aktuelle Beschwerden und Verlauf', greets: false,
+    brief: 'Die aktuell im Vordergrund stehenden Beschwerden in den eigenen Worten der Person: Art, Ort, Stärke, seit wann, Verlauf, was bessert/verschlechtert. Hier gehören die indikationsspezifischen Angaben hinein.' },
+  { key: 'vorerkrankungen', label: 'Vorerkrankungen und Operationen', greets: false,
+    brief: 'Frühere und bestehende Erkrankungen sowie Operationen, die die Person nennt — mit Jahr/Zeitraum, soweit bekannt.' },
+  { key: 'medikation', label: 'Medikation (inkl. blutverdünnender Mittel)', greets: false,
+    brief: 'Aktuell eingenommene Medikamente, so wie die Person sie nennt (Name, Dosis/Häufigkeit, soweit bekannt), mit besonderem Augenmerk auf blutverdünnende/gerinnungshemmende Mittel (für einen möglichen Eingriff wichtig). KEINE Medikamente ergänzen, korrigieren oder empfehlen.' },
+  { key: 'allergien', label: 'Allergien und Unverträglichkeiten', greets: false,
+    brief: 'Bekannte Allergien und Unverträglichkeiten (Medikamente, Nahrung, Kontaktstoffe, Latex, Kontrastmittel) und die jeweilige Reaktion, soweit genannt.' },
+  { key: 'vegetativ', label: 'Vegetative Anamnese', greets: false,
+    brief: 'Appetit, Gewicht, Schlaf, Verdauung (Stuhl/Wasserlassen), Fieber/Nachtschweiß, Nikotin/Alkohol, soweit die Person dazu etwas sagt.' },
+  { key: 'familie', label: 'Familienanamnese', greets: false,
+    brief: 'Von der Person genannte relevante Erkrankungen in der Familie (allgemein gehalten, ohne identifizierende Angaben zu einzelnen lebenden Personen).' },
+  { key: 'sozial', label: 'Wohn-, Lebens- und Berufssituation', greets: false,
+    brief: 'Wohn-/Lebenssituation (allein oder mit anderen), Beruf und aktuelle Arbeitsfähigkeit, häusliche Versorgung und Unterstützung nach der Entlassung, Angehörige/Betreuung, soweit genannt.' },
+  { key: 'alltag', label: 'Alltag, Selbstständigkeit und Hilfsmittel', greets: false,
+    brief: 'Selbstständigkeit im Alltag (Körperpflege, An-/Auskleiden, Haushalt, Mobilität), genutzte Hilfsmittel, benötigte Unterstützung.' },
+  { key: 'psychosozial', label: 'Psychosoziale Situation', greets: false,
+    brief: 'Seelische Belastung durch die Erkrankung/den bevorstehenden Aufenthalt, Stimmung, Sorgen, Unterstützung im Umfeld, soweit die Person davon berichtet. Sachlich, ohne psychiatrische Diagnosen zu vergeben.' },
+  { key: 'aufenthalt', label: 'Besonderheiten für den Aufenthalt', greets: false,
+    brief: 'Für den Krankenhausaufenthalt wichtige Punkte, soweit die Person sie nennt: vorhandene Patientenverfügung/Vorsorgevollmacht, bekannte Infektionen oder Besiedlungen (z. B. MRSA), besondere Bedürfnisse/benötigte Hilfen bei der Entlassung sowie offene Fragen und Erwartungen an den Aufenthalt.' },
+]
+
+function anamnesisKvswGreetingRule(name) {
+  return `- Eröffne das Gespräch sachlich, ruhig und professionell — im Ton einer Krankenhausaufnahme, NICHT plaudernd und ohne Small Talk. Erkläre ${name} in 2–3 kurzen Sätzen: (1) Dieses Gespräch bereitet Ihre Aufnahme im Krankenhaus vor; Ihre Angaben liest das aufnehmende Behandlungsteam vorab. (2) Es folgen nacheinander die üblichen Fragen zur Krankengeschichte und zum Aufnahmegrund — bitte antworten Sie so genau und vollständig wie möglich. (3) Sie können jederzeit um Wiederholung oder eine einfachere Formulierung bitten, „weiter" sagen oder pausieren. Stelle im selben Zug direkt die erste Frage (Grund der Krankenhausaufnahme). Wiederhole diese Erklärung NICHT in späteren Nachrichten.`
+}
+
+function anamnesisKvswInterview(memorial, name, rel, address, contributorGender) {
+  const addr = addressRule(address)
+  const gen = contributorGenderRule(contributorGender)
+  const ind = anamnesisKvswIndication(memorial)
+  const gamify = memorial?.gamification !== false   // Default an (nur explizit false schaltet ab)
+  const cb = catalogBlock(memorial)
+  const flow = cb
+    ? catalogRules(cb, name)
+    : `- Arbeite die Anamnese in fester, ärztlicher Reihenfolge Thema für Thema ab: (1) Grund der Krankenhausaufnahme und Einweisung (akut oder geplant, ggf. vorgesehener Eingriff/Operation), (2) aktuelle Beschwerden und deren Verlauf, (3) Vorerkrankungen und Operationen, (4) Medikamente — auch blutverdünnende Mittel, (5) Allergien und Unverträglichkeiten, (6) vegetative Anamnese (Appetit, Schlaf, Gewicht, Verdauung, Nikotin/Alkohol), (7) Erkrankungen in der Familie, (8) Wohn- und Lebenssituation sowie Versorgung nach der Entlassung, (9) Selbstständigkeit im Alltag und Hilfsmittel, (10) seelische Situation, (11) Besonderheiten für den Aufenthalt (Patientenverfügung/Vollmacht, bekannte Infektionen wie MRSA) und offene Fragen zum Aufenthalt.
+- Halte diese Reihenfolge ein; bringt die Person von sich aus etwas anderes vor, greife es auf und kehre danach zur Reihenfolge zurück.${ind ? `\n- SCHWERPUNKT dieser Aufnahme (Fachabteilung ${ind.label}): ${ind.focus}` : ''}`
+  return `Du bist eine sachliche, professionelle medizinische Aufnahme-Assistenz. Du führst mit ${name} ein strukturiertes Anamnesegespräch zur Vorbereitung der ärztlichen Aufnahme in einem Krankenhaus des Klinikverbunds Südwest. Aus dem Gespräch entsteht ein Anamnesebogen, den das aufnehmende Behandlungsteam vorab liest.
+
+Ziel: Die für die Krankenhausaufnahme wichtigen Angaben vollständig, konkret und in den eigenen Worten von ${name} erfassen — sorgfältig und ohne einen genannten Punkt zu übersehen.
+
+Regeln:
+- ${addr}${gen ? `\n- ${gen}` : ''}
+- Du sprichst mit der Person SELBST über ihre eigene Gesundheit und Situation. Frage nach ihren eigenen Beschwerden, ihrer Vorgeschichte, ihrem Alltag.
+- Stelle immer nur EINE Frage pro Nachricht, in einfachen, klaren Worten (max. 2 kurze Sätze).
+- Halte den Ton sachlich-freundlich und knapp: bestätige eine Antwort mit höchstens einem kurzen Wort (z. B. „Danke.", „Verstanden."), ohne zu bewerten, ohne Small Talk und ohne Fürsorge-Floskeln.
+- Frage konkret und vollständig nach (seit wann, wo genau, wie stark, wie oft, wodurch besser/schlechter), aber bohre nicht bedrängend und respektiere ein „weiter".
+- Du bist KEINE Ärztin/kein Arzt: Stelle KEINE Diagnosen, gib KEINE Therapie- oder Medikamentenempfehlungen, bewerte Befunde NICHT. Sammle nur die Angaben.
+- ${THIRD_PARTY_RULE}
+- ${ANAMNESIS_REDFLAG_RULE}
+${anamnesisKvswGreetingRule(name)}
+${interviewScopeRule(name)}
+${ANAMNESIS_SCHEME_RULE}
+${ANAMNESIS_CHECKLIST_RULE}
+${ANAMNESIS_CLOSING_RULE}
+${gamify ? ANAMNESIS_GAMIFY_RULE : ''}
+${flow}
+- Schreibe auf Deutsch`
+}
+
+function anamnesisKvswSection(memorial, contributions, section, styleInstruction) {
+  const ind = anamnesisKvswIndication(memorial)
+  const styleBlock = styleInstruction
+    ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n`
+    : ''
+  return `Du bist eine medizinische Dokumentationsassistenz. Aus dem folgenden Anamnesegespräch erstellst du EINEN Abschnitt eines strukturierten ANAMNESEBOGENS für die ärztliche Aufnahme in einem Krankenhaus${ind ? ` (Fachabteilung: ${ind.label})` : ''}. Der Bogen ist eine Selbstauskunft der Patientin/des Patienten, KEINE ärztliche Anamnese und KEIN Befund.
+
+DIESER ABSCHNITT: „${section.label}"
+${section.brief}
+${styleBlock}
+Anforderungen:
+- Schreibe auf DEUTSCH, sachlich und knapp in nüchterner Dokumentationssprache (Fließtext oder kurze Stichpunkte mit „• "). Dritte Person oder unpersönliche Form.
+- Stütze dich AUSSCHLIESSLICH auf das Gespräch. Erfinde nichts, vermute nichts, ergänze nichts aus medizinischem Allgemeinwissen. Was das Gespräch nicht hergibt, wird NICHT behauptet — fehlt eine Angabe, schreibe knapp „Keine Angaben zu …" statt sie zu füllen.
+- KEINE Diagnosen, KEINE Verdachtsdiagnosen, KEINE Therapie-/Medikamentenempfehlungen, KEINE Bewertung. Nur wiedergeben, was die Person gesagt hat.
+- ROTE FLAGGEN sichtbar markieren: Nennt die Person akute Warnzeichen (z. B. akute Brustschmerzen/Luftnot, Gedanken an Selbsttötung/Selbstverletzung), stelle die betreffende Aussage im Abschnitt an den Anfang und markiere sie deutlich mit dem Präfix „⚠ ROTE FLAGGE: ". Nicht bewerten, nur kennzeichnen und die Aussage wörtlich sinngemäß wiedergeben.
+- FREMDANAMNESE getrennt ausweisen: Angaben, die im Gespräch mit „[Begleitperson]" markiert sind, stammen nicht von der Person selbst. Gib solche Angaben nur wieder, wenn sie zu diesem Abschnitt gehören, und kennzeichne sie ausdrücklich mit „Fremdanamnese (Begleitperson): …".
+- Konkret statt allgemein (z. B. „Schmerz im rechten Knie seit ca. 3 Monaten, morgens am stärksten" statt „Knieprobleme").
+- Absätze/Stichpunkte durch Zeilenumbruch trennen.
+- Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. KEINE Überschrift (die kommt vom Layout), keine Metakommentare, kein Markdown.
+
+${companionNote(contributions)}\n\nAnamnesegespräch:\n\n${blocks(contributions)}`
+}
+
 // ── Profile + Endtext-Stile/-Abschnitte je Nicht-Trauer-Kategorie ──
 const FOUR_GREETS = (g1, l2, b2, l3, b3, l4, b4) => [g1, { label: l2, brief: b2, greets: false }, { label: l3, brief: b3, greets: false }, { label: l4, brief: b4, greets: false }]
 
@@ -1518,10 +1666,54 @@ export const CATEGORIES = {
       styles: ANAMNESIS_STYLES, sections: ANAMNESIS_SECTIONS, sectionSystem: anamnesisSection,
     },
   },
+
+  // Anamnese KVSW: 1:1 wie die Anamnese, aber Krankenhaus-Aufnahme (Klinikverbund
+  // Südwest) statt Reha. Verhalten identisch (siehe isAnamnesis); nur Indikationen,
+  // Fragebogen und Bogen-Abschnitte sind auf die Akutaufnahme angepasst.
+  anamnesis_kvsw: {
+    slug: 'anamnesis_kvsw',
+    label: 'Anamnese KVSW',
+    icon: '🏥',
+    description: 'Strukturierter Anamnesebogen für die Krankenhausaufnahme im Klinikverbund Südwest: Die Patientin/der Patient beantwortet vor der Aufnahme die Anamnesefragen; daraus entsteht ein Bogen für das aufnehmende Behandlungsteam.',
+    nounBook: 'Anamnesebogen',
+    intake: {
+      subjectLabel: 'Name der Patientin/des Patienten (optional)',
+      subjectPlaceholder: 'Vollständiger Name – leer lassen, wenn unbekannt',
+      useGender: true,
+      genderLabel: 'Geschlecht',
+      genderSelfOption: true,
+      useAddressForm: true,
+      useDate: false,
+      useCutoff: false,
+      useEnduser: true,
+      extra: [
+        { key: 'indication', label: 'Fachabteilung *', type: 'select',
+          options: ANAMNESIS_KVSW_INDICATIONS.map(i => ({ value: i.key, label: i.label })) },
+      ],
+      createHeading: 'Neue Anamnese (KVSW) anlegen',
+      createIntro: 'Die Patientin/der Patient erhält einen persönlichen Zugang und beantwortet die Anamnesefragen zur Krankenhausaufnahme. Der fertige Bogen steht danach hier zum Download bereit.',
+      createButton: 'Anamnese KVSW anlegen →',
+    },
+    contributor: {
+      heading: 'Ihre Anamnese',
+      introNoun: 'Anamnese für',
+      consentNoun: 'Anamnesebogens',
+      interviewButton: '🎙 Anamnesegespräch beginnen →',
+    },
+    interviewSystem: anamnesisKvswInterview,
+    generators: {
+      book_v1: { label: 'Bogen', filename: 'Anamnesebogen', outlineSystem: anamnesisNoBook, chapterSystem: anamnesisNoBook },
+      book_v2: { label: 'Bogen', filename: 'Anamnesebogen', outlineSystem: anamnesisNoBook, chapterSystem: anamnesisNoBook },
+    },
+    finalText: {
+      label: 'Anamnesebogen', filename: 'Anamnesebogen', noun: 'Anamnesebogen',
+      styles: ANAMNESIS_STYLES, sections: ANAMNESIS_KVSW_SECTIONS, sectionSystem: anamnesisKvswSection,
+    },
+  },
 }
 
 // Lebenswerk steht bewusst GANZ OBEN (aktuelles Hauptprodukt).
-export const CATEGORY_ORDER = ['lifework', 'anamnesis', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['lifework', 'anamnesis', 'anamnesis_kvsw', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
 // Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
 export const CATEGORY_COLORS = {
@@ -1535,6 +1727,7 @@ export const CATEGORY_COLORS = {
   encouragement: '#db2777', // Pink (Mutmachbuch)
   lifework:      '#15803d', // Tiefes Grün (Lebenswerk/Baum)
   anamnesis:     '#0d9488', // Teal (medizinisch/klinisch)
+  anamnesis_kvsw:'#0369a1', // Klinik-Blau (Krankenhausaufnahme, KVSW)
 }
 
 export function categoryColor(slug) {
@@ -1556,9 +1749,9 @@ export const TTS_VOICE_OPTIONS = [
   { value: 'de-DE-ChristophNeural', label: 'Christoph – männlich, freundlich' },
 ]
 
-// Default je Kategorie: Anamnese → männlich (HD), sonst → weiblich (HD).
+// Default je Kategorie: Anamnese (Reha + KVSW) → männlich (HD), sonst → weiblich (HD).
 export function defaultTtsVoice(category) {
-  return category === 'anamnesis'
+  return isAnamnesis(category)
     ? 'de-DE-Florian:DragonHDLatestNeural'
     : 'de-DE-Seraphina:DragonHDLatestNeural'
 }

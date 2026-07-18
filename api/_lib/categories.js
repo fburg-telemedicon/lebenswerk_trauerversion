@@ -16,14 +16,29 @@ const CATEGORY_LABELS = {
   encouragement: 'Mutmachbuch',
   lifework:      'Lebenswerk',
   anamnesis:     'Anamnesebogen',
+  anamnesis_kvsw:'Anamnese KVSW',
 }
 
 const CATEGORY_SLUGS = Object.keys(CATEGORY_LABELS)
 
 const DEFAULT_CATEGORY = 'memorial'
 
+// Endnutzer-Kategorien: EIN Endnutzer/Patient spricht über sich selbst (eigener
+// Zugang), niemand sammelt Beiträge Dritter. Anamnese-Kategorien: die beiden
+// medizinischen Aufnahme-Produkte (Reha + Krankenhaus KVSW). Beide Prädikate sind
+// die BACKEND-Entsprechung zu isAnamnesis() im Frontend (src/categories.js) — wenn
+// hier ein Slug ergänzt wird, dort ebenfalls prüfen.
+const ANAMNESIS_CATEGORIES = ['anamnesis', 'anamnesis_kvsw']
+const ENDUSER_CATEGORIES = ['lifework', 'anamnesis', 'anamnesis_kvsw']
+
 function isValidCategory(slug) {
   return CATEGORY_SLUGS.includes(slug)
 }
+function isAnamnesisCategory(slug) {
+  return ANAMNESIS_CATEGORIES.includes(slug)
+}
+function isEnduserCategory(slug) {
+  return ENDUSER_CATEGORIES.includes(slug)
+}
 
-module.exports = { CATEGORY_LABELS, CATEGORY_SLUGS, DEFAULT_CATEGORY, isValidCategory }
+module.exports = { CATEGORY_LABELS, CATEGORY_SLUGS, DEFAULT_CATEGORY, isValidCategory, isAnamnesisCategory, isEnduserCategory, ANAMNESIS_CATEGORIES, ENDUSER_CATEGORIES }

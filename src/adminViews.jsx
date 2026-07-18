@@ -6,7 +6,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf } from './i18n.js'
@@ -1240,7 +1240,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     // Einladungslink wie bei den anderen Kategorien. Eine ANGEGEBENE Adresse muss
     // aber gültig sein, sonst geht die Einladung ins Leere.
     const isLifework = createForm.productCategory === 'lifework'
-    const isAnamnesis = createForm.productCategory === 'anamnesis'
+    const isAnamnesis = isAnamnesisCategory(createForm.productCategory)
     // Endnutzer-Kategorien (Lebenswerk, Anamnese): EIN Endnutzer/Patient bekommt
     // einen eigenen Zugang; kein Organisator, kein Buch, Name/Geschlecht optional.
     const isEnduser = ci.useEnduser === true
@@ -1533,7 +1533,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Standard: an. Die Person spricht einfach los; nach einer kurzen Sprechpause wird die Antwort automatisch erkannt und gesendet, danach öffnet sich das Mikrofon zur nächsten Frage von selbst. Ohne Haken muss zum Sprechen das Mikrofon angetippt werden.</p>
         </div>
-        {createForm.productCategory === 'anamnesis' && (
+        {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Gamification</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -1613,7 +1613,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           let avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
           // Der geseedete Anamnese-Standard erscheint als „"-Default — nicht zusätzlich
           // als eigener Eintrag doppeln.
-          if (isAnamnesis) avail = avail.filter(c => c.name !== 'Anamnese – Standardfragebogen')
+          if (isAnamnesis) avail = avail.filter(c => c.name !== anamnesisStdCatalogName(createForm.productCategory))
           // Anamnese IMMER anzeigen (fester Fragebogen vs. freie Fragen), auch ohne
           // eigene Kataloge; sonst nur, wenn passende Kataloge existieren.
           if (avail.length === 0 && !isAnamnesis) return null
@@ -1693,7 +1693,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         )}
-        {!isLifework && createForm.productCategory !== 'anamnesis' && (
+        {!isLifework && !isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Sprachen *</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
@@ -2178,7 +2178,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
     const isLifework = selected?.product_category === 'lifework'
     // Anamnese: einziges Produkt ist der Bogen (eulogy). Buch/Bilder/Stammbaum/
     // Poster sind ausgeblendet.
-    const isAnamnesis = selected?.product_category === 'anamnesis'
+    const isAnamnesis = isAnamnesisCategory(selected?.product_category)
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
@@ -2858,7 +2858,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Standard: aktiv. Beim ersten Öffnen sieht der Nutzer eine kurze Vorstellung der freigeschalteten Funktionen; „Nicht mehr anzeigen" blendet sie danach aus.</p>
                 </div>
-                {selected.product_category === 'anamnesis' ? (
+                {isAnamnesis ? (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Sprache *</Lbl>
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Genau eine Sprache – sie gilt für das ganze Interview. Ohne Festlegung wählt der Endnutzer die Sprache beim ersten Start selbst.</p>
@@ -2921,7 +2921,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Standard: an. Nach kurzer Sprechpause wird die Antwort automatisch gesendet; danach öffnet sich das Mikrofon zur nächsten Frage von selbst. Greift beim nächsten (Neu-)Start.</p>
                 </div>
-                {selected.product_category === 'anamnesis' && (
+                {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Gamification</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -3038,7 +3038,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                 {isAnamnesis && (() => {
                   // Zusatzkataloge; der geseedete Standard erscheint als „"-Default,
                   // also nicht doppelt als eigener Eintrag listen.
-                  const avail = catalogs.filter(c => (c.product_categories || []).includes('anamnesis') && c.name !== 'Anamnese – Standardfragebogen')
+                  const avail = catalogs.filter(c => (c.product_categories || []).includes(selected.product_category) && c.name !== anamnesisStdCatalogName(selected.product_category))
                   // Vertiefungsfragen gelten, solange NICHT „frei" gewählt ist.
                   const usesCatalog = od.catalogId !== '__free__'
                   return (

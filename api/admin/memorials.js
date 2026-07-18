@@ -7,14 +7,14 @@ const { createClient, pool } = require('../_lib/store')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { audit } = require('../_lib/audit')
-const { isValidCategory, DEFAULT_CATEGORY } = require('../_lib/categories')
+const { isValidCategory, DEFAULT_CATEGORY, isAnamnesisCategory, isEnduserCategory } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
 const { normalizeStyle, DEFAULT_STYLE } = require('../_lib/image-styles')
 const { normalizeTextStyle, defaultTextStyle } = require('../_lib/text-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
 const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
-const { ensureAnamnesisCatalog } = require('../_lib/anamnesis')
+const { ensureAnamnesisCatalog, ensureAnamnesisKvswCatalog } = require('../_lib/anamnesis')
 const { defaultTtsVoice, sanitizeVoice } = require('../_lib/ttsvoices')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
@@ -458,7 +458,7 @@ module.exports = async function handler(req, res) {
       // dient im Dashboard als Ersatz-Anzeigename, solange der Buchname noch leer ist
       // (Name → E-Mail → interne Notiz → „Name folgt"). Der Endnutzer/Patient hat sein
       // eigenes app_users-Konto mit enduser_memorial == Buch-Code.
-      const enduserCodes = memorials.filter(m => m.product_category === 'lifework' || m.product_category === 'anamnesis').map(m => m.id)
+      const enduserCodes = memorials.filter(m => isEnduserCategory(m.product_category)).map(m => m.id)
       if (enduserCodes.length) {
         const { data: eus } = await supabase
           .from('app_users').select('username, enduser_memorial')
@@ -485,7 +485,7 @@ module.exports = async function handler(req, res) {
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
       // optional. Lebenswerk = Autobiographie, Anamnese = Anamnesebogen.
-      const isEnduser = category === LIFEWORK || category === 'anamnesis'
+      const isEnduser = isEnduserCategory(category)
       // Der Name ist Pflicht — außer bei Endnutzer-Kategorien: Kennt der Manager den
       // Namen nicht, trägt der Endnutzer/Patient ihn beim ersten Start selbst nach
       // (PATCH /api/memorial). Bis dahin bleibt das Feld leer.
@@ -501,7 +501,7 @@ module.exports = async function handler(req, res) {
       // Anamnese: die Organizer-Spalte trägt die betreuende Ärztin/den Arzt (optional,
       // vom Admin eingegeben) — NICHT den Patientennamen. Übrige Endnutzer (Lebenswerk):
       // der Erzähler selbst; andere Kategorien: der eingegebene Organisator (Pflicht).
-      const organizerName = category === 'anamnesis'
+      const organizerName = isAnamnesisCategory(category)
         ? String(organizer || '').trim()
         : (isEnduser ? String(name || '').trim() : String(organizer || '').trim())
       if (!organizerName && !isEnduser) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
@@ -532,10 +532,10 @@ module.exports = async function handler(req, res) {
       // Anamnese: fester Standard-Fragebogen ist Default (Technik wie Lebenswerk,
       // Inhalt eigen/medizinisch). Der Manager kann in den Experteneinstellungen auf
       // FREIE Fragen umstellen — dann sendet die Form den Sentinel '__free__'.
-      const isAnamnesis = category === 'anamnesis'
       let catalog = catalogId === '__free__' ? null : (catalogId || null)
       if (isLifework && !catalog) catalog = await ensureLifeworkCatalog(supabase)
-      else if (isAnamnesis && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisCatalog(supabase)
+      else if (category === 'anamnesis' && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisCatalog(supabase)
+      else if (category === 'anamnesis_kvsw' && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisKvswCatalog(supabase)
 
       const code = genCode()
       // Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie).
@@ -753,8 +753,8 @@ module.exports = async function handler(req, res) {
       // Auftragsdaten (Stammdaten des Buchs) bearbeiten. Nur die mitgesendeten
       // Felder werden aktualisiert; Validierung/Normalisierung wie bei POST.
       if (meta && typeof meta === 'object') {
-        // Anamnese: Patientenname und betreuende Ärztin/Arzt dürfen leer sein.
-        if (meta.productCategory !== 'anamnesis') {
+        // Anamnese (Reha + KVSW): Patientenname und betreuende Ärztin/Arzt dürfen leer sein.
+        if (!isAnamnesisCategory(meta.productCategory)) {
           if (meta.name != null && !String(meta.name).trim()) return res.status(400).json({ error: 'Name darf nicht leer sein.' })
           if (meta.organizer != null && !String(meta.organizer).trim()) return res.status(400).json({ error: 'Organisator darf nicht leer sein.' })
         }
@@ -787,6 +787,7 @@ module.exports = async function handler(req, res) {
           if (meta.catalogId === '__free__') update.catalog_id = null
           else if (meta.catalogId) update.catalog_id = meta.catalogId
           else if (meta.productCategory === 'anamnesis') update.catalog_id = await ensureAnamnesisCatalog(supabase)
+          else if (meta.productCategory === 'anamnesis_kvsw') update.catalog_id = await ensureAnamnesisKvswCatalog(supabase)
           else update.catalog_id = null
         }
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)

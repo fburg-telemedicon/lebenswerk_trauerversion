@@ -24,9 +24,10 @@ const ALLOWED_TTS_VOICES = new Set([
   'de-DE-ChristophNeural',
 ])
 
-// Default je Produktkategorie: Anamnese → männlich (HD), sonst → weiblich (HD).
+// Default je Produktkategorie: Anamnese (Reha + KVSW) → männlich (HD), sonst → weiblich (HD).
+const { isAnamnesisCategory } = require('./categories')
 function defaultTtsVoice(category) {
-  return category === 'anamnesis' ? VOICE_MALE_HD : VOICE_FEMALE_HD
+  return isAnamnesisCategory(category) ? VOICE_MALE_HD : VOICE_FEMALE_HD
 }
 
 // Eingabe säubern: nur erlaubte Stimmen zulassen, sonst null.

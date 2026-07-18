@@ -14,10 +14,11 @@ const { normalizeLayout } = require('./_lib/book-layouts')
 const { normalizeTextStyle } = require('./_lib/text-styles')
 const { LIFEWORK } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
+const { isEnduserCategory, isAnamnesisCategory } = require('./_lib/categories')
 
-// Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und darf über den
-// Buch-Code (ohne Login) seine eigenen Stammdaten/Sprache nachtragen.
-function isEnduserCategory(c) { return c === LIFEWORK || c === 'anamnesis' }
+// Endnutzer-Kategorien (Lebenswerk, Anamnese, Anamnese KVSW): EIN Endnutzer/Patient
+// spricht selbst und darf über den Buch-Code (ohne Login) seine eigenen Stammdaten/
+// Sprache nachtragen. Prädikat zentral in api/_lib/categories.js.
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -106,7 +107,7 @@ async function handleAnamneseBogen(req, res, code, payload) {
   const { data: m } = await supabase
     .from('memorials').select('id, product_category, intake').eq('id', code).maybeSingle()
   if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
-  if (m.product_category !== 'anamnesis') return res.status(403).json({ error: 'Kein Zugriff.' })
+  if (!isAnamnesisCategory(m.product_category)) return res.status(403).json({ error: 'Kein Zugriff.' })
   const hasToken = /^Bearer\s/.test(req.headers.authorization || '')
   if (hasToken) {
     if (!checkAuth(req, res)) return                 // ungültiges Token → 401 (in checkAuth)
@@ -216,7 +217,7 @@ module.exports = async function handler(req, res) {
       // nach außen als top-level Feld — dient dem Vorbelegen des Support-Formulars.
       const contactEmail = (data.intake && typeof data.intake === 'object' && data.intake.contact_email)
         ? String(data.intake.contact_email) : null
-      if (data.product_category === 'anamnesis' && data.intake && typeof data.intake === 'object') {
+      if (isAnamnesisCategory(data.product_category) && data.intake && typeof data.intake === 'object') {
         const src = data.intake
         const pub = {}
         if (src.address) pub.address = String(src.address)

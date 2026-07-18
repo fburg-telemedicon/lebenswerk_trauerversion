@@ -12,6 +12,7 @@
 const { createClient } = require('./_lib/store')
 const { genCode } = require('./_lib/codes')
 const { enforce } = require('./_lib/ratelimit')
+const { isEnduserCategory } = require('./_lib/categories')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -46,7 +47,7 @@ module.exports = async function handler(req, res) {
       if (!id && code && req.query.enduser === '1') {
         const { data: mem } = await supabase
           .from('memorials').select('product_category').eq('id', code).maybeSingle()
-        if (!mem || (mem.product_category !== 'lifework' && mem.product_category !== 'anamnesis')) {
+        if (!mem || !isEnduserCategory(mem.product_category)) {
           return res.json(null)
         }
         const { data, error } = await supabase

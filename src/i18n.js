@@ -609,6 +609,7 @@ const CONTRIB = {
     encouragement: { nounBook: 'księga otuchy', heading: 'Twoja wiadomość', introNoun: 'Księga otuchy dla', relationshipLabel: 'Twoja relacja z {name} *', relationshipPlaceholder: 'np. siostra, przyjaciel, koleżanka …', relationshipHint: 'Z Twojej perspektywy: kim jesteś dla osoby {name}? Wpisz swoją rolę – np. „siostra", „przyjaciel" lub „koleżanka".', consentNoun: 'księgi otuchy', interviewButton: '🎙 Rozpocznij wywiad głosowy →' },
     lifework:      { nounBook: 'dzieło życia', heading: 'Twoja historia życia', introNoun: 'Dzieło życia:', consentNoun: 'mojego dzieła życia (autobiografii)', interviewButton: '🎙 Rozpocznij rozmowę →' },
     anamnesis:     { nounBook: 'kwestionariusz wywiadu medycznego', heading: 'Twój wywiad medyczny', introNoun: 'Wywiad medyczny dla', consentNoun: 'kwestionariusza wywiadu medycznego', interviewButton: '🎙 Rozpocznij rozmowę →' },
+    anamnesis_kvsw:{ nounBook: 'kwestionariusz wywiadu medycznego', heading: 'Twój wywiad medyczny', introNoun: 'Wywiad medyczny dla', consentNoun: 'kwestionariusza wywiadu medycznego', interviewButton: '🎙 Rozpocznij rozmowę →' },
   },
   en: {
     memorial:      { nounBook: 'memorial book', heading: 'Your memory', introNoun: 'Memorial book for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. daughter, friend, colleague, neighbour …', relationshipHint: 'From your perspective: who are you to {name}? Enter your own role – e.g. “daughter” or “son” (meaning “I am {name}’s daughter / son”).', consentNoun: 'memorial book', interviewButton: '🎙 Start voice interview →' },
@@ -621,26 +622,32 @@ const CONTRIB = {
     encouragement: { nounBook: 'book of encouragement', heading: 'Your message', introNoun: 'Book of encouragement for', relationshipLabel: 'Your relationship to {name} *', relationshipPlaceholder: 'e.g. sister, friend, colleague …', relationshipHint: 'From your perspective: who are you to {name}? Enter your own role – e.g. “sister”, “friend” or “colleague”.', consentNoun: 'book of encouragement', interviewButton: '🎙 Start voice interview →' },
     lifework:      { nounBook: 'life’s work', heading: 'Your life story', introNoun: 'Life’s work of', consentNoun: 'life’s work (autobiography)', interviewButton: '🎙 Start the conversation →' },
     anamnesis:     { nounBook: 'medical intake form', heading: 'Your medical intake', introNoun: 'Medical intake for', consentNoun: 'medical intake form', interviewButton: '🎙 Start the interview →' },
+    anamnesis_kvsw:{ nounBook: 'medical intake form', heading: 'Your medical intake', introNoun: 'Medical intake for', consentNoun: 'medical intake form', interviewButton: '🎙 Start the interview →' },
   },
   es: {
     lifework: { nounBook: 'obra de vida', heading: 'La historia de su vida', introNoun: 'Obra de vida de', consentNoun: 'mi obra de vida (autobiografía)', interviewButton: '🎙 Comenzar la conversación →' },
     anamnesis: { nounBook: 'cuestionario de anamnesis', heading: 'Su anamnesis médica', introNoun: 'Anamnesis para', consentNoun: 'cuestionario de anamnesis', interviewButton: '🎙 Comenzar la entrevista →' },
+    anamnesis_kvsw: { nounBook: 'cuestionario de anamnesis', heading: 'Su anamnesis médica', introNoun: 'Anamnesis para', consentNoun: 'cuestionario de anamnesis', interviewButton: '🎙 Comenzar la entrevista →' },
   },
   it: {
     lifework: { nounBook: 'opera di una vita', heading: 'La storia della sua vita', introNoun: 'Opera di una vita di', consentNoun: 'la mia opera di una vita (autobiografia)', interviewButton: '🎙 Iniziare la conversazione →' },
     anamnesis: { nounBook: 'questionario anamnestico', heading: 'La sua anamnesi', introNoun: 'Anamnesi per', consentNoun: 'questionario anamnestico', interviewButton: '🎙 Iniziare l’intervista →' },
+    anamnesis_kvsw: { nounBook: 'questionario anamnestico', heading: 'La sua anamnesi', introNoun: 'Anamnesi per', consentNoun: 'questionario anamnestico', interviewButton: '🎙 Iniziare l’intervista →' },
   },
   eu: {
     lifework: { nounBook: 'bizitza-lana', heading: 'Zure bizitzaren istorioa', introNoun: 'Bizitza-lana:', consentNoun: 'nire bizitza-lana (autobiografia)', interviewButton: '🎙 Hasi elkarrizketa →' },
     anamnesis: { nounBook: 'anamnesi-galdetegia', heading: 'Zure anamnesi medikoa', introNoun: 'Anamnesia honentzat:', consentNoun: 'anamnesi-galdetegia', interviewButton: '🎙 Hasi elkarrizketa →' },
+    anamnesis_kvsw: { nounBook: 'anamnesi-galdetegia', heading: 'Zure anamnesi medikoa', introNoun: 'Anamnesia honentzat:', consentNoun: 'anamnesi-galdetegia', interviewButton: '🎙 Hasi elkarrizketa →' },
   },
   he: {
     lifework: { nounBook: 'מפעל חיים', heading: 'סיפור חייך', introNoun: 'מפעל חייו של', consentNoun: 'מפעל חיי (אוטוביוגרפיה)', interviewButton: '🎙 להתחיל את השיחה →' },
     anamnesis: { nounBook: 'שאלון אנמנזה', heading: 'האנמנזה הרפואית שלך', introNoun: 'אנמנזה עבור', consentNoun: 'שאלון האנמנזה', interviewButton: '🎙 להתחיל את הריאיון →' },
+    anamnesis_kvsw: { nounBook: 'שאלון אנמנזה', heading: 'האנמנזה הרפואית שלך', introNoun: 'אנמנזה עבור', consentNoun: 'שאלון האנמנזה', interviewButton: '🎙 להתחיל את הריאיון →' },
   },
   ar: {
     lifework: { nounBook: 'عمل حياة', heading: 'قصة حياتك', introNoun: 'عمل حياة', consentNoun: 'عمل حياتي (سيرة ذاتية)', interviewButton: '🎙 بدء المحادثة →' },
     anamnesis: { nounBook: 'استبيان التاريخ المرضي', heading: 'تاريخك المرضي', introNoun: 'التاريخ المرضي لـ', consentNoun: 'استبيان التاريخ المرضي', interviewButton: '🎙 بدء المقابلة →' },
+    anamnesis_kvsw: { nounBook: 'استبيان التاريخ المرضي', heading: 'تاريخك المرضي', introNoun: 'التاريخ المرضي لـ', consentNoun: 'استبيان التاريخ المرضي', interviewButton: '🎙 بدء المقابلة →' },
   },
 }
 

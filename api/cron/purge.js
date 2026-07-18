@@ -15,6 +15,7 @@
 const { createClient } = require('../_lib/store')
 const { purgeMemorialContributions, deleteMemorialCompletely } = require('../_lib/delete-memorial')
 const { recordHeartbeat } = require('../_lib/heartbeat')
+const { isAnamnesisCategory } = require('../_lib/categories')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
@@ -23,7 +24,7 @@ const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
 // ab Anlage). Der bestätigte Bogen (eulogy_text) bleibt erhalten.
 const ANAMNESIS_RETENTION_DAYS = parseInt(process.env.ANAMNESIS_RETENTION_DAYS || '14', 10)
 const DAY_MS = 24 * 60 * 60 * 1000
-const retentionDaysFor = (m) => m.product_category === 'anamnesis' ? ANAMNESIS_RETENTION_DAYS : RETENTION_DAYS
+const retentionDaysFor = (m) => isAnamnesisCategory(m.product_category) ? ANAMNESIS_RETENTION_DAYS : RETENTION_DAYS
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET
@@ -63,8 +64,8 @@ module.exports = async function handler(req, res) {
     for (const m of due) {
       try {
         const days = retentionDaysFor(m)
-        if (m.product_category === 'anamnesis') {
-          // Anamnese: nach der Frist ALLES löschen — Rohdaten UND den Bogen
+        if (isAnamnesisCategory(m.product_category)) {
+          // Anamnese (Reha + KVSW): nach der Frist ALLES löschen — Rohdaten UND den Bogen
           // (medizinische Daten, maximale Datensparsamkeit). Der Datensatz verschwindet
           // vollständig (Storage, cost_events, Beiträge, memorial-Zeile, Endnutzer-Konto).
           const warnings = await deleteMemorialCompletely(supabase, m.id)

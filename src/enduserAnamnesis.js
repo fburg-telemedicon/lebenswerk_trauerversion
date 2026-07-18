@@ -26,7 +26,7 @@ export function isGermanReview(lang) {
 // Fester Kopf des Anamnesebogens. Muss mit der Admin-Generierung in App.jsx
 // übereinstimmen, damit der im Dashboard heruntergeladene Bogen einheitlich aussieht.
 export function buildAnamnesisHeader(memorial) {
-  const cat = getCategory('anamnesis')
+  const cat = getCategory(memorial?.product_category || 'anamnesis')
   const extra = (cat.intake.extra || [])
     .map(f => {
       const v = memorial?.intake?.[f.key]
@@ -118,7 +118,7 @@ export async function reviseAnamnesisSection({ segment, instruction, lang, memor
 // deutsche Text (direkt aus dem Gespräch); `loc`/`labelLoc` die Anzeigefassung in der
 // Interviewsprache (bei Deutsch identisch). onProgress({ pct, text }); cancelRef bricht ab.
 export async function generateAnamnesisBogen({ memorial, contributions, lang, onProgress, cancelRef }) {
-  const ft = getCategory('anamnesis').finalText
+  const ft = getCategory(memorial?.product_category || 'anamnesis').finalText
   const sectionsDef = Array.isArray(ft?.sections) ? ft.sections : []
   if (!sectionsDef.length) throw new Error('Für diese Kategorie ist kein Bogen konfiguriert.')
   const styleInstruction = ft.styles?.[0]?.instruction || ''

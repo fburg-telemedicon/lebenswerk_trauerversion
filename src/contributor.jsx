@@ -11,7 +11,7 @@ import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buil
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker } from './categories.js'
+import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -828,7 +828,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           {/* Bei Selbst-Interviews (Lebenswerk, Anamnese) erzählt die Person über sich
               selbst — „Name · Ich selbst" wäre nur die Zeile darüber ein zweites Mal.
               Nur bei Beitragenden-Kategorien zeigt die untere Zeile Name + Beziehung. */}
-          {memorial?.product_category !== 'lifework' && memorial?.product_category !== 'anamnesis' && (
+          {memorial?.product_category !== 'lifework' && !isAnamnesisCategory(memorial?.product_category) && (
             <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -837,7 +837,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       {/* Normale Fortschrittsleiste ausblenden, wenn die Gamification-HUD läuft
           (Anamnese + Gamification an) — dort zeigen die Quest-Checkpoints den
           Fortschritt, eine zweite Leiste wäre doppelt. */}
-      {prog && !(memorial?.product_category === 'anamnesis' && memorial?.gamification !== false) && (
+      {prog && !(isAnamnesisCategory(memorial?.product_category) && memorial?.gamification !== false) && (
         <div style={{ padding:'9px 1.5rem 11px', borderBottom:'1px solid #e7e5e4', background:'#fafaf9' }}>
           {prog.done ? (
             <div style={{ fontSize:12.5, fontWeight:600, color:'#15803d', textAlign:'center', marginBottom:7 }}>{t.progDone}</div>
@@ -857,7 +857,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           </div>
         </div>
       )}
-      {memorial?.product_category === 'anamnesis' && memorial?.gamification !== false && (
+      {isAnamnesisCategory(memorial?.product_category) && memorial?.gamification !== false && (
         <GamificationHud chapters={memorial?.catalog?.chapters || []} prog={prog} round={round} lang={lang} />
       )}
       {timerActive && (
@@ -2532,7 +2532,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
       // neues Gerät). Bei Endnutzern (EINE Person, Code privat) vom SERVER
       // wiederaufnehmen, statt frisch zu starten (sonst Einwilligung/Onboarding erneut
       // und Interview von vorn). Geteilte Bücher NICHT → normale Info-Maske.
-      if (memorial.product_category === 'lifework' || memorial.product_category === 'anamnesis') {
+      if (memorial.product_category === 'lifework' || isAnamnesisCategory(memorial.product_category)) {
         getEnduserResume(code)
           .then(contrib => {
             if (contrib && Array.isArray(contrib.messages) && contrib.messages.length) {
@@ -2563,7 +2563,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     // Code/Login) → ohne Rückfrage fortsetzen.
     // Lebenswerk/Anamnese: keine „Fortsetzen oder neu?"-Rückfrage, aber EIN kurzer
     // „Fortsetzen"-Screen als Nutzer-Geste (schaltet die Tonausgabe frei).
-    if (memorial.product_category === 'lifework' || memorial.product_category === 'anamnesis') { setResumeGate(local); return }
+    if (memorial.product_category === 'lifework' || isAnamnesisCategory(memorial.product_category)) { setResumeGate(local); return }
     setResumePrompt(local)
   }, [memorial])
 
@@ -2707,7 +2707,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     setPaused(false)
     // Anamnese: der Patient prüft/bestätigt zuerst den Bogen (Tab „Anamnesebogen"),
     // statt direkt auf den Abschluss-Screen zu springen — erst nach dem „ok" folgt der.
-    if (memorial?.product_category === 'anamnesis') { setTab('bogen'); return }
+    if (isAnamnesisCategory(memorial?.product_category)) { setTab('bogen'); return }
     setView('done')
   }
 
@@ -2721,9 +2721,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // Beziehungsangabe, die Beziehung wird intern fest gesetzt (Spalte ist NOT NULL).
   // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck, Logo) hängen dagegen
   // an isLifework, nicht an isSelf.
-  const isSelf = memorial?.product_category === 'lifework' || memorial?.product_category === 'anamnesis'
+  const isSelf = memorial?.product_category === 'lifework' || isAnamnesisCategory(memorial?.product_category)
   const isLifework = memorial?.product_category === 'lifework'
-  const isAnamnesis = memorial?.product_category === 'anamnesis'
+  const isAnamnesis = isAnamnesisCategory(memorial?.product_category)
   const SELF_REL = 'Ich selbst'
   // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
   // globale Footer ausgeblendet. In den übrigen Schritten (Info/Fertig) bleibt er.
@@ -2849,7 +2849,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                     // Endnutzer-Kategorien (Lebenswerk, Anamnese): die Wahl festschreiben
                     // (Buch auf diese eine Sprache pinnen), damit die Sprachauswahl nicht
                     // bei jedem Start erneut erscheint – weder beim Login noch über den Code-Link.
-                    if ((memorial?.product_category === 'lifework' || memorial?.product_category === 'anamnesis') && memorial?.id) {
+                    if ((memorial?.product_category === 'lifework' || isAnamnesisCategory(memorial?.product_category)) && memorial?.id) {
                       pinMemorialLang(memorial.id, lc).catch(() => { /* nicht kritisch */ })
                     }
                   }} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>
