@@ -637,6 +637,15 @@ export async function getContribution(id, code) {
   return parseResponse(res) // single contribution row or null
 }
 
+// Endnutzer-Wiederaufnahme OHNE geheime Sitzungs-ID, nur per Code — der Server gibt
+// den letzten Beitrag NUR für Endnutzer-Kategorien heraus (Anamnese/Lebenswerk: EINE
+// Person je Buch, Code ist privat). Für geteilte Bücher liefert er null. Nötig, weil
+// installierte iOS-Apps einen eigenen Speicher haben (localStorage von Safari fehlt).
+export async function getEnduserResume(code) {
+  const res = await fetch(`/api/contributions?code=${encodeURIComponent(code)}&enduser=1`)
+  return parseResponse(res) // contribution row or null
+}
+
 export async function addContribution({ contributionId, memorialCode, contributorName, relationship, messages, contributorGender, contributorAddress, consentAt, consentVersion }) {
   const res = await fetch('/api/contributions', {
     method: 'POST',

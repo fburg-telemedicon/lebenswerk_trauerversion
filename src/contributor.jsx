@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef, useContext } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
@@ -2206,7 +2206,29 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
       return
     }
     const local = loadLocalSession(code)
-    if (!local) { setView('info'); return }
+    if (!local) {
+      // Kein lokaler Merker (z. B. installierte iOS-App mit eigenem Speicher, oder
+      // neues Gerät). Bei Endnutzern (EINE Person, Code privat) vom SERVER
+      // wiederaufnehmen, statt frisch zu starten (sonst Einwilligung/Onboarding erneut
+      // und Interview von vorn). Geteilte Bücher NICHT → normale Info-Maske.
+      if (memorial.product_category === 'lifework' || memorial.product_category === 'anamnesis') {
+        getEnduserResume(code)
+          .then(contrib => {
+            if (contrib && Array.isArray(contrib.messages) && contrib.messages.length) {
+              // Vorhandener Fortschritt → Onboarding nicht erneut zeigen, dann per
+              // „Fortsetzen"-Geste (Ton frei) ins Interview (resumeSession holt den Beitrag).
+              try { localStorage.setItem('lw_onboarded_' + code, '1') } catch { /* privater Modus */ }
+              setShowOnboard(false)
+              setResumeGate({ contribId: contrib.id })
+            } else {
+              setView('info')
+            }
+          })
+          .catch(() => setView('info'))
+        return
+      }
+      setView('info'); return
+    }
     // Der Merker heißt lw_session_<BUCH-CODE> — er hängt am BUCH, nicht an der Person.
     //  • Lebenswerk: ein Buch = genau eine erzählende Person (eigener Code, eigener
     //    Login). Eine fremde Sitzung kann hier gar nicht liegen → ohne Rückfrage

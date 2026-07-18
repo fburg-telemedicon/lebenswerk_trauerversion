@@ -31,12 +31,32 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       const id = (req.query.id || '').trim()
       const code = (req.query.code || '').toUpperCase().trim()
-      if (!id) return res.status(400).json({ error: 'Beitrags-ID fehlt.' })
 
       // Nur die zum Fortsetzen nötigen Felder herausgeben (Datenminimierung) –
       // interne Prüf-/Verwaltungsfelder (transcript_corrections, Prüfstempel …)
       // gehören nicht in den öffentlichen Beitragenden-Flow.
       const RESUME_FIELDS = 'id, contributor_name, relationship, messages, contributor_gender, contributor_address, consent_at, consent_version'
+
+      // Endnutzer-Wiederaufnahme OHNE geheime Beitrags-ID, NUR per Code — aber
+      // ausschließlich für Endnutzer-Kategorien (Anamnese/Lebenswerk: EINE Person je
+      // Buch, der Code ist privat und ohnehin der Zugang zum ganzen Interview). Bei
+      // GETEILTEN Büchern (mehrere Beitragende teilen den Code) wird NICHTS geliefert,
+      // sonst könnte man fremde Beiträge auslesen. Nötig für installierte iOS-Apps
+      // (eigener Speicher) und Gerätewechsel.
+      if (!id && code && req.query.enduser === '1') {
+        const { data: mem } = await supabase
+          .from('memorials').select('product_category').eq('id', code).maybeSingle()
+        if (!mem || (mem.product_category !== 'lifework' && mem.product_category !== 'anamnesis')) {
+          return res.json(null)
+        }
+        const { data, error } = await supabase
+          .from('contributions').select(RESUME_FIELDS).eq('memorial_id', code)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle()
+        if (error) throw error
+        return res.json(data || null)
+      }
+
+      if (!id) return res.status(400).json({ error: 'Beitrags-ID fehlt.' })
       let q = supabase.from('contributions').select(RESUME_FIELDS).eq('id', id)
       // Wenn ein Code mitgegeben wird, muss er zum Beitrag passen – sonst
       // wird nichts geliefert (defense in depth; die ID allein genügt schon).
