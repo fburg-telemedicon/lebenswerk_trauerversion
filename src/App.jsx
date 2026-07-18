@@ -838,12 +838,17 @@ function Dashboard() {
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       showOnboarding: m.show_onboarding !== false,
       // Fragebogen (nur Anamnese im Detail editierbar): gespeicherte catalog_id auf
-      // die UI-Werte abbilden — Standard-Katalog → '' (empfohlen), keiner → '__free__'
-      // (freie Fragen), Custom → dessen id.
+      // die UI-Werte abbilden — keiner → '__free__' (freie Fragen), ein in der
+      // Auswahl sichtbarer Zusatzkatalog → dessen id, ALLES andere (Standard-
+      // Fragebogen ODER eine verwaiste id) → Standard (''). Bewusst NICHT per
+      // Gleichheit mit einer per Namen gesuchten „stdId": das brach, sobald die
+      // Katalogliste noch nicht geladen war oder mehrere Standard-Zeilen existierten
+      // (dann bekam das Dropdown eine id ohne passende Option und blieb leer).
       catalogId: (() => {
-        const stdId = catalogs.find(c => c.name === 'Anamnese – Standardfragebogen')?.id || null
-        if (m.product_category === 'anamnesis') return m.catalog_id == null ? '__free__' : (stdId && m.catalog_id === stdId ? '' : m.catalog_id)
-        return m.catalog_id || ''
+        if (m.product_category !== 'anamnesis') return m.catalog_id || ''
+        if (m.catalog_id == null) return '__free__'
+        const isCustom = catalogs.some(c => c.id === m.catalog_id && c.name !== 'Anamnese – Standardfragebogen')
+        return isCustom ? m.catalog_id : ''
       })(),
       followups: Number.isFinite(parseInt(m.followups, 10)) ? parseInt(m.followups, 10) : 7,
     })
@@ -913,8 +918,12 @@ function Dashboard() {
         ...(selected.product_category === 'anamnesis' ? (() => {
           const stdId = catalogs.find(c => c.name === 'Anamnese – Standardfragebogen')?.id || null
           const fu = parseInt(d.followups, 10)
+          // Standard ('') → irgendeine NICHT-Custom, nicht-leere id, damit die (robuste)
+          // Rückabbildung sie als Standard erkennt: bevorzugt der geseedete stdId, sonst
+          // die bisherige catalog_id (bei Bearbeitung eines Standard-Bogens ist das die
+          // echte). Nur im äußersten Fall null → dann heilt der nächste GET es.
           return {
-            catalog_id: d.catalogId === '__free__' ? null : (d.catalogId || stdId),
+            catalog_id: d.catalogId === '__free__' ? null : (d.catalogId || stdId || selected.catalog_id || null),
             followups: (!Number.isFinite(fu) || fu < 0) ? 7 : Math.min(fu, 30),
           }
         })() : {}),
