@@ -900,7 +900,9 @@ function Dashboard() {
     const d = orderDraft
     // Anamnese: Patientenname und betreuende Ärztin/Arzt sind optional (der Patient
     // trägt seinen Namen ggf. beim Start selbst nach; der Arzt ist eine reine Notiz).
-    if (selected.product_category !== 'anamnesis' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
+    // Bei Selbst-Interviews (Lebenswerk, Anamnese) sind Name + Organisator optional
+    // — der Endnutzer/Patient trägt seinen Namen ggf. selbst beim Start nach.
+    if (selected.product_category !== 'anamnesis' && selected.product_category !== 'lifework' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
     setOrderSaving(true); setErr('')
     try {
       await adminUpdateMemorialMeta(token, selected.id, {

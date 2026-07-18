@@ -1059,7 +1059,10 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
         ) : (
           <>
             {filterCol && <div onClick={() => setFilterCol(null)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />}
-          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'visible' }}>
+          {/* Der weiße Hintergrund wächst mit der Tabelle mit (width:max-content),
+              damit er auch bei vielen/breiten Spalten ALLE Spalten abdeckt und nicht
+              rechts zu früh endet. overflow:visible bleibt für das Filter-Dropdown. */}
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'visible', width: 'max-content', minWidth: '100%' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -2772,11 +2775,11 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
             ) : od && (
               <div>
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>{oci.subjectLabel || 'Name'} *</Lbl>
+                  <Lbl>{oci.subjectLabel || 'Name'}{(isAnamnesis || selected.product_category === 'lifework') ? '' : ' *'}</Lbl>
                   <input value={od.name} onChange={e => setOd({ name: e.target.value })} />
                 </div>
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>{isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : 'Organisator *'}</Lbl>
+                  <Lbl>{isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : (selected.product_category === 'lifework' ? 'Organisator (Optional)' : 'Organisator *')}</Lbl>
                   <input value={od.organizer} onChange={e => setOd({ organizer: e.target.value })} placeholder={isAnamnesis ? 'Name der betreuenden Ärztin/des Arztes (optional)' : ''} />
                 </div>
                 {oci.useGender && (
