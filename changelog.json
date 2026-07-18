@@ -4,6 +4,8 @@
     {
       "date": "2026-07-18",
       "items": [
+        "Anamnese/Lebenswerk – Interview wird auch ohne lokalen Merker fortgesetzt (z. B. nach Home-Screen-Installation auf dem iPhone oder auf einem neuen Gerät): Der bisherige Fortschritt wird sicher vom Server geladen, ohne erneute Einwilligung oder Tutorial. Das gilt NUR für diese Einzelperson-Bücher; bei gemeinsamen Büchern (Gedenkbuch, Geburtstag …) bleibt der Zugriff auf einzelne Beiträge wie bisher ausschließlich über den persönlichen Wiederaufnahme-Link – niemand sieht fremde Beiträge.",
+        "Support-Anfragen: Jedes Ticket hat jetzt eine sichtbare Nummer (im Dashboard und vorne im Betreff der Support-Mail, z. B. „#42 · Support: …“).",
         "Support-Formular: Wird eine E-Mail-Adresse eingegeben, wird sie – falls beim zugehörigen Buch noch keine hinterlegt ist – dort gespeichert (im Dashboard in der Spalte „E-Mail“ sichtbar) und beim nächsten Support-Kontakt automatisch vorausgefüllt. So muss ein Patient mit reinem Code-/Link-Zugang seine Adresse nicht erneut angeben.",
         "Installierte Web-App (PWA): Öffnet beim Antippen des Icons jetzt zuverlässig direkt das richtige Interview (iPhone wie Android) statt eines Logins; die erste Frage wird nach einem kurzen „Fortsetzen“-Tipp automatisch vorgelesen.",
         "Anamnese – automatische vollständige Löschung nach 14 Tagen: Eine Anamnese wird 14 Tage nach Anlage komplett gelöscht – Interview-Antworten, hochgeladene Dokumente UND der fertige Anamnesebogen (maximale Datensparsamkeit bei medizinischen Daten). Der Datensatz verschwindet dann vollständig. Die übrigen Produkte behalten ihre 90-Tage-Frist (dort nur Rohdaten, das Buch bleibt).",
