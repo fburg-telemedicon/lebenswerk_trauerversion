@@ -641,7 +641,9 @@ module.exports = async function handler(req, res) {
       out.invite_token = invite_token
       await audit(req, { actor: req.auth, action: 'enduser.create', target: eu.id, detail: { code, email, lang: euLang } })
       try {
-        await sendAccessMail({ to: email, url: inviteLink(req, invite_token), kind: 'enduser', lang: euLang || 'de' })
+        // Keine feste Sprache (Endnutzer wählt selbst) → euLang ist null → die
+        // Einladung geht zweisprachig (Deutsch + Englisch) raus.
+        await sendAccessMail({ to: email, url: inviteLink(req, invite_token), kind: 'enduser', lang: euLang })
         out.email_sent = true
         await audit(req, { actor: req.auth, action: 'enduser.invite_sent', target: eu.id, detail: { to: email } })
       } catch (e) {

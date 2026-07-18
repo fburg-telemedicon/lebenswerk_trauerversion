@@ -222,8 +222,35 @@ function buildHtml({ heading, intro, url, button, fallback, footer, lang }) {
   </div></body></html>`
 }
 
-// kind: 'invite' | 'reset' | 'enduser';  lang: 'de' | 'pl' | 'en' (nur enduser)
+// Zweisprachige Variante (Deutsch + Englisch) für den Fall, dass keine feste
+// Sprache bekannt ist (z. B. Endnutzer, der die Sprache selbst wählt).
+function buildBilingualHtml({ de, en, url }) {
+  const safeUrl = esc(url)
+  const block = (t) => `
+    <h1 style="font-size:20px;font-weight:700;margin:0 0 14px;">${esc(t.heading)}</h1>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 18px;color:#44403c;">${esc(t.intro)}</p>
+    <p style="margin:0;"><a href="${safeUrl}" style="display:inline-block;background:#1c1917;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;">${esc(t.button)}</a></p>`
+  return `<!doctype html><html lang="de"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+  <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
+    ${block(de)}
+    <hr style="border:none;border-top:1px solid #e7e5e4;margin:26px 0;">
+    ${block(en)}
+    <p style="font-size:12px;line-height:1.6;color:#78716c;margin:22px 0 6px;">${esc(de.fallback)} / ${esc(en.fallback)}</p>
+    <p style="font-size:12px;line-height:1.6;word-break:break-all;margin:0 0 24px;"><a href="${safeUrl}" style="color:#57534e;">${safeUrl}</a></p>
+    <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">${esc(de.footer)}<br>${esc(en.footer)}<br>— Lebensgeschichten</p>
+  </div></body></html>`
+}
+
+// kind: 'invite' | 'reset' | 'enduser';  lang: 'de'|'pl'|'en'… (nur enduser) ODER
+// null/leer → zweisprachig Deutsch + Englisch (keine Sprache festgelegt).
 async function sendAccessMail({ to, url, kind = 'invite', lang = 'de' }) {
+  if (!lang) {
+    const de = pickText(kind, 'de'), en = pickText(kind, 'en')
+    const subject = `${de.subject} / ${en.subject}`
+    const text = `${de.heading}\n\n${de.intro}\n\n${url}\n\n${de.footer}\n\n————————————\n\n${en.heading}\n\n${en.intro}\n\n${url}\n\n${en.footer}\n\n— Lebensgeschichten`
+    const html = buildBilingualHtml({ de, en, url })
+    return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
+  }
   const t = pickText(kind, lang)
   const text = `${t.heading}\n\n${t.intro}\n\n${url}\n\n${t.footer}\n\n— Lebensgeschichten`
   const html = buildHtml({ ...t, url, lang })
@@ -258,7 +285,11 @@ async function sendUnlockCodeMail({ to, code, name }) {
 // `context` = kleines Diagnose-Objekt (Buch-Code, Ansicht, Browser …), das dem
 // Nutzer VOR dem Absenden transparent angezeigt wurde.
 async function sendSupportMail({ ticketId, replyTo, phone, preferredChannel, name, message, context }) {
-  const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
+  // Standardmäßig an den Betreiber (BCC-Adresse) zustellen, damit Support-Anfragen
+  // NICHT nur im Dashboard landen. Über SUPPORT_INBOX auf ein eigenes Support-Postfach
+  // umlenkbar; der Betreiber bekommt dann trotzdem eine Kopie (BCC).
+  const inbox = process.env.SUPPORT_INBOX || BCC
+  const opBcc = inbox.toLowerCase() === BCC.toLowerCase() ? undefined : BCC
   const ctx = context && typeof context === 'object' ? context : {}
   const ctxRows = Object.entries(ctx)
     .filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
@@ -284,7 +315,7 @@ async function sendSupportMail({ ticketId, replyTo, phone, preferredChannel, nam
     <div style="background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:12px;">${ctxHtml || '<em style="font-size:12px;color:#a8a29e;">keine</em>'}</div>
   </div></body></html>`
   const ticketPrefix = ticketId != null ? `#${ticketId} · ` : ''
-  return sendMail({ to: inbox, subject: `${ticketPrefix}Support: ${String(message).slice(0, 60).replace(/\s+/g, ' ').trim() || 'Anfrage'}`, text, html, replyTo: replyTo || REPLY_TO })
+  return sendMail({ to: inbox, subject: `${ticketPrefix}Support: ${String(message).slice(0, 60).replace(/\s+/g, ' ').trim() || 'Anfrage'}`, text, html, replyTo: replyTo || REPLY_TO, bcc: opBcc })
 }
 
 module.exports = { sendAccessMail, sendUnlockCodeMail, sendSupportMail, baseUrl, inviteLink }
