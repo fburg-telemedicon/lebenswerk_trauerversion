@@ -18,7 +18,12 @@ const { recordHeartbeat } = require('../_lib/heartbeat')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
+// Anamnese: die Roh-Interviewdaten (Beiträge + hochgeladene Dokumente) sind
+// Zwischendaten für den fertigen Bogen und werden deutlich früher gelöscht (14 Tage
+// ab Anlage). Der bestätigte Bogen (eulogy_text) bleibt erhalten.
+const ANAMNESIS_RETENTION_DAYS = parseInt(process.env.ANAMNESIS_RETENTION_DAYS || '14', 10)
 const DAY_MS = 24 * 60 * 60 * 1000
+const retentionDaysFor = (m) => m.product_category === 'anamnesis' ? ANAMNESIS_RETENTION_DAYS : RETENTION_DAYS
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET
@@ -32,33 +37,36 @@ module.exports = async function handler(req, res) {
   try {
     const { data: rows, error } = await supabase
       .from('memorials')
-      .select('id, name, funeral_date, created_at, purge_info')
+      .select('id, name, product_category, funeral_date, created_at, purge_info')
     if (error) throw error
 
     const now = Date.now()
     // Fällig = Frist abgelaufen UND noch nicht bereinigt (purge_info.purged_at).
+    // Frist je Kategorie: Anamnese 14 Tage, sonst RETENTION_DAYS (Standard 90).
     const due = (rows || []).filter(m => {
       if (m.purge_info?.purged_at) return false
       const anchor = m.funeral_date ? new Date(m.funeral_date) : new Date(m.created_at)
-      return anchor.getTime() + RETENTION_DAYS * DAY_MS < now
+      return anchor.getTime() + retentionDaysFor(m) * DAY_MS < now
     })
 
     if (dryRun) {
       return res.json({
         dry_run: true,
         retention_days: RETENTION_DAYS,
+        anamnesis_retention_days: ANAMNESIS_RETENTION_DAYS,
         checked: rows?.length || 0,
-        due: due.map(m => ({ code: m.id, name: m.name, funeral_date: m.funeral_date, created_at: m.created_at })),
+        due: due.map(m => ({ code: m.id, name: m.name, product_category: m.product_category, retention_days: retentionDaysFor(m), funeral_date: m.funeral_date, created_at: m.created_at })),
       })
     }
 
-    const reason = `Automatische Löschung nach Aufbewahrungsfrist (${RETENTION_DAYS} Tage)`
     const results = []
     for (const m of due) {
       try {
-        // Nur Beiträge + Protokoll löschen; Buch/Rede/Eintrag bleiben erhalten.
+        const days = retentionDaysFor(m)
+        const reason = `Automatische Löschung nach Aufbewahrungsfrist (${days} Tage)`
+        // Nur Beiträge + Roh-Uploads + Protokoll löschen; Buch/Rede/Bogen bleiben erhalten.
         const { count } = await purgeMemorialContributions(supabase, m.id, reason)
-        results.push({ code: m.id, ok: true, contributions_deleted: count })
+        results.push({ code: m.id, ok: true, retention_days: days, contributions_deleted: count })
       } catch (e) {
         results.push({ code: m.id, ok: false, error: e.message })
       }
