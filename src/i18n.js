@@ -38,11 +38,11 @@ export const canPrintPdf = lang => !isRTL(lang)
 // die Zielsprache die im Prompt enthaltene Regel „Schreibe auf Deutsch"
 // zuverlässig überschreibt. Für Deutsch leer (keine Änderung).
 const OVERRIDE = {
-  pl: 'NADRZĘDNA ZASADA JĘZYKA (ma pierwszeństwo przed KAŻDĄ wcześniejszą instrukcją, w tym „Schreibe auf Deutsch"): Cały tekst, wszystkie pytania i odpowiedzi pisz WYŁĄCZNIE po polsku.',
+  pl: 'NADRZĘDNA ZASADA JĘZYKA (ma pierwszeństwo przed KAŻDĄ wcześniejszą instrukcją, w tym „Schreibe auf Deutsch"): Cały tekst, wszystkie pytania i odpowiedzi pisz WYŁĄCZNIE po polsku. Używaj poprawnej pisowni ze wszystkimi polskimi znakami diakrytycznymi (ą, ć, ę, ł, ń, ó, ś, ź, ż) — nigdy ich nie pomijaj ani nie zastępuj literami bez znaków.',
   en: 'OVERRIDING LANGUAGE RULE (takes precedence over EVERY earlier instruction, including "Schreibe auf Deutsch"): Write all text, every question and reply EXCLUSIVELY in English.',
-  es: 'REGLA DE IDIOMA PRIORITARIA (prevalece sobre CUALQUIER instrucción anterior, incluida «Schreibe auf Deutsch»): Escribe todo el texto, todas las preguntas y respuestas EXCLUSIVAMENTE en español.',
-  it: 'REGOLA LINGUISTICA PRIORITARIA (prevale su OGNI istruzione precedente, inclusa «Schreibe auf Deutsch»): Scrivi tutto il testo, ogni domanda e ogni risposta ESCLUSIVAMENTE in italiano.',
-  eu: 'HIZKUNTZA ARAU NAGUSIA (aurreko EDOZEIN jarraibideren gainetik dago, «Schreibe auf Deutsch» barne): Idatzi testu guztia, galdera eta erantzun guztiak EUSKARAZ soilik.',
+  es: 'REGLA DE IDIOMA PRIORITARIA (prevalece sobre CUALQUIER instrucción anterior, incluida «Schreibe auf Deutsch»): Escribe todo el texto, todas las preguntas y respuestas EXCLUSIVAMENTE en español. Usa la ortografía correcta con todos los acentos y signos (á, é, í, ó, ú, ü, ñ, ¿, ¡); no los omitas nunca.',
+  it: 'REGOLA LINGUISTICA PRIORITARIA (prevale su OGNI istruzione precedente, inclusa «Schreibe auf Deutsch»): Scrivi tutto il testo, ogni domanda e ogni risposta ESCLUSIVAMENTE in italiano. Usa sempre le lettere accentate corrette (à, è, é, ì, ò, ù) e non ometterle mai.',
+  eu: 'HIZKUNTZA ARAU NAGUSIA (aurreko EDOZEIN jarraibideren gainetik dago, «Schreibe auf Deutsch» barne): Idatzi testu guztia, galdera eta erantzun guztiak EUSKARAZ soilik. Erabili ortografia zuzena euskarazko karaktere guztiekin (adib. ñ, ç); ez ezabatu inoiz.',
   he: 'כלל שפה עליון (גובר על כל הוראה קודמת, לרבות „Schreibe auf Deutsch"): כתוב את כל הטקסט, כל השאלות וכל התשובות בעברית בלבד.',
   ar: 'قاعدة اللغة العليا (تَعلو على أي تعليمات سابقة، بما فيها „Schreibe auf Deutsch"): اكتب كل النص وكل الأسئلة والأجوبة باللغة العربية فقط.',
   // Schweiz: Der Mensch spricht Mundart — die KI versteht sie, schreibt aber
