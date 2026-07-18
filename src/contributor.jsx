@@ -325,9 +325,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       onEnd:   () => { setIsPlaying(false); setTtsLoading(false); setHasPlayed(true) },
       onError: (msg, name) => {
         setIsPlaying(false); setTtsLoading(false)
-        // iOS Safari blockiert Audio ohne direkte User-Geste — kein Fehler zeigen,
-        // Nutzer kann den „Anhören"-Button tippen.
-        if (name === 'NotAllowedError' || /not allowed|denied permission|user gesture/i.test(msg || '')) return
+        // Wiedergabe ohne Nutzer-Geste: iOS Safari meldet das als Autoplay-Sperre
+        // (NotAllowedError), Android/installierte PWA teils als Media-Fehler auf dem
+        // noch nicht freigeschalteten Element („Audiowiedergabe fehlgeschlagen").
+        // In BEIDEN Fällen KEINEN Fehler zeigen — die Frage steht als Text da; der
+        // nächste Tap (Mikrofon bzw. „🔊 Anhören") schaltet den Ton frei und spielt sie.
+        if (name === 'NotAllowedError'
+          || /not allowed|denied permission|user gesture/i.test(msg || '')
+          || /Audiowiedergabe fehlgeschlagen/i.test(msg || '')) return
         setErr(`TTS: ${msg}`)
       },
     })
@@ -2162,7 +2167,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
 
   // PWA-Name je Produkt: im Lebenswerk-Flow „Lebenswerk.ai", sonst „Lebensgeschichten.ai".
   // Muss vor einer etwaigen Installation gesetzt sein → sobald das Produkt bekannt ist.
-  useEffect(() => { setPwaProduct(memorial?.product_category) }, [memorial?.product_category])
+  useEffect(() => { setPwaProduct(memorial?.product_category, code) }, [memorial?.product_category, code])
 
   // Globalen Rechts-Footer (Datenschutz/Impressum) im Interview ausblenden — dort
   // liegen die Links im ☰-Menü. In Info-/Fertig-Schritten bleibt der Footer.

@@ -64,18 +64,24 @@ export function installState() {
 
 export function onInstallChange(fn) { listeners.add(fn); return () => listeners.delete(fn) }
 
-// ── Produktabhängiges Manifest / iOS-Titel ────────────────────────
+// ── Dynamisches Manifest je Interview + iOS-Titel ─────────────────
 // Muss VOR der Installation gesetzt sein (der Browser liest das gerade verlinkte
-// Manifest beim Installieren). lifework → Lebenswerk.ai, sonst → Lebensgeschichten.ai.
-const PRODUCTS = {
-  lebenswerk: { manifest: '/manifest-lebenswerk.webmanifest', title: 'Lebenswerk' },
-  default:    { manifest: '/manifest.webmanifest',            title: 'Lebensgeschichten' },
-}
-export function setPwaProduct(category) {
+// Manifest beim Installieren). Das Manifest kommt vom Server (/app.webmanifest) und
+// bekommt den Code in die start_url gebacken → das installierte Icon öffnet direkt
+// dieses Interview (nötig für iOS, dessen PWA einen eigenen Speicher hat). lifework →
+// Lebenswerk.ai, sonst → Lebensgeschichten.ai. Ohne Code (z. B. Dashboard) NICHT
+// aufgerufen → dort bleibt der Manifest-Link ohne href = nicht installierbar.
+export function setPwaProduct(category, code) {
   if (typeof document === 'undefined') return
-  const p = category === 'lifework' ? PRODUCTS.lebenswerk : PRODUCTS.default
+  const lw = category === 'lifework'
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const params = new URLSearchParams()
+  if (c) params.set('code', c)
+  if (lw) params.set('lw', '1')
+  const href = `/app.webmanifest${params.toString() ? `?${params.toString()}` : ''}`
   const link = document.getElementById('pwa-manifest')
-  if (link && link.getAttribute('href') !== p.manifest) link.setAttribute('href', p.manifest)
+  if (link && link.getAttribute('href') !== href) link.setAttribute('href', href)
+  const title = lw ? 'Lebenswerk' : 'Lebensgeschichten'
   const appleTitle = document.getElementById('pwa-apple-title')
-  if (appleTitle && appleTitle.getAttribute('content') !== p.title) appleTitle.setAttribute('content', p.title)
+  if (appleTitle && appleTitle.getAttribute('content') !== title) appleTitle.setAttribute('content', title)
 }

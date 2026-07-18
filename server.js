@@ -71,6 +71,39 @@ app.get('/demobuch', (req, res) => {
   res.redirect(302, url)
 })
 
+// Dynamisches PWA-Manifest: Die installierte App soll direkt in DAS Interview führen,
+// aus dem heraus installiert wurde – deshalb steckt der Code in der start_url. Das ist
+// nötig, weil iOS-PWAs einen eigenen Speicher haben (localStorage von Safari ist dort
+// NICHT sichtbar) und iOS beim Öffnen die manifest-start_url nutzt. `?code=` = Interview,
+// `?lw=1` = Lebenswerk-Branding. Wird per JS auf den Interview-Seiten verlinkt
+// (src/pwa.js → setPwaProduct); das Manager-Dashboard verlinkt kein Manifest.
+app.get('/app.webmanifest', (req, res) => {
+  const code = String(req.query.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
+  const lw = req.query.lw === '1'
+  const startUrl = code ? `/?code=${code}` : '/'
+  const manifest = {
+    id: startUrl,
+    name: lw ? 'Lebenswerk.ai' : 'Lebensgeschichten.ai',
+    short_name: lw ? 'Lebenswerk' : 'Lebensgeschichten',
+    start_url: startUrl,
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#ffffff',
+    theme_color: '#c1272d',
+    lang: 'de',
+    dir: 'ltr',
+    icons: [
+      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  }
+  res.set('Content-Type', 'application/manifest+json')
+  res.set('Cache-Control', 'no-store')
+  res.send(JSON.stringify(manifest))
+})
+
 // Unbekannte /api-Pfade → 404 (nicht in den SPA-Fallback laufen lassen).
 app.all('/api/*', (req, res) => res.status(404).json({ error: 'Not found' }))
 
