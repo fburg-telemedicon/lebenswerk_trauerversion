@@ -246,7 +246,9 @@ function buildBilingualHtml({ de, en, url }) {
 async function sendAccessMail({ to, url, kind = 'invite', lang = 'de' }) {
   if (!lang) {
     const de = pickText(kind, 'de'), en = pickText(kind, 'en')
-    const subject = `${de.subject} / ${en.subject}`
+    // Betreff bewusst nur Deutsch (Hauptsprache); die englische Fassung steht unten
+    // im Body am Ende.
+    const subject = de.subject
     const text = `${de.heading}\n\n${de.intro}\n\n${url}\n\n${de.footer}\n\n————————————\n\n${en.heading}\n\n${en.intro}\n\n${url}\n\n${en.footer}\n\n— Lebensgeschichten`
     const html = buildBilingualHtml({ de, en, url })
     return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
@@ -285,10 +287,11 @@ async function sendUnlockCodeMail({ to, code, name }) {
 // `context` = kleines Diagnose-Objekt (Buch-Code, Ansicht, Browser …), das dem
 // Nutzer VOR dem Absenden transparent angezeigt wurde.
 async function sendSupportMail({ ticketId, replyTo, phone, preferredChannel, name, message, context }) {
-  // Standardmäßig an den Betreiber (BCC-Adresse) zustellen, damit Support-Anfragen
-  // NICHT nur im Dashboard landen. Über SUPPORT_INBOX auf ein eigenes Support-Postfach
-  // umlenkbar; der Betreiber bekommt dann trotzdem eine Kopie (BCC).
-  const inbox = process.env.SUPPORT_INBOX || BCC
+  // Empfänger = Support-Postfach (Shared Mailbox support@…, per SUPPORT_INBOX
+  // umlenkbar). ZUSÄTZLICH als BCC an das persönliche Betreiber-Postfach, damit die
+  // Anfragen sofort im Posteingang sichtbar sind (nicht nur im Shared Mailbox /
+  // Dashboard). Fällt weg, wenn Empfänger und BCC identisch wären.
+  const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
   const opBcc = inbox.toLowerCase() === BCC.toLowerCase() ? undefined : BCC
   const ctx = context && typeof context === 'object' ? context : {}
   const ctxRows = Object.entries(ctx)

@@ -2396,11 +2396,6 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   const needLang = !!memorial && langs.length > 1 && !lang
   const t  = uiText(L)
   const ct = contributorL10n(memorial?.product_category, L)
-  // Die Geräte-Lautstärke lässt sich aus dem Browser NICHT auslesen (kein API) —
-  // deshalb ein proaktiver Hinweis vor dem Start (das Interview wird vorgelesen).
-  const volumeHint = L === 'en'
-    ? '🔊 Please turn your sound on and turn the volume up — the interview is read aloud.'
-    : '🔊 Bitte den Ton einschalten und die Lautstärke aufdrehen — das Interview wird vorgelesen.'
   // Selbst-Erzähler (Lebenswerk, Anamnese): Die Person IST die Hauptperson — keine
   // Beziehungsangabe, die Beziehung wird intern fest gesetzt (Spalte ist NOT NULL).
   // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck, Logo) hängen dagegen
@@ -2476,8 +2471,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         <div style={{ textAlign: 'center', maxWidth: 380 }}>
           <div style={{ fontSize: 38, marginBottom: 10 }}>👋</div>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{t.resumeTitle || 'Willkommen zurück'}</h2>
-          <p style={{ fontSize: 14, color: '#78716c', margin: '0 auto 10px', lineHeight: 1.6 }}>{t.resumeQ || 'Wir setzen dort fort, wo Sie aufgehört haben.'}</p>
-          <p style={{ fontSize: 13, color: '#a8a29e', margin: '0 auto 20px', lineHeight: 1.55, maxWidth: 340 }}>{volumeHint}</p>
+          <p style={{ fontSize: 14, color: '#78716c', margin: '0 auto 22px', lineHeight: 1.6 }}>{t.resumeQ || 'Wir setzen dort fort, wo Sie aufgehört haben.'}</p>
           <button onClick={() => { unlockAudio(); const l = resumeGate; setResumeGate(null); resumeSession(l) }} style={{ fontSize: 15, padding: '13px 30px' }}>
             {t.resumeContinue || '↻ Fortsetzen'}
           </button>
@@ -2646,7 +2640,6 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             </label>
           </div>
           )}
-          <p style={{ fontSize:13, color:'#a8a29e', margin:'0 0 10px', lineHeight:1.55, textAlign:'center' }}>{volumeHint}</p>
           <button disabled={(askName && !contribForm.name)||(askGender && !contribForm.gender)||(!isSelf && !contribForm.relationship)||(askAddress && !contribForm.address)||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             {ct.interviewButton}
           </button>
