@@ -52,10 +52,13 @@ export async function promptInstall() {
 }
 
 // Zustand für die UI: 'installed' | 'prompt' | 'ios' | 'none'
+// iOS: Button IMMER anbieten (nicht nur in Safari) — ist der Nutzer in Chrome/einem
+// In-App-Browser, erklärt die Anleitung, dass es nur in Safari geht. So steht man
+// nie vor einem leeren Menü.
 export function installState() {
   if (isStandalone()) return 'installed'
   if (canPromptInstall()) return 'prompt'
-  if (isIOSSafari()) return 'ios'
+  if (isIOS()) return 'ios'
   return 'none'
 }
 

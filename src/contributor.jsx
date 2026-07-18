@@ -1105,9 +1105,14 @@ function InstallMenuItem({ t, row, sep, onClose }) {
         <div onClick={() => setShowIos(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:70, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:'20px 20px 28px', maxWidth:420, width:'100%', boxShadow:'0 -2px 16px rgba(0,0,0,.2)' }}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>{t.installIosTitle || 'Zum Home-Bildschirm hinzufügen'}</div>
-            <p style={{ fontSize:14, color:'#57534e', lineHeight:1.6, margin:0 }}>
-              {t.installIosBody || 'Tippen Sie unten in der Browserleiste auf das Teilen-Symbol und wählen Sie „Zum Home-Bildschirm". Danach erscheint die App mit eigenem Icon auf Ihrem Startbildschirm.'}
+            <p style={{ fontSize:14, color:'#57534e', lineHeight:1.6, margin:'0 0 10px' }}>
+              {t.installIosBody || 'So legen Sie diese App auf Ihren Startbildschirm (nur in Safari möglich – nicht in Chrome oder einem In-App-Browser):'}
             </p>
+            <ol style={{ fontSize:14, color:'#57534e', lineHeight:1.6, margin:0, paddingLeft:20 }}>
+              <li>{t.installIosStep1 || 'Unten auf das Teilen-Symbol tippen (Quadrat mit Pfeil nach oben ⬆️).'}</li>
+              <li>{t.installIosStep2 || 'In der Liste nach unten scrollen.'}</li>
+              <li>{t.installIosStep3 || '„Zum Home-Bildschirm" wählen und mit „Hinzufügen" bestätigen.'}</li>
+            </ol>
             <button onClick={() => setShowIos(false)} style={{ marginTop:16, width:'100%' }}>{t.installIosClose || 'Verstanden'}</button>
           </div>
         </div>
