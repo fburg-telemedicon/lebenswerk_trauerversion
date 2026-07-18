@@ -1559,6 +1559,8 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <BookLayoutPicker value={createForm.bookLayout} onChange={k => setCreateForm({ ...createForm, bookLayout: k })} />
         </div>
         </>)}
+        {/* Anamnese: kein gedrucktes Buch → keine Sammelbestellungs-Adresse. */}
+        {!isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
@@ -1573,6 +1575,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </div>
           <input value={pa.country} onChange={e => setPa({ country: e.target.value })} placeholder="Land" />
         </div>
+        )}
         {(() => {
           let avail = catalogs.filter(c => (c.product_categories || []).includes(createForm.productCategory))
           // Der geseedete Anamnese-Standard erscheint als „"-Default — nicht zusätzlich
@@ -2793,6 +2796,9 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     </p>
                   </div>
                 )}
+                {/* Anamnese kennt kein Buch → keine Buch-Variante (DB bleibt beim
+                    gespeicherten Default). */}
+                {!isAnamnesis && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Buch-Variante *</Lbl>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
@@ -2806,6 +2812,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     ))}
                   </div>
                 </div>
+                )}
                 <button type="button" onClick={() => setOdExpert(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>
                   {odExpert ? '⚙ Expertenmodus ausblenden' : '⚙ Expertenmodus (weitere Optionen)'}
                 </button>
@@ -2927,9 +2934,9 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     Das Interview startet immer ohne Transkript.
                   </p>
                 </div>
-                {/* Beim Lebenswerk erzählt nur eine Person — eine Namensliste der
-                    Beitragenden ergibt dort keinen Sinn. */}
-                {!isLifework && (
+                {/* Beim Lebenswerk und der Anamnese spricht nur eine Person (Erzähler
+                    bzw. Patient) — eine Namensliste der Beitragenden gibt es dort nicht. */}
+                {!isLifework && !isAnamnesis && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Namensliste der Beitragenden im Buch</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2997,6 +3004,8 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     placeholder="Interne Notiz zu diesem Buch (optional)."
                     style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14 }} />
                 </div>
+                {/* Anamnese: kein gedrucktes Buch → keine Sammelbestellungs-Adresse. */}
+                {!isAnamnesis && (
                 <div style={{ marginBottom:20 }}>
                   <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
                   <input value={od.pickupAddress.name} onChange={e => setOdPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
@@ -3008,6 +3017,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   </div>
                   <input value={od.pickupAddress.country} onChange={e => setOdPa({ country: e.target.value })} placeholder="Land" />
                 </div>
+                )}
                 </>)}
                 <div style={{ display:'flex', gap:10 }}>
                   <button onClick={saveOrderData} disabled={orderSaving} style={{ fontSize:14, padding:'10px 20px' }}>
