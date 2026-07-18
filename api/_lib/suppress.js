@@ -69,4 +69,54 @@ async function addSuppression(email, reason) {
   )
 }
 
-module.exports = { ensureSuppressionSchema, isSuppressed, addSuppression, suppressToken, verifySuppressToken, unsubscribeLink }
+// ── Double-Opt-in: bestätigte Adressen ───────────────────────────────────────
+// Adressen, die per Bestätigungslink zugestimmt haben, an sie E-Mails zu senden.
+// Bis eine Adresse bestätigt ist, bekommt sie nur EINE Opt-in-Mail (bestätigen
+// ODER abmelden) — kein weiterer automatischer Versand. Schützt davor, dass jemand
+// mit einer fremden Adresse Mails auslöst.
+let confirmSchemaReady = false
+async function ensureConfirmSchema() {
+  if (confirmSchemaReady) return
+  await pool().query(`
+    create table if not exists confirmed_emails (
+      email      text primary key,
+      created_at timestamptz not null default now()
+    )
+  `)
+  confirmSchemaReady = true
+}
+function confirmToken(email) {
+  const secret = process.env.ADMIN_TOKEN_SECRET || ''
+  return crypto.createHmac('sha256', secret).update(`confirm:${norm(email)}`).digest('hex').slice(0, 32)
+}
+function verifyConfirmToken(email, token) {
+  const a = Buffer.from(String(token || ''))
+  const b = Buffer.from(confirmToken(email))
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+function confirmLink(baseUrl, email) {
+  const e = norm(email)
+  return `${String(baseUrl || '').replace(/\/+$/, '')}/api/confirm-email?e=${encodeURIComponent(e)}&t=${confirmToken(e)}`
+}
+// Ist die Adresse bestätigt? Fail-CLOSED: bei DB-Fehler „nicht bestätigt" (false) —
+// dann geht nur die Opt-in-Mail raus, nie ungewollt der reguläre Versand.
+async function isConfirmed(email) {
+  const e = norm(email)
+  if (!e) return false
+  try {
+    await ensureConfirmSchema()
+    const { data } = await supabase.from('confirmed_emails').select('email').eq('email', e).maybeSingle()
+    return !!data
+  } catch (err) { console.warn('isConfirmed:', err.message); return false }
+}
+async function addConfirmed(email) {
+  const e = norm(email)
+  if (!e) return
+  await ensureConfirmSchema()
+  await pool().query(`insert into confirmed_emails (email) values ($1) on conflict (email) do nothing`, [e])
+}
+
+module.exports = {
+  ensureSuppressionSchema, isSuppressed, addSuppression, suppressToken, verifySuppressToken, unsubscribeLink,
+  ensureConfirmSchema, isConfirmed, addConfirmed, confirmToken, verifyConfirmToken, confirmLink,
+}

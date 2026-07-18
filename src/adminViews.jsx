@@ -1288,7 +1288,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </p>
           </div>
         )}
-        {isEnduser && createForm.productCategory !== 'anamnesis' && (
+        {isEnduser && (
           <div style={{ marginBottom: 14 }}>
             <Lbl>Sprache des Endnutzers *</Lbl>
             <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px', lineHeight:1.5 }}>
@@ -1682,7 +1682,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </p>
         </div>
         )}
-        {!isLifework && (
+        {!isLifework && createForm.productCategory !== 'anamnesis' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Sprachen *</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
@@ -2847,6 +2847,26 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Standard: aktiv. Beim ersten Öffnen sieht der Nutzer eine kurze Vorstellung der freigeschalteten Funktionen; „Nicht mehr anzeigen" blendet sie danach aus.</p>
                 </div>
+                {selected.product_category === 'anamnesis' ? (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Sprache *</Lbl>
+                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Genau eine Sprache – sie gilt für das ganze Interview. Ohne Festlegung wählt der Endnutzer die Sprache beim ersten Start selbst.</p>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {[...LANGUAGES, { code:'', label:'Endnutzer wählt selbst' }].map(l => {
+                      const on = l.code ? (od.languages.length === 1 && od.languages[0] === l.code) : (od.languages.length !== 1)
+                      return (
+                        <label key={l.code || 'auto'} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', ...S.card, padding:'10px 14px',
+                          borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}>
+                          <input type="radio" name="anamnese-lang" checked={on}
+                            onChange={() => setOd({ languages: l.code ? [l.code] : LANGUAGES.map(x => x.code) })}
+                            style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }} />
+                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+                ) : (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Sprachen *</Lbl>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
@@ -2867,6 +2887,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     })}
                   </div>
                 </div>
+                )}
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Test-Zeitlimit fürs Interview</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>

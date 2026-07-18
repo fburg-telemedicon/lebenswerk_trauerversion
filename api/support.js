@@ -19,7 +19,7 @@ const { sendSupportMail } = require('./_lib/invitemail')
 const { sendMail } = require('./_lib/graphmail')
 const { callAzure } = require('./_lib/llm')
 const { costLLM, recordCost } = require('./_lib/cost')
-const { isSuppressed } = require('./_lib/suppress')
+const { isSuppressed, isConfirmed, confirmLink, unsubscribeLink } = require('./_lib/suppress')
 const { checkAuth } = require('./_lib/auth')
 const { audit } = require('./_lib/audit')
 
@@ -309,29 +309,44 @@ module.exports = async function handler(req, res) {
       await sendSupportMail({ ticketId, replyTo: replyEmail || null, phone: replyPhone || null, preferredChannel, name, message, context: ctx })
     } catch (e) { console.error('/api/support mail:', e); email_sent = false }
 
-    // Eingangsbestätigung an den Ticket-Ersteller (nur wenn eine E-Mail hinterlegt
-    // ist und die Adresse nicht abgemeldet wurde). Absender/Reply-To = support@,
-    // damit eine Antwort des Nutzers wieder im Support-Postfach landet. Best effort;
-    // vor Missbrauch schützen die Ratenlimits oben (support-email 6/h) + Sperrliste.
+    // Bestätigungsmail an den Ticket-Ersteller — mit DOUBLE-OPT-IN-Schutz:
+    //  • Abgemeldete Adresse (Sperrliste) → gar nichts.
+    //  • Noch NICHT bestätigte Adresse → einmalige Opt-in-Mail (bestätigen ODER
+    //    abmelden). KEIN weiterer automatischer Versand, bis sie bestätigt ist —
+    //    so kann niemand mit einer fremden Adresse Mails auslösen.
+    //  • Bereits bestätigte Adresse → normale Eingangsbestätigung.
+    // Absender/Reply-To = support@; zusätzlich durch die Ratenlimits (6/h) gedeckelt.
     if (ticketId != null && replyEmail && !(await isSuppressed(replyEmail))) {
       try {
         const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
+        const base = process.env.PUBLIC_BASE_URL || 'https://lebensgeschichten.ai'
         const de = !ctx || !ctx.lang || String(ctx.lang).toLowerCase().startsWith('de')
         const greeting = name ? (de ? `Hallo ${name},` : `Hi ${name},`) : (de ? 'Hallo,' : 'Hi,')
-        const subject = de
-          ? `Ihre Support-Anfrage ist eingegangen (Ticket #${ticketId})`
-          : `We received your support request (ticket #${ticketId})`
-        const body = de
-          ? `vielen Dank für Ihre Nachricht. Wir haben Ihre Support-Anfrage erhalten (Ticket #${ticketId}) und melden uns so bald wie möglich. Sie können direkt auf diese E-Mail antworten.`
-          : `thank you for your message. We have received your support request (ticket #${ticketId}) and will get back to you as soon as possible. You can simply reply to this email.`
-        const text = `${greeting}\n\n${body}\n\n— Lebensgeschichten`
-        const html = `<!doctype html><html lang="${de ? 'de' : 'en'}"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
-          <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
-            <p style="font-size:15px;line-height:1.6;margin:0 0 8px;color:#44403c;">${esc(greeting)}</p>
-            <p style="font-size:15px;line-height:1.6;margin:0 0 18px;color:#44403c;">${esc(body)}</p>
-            <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">— Lebensgeschichten</p>
-          </div></body></html>`
-        await sendMail({ from: inbox, to: replyEmail, replyTo: inbox, subject, text, html })
+        const shell = (inner) => `<!doctype html><html lang="${de ? 'de' : 'en'}"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;"><div style="max-width:520px;margin:0 auto;padding:28px 24px;">${inner}</div></body></html>`
+        if (await isConfirmed(replyEmail)) {
+          const subject = de ? `Ihre Support-Anfrage ist eingegangen (Ticket #${ticketId})` : `We received your support request (ticket #${ticketId})`
+          const body = de
+            ? `vielen Dank für Ihre Nachricht. Wir haben Ihre Support-Anfrage erhalten (Ticket #${ticketId}) und melden uns so bald wie möglich. Sie können direkt auf diese E-Mail antworten.`
+            : `thank you for your message. We have received your support request (ticket #${ticketId}) and will get back to you as soon as possible. You can simply reply to this email.`
+          const text = `${greeting}\n\n${body}\n\n— Lebensgeschichten`
+          const html = shell(`<p style="font-size:15px;line-height:1.6;margin:0 0 8px;color:#44403c;">${esc(greeting)}</p><p style="font-size:15px;line-height:1.6;margin:0 0 18px;color:#44403c;">${esc(body)}</p><p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">— Lebensgeschichten</p>`)
+          await sendMail({ from: inbox, to: replyEmail, replyTo: inbox, subject, text, html })
+        } else {
+          const confirmUrl = confirmLink(base, replyEmail)
+          const unsubUrl = unsubscribeLink(base, replyEmail)
+          const subject = de ? 'Bitte bestätigen Sie Ihre Support-Anfrage – Lebensgeschichten' : 'Please confirm your support request – Lebensgeschichten'
+          const body = de
+            ? `mit Ihrer E-Mail-Adresse wurde bei Lebensgeschichten eine Support-Anfrage abgeschickt (Ticket #${ticketId}). Bevor wir Ihnen an diese Adresse antworten, bestätigen Sie bitte kurz, dass die Anfrage von Ihnen stammt.`
+            : `a support request was submitted at Lebensgeschichten using your email address (ticket #${ticketId}). Before we reply to this address, please confirm that the request is really from you.`
+          const cLabel = de ? 'Anfrage bestätigen' : 'Confirm request'
+          const uLabel = de ? 'Das war ich nicht / abmelden' : 'This wasn’t me / unsubscribe'
+          const foot = de
+            ? 'Wenn Sie diese Anfrage nicht kennen, ignorieren Sie diese E-Mail einfach — ohne Bestätigung senden wir Ihnen nichts weiter.'
+            : 'If you don’t recognise this request, simply ignore this email — without confirmation we won’t send you anything else.'
+          const text = `${greeting}\n\n${body}\n\n${cLabel}: ${confirmUrl}\n\n${uLabel}: ${unsubUrl}\n\n${foot}\n\n— Lebensgeschichten`
+          const html = shell(`<p style="font-size:15px;line-height:1.6;margin:0 0 8px;color:#44403c;">${esc(greeting)}</p><p style="font-size:15px;line-height:1.6;margin:0 0 18px;color:#44403c;">${esc(body)}</p><p style="margin:0 0 14px;"><a href="${esc(confirmUrl)}" style="display:inline-block;background:#1c1917;color:#fff;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;">${esc(cLabel)}</a></p><p style="font-size:13px;margin:0 0 18px;"><a href="${esc(unsubUrl)}" style="color:#a8a29e;">${esc(uLabel)}</a></p><p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">${esc(foot)}<br>— Lebensgeschichten</p>`)
+          await sendMail({ from: inbox, to: replyEmail, replyTo: inbox, subject, text, html })
+        }
       } catch (e) { console.warn('/api/support confirm:', e.message) }
     }
 
