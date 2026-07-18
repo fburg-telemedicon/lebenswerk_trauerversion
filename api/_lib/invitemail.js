@@ -257,7 +257,7 @@ async function sendUnlockCodeMail({ to, code, name }) {
 // Nummer und Kontaktwunsch stehen dann im Kopf der Mail.
 // `context` = kleines Diagnose-Objekt (Buch-Code, Ansicht, Browser …), das dem
 // Nutzer VOR dem Absenden transparent angezeigt wurde.
-async function sendSupportMail({ replyTo, phone, preferredChannel, name, message, context }) {
+async function sendSupportMail({ ticketId, replyTo, phone, preferredChannel, name, message, context }) {
   const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
   const ctx = context && typeof context === 'object' ? context : {}
   const ctxRows = Object.entries(ctx)
@@ -283,7 +283,8 @@ async function sendSupportMail({ replyTo, phone, preferredChannel, name, message
     <p style="font-size:12px;font-weight:700;color:#78716c;margin:0 0 6px;">Diagnose (automatisch mitgeschickt)</p>
     <div style="background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:12px;">${ctxHtml || '<em style="font-size:12px;color:#a8a29e;">keine</em>'}</div>
   </div></body></html>`
-  return sendMail({ to: inbox, subject: `Support: ${String(message).slice(0, 60).replace(/\s+/g, ' ').trim() || 'Anfrage'}`, text, html, replyTo: replyTo || REPLY_TO })
+  const ticketPrefix = ticketId != null ? `#${ticketId} · ` : ''
+  return sendMail({ to: inbox, subject: `${ticketPrefix}Support: ${String(message).slice(0, 60).replace(/\s+/g, ' ').trim() || 'Anfrage'}`, text, html, replyTo: replyTo || REPLY_TO })
 }
 
 module.exports = { sendAccessMail, sendUnlockCodeMail, sendSupportMail, baseUrl, inviteLink }

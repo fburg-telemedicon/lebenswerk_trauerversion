@@ -144,12 +144,13 @@ module.exports = async function handler(req, res) {
 
     await ensureSupportSchema()
     // Immer zuerst speichern (verlässlich), dann versenden (best effort).
-    let stored = true
+    let stored = true, ticketId = null
     try {
-      await supabase.from('support_requests').insert({
+      const { data: ins } = await supabase.from('support_requests').insert({
         memorial_id: memorialId, name, reply_email: replyEmail || null, reply_phone: replyPhone || null,
         preferred_channel: preferredChannel, message, context: ctx,
-      })
+      }).select('id').single()
+      ticketId = ins?.id ?? null
     } catch (e) { console.error('/api/support store:', e); stored = false }
 
     // Kontakt-E-Mail am zugehörigen Buch hinterlegen — aber NUR, wenn dort noch keine
@@ -176,7 +177,7 @@ module.exports = async function handler(req, res) {
     try {
       // Ohne Antwort-Adresse bleibt Reply-To der Standard (siehe invitemail.js) —
       // die Mail geht trotzdem raus, Telefonnummer + Kontaktwunsch stehen darin.
-      await sendSupportMail({ replyTo: replyEmail || null, phone: replyPhone || null, preferredChannel, name, message, context: ctx })
+      await sendSupportMail({ ticketId, replyTo: replyEmail || null, phone: replyPhone || null, preferredChannel, name, message, context: ctx })
     } catch (e) { console.error('/api/support mail:', e); email_sent = false }
 
     if (!stored && !email_sent) {
