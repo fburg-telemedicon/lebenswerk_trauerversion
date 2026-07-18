@@ -470,7 +470,7 @@ function Dashboard() {
   const [auth, setAuth]               = useState(() => readAdminAuth() || { admin: false, cats: [], uid: null })
   const [username, setUsername]       = useState('')
   const [password, setPassword]       = useState('')
-  const [remember, setRemember]       = useState(false)  // „Angemeldet bleiben" (Login)
+  const [remember, setRemember]       = useState(true)  // „Angemeldet bleiben" (Login) — Default an
   // Passwort-Reset am Login (Self-Service)
   const [showReset, setShowReset]     = useState(false)
   const [resetEmail, setResetEmail]   = useState('')

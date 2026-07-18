@@ -16,7 +16,7 @@
 const crypto = require('crypto')
 
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000 // 12 Stunden (Standard)
-const REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 Tage („Angemeldet bleiben")
+const REMEMBER_TTL_MS = 90 * 24 * 60 * 60 * 1000 // 90 Tage („Angemeldet bleiben")
 const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000 // Einladungslink 14 Tage gültig
 
 function getConfig() {
