@@ -997,7 +997,10 @@ function Dashboard() {
     }
     // Anamnese: der Dokumenten-Upload (umgewidmeter Foto-Upload) ist standardmäßig an
     // — der Patient kann Arztbriefe/Befunde beitragen. Kein Buch/Bild/Stil.
-    if (slug === 'anamnesis') return { ...base, photoUploadTab: true }
+    // Sprache: standardmäßig „Endnutzer wählt selbst" (alle Sprachen angeboten) →
+    // der Patient bekommt die Sprachauswahl als ersten Screen. Der Admin kann im
+    // Formular weiterhin genau eine Sprache festlegen.
+    if (slug === 'anamnesis') return { ...base, photoUploadTab: true, languages: LANGUAGES.map(l => l.code) }
     if (slug !== 'lifework') return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,
