@@ -80,9 +80,13 @@ const ANAMNESIS_CATALOG_CHAPTERS = [
 // also überarbeiten, ohne dass wir seine Änderungen überschreiben. (Muster wie
 // ensureLifeworkCatalog.)
 async function ensureAnamnesisCatalog(supabase) {
-  const { data: found } = await supabase
-    .from('question_catalogs').select('id').eq('name', ANAMNESIS_CATALOG_NAME).maybeSingle()
-  if (found?.id) return found.id
+  // Bewusst KEIN .maybeSingle(): das wirft, sobald (durch frühere Rennen) mehrere
+  // gleichnamige Zeilen existieren — und legt dann noch eine weitere an. Wir nehmen
+  // die älteste vorhandene als kanonische Zeile.
+  const { data: rows } = await supabase
+    .from('question_catalogs').select('id').eq('name', ANAMNESIS_CATALOG_NAME)
+    .order('created_at', { ascending: true })
+  if (Array.isArray(rows) && rows.length && rows[0]?.id) return rows[0].id
 
   const { data, error } = await supabase
     .from('question_catalogs')
