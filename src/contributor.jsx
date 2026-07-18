@@ -967,13 +967,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                   : 'Das Mikrofon ist für diese Seite blockiert. Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Mikrofon" → „Zulassen" und laden Sie die Seite neu.'}
               </div>
             )}
-            {micState === 'idle' && micPerm === 'prompt' && (
-              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12, lineHeight:1.5, color:'#78716c' }}>
-                {String(lang || '').startsWith('en')
-                  ? 'On the first tap your browser will ask for microphone access — please tap “Allow”.'
-                  : 'Beim ersten Antippen fragt der Browser nach dem Mikrofon — bitte auf „Zulassen" tippen.'}
-              </div>
-            )}
             {/* Begleitmodus wird direkt am Mikrofon geschaltet (nicht im Menü):
                 grafisches Personen-Symbol + Umschalter, blau wenn aktiv. */}
             {memorial?.companion_mode === true && (
@@ -983,38 +976,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                     border:`1px solid ${companionOn ? '#1d4ed8' : '#d6d3d1'}`, background: companionOn ? '#1d4ed8' : '#fff', color: companionOn ? '#fff' : '#57534e' }}>
                   <span aria-hidden="true" style={{ width:24, height:24, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:14, background: companionOn ? 'rgba(255,255,255,.2)' : '#dbeafe' }}>👥</span>
                   <span>{t.companionTab || 'Begleitet'}</span>
-                </button>
-              </div>
-            )}
-            {/* Beide Bedienelemente stehen in EIGENEN Zeilen. Vorher waren Schalter
-                (inline-flex) und Button Inline-Elemente derselben Zeile — der Button
-                rutschte dann neben die Schalter-Beschriftung und überdeckte sie. */}
-            {/* In-Interview-Schalter nur noch, wenn es KEINE Tab-Leiste gibt — dort
-                sitzt der Transkript-Umschalter jetzt als eigenes Icon/Feld. */}
-            {txAvailable && !memorial.photo_upload_tab && (
-              <div style={{ marginTop:18 }}>
-                <div
-                  onClick={() => setShowTx(v => !v)}
-                  role="switch"
-                  aria-checked={showTx}
-                  style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, cursor:'pointer', fontSize:12, color:'#78716c', userSelect:'none' }}
-                >
-                  <span style={{ position:'relative', width:38, height:22, borderRadius:11, background: showTx ? '#1c1917' : '#d6d3d1', transition:'background .2s', flexShrink:0, display:'inline-block' }}>
-                    <span style={{ position:'absolute', top:2, left: showTx ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 2px rgba(0,0,0,.25)' }} />
-                  </span>
-                  {t.txToggleLabel}
-                </div>
-              </div>
-            )}
-            {memorial.catalog && micState === 'idle' && !expired && (
-              <div style={{ marginTop:16 }}>
-                <button
-                  onClick={() => sendAnswer(t.nextQuestionMsg)}
-                  disabled={aiLoading}
-                  className="secondary"
-                  style={{ fontSize:13, padding:'8px 16px' }}
-                >
-                  {t.nextQuestion}
                 </button>
               </div>
             )}
@@ -1034,7 +995,26 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             </button>
           </div>
         )}
-        {/* 7. Transkript / Verlauf (unten) */}
+        {/* 5. NÄCHSTE FRAGE */}
+        {memorial.catalog && micState === 'idle' && !expired && (
+          <div style={{ textAlign:'center', marginTop:12 }}>
+            <button onClick={() => sendAnswer(t.nextQuestionMsg)} disabled={aiLoading} className="secondary" style={{ fontSize:13, padding:'8px 16px' }}>
+              {t.nextQuestion}
+            </button>
+          </div>
+        )}
+        {/* 7. Transkript: Umschalter + Verlauf (unten) */}
+        {txAvailable && !memorial.photo_upload_tab && (
+          <div style={{ marginTop:18, display:'flex', justifyContent:'center' }}>
+            <div onClick={() => setShowTx(v => !v)} role="switch" aria-checked={showTx}
+              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, cursor:'pointer', fontSize:12, color:'#78716c', userSelect:'none' }}>
+              <span style={{ position:'relative', width:38, height:22, borderRadius:11, background: showTx ? '#1c1917' : '#d6d3d1', transition:'background .2s', flexShrink:0, display:'inline-block' }}>
+                <span style={{ position:'absolute', top:2, left: showTx ? 18 : 2, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 2px rgba(0,0,0,.25)' }} />
+              </span>
+              {t.txToggleLabel}
+            </div>
+          </div>
+        )}
         {showTx && earlierCount > 0 && (
           <div style={{ textAlign:'center', margin:'10px 0' }}>
             <button className="ghost" onClick={() => setShowEarlier(v => !v)} style={{ fontSize:12.5, color:'#78716c', textDecoration:'underline' }}>
