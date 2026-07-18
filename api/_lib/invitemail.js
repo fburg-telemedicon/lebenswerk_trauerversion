@@ -15,8 +15,10 @@
 const { sendMail } = require('./graphmail')
 const { isSuppressed, unsubscribeLink } = require('./suppress')
 
-// Blindkopie-Empfänger (Betreiber). Per Env überschreibbar.
-const BCC = process.env.INVITE_BCC || 'florian.burg@lebensgeschichten.ai'
+// Blindkopie-Empfänger (Betreiber) für Einladungs-/Zugangs-/Bestätigungs-/Code-
+// Mails. Standard = Support-Postfach support@ (nicht mehr die persönliche Adresse);
+// per Env INVITE_BCC überschreibbar (z. B. auf admin@, sobald angelegt).
+const BCC = process.env.INVITE_BCC || 'support@lebensgeschichten.ai'
 const REPLY_TO = process.env.INVITE_REPLY_TO || 'support@lebensgeschichten.ai'
 
 // Origin (Basis-URL) aus einem fertigen Link ableiten – für den Abmelde-Link in
