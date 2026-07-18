@@ -192,8 +192,8 @@ module.exports = async function handler(req, res) {
       // show_onboarding + tts_voice sind neu — fehlt eine der Spalten noch, wird OHNE
       // sie erneut gelesen (Beitragenden-Flow darf NIE an einer Migration hängen).
       let { data, error } = await supabase
-        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding, tts_voice`).eq('id', code).single()
-      if (error && /show_onboarding|tts_voice|column/i.test(error.message || '')) {
+        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding, tts_voice, gamification`).eq('id', code).single()
+      if (error && /show_onboarding|tts_voice|gamification|column/i.test(error.message || '')) {
         ;({ data, error } = await supabase.from('memorials').select(PUBLIC_FIELDS_BASE).eq('id', code).single())
       }
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })

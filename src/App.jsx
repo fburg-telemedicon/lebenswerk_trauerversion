@@ -198,6 +198,7 @@ const EMPTY_CREATE = {
   textStyle: 'literary',   // je Kategorie in freshCreateForm auf den Default gesetzt
   timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
   companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
+  gamification: true,                // spürbar motivierender Interview-Modus (nur Anamnese; Default AN)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
@@ -868,6 +869,7 @@ function Dashboard() {
       timerOn: (m.interview_timer_seconds || 0) > 0,
       timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
       companionMode: m.companion_mode === true,
+      gamification: m.gamification !== false,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       showOnboarding: m.show_onboarding !== false,
@@ -913,6 +915,7 @@ function Dashboard() {
         productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils/der Stimme
         interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: d.companionMode === true,
+        gamification: d.gamification !== false,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
@@ -945,6 +948,7 @@ function Dashboard() {
         tts_voice: d.ttsVoice || defaultTtsVoice(selected.product_category),
         interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companion_mode: d.companionMode === true,
+        gamification: d.gamification !== false,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
@@ -1108,6 +1112,7 @@ function Dashboard() {
         ttsVoice: createForm.ttsVoice || defaultTtsVoice(createForm.productCategory),
         interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: createForm.companionMode === true,
+        gamification: createForm.gamification !== false,
         proofEnabled: createForm.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
         showOnboarding: createForm.showOnboarding !== false,

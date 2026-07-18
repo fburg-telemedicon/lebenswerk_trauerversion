@@ -1522,6 +1522,16 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           )}
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Ohne Haken läuft das Interview unbegrenzt. Mit Haken zählt im Interview ein gut sichtbarer Countdown herunter; bei Null ist keine Sprachaufnahme/-ausgabe mehr möglich (Ansehen bleibt möglich).</p>
         </div>
+        {createForm.productCategory === 'anamnesis' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Gamification</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.gamification !== false} onChange={e => setCreateForm({ ...createForm, gamification: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Motivierendes Interview-Erlebnis („Gesundheits-Quest")</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Macht das Anamnese-Gespräch kurzweiliger: die KI gibt nach jeder Antwort eine kurze, wertschätzende Rückmeldung und benennt Meilensteine; im Interview erscheinen Fortschritt, Punkte, Abzeichen und eine Abschluss-Feier. Respektvoll fürs medizinische Setting. Standard: an.</p>
+        </div>
+        )}
         {createForm.productCategory === 'lifework' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Begleiteter Modus (Co-Interview)</Lbl>
@@ -2883,6 +2893,16 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   )}
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Ohne Haken unbegrenzt. Greift beim nächsten (Neu-)Start des Interviews.</p>
                 </div>
+                {selected.product_category === 'anamnesis' && (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Gamification</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.gamification !== false} onChange={e => setOd({ gamification: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Motivierendes Interview-Erlebnis („Gesundheits-Quest")</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Wertschätzende Rückmeldungen + Meilensteine der KI; Fortschritt, Punkte, Abzeichen und Abschluss-Feier im Interview. Greift beim nächsten (Neu-)Start. Standard: an.</p>
+                </div>
+                )}
                 {selected.product_category === 'lifework' && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Begleiteter Modus (Co-Interview)</Lbl>

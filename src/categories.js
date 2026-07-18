@@ -935,10 +935,21 @@ const ANAMNESIS_CHECKLIST_RULE = `- VORERKRANKUNGEN und FAMILIENANAMNESE als CHE
 - Schließe JEDEN dieser beiden Abschnitte mit einer offenen Auffangfrage ab: „Gibt es sonst noch etwas in dieser Hinsicht?" bzw. „Sonst noch etwas?" — damit nichts übersehen wird, was nicht auf der Liste stand.
 - Führt ein FRAGENKATALOG durch diese beiden Abschnitte, sind die Einzelfragen (samt Auffangfrage) dort bereits als Katalogfragen enthalten — halte dich dann an den Katalog; diese Regel beschreibt in dem Fall nur den STIL (einzeln abfragen, bei „ja" Details, Verneintes nicht vertiefen).`
 
+// Gamification (spürbar motivierend, aber respektvoll fürs medizinische Setting):
+// überschreibt bewusst die knappe Bestätigungsregel und macht aus der Anamnese
+// eine gemeinsame „Gesundheits-Quest" mit warmen Micro-Belohnungen + Meilenstein-
+// Bestätigungen. Die sichtbare HUD (Punkte/Abzeichen/Checkpoints) lebt im Client;
+// hier geht es nur um Ton und Rückmeldung des Interviewers.
+const ANAMNESIS_GAMIFY_RULE = `- MOTIVIERENDER MODUS (Gamification aktiv): Gestalte das Gespräch als gemeinsame „Gesundheits-Quest" hin zu einem vollständigen Anamnesebogen. Gib – ABWEICHEND von der knappen Bestätigungsregel oben – nach JEDER Antwort eine kurze (ein Satz), warme, wertschätzende Rückmeldung, die die Antwort würdigt und ihren Nutzen für die Ärztin/den Arzt betont (z. B. „Das ist eine sehr genaue Beschreibung – das hilft Ihrer Ärztin wirklich weiter."). Bleibe dabei professionell und respektvoll: KEINE medizinische Bewertung, KEINE übertriebene Fröhlichkeit, KEIN Verharmlosen von Beschwerden.
+- Markiere Meilensteine in Worten: Ist ein Themenbereich vollständig erfasst, benenne das kurz und ermutigend (z. B. „Damit ist der Bereich ‚Aktuelle Beschwerden' komplett – gut gemacht!") und leite dann motivierend zum nächsten Bereich über.
+- Ermutige bei sehr knappen Antworten sanft zu etwas mehr Detail, indem du den Wert der Genauigkeit betonst – nie bedrängend, ein „weiter" wird respektiert.
+- Trotz der wärmeren Rückmeldung: weiterhin nur EINE Frage pro Nachricht.`
+
 function anamnesisInterview(memorial, name, rel, address, contributorGender) {
   const addr = addressRule(address)
   const gen = contributorGenderRule(contributorGender)
   const ind = anamnesisIndication(memorial)
+  const gamify = memorial?.gamification !== false   // Default an (nur explizit false schaltet ab)
   const cb = catalogBlock(memorial)
   const flow = cb
     ? catalogRules(cb, name)
@@ -961,6 +972,7 @@ ${anamnesisGreetingRule(name)}
 ${interviewScopeRule(name)}
 ${ANAMNESIS_SCHEME_RULE}
 ${ANAMNESIS_CHECKLIST_RULE}
+${gamify ? ANAMNESIS_GAMIFY_RULE : ''}
 ${flow}
 - Schreibe auf Deutsch`
 }
