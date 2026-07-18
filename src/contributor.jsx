@@ -138,6 +138,75 @@ function catalogProgress(memorial, messages) {
   }
 }
 
+// ── Gamification-HUD (Anamnese, „Gesundheits-Quest") ──────────────
+// Spürbar motivierend, aber respektvoll: Punkte + Level, Quest-Checkpoints aus
+// den Katalog-Kapiteln, aus den vorhandenen Daten (Antwortzahl + Fortschritt)
+// abgeleitete Abzeichen und eine dezente Abschluss-Feier mit Konfetti. Reiner
+// Anzeige-Layer — verändert weder Interview-Logik noch Bogen/Transkript.
+function GamificationHud({ chapters, prog, round, lang }) {
+  const en = String(lang || '').startsWith('en')
+  const T = en
+    ? { pts: 'points', lvl: 'Level', done: 'Anamnesis complete!', doneSub: 'Your intake is ready for the doctor.', badges: 'badges' }
+    : { pts: 'Punkte', lvl: 'Level', done: 'Anamnese abgeschlossen!', doneSub: 'Ihr Bogen ist bereit für den Arzt.', badges: 'Abzeichen' }
+  const total     = Array.isArray(chapters) ? chapters.length : 0
+  const doneAll   = !!prog?.done
+  const completed = doneAll ? total : (prog ? Math.max(0, (prog.chapter || 1) - 1) : 0)
+  const points    = round * 10 + completed * 40
+  const level     = Math.floor(points / 100) + 1
+
+  const badges = []
+  if (round >= 1)  badges.push({ e: '🌱', de: 'Erste Schritte',    en: 'First steps' })
+  if (round >= 5)  badges.push({ e: '🗣️', de: 'Auskunftsfreudig',  en: 'Open book' })
+  if (round >= 12) badges.push({ e: '💪', de: 'Ausdauernd',        en: 'Persistent' })
+  if (completed >= 1) badges.push({ e: '🧭', de: 'Kartograf:in',    en: 'Cartographer' })
+  if (total && completed >= Math.ceil(total / 2)) badges.push({ e: '⛰️', de: 'Halbzeit-Held:in', en: 'Halfway hero' })
+  if (doneAll) badges.push({ e: '🏅', de: 'Anamnese-Meister:in',   en: 'Anamnesis master' })
+
+  const [pulse, setPulse] = useState(false)
+  useEffect(() => { if (round > 0) { setPulse(true); const id = setTimeout(() => setPulse(false), 380); return () => clearTimeout(id) } }, [round])
+
+  return (
+    <div style={{ padding: '10px 1.5rem 12px', borderBottom: '1px solid #e7e5e4', background: 'linear-gradient(#fffdf7,#fafaf9)' }}>
+      <style>{'@keyframes lwPop{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(1)}}@keyframes lwFall{0%{transform:translateY(-12px) rotate(0);opacity:1}100%{transform:translateY(130px) rotate(360deg);opacity:0}}'}</style>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: total > 0 ? 8 : (badges.length ? 8 : 0) }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', animation: pulse ? 'lwPop .38s ease' : 'none' }}>⭐ {points}</span>
+          <span style={{ fontSize: 12, color: '#a16207' }}>{T.pts}</span>
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 10px' }}>{T.lvl} {level}</span>
+      </div>
+      {total > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: badges.length ? 8 : 0 }}>
+          {chapters.map((ch, i) => {
+            const state = doneAll || i < completed ? 'done' : (i === completed ? 'active' : 'todo')
+            return <div key={i} title={(ch?.title) || ''} style={{ flex: 1, height: 7, borderRadius: 4, background: state === 'done' ? '#16a34a' : state === 'active' ? '#f59e0b' : '#e7e5e4', transition: 'background .3s' }} />
+          })}
+        </div>
+      )}
+      {badges.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {badges.map((b, i) => (
+            <span key={i} style={{ fontSize: 11, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 999, padding: '3px 8px', color: '#44403c' }}>{b.e} {en ? b.en : b.de}</span>
+          ))}
+        </div>
+      )}
+      {doneAll && (
+        <div style={{ position: 'relative', marginTop: 10, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '14px 16px', textAlign: 'center', overflow: 'hidden' }}>
+          <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {['#f59e0b', '#16a34a', '#3b82f6', '#ec4899', '#a855f7', '#f43f5e'].map((c, i) => (
+              <span key={i} style={{ position: 'absolute', left: `${8 + i * 16}%`, top: 0, width: 8, height: 8, background: c, borderRadius: 2, animation: `lwFall ${1 + (i % 3) * 0.4}s ease-in ${i * 0.12}s infinite` }} />
+            ))}
+          </div>
+          <div style={{ fontSize: 28, marginBottom: 4 }}>🎉</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#166534' }}>{T.done}</div>
+          <div style={{ fontSize: 13, color: '#15803d', marginTop: 2 }}>{T.doneSub}</div>
+          <div style={{ fontSize: 12, color: '#166534', marginTop: 8 }}>⭐ {points} {T.pts} · {T.lvl} {level} · {badges.length} {T.badges}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch }) {
   const t = uiText(lang)
@@ -617,6 +686,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             <div style={{ width:`${prog.pct}%`, height:'100%', borderRadius:3, background: prog.done ? '#16a34a' : '#1c1917', transition:'width .35s ease' }} />
           </div>
         </div>
+      )}
+      {memorial?.product_category === 'anamnesis' && memorial?.gamification !== false && (
+        <GamificationHud chapters={memorial?.catalog?.chapters || []} prog={prog} round={round} lang={lang} />
       )}
       {timerActive && (
         <div style={{ padding:'8px 12px', borderBottom:'1px solid #e7e5e4',
