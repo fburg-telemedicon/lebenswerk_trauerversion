@@ -756,8 +756,15 @@ module.exports = async function handler(req, res) {
         }
         if ('note' in meta)          update.note = (typeof meta.note === 'string' && meta.note.trim()) ? meta.note.trim() : null
         if ('pickupAddress' in meta) update.pickup_address = sanitizePickupAddress(meta.pickupAddress)
-        // '__free__' (Anamnese: freie Fragen) → kein Katalog. Leer → kein Katalog.
-        if ('catalogId' in meta)     update.catalog_id = (meta.catalogId && meta.catalogId !== '__free__') ? meta.catalogId : null
+        // Fragebogen: '__free__' = freie Fragen (kein Katalog). Bei der Anamnese
+        // bedeutet LEER „Standard-Fragebogen" → auf den geseedeten Katalog auflösen
+        // (wie beim Anlegen). Bei anderen Kategorien bleibt leer = kein Katalog.
+        if ('catalogId' in meta) {
+          if (meta.catalogId === '__free__') update.catalog_id = null
+          else if (meta.catalogId) update.catalog_id = meta.catalogId
+          else if (meta.productCategory === 'anamnesis') update.catalog_id = await ensureAnamnesisCatalog(supabase)
+          else update.catalog_id = null
+        }
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
         if ('imageStyle' in meta)    update.image_style = normalizeStyle(meta.imageStyle) || DEFAULT_STYLE
         if ('bookLayout' in meta)    update.book_layout = normalizeLayout(meta.bookLayout) || DEFAULT_BOOK_LAYOUT
