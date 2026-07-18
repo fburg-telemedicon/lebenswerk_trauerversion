@@ -3174,7 +3174,7 @@ export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDo
 // ── Support-Tickets (nur Admin) ──
 // Eingegangene In-App-Support-Anfragen: Nachricht, Antwort-Adresse (direkt
 // beantwortbar), Diagnose-Kontext; als erledigt markier- und löschbar.
-export function SupportView({ supportData, loading, err, setView, logout, toggleSupportHandled, deleteSupport }) {
+export function SupportView({ supportData, loading, err, setView, logout, toggleSupportHandled, deleteSupport, generateSupportAssist, saveSupportDraft, sendSupportReply }) {
   const t = useAdminT()
   const rows = Array.isArray(supportData) ? supportData : []
   const openCount = rows.filter(r => !r.handled).length
@@ -3207,62 +3207,131 @@ export function SupportView({ supportData, loading, err, setView, logout, toggle
           </div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {rows.map(r => {
-              const ctx = r.context && typeof r.context === 'object' ? r.context : {}
-              const ctxRows = Object.entries(ctx).filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
-              const mailto = `mailto:${r.reply_email}?subject=${encodeURIComponent('Re: Ihre Support-Anfrage – Lebensgeschichten')}`
-              // Rückkanal: E-Mail und/oder Telefon (mind. eines ist da). Der
-              // Kontaktwunsch bestimmt, welcher Kanal als Antwort-Button erscheint.
-              const wantsPhone = r.preferred_channel === 'phone' || !r.reply_email
-              const replyHref  = wantsPhone && r.reply_phone ? `tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}` : mailto
-              return (
-                <div key={r.id} style={{ ...S.card, opacity: r.handled ? 0.62 : 1, borderColor: r.handled ? '#e7e5e4' : '#d6d3d1' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap', marginBottom:8 }}>
-                    <div>
-                      <strong style={{ fontSize:15 }}>{r.name || '—'}</strong>
-                      {r.reply_email && <a href={mailto} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>{r.reply_email}</a>}
-                      {r.reply_phone && (
-                        <a href={`tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}`} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>📞 {r.reply_phone}</a>
-                      )}
-                      <div style={{ ...S.muted, fontSize:12, marginTop:2 }}>
-                        <span style={{ fontFamily:'monospace', color:'#57534e' }}>#{r.id}</span>{' · '}{fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
-                        {r.preferred_channel === 'phone' && ` · ${t('am liebsten telefonisch', 'prefers phone')}`}
-                        {r.preferred_channel === 'email' && ` · ${t('am liebsten per E-Mail', 'prefers email')}`}
-                        {!r.handled && <span style={{ marginLeft:8, color:'#15803d', fontWeight:600 }}>{t('offen', 'open')}</span>}
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <a href={replyHref} className="secondary" style={{ fontSize:12, padding:'5px 10px', textDecoration:'none', display:'inline-block' }}>
-                        {wantsPhone && r.reply_phone ? t('Anrufen', 'Call') : t('Antworten', 'Reply')}
-                      </a>
-                      <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#57534e', cursor:'pointer', whiteSpace:'nowrap' }}>
-                        <input type="checkbox" checked={!!r.handled} onChange={e => toggleSupportHandled?.(r.id, e.target.checked)}
-                          style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />
-                        {t('Erledigt', 'Done')}
-                      </label>
-                      <button className="secondary" onClick={() => deleteSupport?.(r.id)}
-                        style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>{t('Löschen', 'Delete')}</button>
-                    </div>
-                  </div>
-                  <div style={{ whiteSpace:'pre-wrap', fontSize:14, lineHeight:1.6, color:'#1c1917', background:'#fafaf9', border:'1px solid #f0efec', borderRadius:8, padding:'10px 12px' }}>{r.message}</div>
-                  {ctxRows.length > 0 && (
-                    <details style={{ marginTop:8 }}>
-                      <summary style={{ fontSize:12, color:'#78716c', cursor:'pointer' }}>{t('Diagnose-Angaben', 'Diagnostic details')}</summary>
-                      <div style={{ marginTop:6 }}>
-                        {ctxRows.map(([k, v]) => (
-                          <div key={k} style={{ fontSize:12, color:'#57534e', lineHeight:1.55, wordBreak:'break-word' }}>
-                            <span style={{ color:'#a8a29e' }}>{CTX_LABEL[k] || k}:</span> {String(v)}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              )
-            })}
+            {rows.map(r => (
+              <SupportTicket key={r.id} r={r} t={t} fmt={fmt} CTX_LABEL={CTX_LABEL}
+                toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport}
+                generateSupportAssist={generateSupportAssist} saveSupportDraft={saveSupportDraft} sendSupportReply={sendSupportReply} />
+            ))}
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Eine Support-Ticket-Karte mit KI-Antwortvorschlag (editierbar), optionalem
+// Reparatur-Prompt und – falls eine E-Mail-Adresse hinterlegt ist – Direktversand
+// der Antwort aus dem Dashboard (Absender/BCC = support@).
+function SupportTicket({ r, t, fmt, CTX_LABEL, toggleSupportHandled, deleteSupport, generateSupportAssist, saveSupportDraft, sendSupportReply }) {
+  const [draft, setDraft] = useState(r.reply_draft || '')
+  const [busy, setBusy] = useState('')     // '', 'gen', 'send', 'save'
+  const [msg, setMsg] = useState('')
+  const [errMsg, setErrMsg] = useState('')
+  useEffect(() => { setDraft(r.reply_draft || '') }, [r.reply_draft])
+
+  const ctx = r.context && typeof r.context === 'object' ? r.context : {}
+  const ctxRows = Object.entries(ctx).filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
+  const mailto = `mailto:${r.reply_email}?subject=${encodeURIComponent('Re: Ihre Support-Anfrage – Lebensgeschichten')}`
+  const wantsPhone = r.preferred_channel === 'phone' || !r.reply_email
+  const replyHref  = wantsPhone && r.reply_phone ? `tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}` : mailto
+  const dirty = (draft || '') !== (r.reply_draft || '')
+
+  async function run(kind, fn) {
+    setBusy(kind); setErrMsg(''); setMsg('')
+    try { await fn() } catch (e) { setErrMsg(e.message || String(e)) } finally { setBusy('') }
+  }
+  const doGen  = () => run('gen',  async () => { await generateSupportAssist(r.id) })
+  const doSave = () => run('save', async () => { await saveSupportDraft(r.id, draft); setMsg(t('Entwurf gespeichert.', 'Draft saved.')) })
+  const doSend = () => {
+    if (!r.reply_email || !draft.trim()) return
+    if (!window.confirm(t(`Antwort per E-Mail an ${r.reply_email} senden?`, `Send reply by email to ${r.reply_email}?`))) return
+    run('send', async () => { await sendSupportReply(r.id, draft); setMsg(t('Antwort gesendet.', 'Reply sent.')) })
+  }
+  const copyRepair = () => { try { navigator.clipboard?.writeText(r.repair_prompt || ''); setMsg(t('Reparatur-Prompt kopiert.', 'Repair prompt copied.')) } catch {} }
+
+  return (
+    <div style={{ ...S.card, opacity: r.handled ? 0.62 : 1, borderColor: r.handled ? '#e7e5e4' : '#d6d3d1' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap', marginBottom:8 }}>
+        <div>
+          <strong style={{ fontSize:15 }}>{r.name || '—'}</strong>
+          {r.reply_email && <a href={mailto} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>{r.reply_email}</a>}
+          {r.reply_phone && (
+            <a href={`tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}`} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>📞 {r.reply_phone}</a>
+          )}
+          <div style={{ ...S.muted, fontSize:12, marginTop:2 }}>
+            <span style={{ fontFamily:'monospace', color:'#57534e' }}>#{r.id}</span>{' · '}{fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
+            {r.preferred_channel === 'phone' && ` · ${t('am liebsten telefonisch', 'prefers phone')}`}
+            {r.preferred_channel === 'email' && ` · ${t('am liebsten per E-Mail', 'prefers email')}`}
+            {r.reply_sent_at && <span style={{ marginLeft:8, color:'#0369a1', fontWeight:600 }}>{t('beantwortet', 'answered')} {fmt(r.reply_sent_at)}</span>}
+            {!r.handled && <span style={{ marginLeft:8, color:'#15803d', fontWeight:600 }}>{t('offen', 'open')}</span>}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <a href={replyHref} className="secondary" style={{ fontSize:12, padding:'5px 10px', textDecoration:'none', display:'inline-block' }}>
+            {wantsPhone && r.reply_phone ? t('Anrufen', 'Call') : t('Antworten', 'Reply')}
+          </a>
+          <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#57534e', cursor:'pointer', whiteSpace:'nowrap' }}>
+            <input type="checkbox" checked={!!r.handled} onChange={e => toggleSupportHandled?.(r.id, e.target.checked)}
+              style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />
+            {t('Erledigt', 'Done')}
+          </label>
+          <button className="secondary" onClick={() => deleteSupport?.(r.id)}
+            style={{ fontSize:12, padding:'5px 10px', color:'#dc2626', borderColor:'#fecaca' }}>{t('Löschen', 'Delete')}</button>
+        </div>
+      </div>
+      <div style={{ whiteSpace:'pre-wrap', fontSize:14, lineHeight:1.6, color:'#1c1917', background:'#fafaf9', border:'1px solid #f0efec', borderRadius:8, padding:'10px 12px' }}>{r.message}</div>
+      {ctxRows.length > 0 && (
+        <details style={{ marginTop:8 }}>
+          <summary style={{ fontSize:12, color:'#78716c', cursor:'pointer' }}>{t('Diagnose-Angaben', 'Diagnostic details')}</summary>
+          <div style={{ marginTop:6 }}>
+            {ctxRows.map(([k, v]) => (
+              <div key={k} style={{ fontSize:12, color:'#57534e', lineHeight:1.55, wordBreak:'break-word' }}>
+                <span style={{ color:'#a8a29e' }}>{CTX_LABEL[k] || k}:</span> {String(v)}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* KI-Antwortvorschlag (editierbar) */}
+      <div style={{ marginTop:12, borderTop:'1px dashed #e7e5e4', paddingTop:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6, gap:8, flexWrap:'wrap' }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'#78716c' }}>{t('Antwortvorschlag (editierbar)', 'Reply suggestion (editable)')}</span>
+          <button className="secondary" onClick={doGen} disabled={!!busy} style={{ fontSize:11, padding:'4px 9px' }}>
+            {busy === 'gen' ? t('Generiere …', 'Generating …') : (r.reply_draft ? t('Neu generieren', 'Regenerate') : t('Vorschlag generieren', 'Generate suggestion'))}
+          </button>
+        </div>
+        <textarea value={draft} onChange={e => setDraft(e.target.value)}
+          placeholder={t('Noch kein Vorschlag – „Vorschlag generieren" klicken oder selbst schreiben.', 'No suggestion yet – click “Generate suggestion” or write your own.')}
+          style={{ width:'100%', minHeight:120, fontSize:14, lineHeight:1.55, padding:'10px 12px', border:'1px solid #d6d3d1', borderRadius:8, fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
+        <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:8, flexWrap:'wrap' }}>
+          {r.reply_email ? (
+            <button onClick={doSend} disabled={!!busy || !draft.trim()}
+              style={{ fontSize:13, padding:'7px 14px', background:'#1c1917', color:'#fff', border:'none', borderRadius:8, cursor: (busy || !draft.trim()) ? 'default' : 'pointer', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>
+              {busy === 'send' ? t('Sende …', 'Sending …') : t('Per E-Mail an Absender senden', 'Send by email to sender')}
+            </button>
+          ) : (
+            <span style={{ fontSize:12, color:'#a8a29e' }}>{t('Keine E-Mail-Adresse – Versand nicht möglich (nur Telefon).', 'No email address – sending not possible (phone only).')}</span>
+          )}
+          <button className="secondary" onClick={doSave} disabled={!!busy || !dirty} style={{ fontSize:12, padding:'6px 12px', opacity: !dirty ? 0.5 : 1 }}>
+            {busy === 'save' ? t('Speichere …', 'Saving …') : t('Entwurf speichern', 'Save draft')}
+          </button>
+          {msg && <span style={{ fontSize:12, color:'#15803d' }}>{msg}</span>}
+          {errMsg && <span style={{ fontSize:12, color:'#dc2626' }}>{errMsg}</span>}
+        </div>
+        {r.reply_email && <div style={{ ...S.muted, fontSize:11, marginTop:4 }}>{t('Versand als support@ · BCC an support@ · Nutzer-Antworten gehen an support@', 'Sent as support@ · BCC to support@ · user replies go to support@')}</div>}
+      </div>
+
+      {/* Reparatur-Prompt (Vorschlag) */}
+      {r.repair_prompt && (
+        <div style={{ marginTop:12, borderTop:'1px dashed #e7e5e4', paddingTop:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6, gap:8 }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'#78716c' }}>{t('Reparatur-Prompt (Vorschlag)', 'Repair prompt (suggestion)')}</span>
+            <button className="secondary" onClick={copyRepair} style={{ fontSize:11, padding:'4px 9px' }}>{t('Kopieren', 'Copy')}</button>
+          </div>
+          <div style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.55, color:'#44403c', background:'#f5f3ff', border:'1px solid #e9e5ff', borderRadius:8, padding:'10px 12px', fontFamily:'monospace' }}>{r.repair_prompt}</div>
+        </div>
+      )}
     </div>
   )
 }

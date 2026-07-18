@@ -308,6 +308,33 @@ export async function adminDeleteSupport(token, id) {
   })
   return parseResponse(res) // { ok }
 }
+// KI-Antwortvorschlag (neu) generieren – für ältere Tickets ohne Vorschlag.
+export async function adminGenerateSupportAssist(token, id) {
+  const res = await fetch(`/api/support?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ generate: true }),
+  })
+  return parseResponse(res) // { ok, reply_draft, repair_prompt }
+}
+// Antwort-Entwurf speichern (ohne zu senden).
+export async function adminSaveSupportDraft(token, id, reply_draft) {
+  const res = await fetch(`/api/support?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ reply_draft }),
+  })
+  return parseResponse(res) // { ok }
+}
+// Antwort per E-Mail an den Absender senden (BCC ins Support-Postfach).
+export async function adminSendSupportReply(token, id, text) {
+  const res = await fetch(`/api/support?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ send_reply: text }),
+  })
+  return parseResponse(res) // { ok, sent_to, reply_sent_at, handled }
+}
 
 // Verwaltung (nur Admin).
 // `memorial` (optional) → nur die für DIESES Buch eingelösten Codes (Buch-Detailseite).

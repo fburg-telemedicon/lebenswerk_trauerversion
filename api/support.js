@@ -16,10 +16,16 @@
 const { createClient, pool } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 const { sendSupportMail } = require('./_lib/invitemail')
+const { sendMail } = require('./_lib/graphmail')
+const { callAzure } = require('./_lib/llm')
+const { costLLM, recordCost } = require('./_lib/cost')
 const { checkAuth } = require('./_lib/auth')
 const { audit } = require('./_lib/audit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // Telefonnummern bewusst nur grob prüfen: Ziffern, Leerzeichen, +, /, -, (), mind.
@@ -50,7 +56,81 @@ async function ensureSupportSchema() {
       add column if not exists reply_phone       text,
       add column if not exists preferred_channel text
   `)
+  // KI-Assistenz: editierbarer Antwort-Entwurf + optionaler Reparatur-Prompt,
+  // sowie Zeitpunkt einer versendeten Antwort.
+  await pool().query(`
+    alter table support_requests
+      add column if not exists reply_draft   text,
+      add column if not exists repair_prompt text,
+      add column if not exists reply_sent_at timestamptz
+  `)
   schemaReady = true
+}
+
+// ── KI-Assistenz zu einem Ticket ─────────────────────────────────────────────
+// Erzeugt einen editierbaren Antwort-Entwurf und – falls sinnvoll – einen
+// fertigen Reparatur-Prompt fürs KI-System. Best effort: der Aufrufer schluckt
+// Fehler, das Ticket ist wichtiger als der Vorschlag.
+const LANG_NAME = { de: 'Deutsch', en: 'Englisch', pl: 'Polnisch', fr: 'Französisch', es: 'Spanisch', it: 'Italienisch', tr: 'Türkisch', ru: 'Russisch', ar: 'Arabisch', he: 'Hebräisch', uk: 'Ukrainisch', nl: 'Niederländisch', pt: 'Portugiesisch' }
+
+function parseAssist(text) {
+  if (!text) return null
+  let s = String(text).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  const a = s.indexOf('{'), b = s.lastIndexOf('}')
+  if (a >= 0 && b > a) s = s.slice(a, b + 1)
+  try {
+    const o = JSON.parse(s)
+    return { reply: String(o.reply || '').trim(), repair_prompt: String(o.repair_prompt || '').trim() }
+  } catch { return null }
+}
+
+// Erzeugt Vorschläge für ein gespeichertes Ticket (row) und schreibt sie zurück.
+// Gibt { reply_draft, repair_prompt } zurück oder null (bei Fehlschlag).
+async function assistForTicket(row) {
+  if (!row || row.id == null) return null
+  const ctx = row.context && typeof row.context === 'object' ? row.context : {}
+  const lang = LANG_NAME[String(ctx.lang || '').toLowerCase()] || 'Deutsch'
+  const diag = Object.entries(ctx)
+    .filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
+    .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+    .join('\n')
+  const system =
+    'Du bist der Support-Assistent von „Lebensgeschichten", einer KI-gestützten App für ' +
+    'Biografie- und Gedenkbücher (Interviews per Sprache oder Text, die KI erzeugt daraus ' +
+    'Buch, Bilder und Trauerrede). Zu einer eingegangenen Support-Anfrage erstellst du zwei Dinge:\n' +
+    `1) "reply": einen freundlichen, konkreten, sofort absendbaren Antwort-Entwurf an die anfragende ` +
+    `Person, in höflicher Sie-Form, auf ${lang}. Gehe auf das geschilderte Problem ein und nenne – wenn ` +
+    'möglich – einen konkreten Lösungsweg oder die nächsten Schritte. Erfinde keine Fakten und sage keine ' +
+    'Fristen zu. Schließe mit „Ihr Lebensgeschichten-Team".\n' +
+    '2) "repair_prompt": NUR wenn das Problem inhaltlich über eine korrigierende Anweisung an das KI-System ' +
+    'lösbar erscheint (z. B. fehlerhaftes Interview, falsches Buchkapitel, unpassend erzeugter Text/Bild), ' +
+    'formuliere einen fertigen deutschen Anweisungs-Prompt, den das Team dem KI-System geben kann, um genau ' +
+    'dieses Problem zu beheben. Andernfalls ein leerer String "".\n' +
+    'Antworte AUSSCHLIESSLICH als kompaktes JSON ohne Markdown: {"reply":"…","repair_prompt":"…"}'
+  const user =
+    `Absender: ${row.name || '—'}${row.reply_email ? ` <${row.reply_email}>` : ''}\n\n` +
+    `Nachricht:\n${row.message || ''}\n\n` +
+    `Diagnose-Angaben:\n${diag || '(keine)'}`
+  const result = await callAzure({ system, messages: [{ role: 'user', content: user }], maxTokens: 1200 })
+  if (result.inT || result.outT) {
+    try {
+      await recordCost({
+        memorial_id: row.memorial_id || null,
+        kind: 'support-assist',
+        provider: result.provider,
+        model: result.model,
+        input_tokens: result.inT,
+        output_tokens: result.outT,
+        cost_usd: costLLM(result.model, result.inT, result.outT),
+      })
+    } catch (e) { console.warn('/api/support cost:', e.message) }
+  }
+  const parsed = parseAssist(result.text)
+  if (!parsed) return null
+  const patch = { reply_draft: parsed.reply || null, repair_prompt: parsed.repair_prompt || null }
+  try { await supabase.from('support_requests').update(patch).eq('id', row.id) }
+  catch (e) { console.warn('/api/support assist store:', e.message) }
+  return patch
 }
 
 // ── Verwaltung (nur Admin): Tickets lesen / erledigt markieren / löschen ──────
@@ -62,7 +142,7 @@ async function handleAdmin(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('support_requests')
-      .select('id, created_at, memorial_id, name, reply_email, reply_phone, preferred_channel, message, context, handled')
+      .select('id, created_at, memorial_id, name, reply_email, reply_phone, preferred_channel, message, context, handled, reply_draft, repair_prompt, reply_sent_at')
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) throw error
@@ -72,7 +152,55 @@ async function handleAdmin(req, res) {
   if (req.method === 'PATCH') {
     const id = String(req.query.id || '').trim()
     if (!id) return res.status(400).json({ error: 'id fehlt.' })
-    const handled = Boolean((req.body || {}).handled)
+    const body = req.body || {}
+
+    // (a) KI-Antwortvorschlag (neu) generieren – v. a. für ältere Tickets ohne Vorschlag.
+    if (body.generate === true) {
+      const { data: row, error } = await supabase
+        .from('support_requests')
+        .select('id, memorial_id, name, reply_email, message, context')
+        .eq('id', id).single()
+      if (error) throw error
+      const patch = await assistForTicket(row)
+      if (!patch) return res.status(502).json({ error: 'Vorschlag konnte nicht erstellt werden. Bitte erneut versuchen.' })
+      await audit(req, { actor: req.auth, action: 'support.assist', target: id })
+      return res.json({ ok: true, ...patch })
+    }
+
+    // (b) Antwort per E-Mail an den Absender senden (BCC ins Support-Postfach).
+    if (typeof body.send_reply === 'string') {
+      const text = body.send_reply.trim()
+      if (text.length < 2) return res.status(400).json({ error: 'Antworttext fehlt.' })
+      const { data: row, error } = await supabase
+        .from('support_requests')
+        .select('id, reply_email')
+        .eq('id', id).single()
+      if (error) throw error
+      if (!row.reply_email) return res.status(400).json({ error: 'Keine E-Mail-Adresse hinterlegt – Antwort kann nicht per E-Mail gesendet werden.' })
+      const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
+      const html = `<!doctype html><html lang="de"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;"><div style="max-width:560px;margin:0 auto;padding:24px;white-space:pre-wrap;font-size:15px;line-height:1.6;">${esc(text)}</div></body></html>`
+      // Absender = support@ (Antworten des Nutzers landen wieder dort), BCC = support@
+      // für den Postfach-Verlauf. Reply-To ebenfalls support@.
+      await sendMail({
+        from: inbox, to: row.reply_email, bcc: inbox, replyTo: inbox,
+        subject: `Re: Ihre Support-Anfrage #${row.id} – Lebensgeschichten`,
+        text, html,
+      })
+      const sentAt = new Date().toISOString()
+      await supabase.from('support_requests').update({ handled: true, reply_draft: text, reply_sent_at: sentAt }).eq('id', id)
+      await audit(req, { actor: req.auth, action: 'support.reply_sent', target: id, detail: { to: row.reply_email } })
+      return res.json({ ok: true, sent_to: row.reply_email, reply_sent_at: sentAt, handled: true })
+    }
+
+    // (c) Nur den Antwort-Entwurf speichern (ohne zu senden).
+    if (typeof body.reply_draft === 'string') {
+      const { error } = await supabase.from('support_requests').update({ reply_draft: body.reply_draft }).eq('id', id)
+      if (error) throw error
+      return res.json({ ok: true })
+    }
+
+    // (d) Erledigt-Status umschalten (Standard).
+    const handled = Boolean(body.handled)
     const { error } = await supabase.from('support_requests').update({ handled }).eq('id', id)
     if (error) throw error
     await audit(req, { actor: req.auth, action: 'support.update', target: id, detail: { handled } })
@@ -179,6 +307,20 @@ module.exports = async function handler(req, res) {
       // die Mail geht trotzdem raus, Telefonnummer + Kontaktwunsch stehen darin.
       await sendSupportMail({ ticketId, replyTo: replyEmail || null, phone: replyPhone || null, preferredChannel, name, message, context: ctx })
     } catch (e) { console.error('/api/support mail:', e); email_sent = false }
+
+    // KI-Antwortvorschlag + Reparatur-Prompt sofort erzeugen, solange das Ticket
+    // frisch ist — so liegen sie im Dashboard bereit, sobald es geöffnet wird.
+    // NACH der Betreiber-Benachrichtigung, damit ein langsamer/fehlschlagender
+    // KI-Aufruf weder die Mail noch das Absenden blockiert. Best effort + Timeout;
+    // das Ticket ist bereits gespeichert.
+    if (ticketId != null) {
+      try {
+        await withTimeout(
+          assistForTicket({ id: ticketId, name, reply_email: replyEmail || null, message, context: ctx, memorial_id: memorialId }),
+          25000,
+        )
+      } catch (e) { console.warn('/api/support assist:', e.message) }
+    }
 
     if (!stored && !email_sent) {
       // Weder gespeichert noch versendet → dem Nutzer ehrlich einen Fehler melden.

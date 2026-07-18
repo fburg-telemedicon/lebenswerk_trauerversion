@@ -13,6 +13,7 @@ import {
   adminListRecipients, adminAddRecipient, adminUpdateRecipient, adminDeleteRecipient, adminSendReportNow,
   adminListUnlockCodes, adminCreateUnlockCode, adminSendUnlockCode, adminDeleteUnlockCode,
   adminListSupport, adminSetSupportHandled, adminDeleteSupport,
+  adminGenerateSupportAssist, adminSaveSupportDraft, adminSendSupportReply,
   getSettings, saveSettings, changeOwnPassword, saveOwnLang,
   getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
@@ -1351,6 +1352,24 @@ function Dashboard() {
     setSupportData(rows => rows.filter(r => String(r.id) !== String(id)))
     try { await adminDeleteSupport(token, id) }
     catch (e) { setErr(e.message); setSupportData(prev) }
+  }
+  // KI-Vorschlag (neu) für ein Ticket erzeugen — wirft bei Fehler (Ticket-Karte
+  // zeigt den Status selbst). Bei Erfolg die Zeile aktualisieren.
+  async function generateSupportAssist(id) {
+    const d = await adminGenerateSupportAssist(token, id)
+    setSupportData(rows => rows.map(r => String(r.id) === String(id)
+      ? { ...r, reply_draft: d.reply_draft ?? r.reply_draft, repair_prompt: d.repair_prompt ?? r.repair_prompt } : r))
+    return d
+  }
+  async function saveSupportDraft(id, draft) {
+    setSupportData(rows => rows.map(r => String(r.id) === String(id) ? { ...r, reply_draft: draft } : r))
+    await adminSaveSupportDraft(token, id, draft)
+  }
+  async function sendSupportReply(id, text) {
+    const d = await adminSendSupportReply(token, id, text)
+    setSupportData(rows => rows.map(r => String(r.id) === String(id)
+      ? { ...r, handled: true, reply_draft: text, reply_sent_at: d.reply_sent_at || new Date().toISOString() } : r))
+    return d
   }
 
   // ── Tagesreport-Empfänger (nur Admin) ──
@@ -3280,7 +3299,7 @@ Regeln:
 
   // ── SUPPORT-ANFRAGEN (nur Admin) ──
   if (view === 'support') return (
-    <SupportView supportData={supportData} loading={supportLoading} err={err} setView={setView} logout={logout} toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport} />
+    <SupportView supportData={supportData} loading={supportLoading} err={err} setView={setView} logout={logout} toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport} generateSupportAssist={generateSupportAssist} saveSupportDraft={saveSupportDraft} sendSupportReply={sendSupportReply} />
   )
 
   // ── FRAGENKATALOGE (nur Admin) ──
