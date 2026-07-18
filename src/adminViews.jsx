@@ -9,7 +9,7 @@ import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULE
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
-import { LANGUAGES, uiText, canPrintPdf } from './i18n.js'
+import { LANGUAGES, uiText, canPrintPdf, sortLangs } from './i18n.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
@@ -2258,7 +2258,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
     const dash = '—'
     const fmtDateTime = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
     const orderVariant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
-    const orderLangLabels = (selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
+    const orderLangLabels = sortLangs(selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
         <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -9,7 +9,7 @@ import { askLLM, speakText, stopSpeaking, addContribution, getContribution, getE
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
-import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
+import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
 import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
@@ -2712,7 +2712,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   }
 
   // Angebotene Sprachen + aktuell wirksame Sprache des Beitragenden.
-  const langs   = (memorial?.languages && memorial.languages.length) ? memorial.languages : [DEFAULT_LANGUAGE]
+  const langs   = sortLangs((memorial?.languages && memorial.languages.length) ? memorial.languages : [DEFAULT_LANGUAGE])
   const L       = lang || (langs.length === 1 ? langs[0] : DEFAULT_LANGUAGE)
   const needLang = !!memorial && langs.length > 1 && !lang
   const t  = uiText(L)

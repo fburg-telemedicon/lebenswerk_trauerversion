@@ -51,12 +51,18 @@ const TTS_VOICES = {
   eu:      process.env.AZURE_SPEECH_TTS_VOICE_EU    || 'eu-ES-AinhoaNeural',
   he:      process.env.AZURE_SPEECH_TTS_VOICE_HE    || 'he-IL-HilaNeural',
   ar:      process.env.AZURE_SPEECH_TTS_VOICE_AR    || 'ar-EG-SalmaNeural',
+  fr:      process.env.AZURE_SPEECH_TTS_VOICE_FR    || 'fr-FR-DeniseNeural',
+  ro:      process.env.AZURE_SPEECH_TTS_VOICE_RO    || 'ro-RO-AlinaNeural',
+  tr:      process.env.AZURE_SPEECH_TTS_VOICE_TR    || 'tr-TR-EmelNeural',
+  ru:      process.env.AZURE_SPEECH_TTS_VOICE_RU    || 'ru-RU-SvetlanaNeural',
+  uk:      process.env.AZURE_SPEECH_TTS_VOICE_UK    || 'uk-UA-PolinaNeural',
 }
 // BCP-47 je Interviewsprache (für xml:lang; nötig, damit eine mehrsprachige Stimme
 // die richtige Sprache spricht). Passend zu den Locales in api/transcribe.js.
 const SPEECH_LOCALE = {
   de: 'de-DE', 'de-CH': 'de-CH', pl: 'pl-PL', en: 'en-US',
   es: 'es-ES', it: 'it-IT', eu: 'eu-ES', he: 'he-IL', ar: process.env.AZURE_SPEECH_STT_LOCALE_AR || 'ar-EG',
+  fr: 'fr-FR', ro: 'ro-RO', tr: 'tr-TR', ru: 'ru-RU', uk: 'uk-UA',
 }
 // Sprachen, die die Multilingual-Stimmen sicher sprechen. eu/he/ar (und de-CH)
 // behalten ihre dedizierte Stimme, um Fehlaussprache/HTTP-Fehler zu vermeiden.

@@ -9,7 +9,9 @@
 // `de-CH` ist bewusst ein eigener Code, kein Alias von `de`: Spracherkennung
 // (Mundart) und Stimme sind schweizerisch, geschrieben wird Schweizer Hochdeutsch.
 // `he`/`ar` laufen von rechts nach links.
-const ALLOWED_LANGS = ['de', 'de-CH', 'en', 'pl', 'es', 'it', 'eu', 'he', 'ar']
+// Reihenfolge wie LANGUAGES in src/i18n.js: Deutsch zuerst, dann alphabetisch nach
+// nativer Bezeichnung (lateinisch, dann kyrillisch, dann RTL).
+const ALLOWED_LANGS = ['de', 'en', 'es', 'eu', 'fr', 'it', 'pl', 'ro', 'de-CH', 'tr', 'ru', 'uk', 'he', 'ar']
 const RTL_LANGS = ['he', 'ar']
 const DEFAULT_LANG = 'de'
 

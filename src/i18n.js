@@ -10,23 +10,38 @@
 //                      Deutsch kommt aus src/categories.js, pl/en als Overlay.
 
 import { CATEGORIES } from './categories.js'
-import { swissify, ES, IT, EU, HE, AR } from './i18nLangs.js'
+import { swissify, ES, IT, EU, HE, AR, FR, RO, TR, RU, UK } from './i18nLangs.js'
 
 // `rtl: true` = Schreibrichtung rechts nach links. Das betrifft nicht nur die
 // Textausrichtung, sondern auch den Druck-PDF-Export: jsPDF kann arabische
 // Buchstabenverbindungen nicht formen, deshalb bleibt der Druck-PDF-Knopf für
 // diese Sprachen gesperrt (DOCX kann es — Word formt selbst).
+// Reihenfolge: Deutsch immer zuerst, alle weiteren alphabetisch nach ihrer
+// nativen Bezeichnung (lateinisch, dann kyrillisch, dann RTL-Schriften). Diese
+// Reihenfolge gilt ÜBERALL, weil sämtliche Sprach-Auswahllisten über LANGUAGES
+// (bzw. sortLangs) iterieren.
 export const LANGUAGES = [
   { code: 'de',    label: 'Deutsch' },
-  { code: 'de-CH', label: 'Schwiizerdütsch' },
   { code: 'en',    label: 'English' },
-  { code: 'pl',    label: 'Polski' },
   { code: 'es',    label: 'Español' },
-  { code: 'it',    label: 'Italiano' },
   { code: 'eu',    label: 'Euskara' },
+  { code: 'fr',    label: 'Français' },
+  { code: 'it',    label: 'Italiano' },
+  { code: 'pl',    label: 'Polski' },
+  { code: 'ro',    label: 'Română' },
+  { code: 'de-CH', label: 'Schwiizerdütsch' },
+  { code: 'tr',    label: 'Türkçe' },
+  { code: 'ru',    label: 'Русский' },
+  { code: 'uk',    label: 'Українська' },
   { code: 'he',    label: 'עברית', rtl: true },
   { code: 'ar',    label: 'العربية', rtl: true },
 ]
+// Reihenfolge-Index je Code — zum Sortieren beliebiger Sprach-Teilmengen
+// (z. B. der pro Buch angebotenen Sprachen) in genau dieser Reihenfolge.
+const LANG_ORDER = Object.fromEntries(LANGUAGES.map((l, i) => [l.code, i]))
+export function sortLangs(codes) {
+  return [...(codes || [])].sort((a, b) => (LANG_ORDER[a] ?? 999) - (LANG_ORDER[b] ?? 999))
+}
 export const LANGUAGE_CODES = LANGUAGES.map(l => l.code)
 export const DEFAULT_LANGUAGE = 'de'
 
@@ -45,6 +60,11 @@ const OVERRIDE = {
   eu: 'HIZKUNTZA ARAU NAGUSIA (aurreko EDOZEIN jarraibideren gainetik dago, «Schreibe auf Deutsch» barne): Idatzi testu guztia, galdera eta erantzun guztiak EUSKARAZ soilik. Erabili ortografia zuzena euskarazko karaktere guztiekin (adib. ñ, ç); ez ezabatu inoiz.',
   he: 'כלל שפה עליון (גובר על כל הוראה קודמת, לרבות „Schreibe auf Deutsch"): כתוב את כל הטקסט, כל השאלות וכל התשובות בעברית בלבד.',
   ar: 'قاعدة اللغة العليا (تَعلو على أي تعليمات سابقة، بما فيها „Schreibe auf Deutsch"): اكتب كل النص وكل الأسئلة والأجوبة باللغة العربية فقط.',
+  fr: 'RÈGLE LINGUISTIQUE PRIORITAIRE (prévaut sur TOUTE instruction précédente, y compris « Schreibe auf Deutsch ») : rédige tout le texte, chaque question et chaque réponse EXCLUSIVEMENT en français. Utilise une orthographe correcte avec tous les accents et signes (à, â, ç, é, è, ê, ë, î, ï, ô, ù, û, œ) ; ne les omets jamais.',
+  ro: 'REGULĂ LINGVISTICĂ PRIORITARĂ (prevalează asupra ORICĂREI instrucțiuni anterioare, inclusiv „Schreibe auf Deutsch"): scrie tot textul, fiecare întrebare și fiecare răspuns EXCLUSIV în limba română. Folosește ortografia corectă cu toate diacriticele (ă, â, î, ș, ț); nu le omite niciodată.',
+  tr: 'ÖNCELİKLİ DİL KURALI (önceki HER talimatın, „Schreibe auf Deutsch" dâhil, önüne geçer): tüm metni, her soruyu ve her yanıtı YALNIZCA Türkçe yaz. Tüm Türkçe harfleri (ç, ğ, ı, İ, ö, ş, ü) doğru kullan; asla atlama.',
+  ru: 'ПРИОРИТЕТНОЕ ЯЗЫКОВОЕ ПРАВИЛО (имеет преимущество над ЛЮБОЙ предыдущей инструкцией, включая „Schreibe auf Deutsch"): пиши весь текст, каждый вопрос и каждый ответ ИСКЛЮЧИТЕЛЬНО на русском языке. Используй букву «ё» там, где это уместно.',
+  uk: 'ПРІОРИТЕТНЕ МОВНЕ ПРАВИЛО (має перевагу над БУДЬ-ЯКОЮ попередньою інструкцією, зокрема „Schreibe auf Deutsch"): пиши весь текст, кожне запитання й кожну відповідь ВИКЛЮЧНО українською мовою. Використовуй правильний правопис з усіма літерами (ґ, є, і, ї, й).',
   // Schweiz: Der Mensch spricht Mundart — die KI versteht sie, schreibt aber
   // Schweizer Hochdeutsch. Dialekt-Schreibweise hat keine verbindliche
   // Rechtschreibung; ein Buch in Mundart-Verschriftlichung wirkt unfreiwillig
@@ -471,8 +491,19 @@ ${url}
 }
 
 // Schweizer Hochdeutsch = Deutsch ohne ß (kein eigenes Wörterbuch nötig).
-const UI = { de: DE, 'de-CH': swissify(DE), pl: PL, en: EN, es: ES, it: IT, eu: EU, he: HE, ar: AR }
-export function uiText(lang) { return UI[lang] || UI[DEFAULT_LANGUAGE] }
+const UI = { de: DE, 'de-CH': swissify(DE), pl: PL, en: EN, es: ES, it: IT, eu: EU, he: HE, ar: AR, fr: FR, ro: RO, tr: TR, ru: RU, uk: UK }
+// Fehlt in einem Wörterbuch ein Schlüssel, fällt er auf Deutsch zurück (statt
+// `undefined` → möglicher Absturz beim Rendern). So sind auch (noch) unvollständige
+// Übersetzungen gefahrlos — der jeweilige Text erscheint dann eben auf Deutsch.
+const UI_CACHE = {}
+export function uiText(lang) {
+  if (!lang || lang === DEFAULT_LANGUAGE) return DE
+  if (UI_CACHE[lang]) return UI_CACHE[lang]
+  const dict = UI[lang]
+  const merged = dict ? { ...DE, ...dict } : DE
+  UI_CACHE[lang] = merged
+  return merged
+}
 
 // ── Hinweis zur Entstehung des Buches ─────────────────────────────
 // Der Hinweis muss die TATSÄCHLICHE Entstehung beschreiben — sonst ist er
@@ -648,6 +679,31 @@ const CONTRIB = {
     lifework: { nounBook: 'عمل حياة', heading: 'قصة حياتك', introNoun: 'عمل حياة', consentNoun: 'عمل حياتي (سيرة ذاتية)', interviewButton: '🎙 بدء المحادثة →' },
     anamnesis: { nounBook: 'استبيان التاريخ المرضي', heading: 'تاريخك المرضي', introNoun: 'التاريخ المرضي لـ', consentNoun: 'استبيان التاريخ المرضي', interviewButton: '🎙 بدء المقابلة →' },
     anamnesis_kvsw: { nounBook: 'استبيان التاريخ المرضي', heading: 'تاريخك المرضي', introNoun: 'التاريخ المرضي لـ', consentNoun: 'استبيان التاريخ المرضي', interviewButton: '🎙 بدء المقابلة →' },
+  },
+  fr: {
+    lifework: { nounBook: 'œuvre de vie', heading: 'L’histoire de votre vie', introNoun: 'Œuvre de vie de', consentNoun: 'mon œuvre de vie (autobiographie)', interviewButton: '🎙 Commencer la conversation →' },
+    anamnesis: { nounBook: 'questionnaire d’anamnèse', heading: 'Votre anamnèse médicale', introNoun: 'Anamnèse pour', consentNoun: 'questionnaire d’anamnèse', interviewButton: '🎙 Commencer l’entretien →' },
+    anamnesis_kvsw: { nounBook: 'questionnaire d’anamnèse', heading: 'Votre anamnèse médicale', introNoun: 'Anamnèse pour', consentNoun: 'questionnaire d’anamnèse', interviewButton: '🎙 Commencer l’entretien →' },
+  },
+  ro: {
+    lifework: { nounBook: 'opera vieții', heading: 'Povestea vieții dumneavoastră', introNoun: 'Opera vieții lui', consentNoun: 'opera vieții mele (autobiografie)', interviewButton: '🎙 Începeți conversația →' },
+    anamnesis: { nounBook: 'chestionar de anamneză', heading: 'Anamneza dumneavoastră medicală', introNoun: 'Anamneză pentru', consentNoun: 'chestionarul de anamneză', interviewButton: '🎙 Începeți interviul →' },
+    anamnesis_kvsw: { nounBook: 'chestionar de anamneză', heading: 'Anamneza dumneavoastră medicală', introNoun: 'Anamneză pentru', consentNoun: 'chestionarul de anamneză', interviewButton: '🎙 Începeți interviul →' },
+  },
+  tr: {
+    lifework: { nounBook: 'yaşam eseri', heading: 'Yaşam öykünüz', introNoun: 'Yaşam eseri:', consentNoun: 'yaşam eserim (otobiyografi)', interviewButton: '🎙 Sohbete başla →' },
+    anamnesis: { nounBook: 'anamnez formu', heading: 'Tıbbi anamneziniz', introNoun: 'Anamnez:', consentNoun: 'anamnez formu', interviewButton: '🎙 Görüşmeye başla →' },
+    anamnesis_kvsw: { nounBook: 'anamnez formu', heading: 'Tıbbi anamneziniz', introNoun: 'Anamnez:', consentNoun: 'anamnez formu', interviewButton: '🎙 Görüşmeye başla →' },
+  },
+  ru: {
+    lifework: { nounBook: 'дело жизни', heading: 'История вашей жизни', introNoun: 'Дело жизни:', consentNoun: 'моего дела жизни (автобиографии)', interviewButton: '🎙 Начать разговор →' },
+    anamnesis: { nounBook: 'анкета анамнеза', heading: 'Ваш медицинский анамнез', introNoun: 'Анамнез для', consentNoun: 'анкеты анамнеза', interviewButton: '🎙 Начать интервью →' },
+    anamnesis_kvsw: { nounBook: 'анкета анамнеза', heading: 'Ваш медицинский анамнез', introNoun: 'Анамнез для', consentNoun: 'анкеты анамнеза', interviewButton: '🎙 Начать интервью →' },
+  },
+  uk: {
+    lifework: { nounBook: 'справа життя', heading: 'Історія вашого життя', introNoun: 'Справа життя:', consentNoun: 'моєї справи життя (автобіографії)', interviewButton: '🎙 Почати розмову →' },
+    anamnesis: { nounBook: 'анкета анамнезу', heading: 'Ваш медичний анамнез', introNoun: 'Анамнез для', consentNoun: 'анкети анамнезу', interviewButton: '🎙 Почати інтерв’ю →' },
+    anamnesis_kvsw: { nounBook: 'анкета анамнезу', heading: 'Ваш медичний анамнез', introNoun: 'Анамнез для', consentNoun: 'анкети анамнезу', interviewButton: '🎙 Почати інтерв’ю →' },
   },
 }
 

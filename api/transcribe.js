@@ -29,6 +29,11 @@ const LOCALE = {
   eu: 'eu-ES',
   he: 'he-IL',
   ar: process.env.AZURE_SPEECH_STT_LOCALE_AR || 'ar-EG',
+  fr: 'fr-FR',
+  ro: 'ro-RO',
+  tr: 'tr-TR',
+  ru: 'ru-RU',
+  uk: 'uk-UA',
 }
 
 // Phrase-List / Bias (Azure Fast Transcription unterstützt `phraseList.phrases`
