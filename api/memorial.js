@@ -189,9 +189,11 @@ module.exports = async function handler(req, res) {
       // Migration hängt (analog zum Fallback der Admin-Liste).
       const PUBLIC_FIELDS_BASE =
         'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, text_style, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, intake, created_at'
+      // show_onboarding + tts_voice sind neu — fehlt eine der Spalten noch, wird OHNE
+      // sie erneut gelesen (Beitragenden-Flow darf NIE an einer Migration hängen).
       let { data, error } = await supabase
-        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding`).eq('id', code).single()
-      if (error && /show_onboarding|column/i.test(error.message || '')) {
+        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding, tts_voice`).eq('id', code).single()
+      if (error && /show_onboarding|tts_voice|column/i.test(error.message || '')) {
         ;({ data, error } = await supabase.from('memorials').select(PUBLIC_FIELDS_BASE).eq('id', code).single())
       }
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })

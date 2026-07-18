@@ -12,6 +12,7 @@ const { createClient } = require('./_lib/store')
 const { costTTS, recordCost, enforceBudget } = require('./_lib/cost')
 const { memorialExists } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
+const { ALLOWED_TTS_VOICES, voiceGender, MULTILINGUAL_VOICE } = require('./_lib/ttsvoices')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -51,23 +52,45 @@ const TTS_VOICES = {
   he:      process.env.AZURE_SPEECH_TTS_VOICE_HE    || 'he-IL-HilaNeural',
   ar:      process.env.AZURE_SPEECH_TTS_VOICE_AR    || 'ar-EG-SalmaNeural',
 }
-// Sprachcode → Stimme. Erst exakt (de-CH), dann der Sprachteil (de), sonst Deutsch.
-function pickVoice(language) {
+// BCP-47 je Interviewsprache (für xml:lang; nötig, damit eine mehrsprachige Stimme
+// die richtige Sprache spricht). Passend zu den Locales in api/transcribe.js.
+const SPEECH_LOCALE = {
+  de: 'de-DE', 'de-CH': 'de-CH', pl: 'pl-PL', en: 'en-US',
+  es: 'es-ES', it: 'it-IT', eu: 'eu-ES', he: 'he-IL', ar: process.env.AZURE_SPEECH_STT_LOCALE_AR || 'ar-EG',
+}
+// Sprachen, die die Multilingual-Stimmen sicher sprechen. eu/he/ar (und de-CH)
+// behalten ihre dedizierte Stimme, um Fehlaussprache/HTTP-Fehler zu vermeiden.
+const MULTILINGUAL_LANGS = new Set(['en', 'es', 'it', 'pl'])
+
+// Wählt Stimme + xml:lang. `requestedVoice` = die pro Buch gewählte deutsche Stimme
+// (aus memorials.tts_voice, vom Client mitgeschickt).
+// - Deutsch: die gewählte Stimme (falls erlaubt), sonst Standard.
+// - en/es/it/pl: die zur Buchstimme passende Person als Multilingual-Stimme
+//   (gleiches Geschlecht, konsistent über Sprachen).
+// - Rest (de-CH, eu, he, ar): dedizierte Standardstimme der Sprache.
+function pickVoiceAndLocale(language, requestedVoice) {
   const code = String(language || 'de')
-  return TTS_VOICES[code] || TTS_VOICES[code.slice(0, 2)] || TTS_VOICES.de
+  if (code === 'de') {
+    const v = (requestedVoice && ALLOWED_TTS_VOICES.has(requestedVoice)) ? requestedVoice : TTS_VOICES.de
+    return { voice: v, locale: 'de-DE' }
+  }
+  const g = voiceGender(requestedVoice)
+  if (MULTILINGUAL_LANGS.has(code) && g) {
+    return { voice: MULTILINGUAL_VOICE[g], locale: SPEECH_LOCALE[code] || 'en-US' }
+  }
+  const std = TTS_VOICES[code] || TTS_VOICES[code.slice(0, 2)] || TTS_VOICES.de
+  return { voice: std, locale: SPEECH_LOCALE[code] || std.slice(0, 5) || 'de-DE' }
 }
 
 // ── Azure AI Speech (Neural TTS) ──────────────────────────────────
-async function speakAzure(text, language) {
-  const region = process.env.AZURE_SPEECH_REGION
-  const key    = process.env.AZURE_SPEECH_KEY
-  if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
-  const voice = pickVoice(language)
-  const rate  = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
-  const lang  = voice.slice(0, 5) || 'de-DE' // z. B. "de-DE" / "pl-PL" / "he-IL"
-  const ssml  = `<speak version='1.0' xml:lang='${lang}'><voice name='${voice}'>`
-              + `<prosody rate='${rate}'>${xmlEscape(text)}</prosody></voice></speak>`
-
+async function synth(region, key, voice, locale, text) {
+  const rate = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
+  // Mehrsprachige Stimmen brauchen die Zielsprache explizit (<lang>), sonst könnten
+  // sie den Text in der Grundsprache (Deutsch) aussprechen.
+  const inner = voice.includes('Multilingual')
+    ? `<lang xml:lang='${locale}'><prosody rate='${rate}'>${xmlEscape(text)}</prosody></lang>`
+    : `<prosody rate='${rate}'>${xmlEscape(text)}</prosody>`
+  const ssml = `<speak version='1.0' xml:lang='${locale}'><voice name='${voice}'>${inner}</voice></speak>`
   const response = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
     method: 'POST',
     headers: {
@@ -82,7 +105,28 @@ async function speakAzure(text, language) {
     const errTxt = await response.text().catch(() => '')
     throw new Error(`Azure TTS HTTP ${response.status}${errTxt ? ` – ${errTxt.slice(0, 200)}` : ''}`)
   }
-  return { buffer: Buffer.from(await response.arrayBuffer()), model: 'azure-tts-neural' }
+  return Buffer.from(await response.arrayBuffer())
+}
+
+async function speakAzure(text, language, requestedVoice) {
+  const region = process.env.AZURE_SPEECH_REGION
+  const key    = process.env.AZURE_SPEECH_KEY
+  if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
+  const { voice, locale } = pickVoiceAndLocale(language, requestedVoice)
+  try {
+    return { buffer: await synth(region, key, voice, locale, text), model: 'azure-tts-neural' }
+  } catch (e) {
+    // Sicherheitsnetz: Scheitert eine mehrsprachige Stimme an einer Sprache/Locale,
+    // NICHT die Vorlesefunktion abwürgen — auf die dedizierte Standardstimme der
+    // Sprache ausweichen (kein Multilingual mehr).
+    const code = String(language || 'de')
+    const fallback = TTS_VOICES[code] || TTS_VOICES[code.slice(0, 2)] || TTS_VOICES.de
+    if (voice.includes('Multilingual') && fallback !== voice) {
+      const loc = SPEECH_LOCALE[code] || fallback.slice(0, 5) || 'de-DE'
+      return { buffer: await synth(region, key, fallback, loc, text), model: 'azure-tts-neural' }
+    }
+    throw e
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -90,7 +134,7 @@ module.exports = async function handler(req, res) {
   try {
     if (!(await enforce(req, res, { name: 'speak', limit: 30, windowSeconds: 60 }))) return
 
-    const { text, memorialCode, contributionId, language } = req.body
+    const { text, memorialCode, contributionId, language, voice } = req.body
     if (!text) return res.status(400).json({ error: 'text fehlt.' })
     // Emojis aus dem Vorlese-Text entfernen.
     const speechText = stripForSpeech(text)
@@ -108,7 +152,7 @@ module.exports = async function handler(req, res) {
 
     let result
     try {
-      result = await speakAzure(speechText, language)
+      result = await speakAzure(speechText, language, voice)
     } catch (e) {
       console.error('/api/speak TTS error:', e)
       return res.status(500).json({ error: 'Die Sprachausgabe ist momentan nicht verfügbar. Bitte später erneut versuchen.' })

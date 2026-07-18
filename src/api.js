@@ -24,11 +24,11 @@ async function parseResponse(res) {
 // Anlage läuft jetzt authentifiziert über den Admin-Endpoint, damit
 // Produktkategorie + Eigentümer-Gruppe serverseitig vertrauenswürdig
 // gesetzt werden können.
-export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding }) {
+export async function createMemorial(token, { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice }) {
   const res = await fetch('/api/admin/memorials', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding }),
+    body: JSON.stringify({ name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice }),
   })
   // Lebenswerk zusätzlich: { enduser_id, invite_token, email_sent }
   return parseResponse(res) // { code }
@@ -710,7 +710,7 @@ export function stopSpeaking() {
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 }
 
-export async function speakText(text, { onStart, onPlay, onEnd, onError, memorialCode, contributionId, language } = {}) {
+export async function speakText(text, { onStart, onPlay, onEnd, onError, memorialCode, contributionId, language, voice } = {}) {
   stopSpeaking()
   const mySeq = speakSeq
   onStart?.()
@@ -718,7 +718,7 @@ export async function speakText(text, { onStart, onPlay, onEnd, onError, memoria
     const res = await fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, memorialCode, contributionId, language }),
+      body: JSON.stringify({ text, memorialCode, contributionId, language, voice }),
     })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))

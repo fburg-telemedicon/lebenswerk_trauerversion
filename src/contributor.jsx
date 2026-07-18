@@ -317,6 +317,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     speakText(text, {
       memorialCode: memorial?.id,
       language: lang, // Stimme passend zur gewählten Sprache (de/pl/en)
+      voice: memorial?.tts_voice, // pro Buch gewählte deutsche Stimme (Server nutzt sie für de bzw. die passende Multilingual-Stimme)
       // Sobald die Wiedergabe startet, ist die Ladephase vorbei: „Lädt …" weg,
       // Button zeigt „⏹ Stoppen" (App spricht gerade, kann abgebrochen werden).
       onPlay:  () => setTtsLoading(false),

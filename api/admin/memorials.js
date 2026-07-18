@@ -15,6 +15,7 @@ const { normalizeTextStyle, defaultTextStyle } = require('../_lib/text-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
 const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
 const { ensureAnamnesisCatalog } = require('../_lib/anamnesis')
+const { defaultTtsVoice, sanitizeVoice } = require('../_lib/ttsvoices')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 const { ALLOWED_LANGS, sanitizeLangs } = require('../_lib/languages')
@@ -28,7 +29,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -479,7 +480,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -575,11 +576,15 @@ module.exports = async function handler(req, res) {
         // Einführungs-/Onboarding-Overlay beim ersten Öffnen (alle Kategorien).
         // Standard AN; nur explizit false schaltet es ab.
         show_onboarding: showOnboarding !== false,
+        // Deutsche Sprachausgabe-Stimme (gilt nur für Deutsch; andere Sprachen
+        // behalten ihre Standardstimme). Default je Kategorie: Anamnese männlich,
+        // sonst weiblich (jeweils HD).
+        tts_voice: sanitizeVoice(ttsVoice) || defaultTtsVoice(category),
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
@@ -590,6 +595,7 @@ module.exports = async function handler(req, res) {
         delete insertRow.proof_max
         delete insertRow.proof_used
         delete insertRow.show_onboarding
+        delete insertRow.tts_voice
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }
       if (error) throw error
@@ -766,6 +772,8 @@ module.exports = async function handler(req, res) {
           else update.catalog_id = null
         }
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
+        // Deutsche Sprachausgabe-Stimme; ungültig → Kategorie-Default.
+        if ('ttsVoice' in meta)      update.tts_voice = sanitizeVoice(meta.ttsVoice) || defaultTtsVoice(meta.productCategory)
         if ('imageStyle' in meta)    update.image_style = normalizeStyle(meta.imageStyle) || DEFAULT_STYLE
         if ('bookLayout' in meta)    update.book_layout = normalizeLayout(meta.bookLayout) || DEFAULT_BOOK_LAYOUT
         if ('textStyle' in meta)     update.text_style  = normalizeTextStyle(meta.productCategory || null, meta.textStyle)
@@ -783,7 +791,7 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|column/i.test(error.message || '')) {
           delete update.image_style
           delete update.book_layout
           delete update.text_style
@@ -795,6 +803,7 @@ module.exports = async function handler(req, res) {
           delete update.proof_used
           delete update.edit_lock
           delete update.show_onboarding
+          delete update.tts_voice
           if (Object.keys(update).length) { ({ error } = await supabase.from('memorials').update(update).eq('id', code)) }
           else error = null
         }

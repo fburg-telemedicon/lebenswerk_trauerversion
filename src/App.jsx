@@ -17,7 +17,7 @@ import {
   getInvite, redeemInvite, requestPasswordReset, registerLifework,
   storeMemorialPdf,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -193,6 +193,7 @@ const EMPTY_CREATE = {
   catalogId: '', followups: 7,
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
+  ttsVoice: defaultTtsVoice(DEFAULT_CATEGORY),   // deutsche Sprachausgabe-Stimme; je Kategorie in freshCreateForm gesetzt
   textStyle: 'literary',   // je Kategorie in freshCreateForm auf den Default gesetzt
   timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
   companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
@@ -830,6 +831,7 @@ function Dashboard() {
       pickupAddress: m.pickup_address ? { ...EMPTY_PICKUP, ...m.pickup_address } : { ...EMPTY_PICKUP },
       imageStyle: m.image_style || DEFAULT_IMAGE_STYLE,
       bookLayout: m.book_layout || DEFAULT_BOOK_LAYOUT,
+      ttsVoice: m.tts_voice || defaultTtsVoice(m.product_category),
       textStyle: m.text_style || defaultTextStyle(m.product_category),
       timerOn: (m.interview_timer_seconds || 0) > 0,
       timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
@@ -873,7 +875,8 @@ function Dashboard() {
         imageStyle: d.imageStyle,
         bookLayout: d.bookLayout,
         textStyle: d.textStyle,
-        productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils
+        ttsVoice: d.ttsVoice,
+        productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils/der Stimme
         interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: d.companionMode === true,
         proofEnabled: d.proofEnabled === true,
@@ -905,6 +908,7 @@ function Dashboard() {
         image_style: d.imageStyle || DEFAULT_IMAGE_STYLE,
         book_layout: d.bookLayout || DEFAULT_BOOK_LAYOUT,
         text_style: d.textStyle || defaultTextStyle(selected.product_category),
+        tts_voice: d.ttsVoice || defaultTtsVoice(selected.product_category),
         interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companion_mode: d.companionMode === true,
         proof_enabled: d.proofEnabled === true,
@@ -992,6 +996,7 @@ function Dashboard() {
       productCategory: slug,
       intake: {},
       textStyle: defaultTextStyle(slug),
+      ttsVoice: defaultTtsVoice(slug),
       pickupAddress: { ...EMPTY_PICKUP, ...(d.pickupAddress || {}) },
       languages: d.languages?.length ? [...d.languages] : [DEFAULT_LANGUAGE],
     }
@@ -1065,6 +1070,7 @@ function Dashboard() {
         imageStyle: createForm.imageStyle || DEFAULT_IMAGE_STYLE,
         bookLayout: createForm.bookLayout || DEFAULT_BOOK_LAYOUT,
         textStyle: createForm.textStyle || defaultTextStyle(createForm.productCategory),
+        ttsVoice: createForm.ttsVoice || defaultTtsVoice(createForm.productCategory),
         interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: createForm.companionMode === true,
         proofEnabled: createForm.proofEnabled === true,

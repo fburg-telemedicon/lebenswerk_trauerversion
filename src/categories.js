@@ -1511,6 +1511,28 @@ export function categoryColor(slug) {
   return CATEGORY_COLORS[slug] || '#1c1917'
 }
 
+// ── Sprachausgabe-Stimmen (Deutsch) ───────────────────────────────
+// Wählbare deutsche Neural-Stimmen für die Experteneinstellungen. Die Werte MÜSSEN
+// mit der Allowlist in api/_lib/ttsvoices.js übereinstimmen. Die Wahl gilt nur für
+// die DEUTSCHE Ausgabe; andere Interviewsprachen nutzen ihre Standardstimme.
+export const TTS_VOICE_OPTIONS = [
+  { value: 'de-DE-Seraphina:DragonHDLatestNeural', label: 'Seraphina – weiblich, HD (natürlichste)' },
+  { value: 'de-DE-Florian:DragonHDLatestNeural',   label: 'Florian – männlich, HD (natürlichste)' },
+  { value: 'de-DE-KatjaNeural',     label: 'Katja – weiblich, Standard' },
+  { value: 'de-DE-ConradNeural',    label: 'Conrad – männlich, Standard' },
+  { value: 'de-DE-LouisaNeural',    label: 'Louisa – weiblich, weich' },
+  { value: 'de-DE-BerndNeural',     label: 'Bernd – männlich, ruhig/tiefer' },
+  { value: 'de-DE-AmalaNeural',     label: 'Amala – weiblich, freundlich' },
+  { value: 'de-DE-ChristophNeural', label: 'Christoph – männlich, freundlich' },
+]
+
+// Default je Kategorie: Anamnese → männlich (HD), sonst → weiblich (HD).
+export function defaultTtsVoice(category) {
+  return category === 'anamnesis'
+    ? 'de-DE-Florian:DragonHDLatestNeural'
+    : 'de-DE-Seraphina:DragonHDLatestNeural'
+}
+
 export function getCategory(slug) {
   return CATEGORIES[slug] || CATEGORIES[DEFAULT_CATEGORY]
 }
