@@ -10,7 +10,6 @@ import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL } from './i18n.js'
-import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
 import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
@@ -1082,45 +1081,6 @@ function MiniSwitch({ on, color = '#1c1917' }) {
 // Ansicht wechseln (Interview/Foto/Probedruck/Einstellungen), die Modus-Schalter
 // (Transkript & Korrektur, Begleitet) und „Später fortsetzen oder beenden". Die
 // Interview-Ansicht ist der oberste Menüpunkt → man kommt immer schnell zurück.
-// Install-Eintrag im ☰-Menü (PWA). Best practice: eigener Button statt der Browser-
-// Infobar. Android/Chrome → nativer Prompt (promptInstall); iOS/Safari → kurze
-// Anleitung (kein programmatischer Prompt möglich). Bereits installiert → nichts.
-function InstallMenuItem({ t, row, sep, onClose }) {
-  const [, force] = useState(0)
-  const [showIos, setShowIos] = useState(false)
-  useEffect(() => onInstallChange(() => force(n => n + 1)), [])
-  const state = installState()
-  if (state === 'installed' || state === 'none') return null
-  const click = async () => {
-    if (state === 'prompt') { await promptInstall(); onClose?.() }
-    else { setShowIos(true) }
-  }
-  return (
-    <>
-      <div style={sep} />
-      <button onClick={click} style={{ ...row, fontWeight:600 }}>
-        <span style={{ fontSize:19 }}>📲</span><span>{t.installApp || 'App installieren'}</span>
-      </button>
-      {showIos && (
-        <div onClick={() => setShowIos(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:70, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:'20px 20px 28px', maxWidth:420, width:'100%', boxShadow:'0 -2px 16px rgba(0,0,0,.2)' }}>
-            <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>{t.installIosTitle || 'Zum Home-Bildschirm hinzufügen'}</div>
-            <p style={{ fontSize:14, color:'#57534e', lineHeight:1.6, margin:'0 0 10px' }}>
-              {t.installIosBody || 'So legen Sie diese App auf Ihren Startbildschirm (nur in Safari möglich – nicht in Chrome oder einem In-App-Browser):'}
-            </p>
-            <ol style={{ fontSize:14, color:'#57534e', lineHeight:1.6, margin:0, paddingLeft:20 }}>
-              <li>{t.installIosStep1 || 'Unten auf das Teilen-Symbol tippen (Quadrat mit Pfeil nach oben ⬆️).'}</li>
-              <li>{t.installIosStep2 || 'In der Liste nach unten scrollen.'}</li>
-              <li>{t.installIosStep3 || '„Zum Home-Bildschirm" wählen und mit „Hinzufügen" bestätigen.'}</li>
-            </ol>
-            <button onClick={() => setShowIos(false)} style={{ marginTop:16, width:'100%' }}>{t.installIosClose || 'Verstanden'}</button>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
 function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport }) {
   const [open, setOpen] = useState(false)
   const navItems = [
@@ -1169,8 +1129,6 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withB
                 <span style={{ fontSize:19 }}>✉️</span><span>{t.supportButton || 'Support kontaktieren'}</span>
               </button>
             </>)}
-            {/* App installieren (PWA) — nur wenn installierbar/iOS und noch nicht installiert. */}
-            <InstallMenuItem t={t} row={row} sep={sep} onClose={() => setOpen(false)} />
             {/* Rechtslinks: hierher verlagert aus dem Seiten-Footer (der im Interview
                 ausgeblendet ist). Öffnen die statischen Rechtsseiten in einem neuen Tab. */}
             <div style={sep} />
@@ -2141,9 +2099,6 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null }) 
       .catch(e => { setErr(e.message); setView('error') })
   }, [code])
 
-  // PWA-Name je Produkt: im Lebenswerk-Flow „Lebenswerk.ai", sonst „Lebensgeschichten.ai".
-  // Muss vor einer etwaigen Installation gesetzt sein → sobald das Produkt bekannt ist.
-  useEffect(() => { setPwaProduct(memorial?.product_category) }, [memorial?.product_category])
 
   // Globalen Rechts-Footer (Datenschutz/Impressum) im Interview ausblenden — dort
   // liegen die Links im ☰-Menü. In Info-/Fertig-Schritten bleibt der Footer.

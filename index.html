@@ -5,18 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lebensgeschichten – Gemeinsames Gedenkbuch</title>
     <meta name="description" content="Familie, Freunde und Wegbegleiter erinnern sich gemeinsam und schaffen ein bleibendes Gedenkbuch." />
-    <!-- PWA: Installierbar als App aufs Handy (Home-Bildschirm). Der Manifest-Link
-         hat BEWUSST kein Standard-href: nur der Interview-/Endnutzer-Flow
-         (ContributorFlow) aktiviert ihn per JS (src/pwa.js → setPwaProduct) und
-         wählt dabei das Produkt-Manifest (Lebenswerk.ai bzw. Lebensgeschichten.ai).
-         Das Manager-Dashboard aktiviert ihn nie → dort ist nichts installierbar. -->
-    <link rel="manifest" id="pwa-manifest" />
-    <meta name="theme-color" content="#c1272d" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Lebensgeschichten" id="pwa-apple-title" />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       html, body, #root { height: 100%; }
@@ -72,13 +60,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // Service Worker registrieren (PWA-Installierbarkeit + schnellere Ladezeiten).
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/sw.js').catch(function () {})
-        })
-      }
-    </script>
   </body>
 </html>
