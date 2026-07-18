@@ -303,8 +303,29 @@ function sanitizeCatalogCats(input) {
 //   POST   ?catalogs=1  { name, product_categories, chapters }   (nur Admin)
 //   PATCH  ?catalogs=1&id=…  { name?, product_categories?, chapters? }  (nur Admin)
 //   DELETE ?catalogs=1&id=…                                       (nur Admin)
+// Die drei CODE-verwalteten Standard-Fragebögen (Lebenswerk, Anamnese, Anamnese
+// KVSW) werden beim ERSTEN Katalog-Abruf pro Prozess sichergestellt — idempotent
+// (update-or-insert). So erscheinen sie immer in der Liste (mit ihren Fragen) und
+// die „Fragen ansehen"-Vorschau im Expertenmodus hat auch für frische Kategorien
+// (z. B. KVSW vor dem ersten Anlegen) Daten. Nach einem Deploy synchronisiert der
+// erste Abruf zugleich die im Code geänderten Fragen.
+let stdCatalogsEnsured = false
+async function ensureStandardCatalogs() {
+  if (stdCatalogsEnsured) return
+  try {
+    await ensureLifeworkSchema()
+    await Promise.all([
+      ensureLifeworkCatalog(supabase),
+      ensureAnamnesisCatalog(supabase),
+      ensureAnamnesisKvswCatalog(supabase),
+    ])
+    stdCatalogsEnsured = true
+  } catch { /* nicht kritisch — die Liste kommt auch ohne Seeding */ }
+}
+
 async function handleCatalogs(req, res) {
   if (req.method === 'GET') {
+    await ensureStandardCatalogs()
     let q = supabase.from('question_catalogs')
       .select('id, name, product_categories, chapters, created_at')
       .order('created_at', { ascending: true })

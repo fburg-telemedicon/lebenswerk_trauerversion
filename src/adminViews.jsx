@@ -6,7 +6,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf } from './i18n.js'
@@ -1231,6 +1231,70 @@ export function CreateCategoryView({ err, allowedSlugs, logout, setView, chooseC
   )
 }
 
+// Aktuell wirksamen Fragenkatalog auflösen — für die „Fragen ansehen"-Vorschau.
+//  • '__free__' → kein Katalog (die KI stellt freie Fragen)
+//  • echte id   → der gewählte (Zusatz-)Katalog
+//  • '' (Standard) → der CODE-verwaltete Standard-Fragebogen der Kategorie
+function resolveCatalog(catalogs, category, catalogId) {
+  const list = Array.isArray(catalogs) ? catalogs : []
+  if (catalogId === '__free__') return null
+  if (catalogId) return list.find(c => c.id === catalogId) || null
+  const name = stdCatalogName(category)
+  return name ? (list.find(c => c.name === name) || null) : null
+}
+
+// Modal: zeigt Kapitel + Fragen eines Fragebogens (nur lesen).
+function CatalogPeekModal({ catalog, onClose }) {
+  if (!catalog) return null
+  const chapters = Array.isArray(catalog.chapters) ? catalog.chapters : []
+  const total = chapters.reduce((n, c) => n + (Array.isArray(c.questions) ? c.questions.length : 0), 0)
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'5vh 16px', overflowY:'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, maxWidth:640, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.3)' }}>
+        <div style={{ position:'sticky', top:0, background:'#fff', borderBottom:'1px solid #e7e5e4', borderRadius:'12px 12px 0 0', padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontWeight:700, fontSize:15, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{catalog.name}</div>
+            <div style={{ fontSize:12, color:'#78716c' }}>{chapters.length} {chapters.length === 1 ? 'Kapitel' : 'Kapitel'} · {total} Fragen</div>
+          </div>
+          <button className="secondary" onClick={onClose} style={{ fontSize:13, padding:'6px 12px', flexShrink:0 }}>Schließen</button>
+        </div>
+        <div style={{ padding:'8px 20px 20px' }}>
+          {chapters.length === 0 && <p style={{ ...S.muted, fontSize:13 }}>Dieser Fragebogen enthält keine Fragen.</p>}
+          {chapters.map((ch, ci) => (
+            <div key={ci} style={{ marginTop:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#78716c', marginBottom:6 }}>
+                {ci + 1}. {ch.title || `Kapitel ${ci + 1}`}
+              </div>
+              <ol style={{ margin:0, paddingLeft:22, display:'flex', flexDirection:'column', gap:5 }}>
+                {(Array.isArray(ch.questions) ? ch.questions : []).map((q, qi) => (
+                  <li key={qi} style={{ fontSize:13.5, lineHeight:1.5, color:'#292524' }}>{q}</li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Kleiner „Fragen ansehen"-Link samt Modal-State. Zeigt den aktuell gewählten
+// Fragebogen; im Frei-Modus (kein Katalog) rendert er nichts.
+function CatalogPeek({ catalogs, category, catalogId }) {
+  const [open, setOpen] = useState(false)
+  const catalog = resolveCatalog(catalogs, category, catalogId)
+  if (!catalog) return null
+  return (
+    <>
+      <button type="button" className="ghost" onClick={() => setOpen(true)}
+        style={{ fontSize:12.5, padding:0, marginTop:8, textDecoration:'underline', color:'#0369a1', cursor:'pointer', background:'none', border:'none' }}>
+        📋 Fragen ansehen
+      </button>
+      {open && <CatalogPeekModal catalog={catalog} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
 export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logout, setView, setCreateForm, handleCreate }) {
     const cat = getCategory(createForm.productCategory)
     const ci  = cat.intake
@@ -1646,6 +1710,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
                 )}
                 {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              <CatalogPeek catalogs={catalogs} category={createForm.productCategory} catalogId={createForm.catalogId} />
               {usesCatalog && (
                 <div style={{ marginTop:12 }}>
                   <Lbl>{isAnamnesis ? 'Vertiefungsfragen pro Frage (max.)' : 'Nachfragen pro Frage (max.)'}</Lbl>
@@ -3056,6 +3121,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                         <option value="__free__">Freie Fragen – KI überlegt selbst</option>
                         {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
+                      <CatalogPeek catalogs={catalogs} category={selected.product_category} catalogId={od.catalogId} />
                       {usesCatalog && (
                         <div style={{ marginTop:12 }}>
                           <Lbl>Vertiefungsfragen pro Frage (max.)</Lbl>

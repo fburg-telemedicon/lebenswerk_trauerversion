@@ -1053,6 +1053,18 @@ export function anamnesisStdCatalogName(cat) {
   return ANAMNESIS_STD_CATALOG_NAMES[cat] || ANAMNESIS_STD_CATALOG_NAMES.anamnesis
 }
 
+// Name der CODE-verwalteten Standard-Fragebogen-Zeile je Kategorie (muss mit dem
+// Backend übereinstimmen: api/_lib/lifework.js + api/_lib/anamnesis.js). Kategorien
+// ohne festen Standardkatalog liefern null.
+export const STD_CATALOG_NAMES = {
+  lifework:       'Lebenswerk – Standardfragen',
+  anamnesis:      ANAMNESIS_STD_CATALOG_NAMES.anamnesis,
+  anamnesis_kvsw: ANAMNESIS_STD_CATALOG_NAMES.anamnesis_kvsw,
+}
+export function stdCatalogName(category) {
+  return STD_CATALOG_NAMES[category] || null
+}
+
 // KVSW-Kern-Fachabteilungen (zertifizierte Zentren abgedeckt). `focus` lenkt die
 // Interview-Fragen auf den Aufnahmegrund der jeweiligen Abteilung; `label` erscheint
 // im Bogen als Kontext.
