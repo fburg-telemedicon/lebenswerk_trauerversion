@@ -946,7 +946,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
       { key: 'name',      label: t('Name', 'Name'),          val: m => displayBookName(m).toLowerCase(), disp: m => displayBookName(m) || '—' },
-      { key: 'email',     label: t('E-Mail', 'Email'),        val: m => (m.enduser_email || '').toLowerCase(), disp: m => m.enduser_email || '—' },
+      { key: 'email',     label: t('E-Mail', 'Email'),        val: m => (m.enduser_email || m.intake?.contact_email || '').toLowerCase(), disp: m => m.enduser_email || m.intake?.contact_email || '—' },
       ...(showCategoryColumn ? [{ key: 'category', label: t('Kategorie', 'Category'), val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
       ...(auth.admin ? [{ key: 'owner', label: t('Inhaber', 'Owner'), val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
       { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
@@ -1111,7 +1111,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                   return (
                     <tr key={m.id}>
                       <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{displayBookName(m) || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}</td>
-                      <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}   onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.enduser_email || '—'}</td>
+                      <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}   onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.enduser_email || m.intake?.contact_email || '—'}</td>
                       {showCategoryColumn && (
                         <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}>

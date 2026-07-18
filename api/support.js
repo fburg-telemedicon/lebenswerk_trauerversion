@@ -152,6 +152,26 @@ module.exports = async function handler(req, res) {
       })
     } catch (e) { console.error('/api/support store:', e); stored = false }
 
+    // Kontakt-E-Mail am zugehörigen Buch hinterlegen — aber NUR, wenn dort noch keine
+    // gespeichert ist (weder eine frühere Kontakt-Mail im intake NOCH ein Endnutzer-
+    // Konto mit E-Mail). So kann ein Patient mit reinem Code-Zugang später kontaktiert
+    // werden und muss die Adresse nicht erneut angeben. Best effort.
+    if (memorialId && replyEmail) {
+      try {
+        const { data: mem } = await supabase.from('memorials').select('intake').eq('id', memorialId).maybeSingle()
+        if (mem) {
+          const intake = (mem.intake && typeof mem.intake === 'object') ? mem.intake : {}
+          if (!intake.contact_email) {
+            const { data: acct } = await supabase
+              .from('app_users').select('id').eq('enduser_memorial', memorialId).eq('is_enduser', true).maybeSingle()
+            if (!acct) {
+              await supabase.from('memorials').update({ intake: { ...intake, contact_email: replyEmail } }).eq('id', memorialId)
+            }
+          }
+        }
+      } catch (e) { console.warn('/api/support memorial email:', e.message) }
+    }
+
     let email_sent = true
     try {
       // Ohne Antwort-Adresse bleibt Reply-To der Standard (siehe invitemail.js) —

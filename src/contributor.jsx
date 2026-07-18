@@ -2139,6 +2139,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   const [consentAt, setConsentAt]             = useState(null)
   const [initialMessages, setInitialMessages] = useState([])
   const [resumePrompt, setResumePrompt]       = useState(null)
+  // Fortsetzen-Gate (Lebenswerk/Anamnese): hält die wiederaufzunehmende Sitzung, bis
+  // der Nutzer EINMAL „Fortsetzen" tippt — diese Geste schaltet die Tonausgabe frei,
+  // damit die erste Frage in der installierten App / auf iOS wirklich hörbar spielt.
+  const [resumeGate, setResumeGate]           = useState(null)
   const [paused, setPaused]                   = useState(false)
   const [copied, setCopied]                   = useState('')
   const [saveErr, setSaveErr]                 = useState('')
@@ -2214,7 +2218,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     //    gemeinsamen Gerät im Beitrag der ersten und verfälscht ihn → hier wird gefragt.
     // Lebenswerk UND Anamnese: ein Buch = genau eine erzählende Person (eigener
     // Code/Login) → ohne Rückfrage fortsetzen.
-    if (memorial.product_category === 'lifework' || memorial.product_category === 'anamnesis') { resumeSession(local); return }
+    // Lebenswerk/Anamnese: keine „Fortsetzen oder neu?"-Rückfrage, aber EIN kurzer
+    // „Fortsetzen"-Screen als Nutzer-Geste (schaltet die Tonausgabe frei).
+    if (memorial.product_category === 'lifework' || memorial.product_category === 'anamnesis') { setResumeGate(local); return }
     setResumePrompt(local)
   }, [memorial])
 
@@ -2384,6 +2390,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     role: isSelf ? 'enduser' : 'contributor',
     code, category: memorial?.product_category, view, lang: L,
     suggestedName: contribForm?.name || undefined,
+    // Ist beim Buch bereits eine Kontakt-E-Mail hinterlegt, das Support-Formular
+    // damit vorbelegen (nicht erneut abfragen).
+    suggestedEmail: memorial?.contact_email || memorial?.intake?.contact_email || undefined,
     ...extra,
   })
   // Beim Lebenswerk gibt es nur EINE Person — den Endnutzer. Was der Manager bei
@@ -2429,6 +2438,24 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     const subject = encodeURIComponent(t.mailSubject(ct.nounBook, memorial ? memorial.name : ''))
     const body = encodeURIComponent(t.mailBody(ct.nounBook, memorial ? memorial.name : '', resumeUrl))
     window.location.href = `mailto:?subject=${subject}&body=${body}`
+  }
+
+  // Fortsetzen-Gate: EIN Tap auf „Fortsetzen" = Nutzer-Geste → schaltet die Tonausgabe
+  // frei (sonst bleibt die erste Frage in der installierten App / auf iOS stumm) und
+  // nimmt danach das Interview normal wieder auf.
+  if (resumeGate && view !== 'error') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1.5rem', direction: isRTL(L) ? 'rtl' : 'ltr' }}>
+        <div style={{ textAlign: 'center', maxWidth: 380 }}>
+          <div style={{ fontSize: 38, marginBottom: 10 }}>👋</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{t.resumeTitle || 'Willkommen zurück'}</h2>
+          <p style={{ fontSize: 14, color: '#78716c', margin: '0 auto 22px', lineHeight: 1.6 }}>{t.resumeQ || 'Wir setzen dort fort, wo Sie aufgehört haben.'}</p>
+          <button onClick={() => { unlockAudio(); const l = resumeGate; setResumeGate(null); resumeSession(l) }} style={{ fontSize: 15, padding: '13px 30px' }}>
+            {t.resumeContinue || '↻ Fortsetzen'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

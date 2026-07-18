@@ -212,6 +212,10 @@ module.exports = async function handler(req, res) {
       // sowie der Bestätigungs-Zeitstempel des Patienten-Reviews. Alles andere bleibt
       // intern (insbesondere KEIN generierter Bogentext — der steht in eulogy_text und
       // wird hier nie ausgeliefert).
+      // Am Buch hinterlegte Kontakt-E-Mail (z. B. aus einem früheren Support-Ticket)
+      // nach außen als top-level Feld — dient dem Vorbelegen des Support-Formulars.
+      const contactEmail = (data.intake && typeof data.intake === 'object' && data.intake.contact_email)
+        ? String(data.intake.contact_email) : null
       if (data.product_category === 'anamnesis' && data.intake && typeof data.intake === 'object') {
         const src = data.intake
         const pub = {}
@@ -224,6 +228,7 @@ module.exports = async function handler(req, res) {
       } else {
         data.intake = data.intake?.address ? { address: String(data.intake.address) } : null
       }
+      data.contact_email = contactEmail
 
       // Zugeordneten Fragenkatalog (Name + Kapitel/Fragen) mitliefern, damit der
       // Beitragenden-Flow das Interview daran entlangführen kann. Ohne Katalog
