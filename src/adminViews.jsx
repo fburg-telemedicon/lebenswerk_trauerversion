@@ -3225,7 +3225,7 @@ export function SupportView({ supportData, loading, err, setView, logout, toggle
                         <a href={`tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}`} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>📞 {r.reply_phone}</a>
                       )}
                       <div style={{ ...S.muted, fontSize:12, marginTop:2 }}>
-                        {fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
+                        <span style={{ fontFamily:'monospace', color:'#57534e' }}>#{r.id}</span>{' · '}{fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
                         {r.preferred_channel === 'phone' && ` · ${t('am liebsten telefonisch', 'prefers phone')}`}
                         {r.preferred_channel === 'email' && ` · ${t('am liebsten per E-Mail', 'prefers email')}`}
                         {!r.handled && <span style={{ marginLeft:8, color:'#15803d', fontWeight:600 }}>{t('offen', 'open')}</span>}
