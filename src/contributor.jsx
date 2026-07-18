@@ -914,8 +914,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           </div>
         )}
         {aiLoading && messages.length > 0 && <div style={{ margin: '.75rem 0', textAlign:'center' }}><Dots /></div>}
-        {/* 4. MIKROFON */}
-        {!aiLoading && latestQ && (
+        {/* 4. MIKROFON — im Freisprech-Modus KEIN Button/Idle-Text: die App hört
+            nach jeder Frage automatisch zu. Die Karte erscheint dann nur beim
+            Aufnehmen/Verarbeiten, bei blockiertem Mikro oder im Begleit-Modus. */}
+        {!aiLoading && latestQ && (!handsFree || micState !== 'idle' || micPerm === 'denied' || memorial?.companion_mode === true) && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1rem 1rem' }}>
             {companionOn ? (
               // Begleiteter Modus: zwei Mikrofone. Immer nur EINS aktiv — während
@@ -942,7 +944,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                   )
                 })}
               </div>
-            ) : (
+            ) : handsFree ? null : (
               <div style={{ marginBottom: 14 }}>
                 <button
                   onClick={() => handleMic('self')}
@@ -957,9 +959,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 <Waveform stream={micStream} color={(micState==='recording' && recSpeaker === 'companion') ? '#3b82f6' : '#dc2626'} />
               </div>
             )}
-            <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
-              {micLabel}
-            </div>
+            {(!handsFree || micState !== 'idle') && (
+              <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
+                {micLabel}
+              </div>
+            )}
             {micState === 'idle' && micPerm === 'denied' && (
               <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
                 🎙 {String(lang || '').startsWith('en')
@@ -3006,9 +3010,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         )
         // Das ☰-Menü ist immer vorhanden (auch ohne Foto-/Probedruck-Tab), damit
         // Beitragende Transkript, „Später fortsetzen/beenden" und die Rechtslinks
-        // erreichen. paddingTop lässt Platz für den fixierten ☰-Button (oben rechts).
+        // erreichen. Der fixierte ☰-Button (oben rechts) schwebt über der freien
+        // rechten Ecke der Logo-Leiste — deshalb KEIN oberes Padding (kein grauer
+        // Streifen über dem Logo).
         return (
-          <div style={{ paddingTop: 52, paddingBottom: 24 }}>
+          <div style={{ paddingBottom: 24 }}>
             <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
             {withPhoto && (
               <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
