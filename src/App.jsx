@@ -905,6 +905,19 @@ function Dashboard() {
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
+        // Fragebogen wird (wie oben beim Speichern) NUR bei der Anamnese mitgeschickt
+        // → auch nur dort lokal spiegeln, damit der Detail-Picker nach dem Speichern
+        // nicht auf den alten Wert zurückspringt. Normalisierung wie im Backend:
+        // '__free__' → kein Katalog, leer → Standard-Fragebogen, sonst der Custom-Katalog;
+        // followups auf 0..30 begrenzt (Default 7).
+        ...(selected.product_category === 'anamnesis' ? (() => {
+          const stdId = catalogs.find(c => c.name === 'Anamnese – Standardfragebogen')?.id || null
+          const fu = parseInt(d.followups, 10)
+          return {
+            catalog_id: d.catalogId === '__free__' ? null : (d.catalogId || stdId),
+            followups: (!Number.isFinite(fu) || fu < 0) ? 7 : Math.min(fu, 30),
+          }
+        })() : {}),
       }
       setSelected(s => ({ ...s, ...local }))
       setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, ...local } : x))
