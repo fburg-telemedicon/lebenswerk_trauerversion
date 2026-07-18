@@ -1393,11 +1393,19 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           </div>
         ))}
         {/* Endnutzer-Kategorien: Es gibt keinen Organisator — der Endnutzer/Patient
-            spricht selbst, es sammelt niemand Beiträge Dritter ein. */}
+            spricht selbst, es sammelt niemand Beiträge Dritter ein. Ausnahme Anamnese:
+            hier wird stattdessen die betreuende Ärztin/der betreuende Arzt erfasst
+            (optional) und in derselben Spalte (organizer) gespeichert. */}
         {!isEnduser && (
         <div style={{ marginBottom: 14 }}>
           <Lbl>{t('Ihr Name (Organisator) *', 'Your name (organizer) *')}</Lbl>
           <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder={t('Ihr Name', 'Your name')} />
+        </div>
+        )}
+        {isAnamnesis && (
+        <div style={{ marginBottom: 14 }}>
+          <Lbl>Betreuende Ärztin/betreuender Arzt</Lbl>
+          <input value={createForm.organizer} onChange={e => setCreateForm({ ...createForm, organizer: e.target.value })} placeholder="Name der betreuenden Ärztin/des Arztes (optional)" />
         </div>
         )}
         {ci.useDate && (
@@ -2219,7 +2227,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
           )}
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{t('Beiträge', 'Contributions')}</h2>
           <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
-            {t('Organisator:', 'Organizer:')} {selected.organizer}
+            {isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt: ' : t('Organisator:', 'Organizer:') + ' '}{selected.organizer || '—'}
             {selected.gender ? ` · ${selected.gender}` : ''}
             {selected.book_variant ? ` · ${t('Buch-Variante', 'Book variant')} ${selected.book_variant}` : ''}
             {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
@@ -2731,7 +2739,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
               <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', columnGap:18, rowGap:8, fontSize:14 }}>
                 {[
                   [oci.subjectLabel || 'Name', selected.name || dash],
-                  ['Organisator', selected.organizer || dash],
+                  [isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : 'Organisator', selected.organizer || dash],
                   ...(oci.useGender ? [['Geschlecht', selected.gender || dash]] : []),
                   ...((oci.extra || []).map(f => [f.label.replace(/\s*\*$/, ''), (f.options?.find(o => o.value === selected.intake?.[f.key])?.label) || selected.intake?.[f.key] || dash])),
                   ...(oci.useDate ? [[oci.dateLabel, selected.funeral_date ? new Date(selected.funeral_date).toLocaleDateString('de-DE') : dash]] : []),
@@ -2762,8 +2770,8 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   <input value={od.name} onChange={e => setOd({ name: e.target.value })} />
                 </div>
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>Organisator *</Lbl>
-                  <input value={od.organizer} onChange={e => setOd({ organizer: e.target.value })} />
+                  <Lbl>{isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : 'Organisator *'}</Lbl>
+                  <input value={od.organizer} onChange={e => setOd({ organizer: e.target.value })} placeholder={isAnamnesis ? 'Name der betreuenden Ärztin/des Arztes (optional)' : ''} />
                 </div>
                 {oci.useGender && (
                   <div style={{ marginBottom:14 }}>

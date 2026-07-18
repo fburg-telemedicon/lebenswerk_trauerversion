@@ -498,7 +498,12 @@ module.exports = async function handler(req, res) {
       // Lebenswerk hat keinen Organisator (der Endnutzer erzählt sein eigenes
       // Leben); die Spalte bekommt seinen Namen. Alle anderen Kategorien sammeln
       // Beiträge Dritter — dort bleibt der Organisator Pflicht.
-      const organizerName = isEnduser ? String(name || '').trim() : String(organizer || '').trim()
+      // Anamnese: die Organizer-Spalte trägt die betreuende Ärztin/den Arzt (optional,
+      // vom Admin eingegeben) — NICHT den Patientennamen. Übrige Endnutzer (Lebenswerk):
+      // der Erzähler selbst; andere Kategorien: der eingegebene Organisator (Pflicht).
+      const organizerName = category === 'anamnesis'
+        ? String(organizer || '').trim()
+        : (isEnduser ? String(name || '').trim() : String(organizer || '').trim())
       if (!organizerName && !isEnduser) return res.status(400).json({ error: 'Name und Organisator sind Pflichtfelder.' })
       // E-Mail-Adresse ist OPTIONAL: Mit Adresse bekommt der Endnutzer ein eigenes
       // Konto samt Einladung; ohne Adresse entsteht kein Konto und der Zugang läuft
@@ -738,8 +743,11 @@ module.exports = async function handler(req, res) {
       // Auftragsdaten (Stammdaten des Buchs) bearbeiten. Nur die mitgesendeten
       // Felder werden aktualisiert; Validierung/Normalisierung wie bei POST.
       if (meta && typeof meta === 'object') {
-        if (meta.name != null && !String(meta.name).trim()) return res.status(400).json({ error: 'Name darf nicht leer sein.' })
-        if (meta.organizer != null && !String(meta.organizer).trim()) return res.status(400).json({ error: 'Organisator darf nicht leer sein.' })
+        // Anamnese: Patientenname und betreuende Ärztin/Arzt dürfen leer sein.
+        if (meta.productCategory !== 'anamnesis') {
+          if (meta.name != null && !String(meta.name).trim()) return res.status(400).json({ error: 'Name darf nicht leer sein.' })
+          if (meta.organizer != null && !String(meta.organizer).trim()) return res.status(400).json({ error: 'Organisator darf nicht leer sein.' })
+        }
 
         const update = {}
         if (meta.name != null)       update.name = String(meta.name).trim()

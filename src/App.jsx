@@ -862,7 +862,9 @@ function Dashboard() {
   async function saveOrderData() {
     if (!orderDraft || !selected) return
     const d = orderDraft
-    if (!d.name.trim() || !d.organizer.trim()) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
+    // Anamnese: Patientenname und betreuende Ärztin/Arzt sind optional (der Patient
+    // trägt seinen Namen ggf. beim Start selbst nach; der Arzt ist eine reine Notiz).
+    if (selected.product_category !== 'anamnesis' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
     setOrderSaving(true); setErr('')
     try {
       await adminUpdateMemorialMeta(token, selected.id, {
@@ -1005,7 +1007,9 @@ function Dashboard() {
     // Sprache: standardmäßig „Endnutzer wählt selbst" (alle Sprachen angeboten) →
     // der Patient bekommt die Sprachauswahl als ersten Screen. Der Admin kann im
     // Formular weiterhin genau eine Sprache festlegen.
-    if (slug === 'anamnesis') return { ...base, photoUploadTab: true, languages: LANGUAGES.map(l => l.code) }
+    // Vertiefungsfragen bei der Anamnese standardmäßig 2 (knappere medizinische
+    // Nachfrage-Tiefe als der allgemeine Default 7).
+    if (slug === 'anamnesis') return { ...base, photoUploadTab: true, followups: 2, languages: LANGUAGES.map(l => l.code) }
     if (slug !== 'lifework') return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,
