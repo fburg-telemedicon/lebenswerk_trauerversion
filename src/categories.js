@@ -935,6 +935,12 @@ const ANAMNESIS_CHECKLIST_RULE = `- VORERKRANKUNGEN und FAMILIENANAMNESE als CHE
 - Schließe JEDEN dieser beiden Abschnitte mit einer offenen Auffangfrage ab: „Gibt es sonst noch etwas in dieser Hinsicht?" bzw. „Sonst noch etwas?" — damit nichts übersehen wird, was nicht auf der Liste stand.
 - Führt ein FRAGENKATALOG durch diese beiden Abschnitte, sind die Einzelfragen (samt Auffangfrage) dort bereits als Katalogfragen enthalten — halte dich dann an den Katalog; diese Regel beschreibt in dem Fall nur den STIL (einzeln abfragen, bei „ja" Details, Verneintes nicht vertiefen).`
 
+// Abschluss-Check: bevor das Gespräch endet, GEZIELT nach vergessenen/ergänzenden
+// Punkten fragen (nicht nur eine pauschale Schlussfrage). Im Katalog-Modus deckt das
+// zusätzlich das Kapitel „Vergessenes und Ergänzungen" ab; diese Regel sorgt dafür,
+// dass es auch im freien Modus passiert.
+const ANAMNESIS_CLOSING_RULE = `- ABSCHLUSS-CHECK vor dem Ende: Beende das Gespräch NICHT, ohne gezielt nach Vergessenem gefragt zu haben. Bitte die Person, in Gedanken das Gespräch noch einmal durchzugehen, und frage aktiv nach möglichen Lücken – jeweils als EINZELNE kurze Frage (eine pro Nachricht): (a) weitere oder auch kleinere Beschwerden/Symptome; (b) weitere Medikamente, Präparate oder Behandlungen; (c) frühere Rehabilitationen, Kuren oder wichtige Behandlungen; (d) alles, was die behandelnden Fachleute unbedingt wissen sollten. Erst wenn nichts Weiteres mehr genannt wird, schließt du ab.`
+
 // Gamification (spürbar motivierend, aber respektvoll fürs medizinische Setting):
 // überschreibt bewusst die knappe Bestätigungsregel und macht aus der Anamnese
 // eine gemeinsame „Gesundheits-Quest" mit warmen Micro-Belohnungen + Meilenstein-
@@ -972,6 +978,7 @@ ${anamnesisGreetingRule(name)}
 ${interviewScopeRule(name)}
 ${ANAMNESIS_SCHEME_RULE}
 ${ANAMNESIS_CHECKLIST_RULE}
+${ANAMNESIS_CLOSING_RULE}
 ${gamify ? ANAMNESIS_GAMIFY_RULE : ''}
 ${flow}
 - Schreibe auf Deutsch`

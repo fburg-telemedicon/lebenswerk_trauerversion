@@ -845,7 +845,16 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             </div>
           </div>
         )})}
-        {aiLoading && messages.length === 0 && <div style={{ margin: '1.5rem 0' }}><Dots /></div>}
+        {aiLoading && messages.length === 0 && (
+          <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
+            <Dots />
+            <p style={{ ...S.muted, fontSize: 13, marginTop: 10 }}>
+              {String(lang || '').startsWith('en')
+                ? 'Preparing the first question — this can take a moment …'
+                : 'Die erste Frage wird vorbereitet — das kann einen kurzen Moment dauern …'}
+            </p>
+          </div>
+        )}
         {latestQ && (
           <div style={{ ...S.card, marginBottom: '1rem', background: '#fafaf9', borderColor: '#d6d3d1', textAlign: showTx ? 'left' : 'center' }}>
             {showTx && <>

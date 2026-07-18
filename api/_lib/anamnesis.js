@@ -89,6 +89,15 @@ const ANAMNESIS_CATALOG_CHAPTERS = [
     'Welche konkreten Ziele für Alltag oder Beruf sind Ihnen wichtig?',
     'Gibt es etwas, das die behandelnden Fachleute unbedingt über Sie wissen sollten?',
   ] },
+  // Abschluss-Check: gezielt nach vergessenen/ergänzenden Punkten fragen, damit
+  // nichts übersehen wird, das nicht auf der Liste stand.
+  { title: 'Vergessenes und Ergänzungen', questions: [
+    'Wir sind das Wichtigste durchgegangen. Wenn Sie in Gedanken unser Gespräch noch einmal durchgehen: Fällt Ihnen etwas ein, das wir vergessen haben oder das Sie ergänzen möchten?',
+    'Gibt es weitere Beschwerden oder Symptome, die wir bisher nicht besprochen haben – auch scheinbar kleine?',
+    'Nehmen Sie noch weitere Medikamente, Präparate oder Behandlungen, die wir noch nicht erfasst haben?',
+    'Gab es frühere Rehabilitationen, Kuren oder wichtige Behandlungen, die wir noch nicht genannt haben?',
+    'Möchten Sie den behandelnden Fachleuten abschließend noch etwas mitteilen, das bisher nicht zur Sprache kam?',
+  ] },
 ]
 
 // Der Standard-Fragebogen der Kategorie. Existiert er noch nicht, wird er angelegt;

@@ -335,23 +335,27 @@ async function sendSupportMail({ ticketId, replyTo, phone, preferredChannel, nam
   const ctxRows = Object.entries(ctx)
     .filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
     .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
-  const who = `${name || '—'}${replyTo ? ` <${replyTo}>` : ''}`
   const CHANNEL_LABEL = { email: 'am liebsten per E-Mail', phone: 'am liebsten telefonisch' }
-  const contactRows = [
-    phone ? `Telefon: ${phone}` : '',
-    preferredChannel ? `Kontaktwunsch: ${CHANNEL_LABEL[preferredChannel] || preferredChannel}` : '',
+  const memorialCode = ctx.code != null && String(ctx.code) !== '' ? String(ctx.code) : null
+  // ALLE erfassten Angaben klar aufgeführt (Kopf), damit der Support nichts suchen muss.
+  const headRows = [
+    ticketId != null ? `Ticket-Nr.: #${ticketId}` : '',
+    `Name: ${name || '—'}`,
+    `E-Mail: ${replyTo || '—'}`,
+    `Telefon: ${phone || '—'}`,
+    `Kontaktwunsch: ${preferredChannel ? (CHANNEL_LABEL[preferredChannel] || preferredChannel) : '—'}`,
+    memorialCode ? `Buch-Code: ${memorialCode}` : '',
     !replyTo ? 'Hinweis: keine E-Mail-Adresse angegeben — bitte telefonisch antworten.' : '',
   ].filter(Boolean)
-  const contactText = contactRows.length ? `\n${contactRows.join('\n')}` : ''
-  const contactHtml = contactRows.map(r => `<p style="font-size:14px;margin:0 0 4px;color:#44403c;">${esc(r)}</p>`).join('')
-  const text = `Support-Anfrage aus der App\n\nVon: ${who}${contactText}\n\nNachricht:\n${message}\n\n— Diagnose —\n${ctxRows.join('\n')}`
+  const text = `Support-Anfrage aus der App\n\n${headRows.join('\n')}\n\nNachricht:\n${message}\n\n— Diagnose (automatisch mitgeschickt) —\n${ctxRows.length ? ctxRows.join('\n') : '(keine)'}`
+  const headHtml = headRows.map(r => `<p style="font-size:14px;margin:0 0 4px;color:#44403c;">${esc(r)}</p>`).join('')
   const ctxHtml = ctxRows.map(r => `<div style="font-family:monospace;font-size:12px;color:#57534e;">${esc(r)}</div>`).join('')
   const html = `<!doctype html><html lang="de"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
   <div style="max-width:560px;margin:0 auto;padding:24px;">
     <h1 style="font-size:18px;font-weight:700;margin:0 0 12px;">Support-Anfrage aus der App</h1>
-    <p style="font-size:14px;margin:0 0 4px;color:#44403c;"><strong>Von:</strong> ${esc(who)}</p>
-    ${contactHtml}
-    <div style="white-space:pre-wrap;font-size:15px;line-height:1.6;color:#1c1917;background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:14px;margin:12px 0 18px;">${esc(message)}</div>
+    <div style="background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:12px 14px;margin:0 0 14px;">${headHtml}</div>
+    <p style="font-size:12px;font-weight:700;color:#78716c;margin:0 0 6px;">Nachricht</p>
+    <div style="white-space:pre-wrap;font-size:15px;line-height:1.6;color:#1c1917;background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:14px;margin:0 0 18px;">${esc(message)}</div>
     <p style="font-size:12px;font-weight:700;color:#78716c;margin:0 0 6px;">Diagnose (automatisch mitgeschickt)</p>
     <div style="background:#fff;border:1px solid #e7e5e4;border-radius:8px;padding:12px;">${ctxHtml || '<em style="font-size:12px;color:#a8a29e;">keine</em>'}</div>
   </div></body></html>`
