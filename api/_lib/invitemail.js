@@ -13,10 +13,27 @@
 //               Sprache, die der Admin für ihn gewählt hat (de/pl/en).
 
 const { sendMail } = require('./graphmail')
+const { isSuppressed, unsubscribeLink } = require('./suppress')
 
 // Blindkopie-Empfänger (Betreiber). Per Env überschreibbar.
 const BCC = process.env.INVITE_BCC || 'florian.burg@lebensgeschichten.ai'
 const REPLY_TO = process.env.INVITE_REPLY_TO || 'support@lebensgeschichten.ai'
+
+// Origin (Basis-URL) aus einem fertigen Link ableiten – für den Abmelde-Link in
+// derselben Mail. Fällt auf PUBLIC_BASE_URL bzw. die Produktions-Domain zurück.
+function originFrom(url) {
+  try { return new URL(url).origin } catch { /* kein gültiger Link */ }
+  return (process.env.PUBLIC_BASE_URL || 'https://lebensgeschichten.ai').replace(/\/+$/, '')
+}
+// Kleiner Abmelde-Footer (Text + HTML). Wird an Einladungs-/Zugangs-/Code-Mails
+// angehängt, damit sich eine Adresse dauerhaft abmelden kann ([[suppress]]).
+function unsubFooter(base, to) {
+  const link = unsubscribeLink(base, to)
+  return {
+    text: `\n\n———\nSie möchten keine E-Mails von Lebensgeschichten erhalten oder haben diese nicht erwartet? Hier abmelden: ${link}`,
+    html: `<p style="font-size:11px;line-height:1.5;color:#a8a29e;margin:16px 0 0;">Sie möchten keine E-Mails von Lebensgeschichten erhalten oder haben diese nicht erwartet? <a href="${link}" style="color:#a8a29e;">Hier abmelden</a>.</p>`,
+  }
+}
 
 // Basis-URL für Links aus dem Request ableiten (bzw. PUBLIC_BASE_URL).
 function baseUrl(req) {
@@ -244,30 +261,46 @@ function buildBilingualHtml({ de, en, url }) {
 // kind: 'invite' | 'reset' | 'enduser';  lang: 'de'|'pl'|'en'… (nur enduser) ODER
 // null/leer → zweisprachig Deutsch + Englisch (keine Sprache festgelegt).
 async function sendAccessMail({ to, url, kind = 'invite', lang = 'de' }) {
+  // Abgemeldete Adressen bekommen nichts mehr — der Aufrufer behandelt das wie
+  // einen Versand-Fehlschlag (email_sent=false), legt aber keine Daten an bzw.
+  // bricht nicht hart ab. Siehe [[suppress]].
+  if (await isSuppressed(to)) { const e = new Error(`E-Mail-Adresse abgemeldet: ${to}`); e.suppressed = true; throw e }
+
+  let subject, text, html
   if (!lang) {
     const de = pickText(kind, 'de'), en = pickText(kind, 'en')
     // Betreff bewusst nur Deutsch (Hauptsprache); die englische Fassung steht unten
     // im Body am Ende.
-    const subject = de.subject
-    const text = `${de.heading}\n\n${de.intro}\n\n${url}\n\n${de.footer}\n\n————————————\n\n${en.heading}\n\n${en.intro}\n\n${url}\n\n${en.footer}\n\n— Lebensgeschichten`
-    const html = buildBilingualHtml({ de, en, url })
-    return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
+    subject = de.subject
+    text = `${de.heading}\n\n${de.intro}\n\n${url}\n\n${de.footer}\n\n————————————\n\n${en.heading}\n\n${en.intro}\n\n${url}\n\n${en.footer}\n\n— Lebensgeschichten`
+    html = buildBilingualHtml({ de, en, url })
+  } else {
+    const t = pickText(kind, lang)
+    subject = t.subject
+    text = `${t.heading}\n\n${t.intro}\n\n${url}\n\n${t.footer}\n\n— Lebensgeschichten`
+    html = buildHtml({ ...t, url, lang })
   }
-  const t = pickText(kind, lang)
-  const text = `${t.heading}\n\n${t.intro}\n\n${url}\n\n${t.footer}\n\n— Lebensgeschichten`
-  const html = buildHtml({ ...t, url, lang })
-  return sendMail({ to, subject: t.subject, text, html, replyTo: REPLY_TO, bcc: BCC })
+  // Abmelde-Link nur bei den erstmaligen Einladungen (nicht bei Reset/Bestätigung,
+  // die transaktional an bereits bekannte Nutzer gehen).
+  if (kind === 'enduser' || kind === 'invite') {
+    const f = unsubFooter(originFrom(url), to)
+    text += f.text
+    html = html.replace(/<\/body>/i, `${f.html}</body>`)
+  }
+  return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
 }
 
 // Freischaltcode-Mail: liefert dem Empfänger seinen Code (XXXX-XXXX-XXXX), mit dem
 // er das Zeitlimit seines Testkontos aufhebt. Bewusst nur deutsch (Betreiber-/
 // Manager-Kontext). BCC an den Betreiber wie bei den Zugangs-Mails.
 async function sendUnlockCodeMail({ to, code, name }) {
+  if (await isSuppressed(to)) { const e = new Error(`E-Mail-Adresse abgemeldet: ${to}`); e.suppressed = true; throw e }
   const greeting = name ? `Hallo ${name},` : 'Hallo,'
   const subject = 'Ihr Freischaltcode für Lebensgeschichten'
   const intro = 'anbei Ihr persönlicher Freischaltcode. Damit heben Sie das Zeitlimit Ihres Testzugangs auf und können ohne Begrenzung weitererzählen.'
   const howTo = 'Öffnen Sie Ihr Interview und tippen Sie oben bei der Restzeit auf „Freischaltcode eingeben". Geben Sie dort den folgenden Code ein:'
-  const text = `${greeting}\n\n${intro}\n\n${howTo}\n\n${code}\n\nDer Code kann einmalig eingelöst werden.\n\n— Lebensgeschichten`
+  const f = unsubFooter(process.env.PUBLIC_BASE_URL || 'https://lebensgeschichten.ai', to)
+  const text = `${greeting}\n\n${intro}\n\n${howTo}\n\n${code}\n\nDer Code kann einmalig eingelöst werden.\n\n— Lebensgeschichten${f.text}`
   const html = `<!doctype html><html lang="de"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
   <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
     <h1 style="font-size:20px;font-weight:700;margin:0 0 14px;">Ihr Freischaltcode</h1>
@@ -276,6 +309,7 @@ async function sendUnlockCodeMail({ to, code, name }) {
     <p style="font-size:14px;line-height:1.6;margin:0 0 12px;color:#44403c;">${esc(howTo)}</p>
     <p style="margin:0 0 22px;text-align:center;"><span style="display:inline-block;background:#1c1917;color:#fff;padding:14px 26px;border-radius:8px;font-size:22px;font-weight:700;letter-spacing:2px;font-family:'SFMono-Regular',Consolas,monospace;">${esc(code)}</span></p>
     <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">Der Code kann einmalig eingelöst werden. Falls Sie dies nicht erwartet haben, können Sie diese E-Mail ignorieren.<br>— Lebensgeschichten</p>
+    ${f.html}
   </div></body></html>`
   return sendMail({ to, subject, text, html, replyTo: REPLY_TO, bcc: BCC })
 }

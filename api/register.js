@@ -16,6 +16,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { genCode } = require('./_lib/codes')
 const { generateInviteToken, INVITE_TTL_MS } = require('./_lib/auth')
 const { sendAccessMail, inviteLink } = require('./_lib/invitemail')
+const { isSuppressed } = require('./_lib/suppress')
 const { ensureLifeworkSchema, ensureLifeworkCatalog } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
 const { audit } = require('./_lib/audit')
@@ -36,6 +37,9 @@ module.exports = async function handler(req, res) {
     email = String(email || '').trim()
     name = String(name || '').trim().slice(0, 120)   // optional — Name kommt beim Start
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' })
+    // Abgemeldete Adresse ("Nicht ich"): weder Konto/Buch anlegen noch Mail senden.
+    // Generische Erfolgsmeldung, um den Sperrstatus nicht preiszugeben.
+    if (await isSuppressed(email)) return res.json({ ok: true, email_sent: false })
     // Die eigentliche DSGVO-Einwilligung wird beim Interview-Start abgefragt (Info-
     // Formular). Die Registrierung erfasst bewusst nur E-Mail + Sprache.
     // Missbrauchsschutz (E-Mail-Bombing gegen Fremde): pro Zieladresse eng
