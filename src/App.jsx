@@ -3595,6 +3595,21 @@ export default function App() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  // Beitragenden-/Interview-Code auf dem Gerät merken, damit die App beim erneuten
+  // Öffnen (installiertes Icon oder Basis-URL ohne ?code) direkt in dieses Interview
+  // führt statt auf den – für reine Code-Zugänge nutzlosen – Login.
+  useEffect(() => {
+    // Nur merken, wenn KEINE Manager-Sitzung aktiv ist — sonst würde ein Manager,
+    // der testweise einen ?code-Link öffnet, später auf „/" ins Interview umgeleitet.
+    if (codeFromURL) { try { if (!readAdminToken()) localStorage.setItem('lw_last_code', codeFromURL) } catch { /* privater Modus */ } }
+  }, [])
+  // Ohne ?code/Invite/Register UND ohne Manager-/Endnutzer-Sitzung: das gemerkte
+  // Interview direkt öffnen (mit „das bin nicht ich"-Ausweg im ☰-Menü).
+  let rememberedCode = ''
+  if (!codeFromURL && !inviteFromURL && !registerFromURL) {
+    try { if (!readAdminToken()) rememberedCode = (localStorage.getItem('lw_last_code') || '').trim() } catch { /* ignore */ }
+  }
+
   const route = hash.replace(/^#/, '')
   if (route === 'impressum')  return <Impressum />
   if (route === 'datenschutz') return <Datenschutz />
@@ -3612,6 +3627,7 @@ export default function App() {
             {inviteFromURL ? <InviteFlow token={inviteFromURL} />
               : registerFromURL ? <RegisterFlow />
               : codeFromURL ? <ContributorFlow code={codeFromURL} />
+              : rememberedCode ? <ContributorFlow code={rememberedCode} fromRemembered />
               : <AdminLangProvider><Dashboard /></AdminLangProvider>}
           </ErrorBoundary>
         </FooterVisibilityCtx.Provider>

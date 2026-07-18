@@ -4,6 +4,7 @@
     {
       "date": "2026-07-18",
       "items": [
+        "Web-App als Handy-App installierbar (PWA): Über „App installieren“ im Menü lässt sich das Interview als eigenständige App mit Icon auf den Home-Bildschirm legen (Firmenlogo, Vollbild; Name „Lebenswerk.ai“ bzw. „Lebensgeschichten.ai“). Beim Öffnen führt die App direkt in das zuletzt geöffnete Interview – auch wenn der Zugang nur über einen Link/QR-Code lief, ohne Login. Über „Anderes Interview / das bin nicht ich“ im Menü lässt sich das auf einem geteilten Gerät zurücksetzen. Kein automatisches Install-Popup; das Manager-Dashboard ist nicht installierbar.",
         "„Angemeldet bleiben“ beim Login: Wer die Option anhakt (Standard: an), bleibt bis zu 90 Tage angemeldet, auch nach dem Schließen des Browsers. Ohne Haken gilt der Login nur für die aktuelle Sitzung. Endnutzer/Patienten, die ihren Zugang auf dem eigenen Gerät einrichten, bleiben automatisch angemeldet.",
         "Anamnese – Vorerkrankungen und Familienanamnese werden jetzt Punkt für Punkt abgefragt: Statt einer offenen Frage geht das Interview gängige Erkrankungen einzeln durch (z. B. Bluthochdruck, Diabetes, Herz, Lunge, …), erfasst bei „ja“ die Details und schließt jeden Abschnitt mit „Sonst noch etwas?“ ab.",
         "Anamnese – Feld „Organisator“ heißt jetzt „Betreuende Ärztin/betreuender Arzt“ (optional) und ist nicht mehr Pflicht. Dokumenten-Upload ist standardmäßig aktiv; die Voreinstellung für vertiefende Nachfragen liegt bei der Anamnese jetzt bei 2.",
