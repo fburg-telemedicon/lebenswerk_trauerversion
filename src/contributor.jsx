@@ -313,6 +313,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
   const chunksRef    = useRef([])
+  // Freisprech-Modus: EIN dauerhaft offener Mikrofon-Stream. Verhindert, dass iOS
+  // nach jeder Frage das „Mikrofonzugriff gewährt"-Banner einblendet (das kommt bei
+  // jedem neuen getUserMedia). Im Tipp-Modus bleibt er null (Stream pro Aufnahme).
+  const sharedStreamRef = useRef(null)
   const endRef       = useRef(null)
 
   // Test-Zeitlimit: 0 = unbegrenzt. Ist ein Limit gesetzt, läuft ab dem ersten
@@ -379,6 +383,13 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // proaktive Hilfe (eine blockierte Berechtigung kann nur der Nutzer in den
   // Browser-Einstellungen wieder freigeben — das ist eine Browser-Sicherheitsregel).
   const [micPerm, setMicPerm] = useState('unknown') // granted | denied | prompt | unknown
+  // Freisprech-Modus: das Mikro wurde nach einer längeren Sprechpause automatisch
+  // gestoppt (kein Ton erkannt). Dann blenden wir DOCH wieder ein Mikrofon + Hinweis
+  // ein, damit der Nutzer das Gespräch antippen und fortsetzen kann. Sobald wieder
+  // aufgenommen wird, wird es automatisch ausgeblendet.
+  const [handsFreeIdle, setHandsFreeIdle] = useState(false)
+  // Beim Verlassen der Ansicht den dauerhaft offenen Freisprech-Stream schließen.
+  useEffect(() => () => { try { sharedStreamRef.current?.getTracks().forEach(tr => tr.stop()) } catch {} sharedStreamRef.current = null }, [])
   useEffect(() => {
     if (!navigator.permissions?.query) return
     let live = true, permStatus = null
@@ -551,7 +562,15 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
 
     setMicNote('')
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Freisprech: einen bereits offenen Stream wiederverwenden (kein neues
+      // getUserMedia → kein iOS-Banner). Sonst (oder wenn er nicht mehr „live" ist)
+      // frisch anfordern; im Freisprech-Modus merken wir ihn uns.
+      let stream = sharedStreamRef.current
+      const streamLive = stream && stream.getAudioTracks().some(tr => tr.readyState === 'live')
+      if (!streamLive) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        sharedStreamRef.current = handsFree ? stream : null
+      }
       const rec    = new MediaRecorder(stream)
       mediaRecRef.current = rec
       chunksRef.current   = []
@@ -613,7 +632,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
 
       rec.onstop = async () => {
         cleanupAnalysis()
-        stream.getTracks().forEach(t => t.stop())
+        // Im Freisprech-Modus den Stream OFFEN halten (siehe sharedStreamRef) — nur
+        // im Tipp-Modus die Tracks nach jeder Aufnahme schließen.
+        if (!handsFree) { stream.getTracks().forEach(t => t.stop()); sharedStreamRef.current = null }
         setMicStream(null)
         const audioSeconds = recStartedAt ? (Date.now() - recStartedAt) / 1000 : 0
 
@@ -624,6 +645,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           setMicState('idle')
           setTranscript('')
           setMicNote(t.micNoSound || 'Kein Ton erkannt – das Mikrofon wurde automatisch gestoppt. Zum Sprechen erneut tippen.')
+          // Freisprech: die automatische Zuhör-Schleife hält hier an. Blende dann
+          // ein Mikrofon + Hinweis ein, damit der Nutzer wieder einsteigen kann.
+          if (handsFree) setHandsFreeIdle(true)
           return
         }
 
@@ -669,6 +693,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       rec.start()
       setMicStream(stream)
       setMicState('recording')
+      setHandsFreeIdle(false) // Dialog läuft wieder → Idle-Mikrofon/Hinweis ausblenden
       setTranscript('')
       setErr('')
     } catch (e) {
@@ -917,7 +942,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         {/* 4. MIKROFON — im Freisprech-Modus KEIN Button/Idle-Text: die App hört
             nach jeder Frage automatisch zu. Die Karte erscheint dann nur beim
             Aufnehmen/Verarbeiten, bei blockiertem Mikro oder im Begleit-Modus. */}
-        {!aiLoading && latestQ && (!handsFree || micState !== 'idle' || micPerm === 'denied' || memorial?.companion_mode === true) && (
+        {!aiLoading && latestQ && (!handsFree || micState !== 'idle' || handsFreeIdle || micPerm === 'denied' || memorial?.companion_mode === true) && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1rem 1rem' }}>
             {companionOn ? (
               // Begleiteter Modus: zwei Mikrofone. Immer nur EINS aktiv — während
@@ -944,7 +969,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                   )
                 })}
               </div>
-            ) : handsFree ? null : (
+            ) : (handsFree && !handsFreeIdle) ? null : (
               <div style={{ marginBottom: 14 }}>
                 <button
                   onClick={() => handleMic('self')}
@@ -969,6 +994,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 🎙 {String(lang || '').startsWith('en')
                   ? 'The microphone is blocked for this site. Tap the lock icon in the address bar → Microphone → Allow, then reload.'
                   : 'Das Mikrofon ist für diese Seite blockiert. Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Mikrofon" → „Zulassen" und laden Sie die Seite neu.'}
+              </div>
+            )}
+            {/* Freisprech-Pause: Hinweis zum Weitersprechen (nur bis wieder aufgenommen wird). */}
+            {handsFree && handsFreeIdle && micState === 'idle' && micPerm !== 'denied' && (
+              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:13, lineHeight:1.5, color:'#78716c' }}>
+                {String(lang || '').startsWith('en')
+                  ? 'Recording paused after a break. Tap the microphone to keep talking.'
+                  : 'Aufnahme nach einer Pause gestoppt. Tippen Sie auf das Mikrofon, um weiterzusprechen.'}
               </div>
             )}
             {/* Begleitmodus wird direkt am Mikrofon geschaltet (nicht im Menü):
