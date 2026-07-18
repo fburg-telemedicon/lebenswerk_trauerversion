@@ -30,9 +30,18 @@ const ANAMNESIS_CATALOG_CHAPTERS = [
     'Wie wirken sich die Beschwerden auf Ihren Alltag aus – was können Sie dadurch nicht mehr wie gewohnt tun?',
   ] },
   { title: 'Vorerkrankungen und Operationen', questions: [
-    'Welche Erkrankungen haben oder hatten Sie in der Vergangenheit?',
+    'Ich gehe jetzt einige häufige Vorerkrankungen einzeln mit Ihnen durch. Haben oder hatten Sie Bluthochdruck?',
+    'Haben oder hatten Sie Diabetes (Zuckerkrankheit)?',
+    'Haben oder hatten Sie eine Herzerkrankung (z. B. Herzinfarkt, koronare Herzkrankheit)?',
+    'Hatten Sie schon einmal einen Schlaganfall?',
+    'Haben oder hatten Sie eine Lungenerkrankung (z. B. Asthma, COPD)?',
+    'Haben oder hatten Sie eine Nieren-, Leber- oder Schilddrüsenerkrankung?',
+    'Haben oder hatten Sie eine Krebserkrankung?',
+    'Haben oder hatten Sie eine psychische Erkrankung (z. B. Depression, Angststörung)?',
+    'Haben oder hatten Sie Rheuma oder eine andere Gelenkerkrankung?',
+    'Hatten Sie schon einmal eine Thrombose oder Embolie?',
     'Wurden Sie schon einmal operiert? Wenn ja, woran und wann?',
-    'Sind bei Ihnen chronische Erkrankungen bekannt (z. B. Bluthochdruck, Diabetes, Herz- oder Lungenerkrankungen)?',
+    'Gibt es sonst noch eine Erkrankung, die wir bisher nicht besprochen haben?',
   ] },
   { title: 'Medikamente', questions: [
     'Welche Medikamente nehmen Sie derzeit regelmäßig ein?',
@@ -50,7 +59,14 @@ const ANAMNESIS_CATALOG_CHAPTERS = [
     'Rauchen Sie, und trinken Sie Alkohol? Wenn ja, wie viel und wie oft?',
   ] },
   { title: 'Familienanamnese', questions: [
-    'Gibt es in Ihrer Familie Erkrankungen, die häufiger vorkommen (z. B. Herz-Kreislauf, Diabetes, Krebs)?',
+    'Nun zu Erkrankungen in Ihrer Familie (Eltern, Geschwister). Gab es Herzinfarkte oder Herz-Kreislauf-Erkrankungen?',
+    'Gab es Schlaganfälle?',
+    'Gibt es Bluthochdruck?',
+    'Gibt es Diabetes?',
+    'Gibt es Krebserkrankungen?',
+    'Gibt es psychische Erkrankungen?',
+    'Sind Erbkrankheiten bekannt?',
+    'Gibt es sonst noch eine Erkrankung in der Familie, die wir nicht genannt haben?',
   ] },
   { title: 'Sozial- und Berufssituation', questions: [
     'Wie sieht Ihre Wohn- und Lebenssituation aus – leben Sie allein oder mit anderen zusammen?',
@@ -80,13 +96,23 @@ const ANAMNESIS_CATALOG_CHAPTERS = [
 // also überarbeiten, ohne dass wir seine Änderungen überschreiben. (Muster wie
 // ensureLifeworkCatalog.)
 async function ensureAnamnesisCatalog(supabase) {
+  // Der Standard-Fragebogen ist CODE-verwaltet (medizinischer Standard): Inhalt in
+  // ANAMNESIS_CATALOG_CHAPTERS pflegen, NICHT im Dashboard (Dashboard-Änderungen an
+  // dieser einen Zeile werden bei der nächsten Ausführung überschrieben).
   // Bewusst KEIN .maybeSingle(): das wirft, sobald (durch frühere Rennen) mehrere
-  // gleichnamige Zeilen existieren — und legt dann noch eine weitere an. Wir nehmen
-  // die älteste vorhandene als kanonische Zeile.
+  // gleichnamige Zeilen existieren. Die älteste ist die kanonische Zeile; ihre
+  // Kapitel werden mit dem Code synchronisiert, damit bestehende Bücher (die auf
+  // dieselbe catalog_id zeigen) die aktualisierten Fragen bekommen.
   const { data: rows } = await supabase
     .from('question_catalogs').select('id').eq('name', ANAMNESIS_CATALOG_NAME)
     .order('created_at', { ascending: true })
-  if (Array.isArray(rows) && rows.length && rows[0]?.id) return rows[0].id
+  if (Array.isArray(rows) && rows.length && rows[0]?.id) {
+    const id = rows[0].id
+    await supabase.from('question_catalogs')
+      .update({ product_categories: ['anamnesis'], chapters: ANAMNESIS_CATALOG_CHAPTERS })
+      .eq('id', id)
+    return id
+  }
 
   const { data, error } = await supabase
     .from('question_catalogs')

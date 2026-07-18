@@ -925,6 +925,16 @@ const ANAMNESIS_SCHEME_RULE = `- STRUKTURIERTES VORGEHEN (ärztliches Anamnesesc
 - MEHRERE BESCHWERDEN/PUNKTE VOLLSTÄNDIG ERFASSEN (sehr wichtig): Nennt die Person mehrere Beschwerden, Schmerzorte oder Probleme (z. B. „Schmerzen im Knie UND im Rücken"), dann merke dir ALLE genannten Punkte als offene Liste. Kündige kurz an, dass ihr sie nacheinander durchgeht, kläre EINEN Punkt vollständig ab und gehe DANACH ausdrücklich zum nächsten offenen Punkt über (z. B. „Sie hatten vorhin auch … erwähnt — dazu ein paar Fragen"). Vergiss KEINEN genannten Punkt; erst wenn wirklich alle abgearbeitet sind, wechsle das Thema.
 - SCHMERZ-/SYMPTOMSCHEMA: Kläre zu JEDER konkreten Beschwerde systematisch (einzeln, eine Frage pro Nachricht): genauer Ort; Art/Charakter (z. B. dumpf, stechend, brennend); Stärke (Skala 0–10); Beginn / seit wann; zeitlicher Verlauf (dauerhaft oder anfallsartig, Tageszeit); was verschlimmert und was lindert; Ausstrahlung; Begleitsymptome; Auswirkung auf den Alltag (was ist dadurch nicht mehr möglich). Frage nur ab, was noch offen ist; bereits Gesagtes nicht erneut erfragen.`
 
+// Vorerkrankungen + Familienanamnese werden NICHT offen erfragt („Welche
+// Erkrankungen hatten Sie?"), sondern als Checkliste gängiger Erkrankungen
+// EINZELN durchgegangen; bei „ja" Details, am Ende offene Auffangfrage.
+const ANAMNESIS_CHECKLIST_RULE = `- VORERKRANKUNGEN und FAMILIENANAMNESE als CHECKLISTE (nicht nur offen fragen): Gehe die gängigen Punkte NACHEINANDER einzeln durch (eine Frage pro Nachricht; du darfst kurz ankündigen, dass jetzt einige gezielte Ja/Nein-Fragen kommen). Frage jeden Punkt knapp ab; ein bereits von der Person genannter Punkt wird nicht erneut gefragt.
+  • Eigene Vorerkrankungen – frage einzeln nach: Bluthochdruck; Diabetes; Herzerkrankung (z. B. Herzinfarkt, KHK); Schlaganfall; Lungenerkrankung (z. B. Asthma, COPD); Nieren-, Leber- oder Schilddrüsenerkrankung; Krebserkrankung; psychische Erkrankung (z. B. Depression); Rheuma/Gelenkerkrankung; Thrombose/Embolie. Frage GETRENNT nach früheren Operationen.
+  • Familienanamnese (Eltern, Geschwister) – frage einzeln nach: Herzinfarkt/Herz-Kreislauf-Erkrankungen; Schlaganfall; Bluthochdruck; Diabetes; Krebs; psychische Erkrankungen; bekannte Erbkrankheiten.
+- Schlägt ein Punkt an (JA), erfasse die Details, bevor du zum nächsten gehst: bei eigenen Vorerkrankungen seit wann/Jahr, Behandlung und aktueller Stand; in der Familie WER (Verwandtschaftsgrad) und – soweit bekannt – welche Erkrankung/Alter. Verneinte Punkte kurz als „nein" vermerken und NICHT vertiefen.
+- Schließe JEDEN dieser beiden Abschnitte mit einer offenen Auffangfrage ab: „Gibt es sonst noch etwas in dieser Hinsicht?" bzw. „Sonst noch etwas?" — damit nichts übersehen wird, was nicht auf der Liste stand.
+- Führt ein FRAGENKATALOG durch diese beiden Abschnitte, sind die Einzelfragen (samt Auffangfrage) dort bereits als Katalogfragen enthalten — halte dich dann an den Katalog; diese Regel beschreibt in dem Fall nur den STIL (einzeln abfragen, bei „ja" Details, Verneintes nicht vertiefen).`
+
 function anamnesisInterview(memorial, name, rel, address, contributorGender) {
   const addr = addressRule(address)
   const gen = contributorGenderRule(contributorGender)
@@ -950,6 +960,7 @@ Regeln:
 ${anamnesisGreetingRule(name)}
 ${interviewScopeRule(name)}
 ${ANAMNESIS_SCHEME_RULE}
+${ANAMNESIS_CHECKLIST_RULE}
 ${flow}
 - Schreibe auf Deutsch`
 }
