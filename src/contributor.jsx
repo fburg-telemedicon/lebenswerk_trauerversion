@@ -1605,6 +1605,65 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
   const activeRef   = useRef(null) // { kind, idx, el } zuletzt fokussiertes Feld
   const selRef      = useRef(null) // { kind, idx, start, end } zum Aufnahmestart erfasst
 
+  // ── Ganzes Buch vorlesen (TTS, kapitelweise sequenziell) ──
+  // Nutzt denselben Abspielweg wie das Interview (speakText/stopSpeaking, /api/speak
+  // mit der pro Buch gewählten Stimme). Lange Kapitel werden in ~700-Zeichen-Häppchen
+  // an Satzgrenzen zerlegt, damit die Sprachsynthese nicht an Längengrenzen scheitert.
+  const [reading, setReading]      = useState(false)
+  const [readLoading, setReadLoad] = useState(false)
+  const readSeqRef = useRef(0)
+  const RT = String(lang || '').startsWith('en')
+    ? { play: 'Read book aloud', stop: 'Stop reading', loading: 'Loading …' }
+    : { play: 'Buch vorlesen', stop: 'Vorlesen stoppen', loading: 'Lädt …' }
+
+  function buildReadQueue(b) {
+    const parts = []
+    if (b?.title) parts.push(String(b.title))
+    if (b?.subtitle) parts.push(String(b.subtitle))
+    for (const c of (b?.chapters || [])) {
+      if (c?.heading) parts.push(String(c.heading))
+      if (c?.body) parts.push(String(c.body))
+    }
+    const chunks = []
+    for (const raw of parts) {
+      const text = raw.trim()
+      if (!text) continue
+      if (text.length <= 700) { chunks.push(text); continue }
+      const sentences = text.split(/(?<=[.!?…])\s+/)
+      let buf = ''
+      for (const s of sentences) {
+        if (buf && (buf + ' ' + s).length > 700) { chunks.push(buf.trim()); buf = s }
+        else buf = buf ? buf + ' ' + s : s
+      }
+      if (buf.trim()) chunks.push(buf.trim())
+    }
+    return chunks
+  }
+  function stopReading() { readSeqRef.current++; stopSpeaking(); setReading(false); setReadLoad(false) }
+  function startReading() {
+    const queue = buildReadQueue(bookRef.current || book)
+    if (!queue.length) return
+    unlockAudio()                       // iOS: innerhalb der Klick-Geste freischalten
+    const mySeq = ++readSeqRef.current
+    setErr(''); setReading(true); setReadLoad(true)
+    let i = 0
+    const playNext = () => {
+      if (mySeq !== readSeqRef.current) return
+      if (i >= queue.length) { setReading(false); setReadLoad(false); return }
+      const part = queue[i++]
+      speakText(part, {
+        memorialCode: code, language: lang, voice: memorial?.tts_voice,
+        onPlay:  () => { if (mySeq === readSeqRef.current) setReadLoad(false) },
+        onEnd:   () => { if (mySeq === readSeqRef.current) playNext() },
+        onError: (msg) => { if (mySeq === readSeqRef.current) { setErr(msg || 'Audiowiedergabe fehlgeschlagen.'); setReading(false); setReadLoad(false) } },
+      })
+    }
+    playNext()
+  }
+  const toggleReading = () => (reading ? stopReading() : startReading())
+  // TTS stoppen, wenn die Proof-Ansicht verlassen/entladen wird.
+  useEffect(() => () => { readSeqRef.current++; stopSpeaking() }, [])
+
   const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
   const P = proofT(lang, du)
   const isPrint = !!book?.print
@@ -1858,6 +1917,12 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
       <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 14, color: '#166534' }}>
         ✓ {P.finalizedBanner}
       </div>
+      <div style={{ marginBottom: 14 }}>
+        <button onClick={toggleReading} className={reading ? '' : 'secondary'} style={{ fontSize: 13, padding: '8px 14px' }}>
+          {reading ? `⏹ ${RT.stop}` : readLoading ? RT.loading : `▶ ${RT.play}`}
+        </button>
+        <Err msg={err} />
+      </div>
       <BookRead book={book} imgUrl={imgUrl} />
     </div>
   )
@@ -1877,6 +1942,9 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
           className={audioEdit?.state === 'recording' ? '' : 'secondary'}
           style={{ fontSize: 13, padding: '8px 14px' }}>
           {audioEdit?.state === 'recording' ? P.audioEditStop : audioEdit?.state === 'processing' ? P.audioEditBusy : P.audioBar}
+        </button>
+        <button onClick={toggleReading} className={reading ? '' : 'secondary'} style={{ fontSize: 13, padding: '8px 14px' }}>
+          {reading ? `⏹ ${RT.stop}` : readLoading ? RT.loading : `▶ ${RT.play}`}
         </button>
         <button onClick={saveText} disabled={!dirty} style={{ fontSize: 14, padding: '8px 16px' }}>{P.save}</button>
         <button onClick={() => setFinalizeOpen(true)} className="secondary" style={{ fontSize: 14, padding: '8px 16px' }}>{P.finalizeBtn}</button>
