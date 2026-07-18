@@ -152,6 +152,38 @@ function interviewTtsVoice(memorial, contribForm) {
   return g === 'männlich' ? TTS_VOICE_MALE : TTS_VOICE_FEMALE
 }
 
+// Dezente Gamification-Sounds via Web-Audio (kurze, leise Töne — keine Asset-
+// Dateien, CSP-sicher). Schlägt der Audio-Context fehl (Autoplay-Sperre o. Ä.),
+// passiert einfach nichts.
+let _gameAC = null
+function gameAudioCtx() {
+  if (typeof window === 'undefined') return null
+  try {
+    _gameAC = _gameAC || new (window.AudioContext || window.webkitAudioContext)()
+    if (_gameAC.state === 'suspended') _gameAC.resume()
+    return _gameAC
+  } catch { return null }
+}
+function gameTone(ac, freq, startT, dur, peak = 0.05, type = 'sine') {
+  const o = ac.createOscillator(), g = ac.createGain()
+  o.type = type; o.frequency.value = freq
+  o.connect(g); g.connect(ac.destination)
+  g.gain.setValueAtTime(0.0001, startT)
+  g.gain.exponentialRampToValueAtTime(peak, startT + 0.012)
+  g.gain.exponentialRampToValueAtTime(0.0001, startT + dur)
+  o.start(startT); o.stop(startT + dur + 0.03)
+}
+function playGameSound(kind) {
+  const ac = gameAudioCtx()
+  if (!ac) return
+  const t = ac.currentTime + 0.01
+  try {
+    if (kind === 'point') gameTone(ac, 680, t, 0.12, 0.035)                                   // kurzes, leises Blip pro Antwort
+    else if (kind === 'badge') { gameTone(ac, 680, t, 0.12, 0.045); gameTone(ac, 1020, t + 0.09, 0.18, 0.045) } // Zwei-Ton „Abzeichen"
+    else if (kind === 'done') [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => gameTone(ac, f, t + i * 0.12, 0.3, 0.05)) // C-Dur-Arpeggio zum Abschluss
+  } catch { /* egal */ }
+}
+
 // ── Gamification-HUD (Anamnese, „Gesundheits-Quest") ──────────────
 // Spürbar motivierend, aber respektvoll: Punkte + Level, Quest-Checkpoints aus
 // den Katalog-Kapiteln, aus den vorhandenen Daten (Antwortzahl + Fortschritt)
@@ -178,6 +210,21 @@ function GamificationHud({ chapters, prog, round, lang }) {
 
   const [pulse, setPulse] = useState(false)
   useEffect(() => { if (round > 0) { setPulse(true); const id = setTimeout(() => setPulse(false), 380); return () => clearTimeout(id) } }, [round])
+
+  // Dezente Sounds: Blip bei mehr Punkten, „Abzeichen"-Ton bei neuem Badge,
+  // Arpeggio beim Abschluss. Nie beim ersten Render (nur bei echten Zuwächsen).
+  const prevRound = useRef(round)
+  const prevBadges = useRef(badges.length)
+  const prevDone = useRef(doneAll)
+  useEffect(() => {
+    const grew = round > prevRound.current
+    const newBadge = badges.length > prevBadges.current
+    const justDone = doneAll && !prevDone.current
+    if (justDone) playGameSound('done')
+    else if (newBadge) playGameSound('badge')
+    else if (grew) playGameSound('point')
+    prevRound.current = round; prevBadges.current = badges.length; prevDone.current = doneAll
+  }, [round, badges.length, doneAll]) // eslint-disable-line
 
   return (
     <div style={{ padding: '10px 1.5rem 12px', borderBottom: '1px solid #e7e5e4', background: 'linear-gradient(#fffdf7,#fafaf9)' }}>
