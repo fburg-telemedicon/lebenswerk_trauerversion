@@ -288,11 +288,13 @@ async function sendUnlockCodeMail({ to, code, name }) {
 // Nutzer VOR dem Absenden transparent angezeigt wurde.
 async function sendSupportMail({ ticketId, replyTo, phone, preferredChannel, name, message, context }) {
   // Empfänger = Support-Postfach (Shared Mailbox support@…, per SUPPORT_INBOX
-  // umlenkbar). ZUSÄTZLICH als BCC an das persönliche Betreiber-Postfach, damit die
-  // Anfragen sofort im Posteingang sichtbar sind (nicht nur im Shared Mailbox /
-  // Dashboard). Fällt weg, wenn Empfänger und BCC identisch wären.
+  // umlenkbar). Standardmäßig KEINE BCC an ein persönliches Postfach mehr — die
+  // Tickets liegen bereits im Shared Mailbox support@ (An-Empfänger) und werden
+  // dort gelesen. Optional per Env SUPPORT_BCC nachrüstbar (z. B. eine persönliche
+  // Adresse), sofern sie nicht mit dem Empfänger identisch ist.
   const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
-  const opBcc = inbox.toLowerCase() === BCC.toLowerCase() ? undefined : BCC
+  const bccRaw = (process.env.SUPPORT_BCC || '').trim()
+  const opBcc = bccRaw && bccRaw.toLowerCase() !== inbox.toLowerCase() ? bccRaw : undefined
   const ctx = context && typeof context === 'object' ? context : {}
   const ctxRows = Object.entries(ctx)
     .filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
