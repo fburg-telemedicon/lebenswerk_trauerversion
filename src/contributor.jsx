@@ -613,7 +613,27 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       setTranscript('')
       setErr('')
     } catch (e) {
-      setErr(`${t.errMic}: ${e.message}`)
+      // Fehler nach Fehlertyp konkret erklären — v. a. auf Android verwirrt ein
+      // rohes „Permission denied", obwohl der Nutzer gerade freigegeben hat: Ursache
+      // ist dann meist die OS-/App-Berechtigung (installierte App) oder eine gemerkte
+      // Blockierung, nicht der eben bestätigte Seiten-Dialog.
+      const en = String(lang || '').startsWith('en')
+      const nm = e?.name || ''
+      const msg = e?.message || ''
+      const isPerm = nm === 'NotAllowedError' || nm === 'SecurityError' || /denied|not allowed|permission/i.test(msg)
+      const noMic  = nm === 'NotFoundError' || nm === 'OverconstrainedError' || nm === 'DevicesNotFoundError'
+      const inUse  = nm === 'NotReadableError' || nm === 'AbortError' || nm === 'TrackStartError'
+      if (isPerm) {
+        setErr(en
+          ? 'Microphone access is blocked. Even if you just allowed it: tap the lock icon in the address bar → Permissions → Microphone → Allow, then reload. If you installed the app on the home screen, also allow it under Android: Settings → Apps → this app → Permissions → Microphone.'
+          : 'Mikrofon-Zugriff ist blockiert. Auch wenn Sie eben zugestimmt haben: Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Berechtigungen" → „Mikrofon" → „Zulassen" und laden Sie die Seite neu. Falls Sie die App auf dem Startbildschirm installiert haben, erlauben Sie das Mikrofon zusätzlich unter Android: Einstellungen → Apps → diese App → Berechtigungen → Mikrofon.')
+      } else if (noMic) {
+        setErr(en ? 'No microphone found. Please check that a microphone is available and enabled.' : 'Kein Mikrofon gefunden. Bitte prüfen Sie, ob ein Mikrofon vorhanden und aktiviert ist.')
+      } else if (inUse) {
+        setErr(en ? 'The microphone is in use by another app or browser tab. Please close it and try again.' : 'Das Mikrofon wird von einer anderen App oder einem anderen Browser-Tab verwendet. Bitte schließen Sie diese und versuchen Sie es erneut.')
+      } else {
+        setErr(`${t.errMic}: ${msg}`)
+      }
     }
   }
 
