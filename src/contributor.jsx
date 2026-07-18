@@ -754,18 +754,22 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <PartnerBanner logoUrl={memorial?.owner_logo} category={memorial?.product_category} />
-      <div style={{ borderBottom: '1px solid #e7e5e4', padding: '12px 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{ borderBottom: '1px solid #e7e5e4', padding: '8px 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
-          {/* Beim Lebenswerk erzählt die Person über sich selbst — „Name · Ich selbst"
-              wäre nur die Zeile darüber ein zweites Mal. */}
-          {memorial?.product_category !== 'lifework' && (
+          {/* Bei Selbst-Interviews (Lebenswerk, Anamnese) erzählt die Person über sich
+              selbst — „Name · Ich selbst" wäre nur die Zeile darüber ein zweites Mal.
+              Nur bei Beitragenden-Kategorien zeigt die untere Zeile Name + Beziehung. */}
+          {memorial?.product_category !== 'lifework' && memorial?.product_category !== 'anamnesis' && (
             <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
         {!hidePause && <button onClick={pause} disabled={micState !== 'idle'} className="secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{t.pauseEnd}</button>}
       </div>
-      {prog && (
+      {/* Normale Fortschrittsleiste ausblenden, wenn die Gamification-HUD läuft
+          (Anamnese + Gamification an) — dort zeigen die Quest-Checkpoints den
+          Fortschritt, eine zweite Leiste wäre doppelt. */}
+      {prog && !(memorial?.product_category === 'anamnesis' && memorial?.gamification !== false) && (
         <div style={{ padding:'9px 1.5rem 11px', borderBottom:'1px solid #e7e5e4', background:'#fafaf9' }}>
           {prog.done ? (
             <div style={{ fontSize:12.5, fontWeight:600, color:'#15803d', textAlign:'center', marginBottom:7 }}>{t.progDone}</div>
@@ -831,7 +835,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           )}
         </div>
       )}
-      <div style={{ padding: '1.25rem 1.5rem' }}>
+      <div style={{ padding: '0.75rem 1.25rem' }}>
         {expired && (
           <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'12px 14px', fontSize:14, color:'#991b1b', lineHeight:1.55, marginBottom:14 }}>
             {t.timerExpired || 'Die Testzeit ist abgelaufen. Sie können das Interview weiter ansehen, aber keine Antworten mehr aufnehmen. Für ein unbegrenztes Interview wenden Sie sich bitte an den Anbieter.'}
@@ -869,7 +873,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           if (!showEarlier && i < blockStart) return null  // älterer Verlauf: eingeklappt
           const isCompanion = m.role === 'user' && m.speaker === 'companion'
           return (
-          <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 8 }}>
+          <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 5 }}>
             <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {isCompanion && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>👥 {t.micCompanion || 'Begleitung'}</span>}
               <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: isCompanion ? '#dbeafe' : (m.role === 'user' ? '#e0f2fe' : '#f5f5f4'), border: isCompanion ? '1px solid #93c5fd' : 'none' }}>{m.content}</div>
@@ -907,7 +911,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         )}
         {aiLoading && messages.length > 0 && <div style={{ margin: '.75rem 0' }}><Dots /></div>}
         {!aiLoading && latestQ && (
-          <div style={{ ...S.card, textAlign: 'center', padding: '1.5rem 1rem' }}>
+          <div style={{ ...S.card, textAlign: 'center', padding: '1rem 1rem' }}>
             {companionOn ? (
               // Begleiteter Modus: zwei Mikrofone. Immer nur EINS aktiv — während
               // einer Aufnahme ist das andere gesperrt.

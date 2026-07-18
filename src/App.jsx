@@ -191,7 +191,7 @@ const EMPTY_CREATE = {
   productCategory: DEFAULT_CATEGORY, intake: {},
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },
-  catalogId: '', followups: 7,
+  catalogId: '', followups: 2,
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   ttsVoice: defaultTtsVoice(DEFAULT_CATEGORY),   // deutsche Sprachausgabe-Stimme; je Kategorie in freshCreateForm gesetzt
@@ -1042,9 +1042,10 @@ function Dashboard() {
     // Sprache: standardmäßig „Endnutzer wählt selbst" (alle Sprachen angeboten) →
     // der Patient bekommt die Sprachauswahl als ersten Screen. Der Admin kann im
     // Formular weiterhin genau eine Sprache festlegen.
-    // Vertiefungsfragen bei der Anamnese standardmäßig 2 (knappere medizinische
-    // Nachfrage-Tiefe als der allgemeine Default 7).
-    if (slug === 'anamnesis') return { ...base, photoUploadTab: true, followups: 2, languages: LANGUAGES.map(l => l.code) }
+    // Vertiefungsfragen bei der Anamnese standardmäßig 0 (die Anamnese arbeitet den
+    // festen Fragenkatalog ab; Nachfragen macht die KI ohnehin situativ nach Schema).
+    // Allgemeiner Default für alle anderen Produkte ist 2.
+    if (slug === 'anamnesis') return { ...base, photoUploadTab: true, followups: 0, languages: LANGUAGES.map(l => l.code) }
     if (slug !== 'lifework') return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,
