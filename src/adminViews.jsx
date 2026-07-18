@@ -1288,7 +1288,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             </p>
           </div>
         )}
-        {isEnduser && (
+        {isEnduser && createForm.productCategory !== 'anamnesis' && (
           <div style={{ marginBottom: 14 }}>
             <Lbl>Sprache des Endnutzers *</Lbl>
             <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px', lineHeight:1.5 }}>
