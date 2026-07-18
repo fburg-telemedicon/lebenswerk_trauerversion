@@ -31,6 +31,30 @@ const LOCALE = {
   ar: process.env.AZURE_SPEECH_STT_LOCALE_AR || 'ar-EG',
 }
 
+// Phrase-List / Bias (Azure Fast Transcription unterstützt `phraseList.phrases`
+// ab api-version 2025-10-15). Isolierte Antworten wie „vier" wurden sonst als
+// englisches „fear" erkannt; hier lenken wir die Erkennung je Interviewsprache
+// auf die Zahlwörter (0–12) — die häufigste und für die Anamnese heikelste
+// Verwechslung (Skala 0–10, Dosierungen, Zeiträume). Bewusst NUR die jeweilige
+// Sprache biasen (bei englischem Interview keine deutschen Zahlwörter). Betreiber
+// können über AZURE_SPEECH_STT_PHRASES (kommagetrennt) Fachbegriffe ergänzen.
+const NUMBER_PHRASES = {
+  de: ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf'],
+  en: ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'],
+  pl: ['zero', 'jeden', 'dwa', 'trzy', 'cztery', 'pięć', 'sześć', 'siedem', 'osiem', 'dziewięć', 'dziesięć'],
+  es: ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez'],
+  it: ['zero', 'uno', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci'],
+}
+// Schweizerdeutsch nutzt dieselben (hochdeutschen) Zahlwörter als Bias.
+NUMBER_PHRASES['de-CH'] = NUMBER_PHRASES.de
+
+function phraseListFor(language) {
+  const base = NUMBER_PHRASES[language] || []
+  const extra = (process.env.AZURE_SPEECH_STT_PHRASES || '').split(',').map(s => s.trim()).filter(Boolean)
+  const all = [...base, ...extra]
+  return all.length ? all.slice(0, 100) : null  // Azure kappt lange Listen; defensiv begrenzen
+}
+
 // ── Azure AI Speech (Fast Transcription) ──────────────────────────
 async function transcribeAzure({ buffer, mimeType, ext, language }) {
   const region = process.env.AZURE_SPEECH_REGION
@@ -40,9 +64,12 @@ async function transcribeAzure({ buffer, mimeType, ext, language }) {
   const url  = `${base}/speechtotext/transcriptions:transcribe?api-version=2025-10-15`
 
   const locales = LOCALE[language] ? [LOCALE[language]] : [] // [] = automatische Spracherkennung
+  const definition = { locales }
+  const phrases = phraseListFor(language)
+  if (phrases) definition.phraseList = { phrases }  // Erkennung auf Zahlwörter (+ Env-Begriffe) lenken
   const form = new FormData()
   form.append('audio', new Blob([buffer], { type: mimeType || 'audio/webm' }), `audio.${ext}`)
-  form.append('definition', JSON.stringify({ locales }))
+  form.append('definition', JSON.stringify(definition))
 
   const response = await fetch(url, {
     method: 'POST',
