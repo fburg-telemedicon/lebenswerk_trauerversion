@@ -391,7 +391,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     return () => { live = false; if (permStatus) permStatus.onchange = null }
   }, [])
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiLoading])
+  // Nach einer neuen Frage möglichst OBEN bleiben (Mikrofon/Bedienung sichtbar),
+  // statt ans Ende des Verlaufs zu scrollen.
+  useEffect(() => {
+    const last = messages[messages.length - 1]
+    if (last?.role === 'assistant' && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [messages])
   useEffect(() => { if (messages.length === 0) loadFirst() }, [])
 
   // Auto-Start: neue Frage sofort vorlesen
@@ -895,33 +902,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             </div>
           ) : null
         })()}
-        {showTx && earlierCount > 0 && (
-          <div style={{ textAlign:'center', marginBottom:10 }}>
-            <button className="ghost" onClick={() => setShowEarlier(v => !v)} style={{ fontSize:12.5, color:'#78716c', textDecoration:'underline' }}>
-              {showEarlier
-                ? (t.txHideEarlier || 'Vorherige ausblenden')
-                : `${t.txShowEarlier || 'Vorherige anzeigen'} (${earlierCount})`}
-            </button>
-          </div>
-        )}
-        {showTx && history.map((m, i) => {
-          if (i === latestAssistantIdx) return null   // steht schon prominent in der Frage-Karte
-          if (!showEarlier && i < blockStart) return null  // älterer Verlauf: eingeklappt
-          const isCompanion = m.role === 'user' && m.speaker === 'companion'
-          return (
-          <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 5 }}>
-            <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              {isCompanion && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>👥 {t.micCompanion || 'Begleitung'}</span>}
-              <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: isCompanion ? '#dbeafe' : (m.role === 'user' ? '#e0f2fe' : '#f5f5f4'), border: isCompanion ? '1px solid #93c5fd' : 'none' }}>{m.content}</div>
-              {m.role === 'user' && i === lastUserIdx && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                  <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => undoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txDelete}</button>
-                  <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => redoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txRedo}</button>
-                </div>
-              )}
-            </div>
-          </div>
-        )})}
+        {/* Verlauf/Transkript steht jetzt UNTEN (nach Mikrofon + Bedienung). */}
         {aiLoading && messages.length === 0 && (
           <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
             <Dots />
@@ -932,20 +913,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             </p>
           </div>
         )}
-        {latestQ && (
-          <div style={{ ...S.card, marginBottom: '1rem', background: '#fafaf9', borderColor: '#d6d3d1', textAlign: showTx ? 'left' : 'center' }}>
-            {showTx && <>
-              <Lbl>{t.questionLabel}</Lbl>
-              <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 1rem', color: '#292524' }}>{latestQ}</p>
-            </>}
-            <button onClick={handleSpeak} disabled={ttsLoading || aiLoading || expired} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: expired ? 0.5 : 1 }}>
-              {ttsLoading
-                ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
-                : isPlaying ? t.stop : hasPlayed ? t.readAgain : t.listen}
-            </button>
-          </div>
-        )}
-        {aiLoading && messages.length > 0 && <div style={{ margin: '.75rem 0' }}><Dots /></div>}
+        {aiLoading && messages.length > 0 && <div style={{ margin: '.75rem 0', textAlign:'center' }}><Dots /></div>}
+        {/* 4. MIKROFON */}
         {!aiLoading && latestQ && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1rem 1rem' }}>
             {companionOn ? (
@@ -991,19 +960,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
               {micLabel}
             </div>
-            {micNote && micState === 'idle' && (
-              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
-                ⏸ {micNote}
-              </div>
-            )}
-            {micState === 'idle' && !micNote && micPerm === 'denied' && (
+            {micState === 'idle' && micPerm === 'denied' && (
               <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
                 🎙 {String(lang || '').startsWith('en')
                   ? 'The microphone is blocked for this site. Tap the lock icon in the address bar → Microphone → Allow, then reload.'
                   : 'Das Mikrofon ist für diese Seite blockiert. Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Mikrofon" → „Zulassen" und laden Sie die Seite neu.'}
               </div>
             )}
-            {micState === 'idle' && !micNote && micPerm === 'prompt' && (
+            {micState === 'idle' && micPerm === 'prompt' && (
               <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12, lineHeight:1.5, color:'#78716c' }}>
                 {String(lang || '').startsWith('en')
                   ? 'On the first tap your browser will ask for microphone access — please tap “Allow”.'
@@ -1056,8 +1020,47 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             )}
           </div>
         )}
-        {round >= 1 && !aiLoading && <p style={{ fontSize:12, color:'#78716c', textAlign:'center', marginTop:12 }}>{t.autosaveNote}</p>}
-        <div ref={endRef} /><div style={{ height:'2rem' }} />
+        {/* 6. NOCHMAL VORLESEN (+ Fragetext, wenn Transkript an) */}
+        {latestQ && (
+          <div style={{ ...S.card, marginTop: 12, background: '#fafaf9', borderColor: '#d6d3d1', textAlign: showTx ? 'left' : 'center' }}>
+            {showTx && <>
+              <Lbl>{t.questionLabel}</Lbl>
+              <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 0.75rem', color: '#292524' }}>{latestQ}</p>
+            </>}
+            <button onClick={handleSpeak} disabled={ttsLoading || aiLoading || expired} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: expired ? 0.5 : 1 }}>
+              {ttsLoading
+                ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
+                : isPlaying ? t.stop : hasPlayed ? t.readAgain : t.listen}
+            </button>
+          </div>
+        )}
+        {/* 7. Transkript / Verlauf (unten) */}
+        {showTx && earlierCount > 0 && (
+          <div style={{ textAlign:'center', margin:'10px 0' }}>
+            <button className="ghost" onClick={() => setShowEarlier(v => !v)} style={{ fontSize:12.5, color:'#78716c', textDecoration:'underline' }}>
+              {showEarlier ? (t.txHideEarlier || 'Vorherige ausblenden') : `${t.txShowEarlier || 'Vorherige anzeigen'} (${earlierCount})`}
+            </button>
+          </div>
+        )}
+        {showTx && history.map((m, i) => {
+          if (i === latestAssistantIdx) return null
+          if (!showEarlier && i < blockStart) return null
+          const isCompanion = m.role === 'user' && m.speaker === 'companion'
+          return (
+          <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', marginBottom: 5 }}>
+            <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              {isCompanion && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>👥 {t.micCompanion || 'Begleitung'}</span>}
+              <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: isCompanion ? '#dbeafe' : (m.role === 'user' ? '#e0f2fe' : '#f5f5f4'), border: isCompanion ? '1px solid #93c5fd' : 'none' }}>{m.content}</div>
+              {m.role === 'user' && i === lastUserIdx && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => undoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txDelete}</button>
+                  <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => redoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txRedo}</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )})}
+        <div ref={endRef} /><div style={{ height:'1.5rem' }} />
       </div>
     </div>
   )
