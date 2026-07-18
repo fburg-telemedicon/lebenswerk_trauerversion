@@ -13,7 +13,7 @@
 // Test ohne zu löschen:  GET /api/cron/purge?dry=1  (mit Bearer-Secret)
 
 const { createClient } = require('../_lib/store')
-const { purgeMemorialContributions } = require('../_lib/delete-memorial')
+const { purgeMemorialContributions, deleteMemorialCompletely } = require('../_lib/delete-memorial')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -63,10 +63,18 @@ module.exports = async function handler(req, res) {
     for (const m of due) {
       try {
         const days = retentionDaysFor(m)
-        const reason = `Automatische Löschung nach Aufbewahrungsfrist (${days} Tage)`
-        // Nur Beiträge + Roh-Uploads + Protokoll löschen; Buch/Rede/Bogen bleiben erhalten.
-        const { count } = await purgeMemorialContributions(supabase, m.id, reason)
-        results.push({ code: m.id, ok: true, retention_days: days, contributions_deleted: count })
+        if (m.product_category === 'anamnesis') {
+          // Anamnese: nach der Frist ALLES löschen — Rohdaten UND den Bogen
+          // (medizinische Daten, maximale Datensparsamkeit). Der Datensatz verschwindet
+          // vollständig (Storage, cost_events, Beiträge, memorial-Zeile, Endnutzer-Konto).
+          const warnings = await deleteMemorialCompletely(supabase, m.id)
+          results.push({ code: m.id, ok: true, retention_days: days, deleted: 'complete', warnings })
+        } else {
+          const reason = `Automatische Löschung nach Aufbewahrungsfrist (${days} Tage)`
+          // Übrige Kategorien: nur Beiträge + Roh-Uploads + Protokoll; Buch/Rede bleiben.
+          const { count } = await purgeMemorialContributions(supabase, m.id, reason)
+          results.push({ code: m.id, ok: true, retention_days: days, contributions_deleted: count })
+        }
       } catch (e) {
         results.push({ code: m.id, ok: false, error: e.message })
       }
