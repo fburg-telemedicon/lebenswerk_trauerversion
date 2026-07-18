@@ -199,6 +199,7 @@ const EMPTY_CREATE = {
   timerOn: false, timerMinutes: 5,   // Test-Zeitlimit fürs Interview (aus = unbegrenzt)
   companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
   gamification: true,                // spürbar motivierender Interview-Modus (nur Anamnese; Default AN)
+  handsFree: true,                   // Freisprech-Modus (Pausenerkennung, kein Mikro-Antippen; alle Produkte, Default AN)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
@@ -870,6 +871,7 @@ function Dashboard() {
       timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
       companionMode: m.companion_mode === true,
       gamification: m.gamification !== false,
+      handsFree: m.hands_free !== false,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       showOnboarding: m.show_onboarding !== false,
@@ -916,6 +918,7 @@ function Dashboard() {
         interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: d.companionMode === true,
         gamification: d.gamification !== false,
+        handsFree: d.handsFree !== false,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
@@ -949,6 +952,7 @@ function Dashboard() {
         interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companion_mode: d.companionMode === true,
         gamification: d.gamification !== false,
+        hands_free: d.handsFree !== false,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
@@ -1114,6 +1118,7 @@ function Dashboard() {
         interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: createForm.companionMode === true,
         gamification: createForm.gamification !== false,
+        handsFree: createForm.handsFree !== false,
         proofEnabled: createForm.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
         showOnboarding: createForm.showOnboarding !== false,

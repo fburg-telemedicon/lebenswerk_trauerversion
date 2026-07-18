@@ -1522,6 +1522,14 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           )}
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Ohne Haken läuft das Interview unbegrenzt. Mit Haken zählt im Interview ein gut sichtbarer Countdown herunter; bei Null ist keine Sprachaufnahme/-ausgabe mehr möglich (Ansehen bleibt möglich).</p>
         </div>
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Freisprech-Modus</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.handsFree !== false} onChange={e => setCreateForm({ ...createForm, handsFree: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Gespräch automatisch führen (Sprechpausen erkennen, kein Mikrofon-Antippen)</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Standard: an. Die Person spricht einfach los; nach einer kurzen Sprechpause wird die Antwort automatisch erkannt und gesendet, danach öffnet sich das Mikrofon zur nächsten Frage von selbst. Ohne Haken muss zum Sprechen das Mikrofon angetippt werden.</p>
+        </div>
         {createForm.productCategory === 'anamnesis' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Gamification</Lbl>
@@ -2901,6 +2909,14 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     </div>
                   )}
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Ohne Haken unbegrenzt. Greift beim nächsten (Neu-)Start des Interviews.</p>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Freisprech-Modus</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.handsFree !== false} onChange={e => setOd({ handsFree: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Gespräch automatisch führen (Sprechpausen erkennen, kein Mikrofon-Antippen)</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Standard: an. Nach kurzer Sprechpause wird die Antwort automatisch gesendet; danach öffnet sich das Mikrofon zur nächsten Frage von selbst. Greift beim nächsten (Neu-)Start.</p>
                 </div>
                 {selected.product_category === 'anamnesis' && (
                 <div style={{ marginBottom:14 }}>

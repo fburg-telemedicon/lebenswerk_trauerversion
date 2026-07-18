@@ -23,15 +23,18 @@ import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocal
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
 
-// ── Mikrofon-Auto-Stopp (Kostenschutz gegen ein vergessenes/offenes Mikrofon) ──
-// NUR HÖCHSTDAUER: Die Aufnahme stoppt spätestens nach MIC_MAX_MS. Danach tippt der
-// Nutzer einfach erneut aufs Mikrofon, um weiterzuerzählen (die Fortsetzung wird als
-// weitere Antwort angehängt). BEWUSST KEIN Stille-Auto-Stopp — jemand darf beliebig
-// lange über seine Antwort nachdenken, ohne dass das Mikro vorzeitig abschaltet.
-// Der Pegel wird nur noch gemessen, um eine Aufnahme OHNE jede Sprache (reine Stille)
-// gar nicht erst zur Erkennung zu schicken (spart die STT-Kosten).
+// ── Mikrofon-Auto-Stopp ───────────────────────────────────────────────────────
+// TIPP-MODUS (hands_free=false): NUR Höchstdauer (MIC_MAX_MS); bewusst KEIN Stille-
+// Stopp — man darf beliebig lange nachdenken. Der Pegel dient nur dazu, eine
+// Aufnahme OHNE jede Sprache gar nicht erst zur Erkennung zu schicken (STT-Kosten).
+// FREISPRECH-MODUS (hands_free=true, Standard): Nach erkannter Sprache stoppt die
+// Aufnahme automatisch bei einer Sprechpause (MIC_PAUSE_MS) und schickt die Antwort;
+// die nächste Frage öffnet das Mikro wieder von selbst. Ohne jede Sprache über
+// längere Zeit (MIC_NOSPEECH_MS) hört die Runde auf (kein Endlos-Mithören).
 const MIC_SILENCE_THRESHOLD = 0.025   // RMS (0..1) unterhalb dessen es als „still" gilt
 const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Auto-Stopp
+const MIC_PAUSE_MS          = 2500    // Freisprech: Sprechpause nach Sprache → Auto-Stopp+Senden
+const MIC_NOSPEECH_MS       = 15000   // Freisprech: gar keine Sprache → Runde beenden
 
 // ── Schallwellen-Animation ────────────────────────────────────────
 // Liest den Live-Pegel des Aufnahme-Streams (Web Audio AnalyserNode) und
@@ -271,6 +274,9 @@ function GamificationHud({ chapters, prog, round, lang }) {
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch }) {
   const t = uiText(lang)
+  // Freisprech-Modus (Standard AN; per Buch im Expertenmodus abschaltbar). Im
+  // begleiteten Co-Interview (zwei Mikrofone) bleibt es bei manueller Steuerung.
+  const handsFree = memorial?.hands_free !== false && !companionOn
   const openSupport = useSupport()
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -456,6 +462,19 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     })()
   }, [companionOn]) // eslint-disable-line
 
+  // Freisprech: nach der gesprochenen Frage das Mikrofon automatisch öffnen (kurze
+  // Verzögerung, damit Wiedergabe/State sauber abgeschlossen sind). Startet nicht,
+  // wenn bereits aufgenommen wird, die Testzeit abgelaufen oder der Tab inaktiv ist.
+  function autoListen() {
+    if (!handsFree || expired || !active) return
+    if (mediaRecRef.current && mediaRecRef.current.state === 'recording') return
+    setTimeout(() => {
+      if (!handsFree || expired || !active) return
+      if (mediaRecRef.current && mediaRecRef.current.state === 'recording') return
+      handleMic('self')
+    }, 300)
+  }
+
   function playText(text) {
     stopSpeaking()
     // Spricht die KI (auch beim Zurückübernehmen nach dem Begleitmodus), ist die
@@ -469,7 +488,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       // Sobald die Wiedergabe startet, ist die Ladephase vorbei: „Lädt …" weg,
       // Button zeigt „⏹ Stoppen" (App spricht gerade, kann abgebrochen werden).
       onPlay:  () => setTtsLoading(false),
-      onEnd:   () => { setIsPlaying(false); setTtsLoading(false); setHasPlayed(true) },
+      onEnd:   () => { setIsPlaying(false); setTtsLoading(false); setHasPlayed(true); autoListen() },
       onError: (msg, name) => {
         setIsPlaying(false); setTtsLoading(false)
         // Wiedergabe ohne Nutzer-Geste: iOS Safari meldet das als Autoplay-Sperre
@@ -547,14 +566,30 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           analyser.fftSize = 512
           srcNode.connect(analyser)
           const buf = new Uint8Array(analyser.fftSize)
+          let lastLevelAt = Date.now()   // zuletzt „Ton über Schwelle" (für die Sprechpause)
           silenceTimer = setInterval(() => {
             analyser.getByteTimeDomainData(buf)
             let sumSq = 0
             for (let i = 0; i < buf.length; i++) { const d = (buf[i] - 128) / 128; sumSq += d * d }
             const rms = Math.sqrt(sumSq / buf.length)   // 0..1
-            if (rms >= MIC_SILENCE_THRESHOLD) sawSpeech = true   // nur fürs Kosten-Skippen
-            // Höchstdauer: einziger automatischer Stopp (kein Stille-Stopp — s. o.).
-            if (recStartedAt && Date.now() - recStartedAt >= MIC_MAX_MS) {
+            const now = Date.now()
+            if (rms >= MIC_SILENCE_THRESHOLD) { sawSpeech = true; lastLevelAt = now }
+            // Freisprech: nach erkannter Sprache bei anhaltender Pause automatisch
+            // stoppen und senden (natürlicher Gesprächsfluss, kein Antippen nötig).
+            if (handsFree && sawSpeech && (now - lastLevelAt >= MIC_PAUSE_MS)) {
+              stopReason = 'pause'
+              if (rec.state === 'recording') rec.stop()
+              return
+            }
+            // Freisprech: gar keine Sprache über längere Zeit → Runde beenden
+            // (kein Endlos-Mithören; die Person tippt zum Weitersprechen erneut).
+            if (handsFree && !sawSpeech && recStartedAt && (now - recStartedAt >= MIC_NOSPEECH_MS)) {
+              stopReason = 'nospeech'
+              if (rec.state === 'recording') rec.stop()
+              return
+            }
+            // Höchstdauer (immer): letzter Sicherheits-Stopp.
+            if (recStartedAt && now - recStartedAt >= MIC_MAX_MS) {
               stopReason = 'max'
               if (rec.state === 'recording') rec.stop()
             }
@@ -747,9 +782,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const micBorder = micState === 'recording' ? '2px solid #ef4444' : '1px solid #d6d3d1'
   const micAnim   = micState === 'recording' ? 'lw-mic 1.5s ease-in-out infinite' : 'none'
   const micIcon   = micState === 'processing' ? '⏳' : '🎙'
-  const micLabel  = micState === 'recording'  ? t.micRecording
+  const micEn     = String(lang || '').startsWith('en')
+  const micLabel  = micState === 'recording'  ? (handsFree ? (micEn ? 'Listening — pause briefly when you’re done' : 'Ich höre zu — machen Sie eine kurze Pause, wenn Sie fertig sind') : t.micRecording)
                   : micState === 'processing' ? t.micProcessing
-                  : t.micIdle
+                  : (handsFree ? (micEn ? 'Just start speaking — I’ll notice when you’re done' : 'Sprechen Sie einfach los — ich merke, wenn Sie fertig sind') : t.micIdle)
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>

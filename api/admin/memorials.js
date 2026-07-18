@@ -29,7 +29,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -480,7 +480,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -588,17 +588,21 @@ module.exports = async function handler(req, res) {
         // Gamification (spürbar motivierender Interview-Modus) — v. a. Anamnese.
         // Default AN; nur explizit false schaltet ab.
         gamification: gamification !== false,
+        // Freisprech-Modus (Pausenerkennung, kein Mikro-Antippen) — alle Produkte.
+        // Default AN; nur explizit false schaltet ab.
+        hands_free: handsFree !== false,
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
         delete insertRow.interview_timer_seconds
         delete insertRow.companion_mode
         delete insertRow.gamification
+        delete insertRow.hands_free
         delete insertRow.show_contributors
         delete insertRow.proof_enabled
         delete insertRow.proof_max
@@ -794,6 +798,7 @@ module.exports = async function handler(req, res) {
         if ('interviewTimerSeconds' in meta) update.interview_timer_seconds = sanitizeTimer(meta.interviewTimerSeconds)
         if ('companionMode' in meta) update.companion_mode = meta.companionMode === true
         if ('gamification' in meta)  update.gamification = meta.gamification !== false
+        if ('handsFree' in meta)     update.hands_free = meta.handsFree !== false
         if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
         if ('proofMax' in meta)      update.proof_max = sanitizeProofMax(meta.proofMax)
         if ('showOnboarding' in meta) update.show_onboarding = meta.showOnboarding !== false
@@ -806,13 +811,14 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|column/i.test(error.message || '')) {
           delete update.image_style
           delete update.book_layout
           delete update.text_style
           delete update.interview_timer_seconds
           delete update.companion_mode
           delete update.gamification
+          delete update.hands_free
           delete update.show_contributors
           delete update.proof_enabled
           delete update.proof_max

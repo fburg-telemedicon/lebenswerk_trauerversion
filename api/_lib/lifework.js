@@ -206,7 +206,8 @@ async function ensureLifeworkSchema() {
       add column if not exists image_regen jsonb,
       add column if not exists show_onboarding boolean,
       add column if not exists tts_voice text,
-      add column if not exists gamification boolean
+      add column if not exists gamification boolean,
+      add column if not exists hands_free boolean
   `)
   schemaReady = true
 }
