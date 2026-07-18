@@ -19,6 +19,7 @@ const { sendSupportMail } = require('./_lib/invitemail')
 const { sendMail } = require('./_lib/graphmail')
 const { callAzure } = require('./_lib/llm')
 const { costLLM, recordCost } = require('./_lib/cost')
+const { isSuppressed } = require('./_lib/suppress')
 const { checkAuth } = require('./_lib/auth')
 const { audit } = require('./_lib/audit')
 
@@ -307,6 +308,32 @@ module.exports = async function handler(req, res) {
       // die Mail geht trotzdem raus, Telefonnummer + Kontaktwunsch stehen darin.
       await sendSupportMail({ ticketId, replyTo: replyEmail || null, phone: replyPhone || null, preferredChannel, name, message, context: ctx })
     } catch (e) { console.error('/api/support mail:', e); email_sent = false }
+
+    // Eingangsbestätigung an den Ticket-Ersteller (nur wenn eine E-Mail hinterlegt
+    // ist und die Adresse nicht abgemeldet wurde). Absender/Reply-To = support@,
+    // damit eine Antwort des Nutzers wieder im Support-Postfach landet. Best effort;
+    // vor Missbrauch schützen die Ratenlimits oben (support-email 6/h) + Sperrliste.
+    if (ticketId != null && replyEmail && !(await isSuppressed(replyEmail))) {
+      try {
+        const inbox = process.env.SUPPORT_INBOX || 'support@lebensgeschichten.ai'
+        const de = !ctx || !ctx.lang || String(ctx.lang).toLowerCase().startsWith('de')
+        const greeting = name ? (de ? `Hallo ${name},` : `Hi ${name},`) : (de ? 'Hallo,' : 'Hi,')
+        const subject = de
+          ? `Ihre Support-Anfrage ist eingegangen (Ticket #${ticketId})`
+          : `We received your support request (ticket #${ticketId})`
+        const body = de
+          ? `vielen Dank für Ihre Nachricht. Wir haben Ihre Support-Anfrage erhalten (Ticket #${ticketId}) und melden uns so bald wie möglich. Sie können direkt auf diese E-Mail antworten.`
+          : `thank you for your message. We have received your support request (ticket #${ticketId}) and will get back to you as soon as possible. You can simply reply to this email.`
+        const text = `${greeting}\n\n${body}\n\n— Lebensgeschichten`
+        const html = `<!doctype html><html lang="${de ? 'de' : 'en'}"><body style="margin:0;background:#fafaf9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+          <div style="max-width:520px;margin:0 auto;padding:28px 24px;">
+            <p style="font-size:15px;line-height:1.6;margin:0 0 8px;color:#44403c;">${esc(greeting)}</p>
+            <p style="font-size:15px;line-height:1.6;margin:0 0 18px;color:#44403c;">${esc(body)}</p>
+            <p style="font-size:12px;line-height:1.6;color:#a8a29e;margin:0;border-top:1px solid #e7e5e4;padding-top:16px;">— Lebensgeschichten</p>
+          </div></body></html>`
+        await sendMail({ from: inbox, to: replyEmail, replyTo: inbox, subject, text, html })
+      } catch (e) { console.warn('/api/support confirm:', e.message) }
+    }
 
     // KI-Antwortvorschlag + Reparatur-Prompt sofort erzeugen, solange das Ticket
     // frisch ist — so liegen sie im Dashboard bereit, sobald es geöffnet wird.
