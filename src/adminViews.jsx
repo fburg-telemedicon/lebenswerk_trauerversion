@@ -1560,22 +1560,10 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
         )}
         {/* Die Anamnese erzeugt kein Buch und keine Bilder — kein Schreib-/Text-/
             Bildstil. Diese Auswahl entfällt für die Kategorie. */}
-        {/* Stimme der Sprachausgabe (alle Kategorien). Die Wahl gilt für die deutsche
-            Ausgabe; andere Interviewsprachen sprechen die zur gewählten Person
-            passende mehrsprachige Stimme (gleiches Geschlecht). */}
-        <div style={{ marginBottom: 24 }}>
-          <Lbl>Stimme (Sprachausgabe)</Lbl>
-          <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>
-            Vorlesestimme im Interview. Gilt für Deutsch; andere Sprachen nutzen die passende mehrsprachige Stimme. Später im Dashboard änderbar.
-          </p>
-          <select
-            value={createForm.ttsVoice}
-            onChange={e => setCreateForm({ ...createForm, ttsVoice: e.target.value })}
-            style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
-          >
-            {TTS_VOICE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-          </select>
-        </div>
+        {/* Keine manuelle Stimmauswahl mehr: Die Vorlese-Stimme folgt automatisch dem
+            Geschlecht der sprechenden Person (männlich → männlich, sonst weiblich);
+            Deutsch als HD-Stimme, andere Sprachen als passende HD-Multilingual- bzw.
+            natürlichste Stimme pro Sprache (siehe api/speak.js). */}
         {!isAnamnesis && (<>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Textstil des Buchs</Lbl>
@@ -2939,22 +2927,9 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   </div>
                 </div>
                 )}
-                {/* Stimme der Sprachausgabe (alle Kategorien). Gilt für Deutsch; andere
-                    Sprachen nutzen die passende mehrsprachige Stimme. Wirkt beim
-                    nächsten Vorlesen im Interview. */}
-                <div style={{ marginBottom:14 }}>
-                  <Lbl>Stimme (Sprachausgabe)</Lbl>
-                  <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>
-                    Vorlesestimme im Interview. Gilt für Deutsch; andere Sprachen nutzen die passende mehrsprachige Stimme.
-                  </p>
-                  <select
-                    value={od.ttsVoice}
-                    onChange={e => setOd({ ttsVoice: e.target.value })}
-                    style={{ width:'100%', padding:'10px 12px', fontSize:14, fontFamily:'inherit' }}
-                  >
-                    {TTS_VOICE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-                  </select>
-                </div>
+                {/* Keine manuelle Stimmauswahl mehr: Die Vorlese-Stimme folgt automatisch
+                    dem Geschlecht der sprechenden Person (Deutsch als HD-Stimme, andere
+                    Sprachen als passende HD-Multilingual- bzw. natürlichste Stimme). */}
                 {/* Anamnese: kein Buch/keine Bilder → kein Text-/Grafik-/Layoutstil. */}
                 {!isAnamnesis && (<>
                 <div style={{ marginBottom:14 }}>

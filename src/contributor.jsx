@@ -138,6 +138,20 @@ function catalogProgress(memorial, messages) {
   }
 }
 
+// Die Vorlese-Stimme folgt dem GESCHLECHT der sprechenden Person (Interviewteilnehmer
+// bzw. beim Buch-Vorlesen die Person des Buchs): männlich → männliche HD-Stimme, alle
+// anderen → weiblich. Es gibt KEINE manuelle Stimmauswahl mehr. Für Deutsch nutzt der
+// Server diese HD-Stimme direkt, für andere Sprachen die passende HD-Multilingual-
+// Stimme gleichen Geschlechts und für eu/he/ar/de-CH die natürlichste Stimme pro
+// Sprache (siehe api/speak.js pickVoiceAndLocale). Werte identisch zu
+// api/_lib/ttsvoices.js (VOICE_MALE_HD / VOICE_FEMALE_HD).
+const TTS_VOICE_MALE   = 'de-DE-Florian:DragonHDLatestNeural'
+const TTS_VOICE_FEMALE = 'de-DE-Seraphina:DragonHDLatestNeural'
+function interviewTtsVoice(memorial, contribForm) {
+  const g = (contribForm?.gender || memorial?.gender || '').toString().trim().toLowerCase()
+  return g === 'männlich' ? TTS_VOICE_MALE : TTS_VOICE_FEMALE
+}
+
 // ── Gamification-HUD (Anamnese, „Gesundheits-Quest") ──────────────
 // Spürbar motivierend, aber respektvoll: Punkte + Level, Quest-Checkpoints aus
 // den Katalog-Kapiteln, aus den vorhandenen Daten (Antwortzahl + Fortschritt)
@@ -387,7 +401,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     speakText(text, {
       memorialCode: memorial?.id,
       language: lang, // Stimme passend zur gewählten Sprache (de/pl/en)
-      voice: memorial?.tts_voice, // pro Buch gewählte deutsche Stimme (Server nutzt sie für de bzw. die passende Multilingual-Stimme)
+      voice: interviewTtsVoice(memorial, contribForm), // Anamnese: Stimme folgt dem Geschlecht; sonst pro-Buch-Stimme
       // Sobald die Wiedergabe startet, ist die Ladephase vorbei: „Lädt …" weg,
       // Button zeigt „⏹ Stoppen" (App spricht gerade, kann abgebrochen werden).
       onPlay:  () => setTtsLoading(false),
@@ -1724,7 +1738,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
       if (i >= queue.length) { setReading(false); setReadLoad(false); return }
       const part = queue[i++]
       speakText(part, {
-        memorialCode: code, language: lang, voice: memorial?.tts_voice,
+        memorialCode: code, language: lang, voice: interviewTtsVoice(memorial, null),
         onPlay:  () => { if (mySeq === readSeqRef.current) setReadLoad(false) },
         onEnd:   () => { if (mySeq === readSeqRef.current) playNext() },
         onError: (msg) => { if (mySeq === readSeqRef.current) { setErr(msg || 'Audiowiedergabe fehlgeschlagen.'); setReading(false); setReadLoad(false) } },
