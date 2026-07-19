@@ -9,11 +9,11 @@ import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULE
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
-import { LANGUAGES, uiText, canPrintPdf, sortLangs } from './i18n.js'
+import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
-import { useAdminT, AdminLangToggle } from './adminI18n.jsx'
+import { useAdminT, useAdminLang, AdminLangToggle } from './adminI18n.jsx'
 import { useSupport } from './support.jsx'
 
 // Anzeigename eines Buchs im Dashboard: Buchname → (Lebenswerk-)Endnutzer-E-Mail
@@ -343,6 +343,7 @@ export function SettingsView({ err, logoLoading, logo, busy, logoSaved, pwErr, p
 // alle künftig angelegten Bücher; bestehende Bücher bleiben unberührt.
 export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm, setView, logout, saveBookDefaults, resetBookDefaults }) {
   const t = useAdminT()
+  const { lang: adminLang } = useAdminLang()
   const set = patch => setBdForm(f => ({ ...f, ...patch }))
   const setAddr = patch => setBdForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
   const toggleLang = code => setBdForm(f => {
@@ -409,7 +410,7 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
                 {LANGUAGES.map(l => (
                   <label key={l.code} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
                     <input type="checkbox" checked={(bdForm.languages || []).includes(l.code)} onChange={() => toggleLang(l.code)} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917' }} />
-                    <span style={{ fontSize:14 }}>{l.label}</span>
+                    <span style={{ fontSize:14 }}>{langLabelFor(l.code, adminLang)}</span>
                   </label>
                 ))}
               </div>
@@ -1059,10 +1060,12 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
         ) : (
           <>
             {filterCol && <div onClick={() => setFilterCol(null)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />}
-          {/* Der weiße Hintergrund wächst mit der Tabelle mit (width:max-content),
-              damit er auch bei vielen/breiten Spalten ALLE Spalten abdeckt und nicht
-              rechts zu früh endet. overflow:visible bleibt für das Filter-Dropdown. */}
-          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'visible', width: 'max-content', minWidth: '100%' }}>
+          {/* Ist die Tabelle breiter als der (zentrierte, max. 1200px) Container,
+              scrollt sie horizontal INNERHALB dieses Kastens (overflowX:auto) — die
+              Seite selbst läuft NICHT über (sonst sitzt das Dashboard nicht mittig).
+              Der weiße Hintergrund liegt auf dem Kasten und füllt immer den sichtbaren
+              Bereich, sodass beim Scrollen alle Spalten auf Weiß stehen. */}
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -1296,6 +1299,7 @@ function CatalogPeek({ catalogs, category, catalogId }) {
 }
 
 export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logout, setView, setCreateForm, handleCreate }) {
+    const { lang: adminLang } = useAdminLang()
     const cat = getCategory(createForm.productCategory)
     const ci  = cat.intake
     // Lebenswerk: Statt eines Einladungslinks für viele Beitragende bekommt EIN
@@ -1363,7 +1367,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
               Endnutzer die Sprache beim ersten Start selbst (die Einladung geht dann auf Deutsch raus).
             </p>
             <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-              {[...LANGUAGES, { code: '', label: 'Endnutzer wählt selbst' }].map(l => {
+              {[...LANGUAGES, { code: '', label: t('Endnutzer wählt selbst', 'End user chooses') }].map(l => {
                 // Genau EINE Sprache = vom Admin festgelegt; alle drei = Wahl beim Start.
                 const on = l.code
                   ? (createForm.languages.length === 1 && createForm.languages[0] === l.code)
@@ -1379,7 +1383,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
                       onChange={() => setCreateForm(f => ({ ...f, languages: l.code ? [l.code] : LANGUAGES.map(x => x.code) }))}
                       style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
                     />
-                    <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                    <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.code ? langLabelFor(l.code, adminLang) : l.label}</span>
                   </label>
                 )
               })}
@@ -1782,7 +1786,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
                     })}
                     style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }}
                   />
-                  <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                  <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{langLabelFor(l.code, adminLang)}</span>
                 </label>
               )
             })}
@@ -2240,6 +2244,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
+    const { lang: adminLang } = useAdminLang()
     const isLifework = selected?.product_category === 'lifework'
     // Anamnese: einziges Produkt ist der Bogen (eulogy). Buch/Bilder/Stammbaum/
     // Poster sind ausgeblendet.
@@ -2928,7 +2933,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   <Lbl>Sprache *</Lbl>
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Genau eine Sprache – sie gilt für das ganze Interview. Ohne Festlegung wählt der Endnutzer die Sprache beim ersten Start selbst.</p>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                    {[...LANGUAGES, { code:'', label:'Endnutzer wählt selbst' }].map(l => {
+                    {[...LANGUAGES, { code:'', label: t('Endnutzer wählt selbst', 'End user chooses') }].map(l => {
                       const on = l.code ? (od.languages.length === 1 && od.languages[0] === l.code) : (od.languages.length !== 1)
                       return (
                         <label key={l.code || 'auto'} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', ...S.card, padding:'10px 14px',
@@ -2936,7 +2941,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                           <input type="radio" name="anamnese-lang" checked={on}
                             onChange={() => setOd({ languages: l.code ? [l.code] : LANGUAGES.map(x => x.code) })}
                             style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }} />
-                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.code ? langLabelFor(l.code, adminLang) : l.label}</span>
                         </label>
                       )
                     })}
@@ -2957,7 +2962,7 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                               return { ...o, languages: next.length ? next : o.languages }
                             })}
                             style={{ width:16, height:16, accentColor:'#1c1917', cursor:'pointer' }} />
-                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{l.label}</span>
+                          <span style={{ fontSize:14, fontWeight: on ? 600 : 400 }}>{langLabelFor(l.code, adminLang)}</span>
                         </label>
                       )
                     })}

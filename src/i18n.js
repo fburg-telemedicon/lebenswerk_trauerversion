@@ -20,22 +20,37 @@ import { swissify, ES, IT, EU, HE, AR, FR, RO, TR, RU, UK } from './i18nLangs.js
 // nativen Bezeichnung (lateinisch, dann kyrillisch, dann RTL-Schriften). Diese
 // Reihenfolge gilt ÜBERALL, weil sämtliche Sprach-Auswahllisten über LANGUAGES
 // (bzw. sortLangs) iterieren.
+// `label` = Originalname (native, so wie ihn ein Sprecher dieser Sprache liest).
+// `de`/`en` = Sprachname auf Deutsch bzw. Englisch (fürs Dashboard-Label
+// „Originalname / DE- bzw. EN-Name", siehe langLabelFor).
 export const LANGUAGES = [
-  { code: 'de',    label: 'Deutsch' },
-  { code: 'en',    label: 'English' },
-  { code: 'es',    label: 'Español' },
-  { code: 'eu',    label: 'Euskara' },
-  { code: 'fr',    label: 'Français' },
-  { code: 'it',    label: 'Italiano' },
-  { code: 'pl',    label: 'Polski' },
-  { code: 'ro',    label: 'Română' },
-  { code: 'de-CH', label: 'Schwiizerdütsch' },
-  { code: 'tr',    label: 'Türkçe' },
-  { code: 'ru',    label: 'Русский' },
-  { code: 'uk',    label: 'Українська' },
-  { code: 'he',    label: 'עברית', rtl: true },
-  { code: 'ar',    label: 'العربية', rtl: true },
+  { code: 'de',    label: 'Deutsch',         de: 'Deutsch',          en: 'German' },
+  { code: 'en',    label: 'English',         de: 'Englisch',         en: 'English' },
+  { code: 'es',    label: 'Español',         de: 'Spanisch',         en: 'Spanish' },
+  { code: 'eu',    label: 'Euskara',         de: 'Baskisch',         en: 'Basque' },
+  { code: 'fr',    label: 'Français',        de: 'Französisch',      en: 'French' },
+  { code: 'it',    label: 'Italiano',        de: 'Italienisch',      en: 'Italian' },
+  { code: 'pl',    label: 'Polski',          de: 'Polnisch',         en: 'Polish' },
+  { code: 'ro',    label: 'Română',          de: 'Rumänisch',        en: 'Romanian' },
+  { code: 'de-CH', label: 'Schwiizerdütsch', de: 'Schweizerdeutsch', en: 'Swiss German' },
+  { code: 'tr',    label: 'Türkçe',          de: 'Türkisch',         en: 'Turkish' },
+  { code: 'ru',    label: 'Русский',         de: 'Russisch',         en: 'Russian' },
+  { code: 'uk',    label: 'Українська',      de: 'Ukrainisch',       en: 'Ukrainian' },
+  { code: 'he',    label: 'עברית',           de: 'Hebräisch',        en: 'Hebrew', rtl: true },
+  { code: 'ar',    label: 'العربية',         de: 'Arabisch',         en: 'Arabic', rtl: true },
 ]
+
+// Dashboard-Label einer Sprache: Originalname + „/ DE- bzw. EN-Name" je nach
+// Dashboard-Sprache des Admins. Ist der übersetzte Name identisch mit dem
+// Originalnamen (z. B. „Deutsch"/„Deutsch", EN „English"/„English"), entfällt der
+// Zusatz. Nur fürs Dashboard gedacht — Beitragende sehen weiterhin nur den Originalnamen.
+export function langLabelFor(code, adminLang = 'de') {
+  const l = LANGUAGES.find(x => x.code === code)
+  if (!l) return code
+  const tr = adminLang === 'en' ? l.en : l.de
+  if (!tr || tr.toLowerCase() === l.label.toLowerCase()) return l.label
+  return `${l.label} / ${tr}`
+}
 // Reihenfolge-Index je Code — zum Sortieren beliebiger Sprach-Teilmengen
 // (z. B. der pro Buch angebotenen Sprachen) in genau dieser Reihenfolge.
 const LANG_ORDER = Object.fromEntries(LANGUAGES.map((l, i) => [l.code, i]))
