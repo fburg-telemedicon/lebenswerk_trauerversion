@@ -276,19 +276,19 @@ function GamificationHud({ chapters, prog, round, lang }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch, micMode = null }) {
   const t = uiText(lang)
   // Drei Aufnahme-Modi (Expertenmodus, alle Produkte):
-  //  • Tipp-Modus       : hands_free=false → Mikro manuell an/aus.
-  //  • Freisprech (auto) : hands_free=true, mic_manual_stop=false → Mikro öffnet
-  //                        automatisch, Sprechpausen-Erkennung stoppt & sendet.
-  //  • Mischform (hybrid): hands_free=true, mic_manual_stop=true → Mikro öffnet
-  //                        automatisch, aber der Nutzer beendet SELBST (kein Auto-
-  //                        Stopp) — man kann also beliebig lange überlegen.
-  // `handsFree` = „Mikro öffnet automatisch" (auto ODER hybrid). `micManualStop` =
-  // hybrid. Im begleiteten Co-Interview bleibt es bei manueller Steuerung.
-  const handsFree = memorial?.hands_free !== false && !companionOn
-  const micManualStop = handsFree && memorial?.mic_manual_stop === true
+  //  • Tipp-Modus       : manual → Mikro manuell an/aus.
+  //  • Freisprech (auto) : auto  → Mikro öffnet automatisch, Sprechpausen-Erkennung stoppt & sendet.
+  //  • Mischform (hybrid): hybrid → Mikro öffnet automatisch, Nutzer beendet SELBST (kein Auto-Stopp).
+  // Buch-Standard aus hands_free/mic_manual_stop; darf der Nutzer wechseln (mic_mode_switch),
+  // überschreibt seine Wahl (`micMode`) den Standard. `handsFree` = „Mikro öffnet automatisch"
+  // (auto ODER hybrid); `micManualStop` = hybrid. Im Co-Interview bleibt es manuell.
+  const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
+  const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid') ? micMode : bookMode
+  const handsFree = effMode !== 'manual' && !companionOn
+  const micManualStop = handsFree && effMode === 'hybrid'
   const openSupport = useSupport()
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -1387,7 +1387,48 @@ function InstallMenuItem({ t, row, sep, onClose }) {
   )
 }
 
-function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview }) {
+// Auswahl-Dialog für den Aufnahme-Modus (Beitragender wechselt selbst, wenn der
+// Manager es erlaubt hat). Zeigt die drei Modi; aktueller ist markiert. Die Wahl
+// überschreibt den Buch-Standard und wird je Code gemerkt (localStorage).
+function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
+  const en = String(lang || '').startsWith('en')
+  const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
+  const cur = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid') ? micMode : bookMode
+  const opts = [
+    { key:'auto',   title: en ? 'Conduct conversation automatically' : 'Gespräch selbständig führen',
+      sub: en ? 'The microphone opens after each question; a short pause sends your answer. No tapping.' : 'Das Mikrofon öffnet nach jeder Frage; eine kurze Sprechpause sendet Ihre Antwort. Kein Antippen.' },
+    { key:'hybrid', title: en ? 'Opens automatically, you stop it' : 'Automatisch öffnen, selbst beenden',
+      sub: en ? 'The microphone opens after each question, but you tap to finish — take as long as you like.' : 'Das Mikrofon öffnet nach jeder Frage, aber Sie tippen zum Beenden — überlegen Sie so lange Sie möchten.' },
+    { key:'manual', title: en ? 'Tap microphone on/off' : 'Mikrofon an-/ausschalten',
+      sub: en ? 'You tap the microphone to start and stop speaking.' : 'Sie tippen das Mikrofon zum Sprechen an und wieder aus.' },
+  ]
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:70, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:'18px 18px 26px', maxWidth:460, width:'100%', boxShadow:'0 -2px 16px rgba(0,0,0,.2)', maxHeight:'80vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+          <div style={{ fontSize:16, fontWeight:700 }}>{en ? 'Microphone mode' : 'Mikrofon-Modus'}</div>
+          <button onClick={onClose} aria-label="×" style={{ background:'none', border:'none', fontSize:24, cursor:'pointer', color:'#78716c', lineHeight:1 }}>×</button>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {opts.map(o => {
+            const on = cur === o.key
+            return (
+              <button key={o.key} onClick={() => onPick(o.key)} style={{ textAlign:'left', display:'flex', alignItems:'flex-start', gap:10, padding:'12px 14px', borderRadius:12, cursor:'pointer', background: on ? '#f0fdf4' : '#fff', border:`${on ? 2 : 1}px solid ${on ? '#16a34a' : '#e7e5e4'}` }}>
+                <span style={{ fontSize:18, marginTop:1 }}>{on ? '✅' : '🎙️'}</span>
+                <span style={{ minWidth:0 }}>
+                  <span style={{ display:'block', fontSize:14.5, fontWeight:600, color:'#1c1917' }}>{o.title}</span>
+                  <span style={{ display:'block', fontSize:12.5, color:'#78716c', marginTop:2, lineHeight:1.45 }}>{o.sub}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
@@ -1415,6 +1456,12 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withB
                 <span style={{ fontSize:19 }}>{it.icon}</span><span>{it.label}</span>
               </button>
             ))}
+            {onMicMode && (<>
+              <div style={sep} />
+              <button onClick={() => { setOpen(false); onMicMode() }} style={row}>
+                <span style={{ fontSize:19 }}>🎙️</span><span>{micModeLabel || 'Mikrofon-Modus'}</span>
+              </button>
+            </>)}
             {onToggleTx && <div style={sep} />}
             {onToggleTx && (
               <button onClick={onToggleTx} aria-pressed={!!showTx} style={row}>
@@ -2479,6 +2526,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   const [tab, setTab]                         = useState('interview') // interview | photo (nur wenn photo_upload_tab)
   const [showTx, setShowTx]                   = useState(false)        // Transkript einblenden (auch über die Tab-Leiste steuerbar)
   const [companionOn, setCompanionOn]         = useState(false)        // begleiteter Co-Interview-Modus aktiv
+  // Vom Nutzer im ☰-Menü gewählter Aufnahme-Modus (überschreibt den Buch-Standard).
+  // null = Buch-Standard. In localStorage je Code gemerkt, damit die Wahl bleibt.
+  const [micMode, setMicMode]                 = useState(() => { try { return localStorage.getItem('lw_micmode_' + code) || null } catch { return null } })
+  const [micModeOpen, setMicModeOpen]         = useState(false)        // Modus-Auswahl-Dialog offen
+  const chooseMicMode = (mode) => { setMicMode(mode); try { mode ? localStorage.setItem('lw_micmode_' + code, mode) : localStorage.removeItem('lw_micmode_' + code) } catch {} }
   const saveQueueRef                          = useRef(Promise.resolve())
   // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
   // EINMAL fallen. Sonst triggert sie ein späterer `setMemorial(...)` erneut — z. B.
@@ -3047,6 +3099,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             setCompanionOn={setCompanionOn}
             active={tab === 'interview'}
             onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)}
+            micMode={micMode}
           />
         )
         // Das ☰-Menü ist immer vorhanden (auch ohne Foto-/Probedruck-Tab), damit
@@ -3088,7 +3141,14 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
               onPause={tab === 'interview' ? handlePause : null}
               onSupport={() => openSupportHere({ view: 'interview' })}
-              onSwitchInterview={switchInterview} />
+              onSwitchInterview={switchInterview}
+              onMicMode={(memorial?.mic_mode_switch !== false && !companionOn) ? () => setMicModeOpen(true) : null}
+              micModeLabel={String(L || '').startsWith('en') ? 'Microphone mode' : 'Mikrofon-Modus'} />
+            {micModeOpen && (
+              <MicModeChooser lang={L} memorial={memorial} micMode={micMode}
+                onPick={m => { chooseMicMode(m); setMicModeOpen(false) }}
+                onClose={() => setMicModeOpen(false)} />
+            )}
           </div>
         )
       })()}

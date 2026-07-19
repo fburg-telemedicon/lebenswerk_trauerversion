@@ -1651,6 +1651,11 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <Lbl>{t('Aufnahme-Modus', 'Recording mode')}</Lbl>
           <RecordingModeRadio handsFree={createForm.handsFree} micManualStop={createForm.micManualStop}
             set={patch => setCreateForm({ ...createForm, ...patch })} t={t} />
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
+            <input type="checkbox" checked={createForm.micModeSwitch !== false} onChange={e => setCreateForm({ ...createForm, micModeSwitch: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: an. Im ☰-Menü erscheint dann der Punkt „Mikrofon-Modus", über den der Nutzer selbst zwischen den drei Modi wechseln kann.', 'Default: on. The ☰ menu then shows a “Microphone mode” item so the user can switch between the three modes themselves.')}</p>
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -3038,7 +3043,11 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   <Lbl>{t('Aufnahme-Modus', 'Recording mode')}</Lbl>
                   <RecordingModeRadio handsFree={od.handsFree} micManualStop={od.micManualStop}
                     set={patch => setOd(patch)} t={t} />
-                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Greift beim nächsten (Neu-)Start des Interviews.', 'Applies at the next (re)start of the interview.')}</p>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
+                    <input type="checkbox" checked={od.micModeSwitch !== false} onChange={e => setOd({ micModeSwitch: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: an (Menüpunkt „Mikrofon-Modus"). Greift beim nächsten (Neu-)Start des Interviews.', 'Default: on (“Microphone mode” menu item). Applies at the next (re)start of the interview.')}</p>
                 </div>
                 {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>
