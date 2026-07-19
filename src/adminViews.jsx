@@ -1056,7 +1056,10 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: '2rem auto', padding: '0 1.5rem' }}>
+      {/* Buch-Liste nutzt die VOLLE Fensterbreite (keine 1200px-Zentrierung mehr) —
+          so passen auch viele Spalten nebeneinander, ohne dass horizontal gescrollt
+          werden muss, und es bleiben keine großen leeren Ränder. */}
+      <div style={{ margin: '2rem auto', padding: '0 1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem', gap:12 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>{t('Alle Bücher', 'All books')}</h2>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
