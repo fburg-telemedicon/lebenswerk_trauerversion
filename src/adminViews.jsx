@@ -1017,7 +1017,10 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
       { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
       { key: 'cutoff',    label: t('Erfassung bis', 'Collection until'), val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
       { key: 'status',    label: t('Status', 'Status'), val: m => bookStatus(m, t).rank, disp: m => bookStatus(m, t).label },
-      { key: 'answers',   label: t('akt. Stand', 'Progress'),     val: m => m.progress ? (m.progress.done ? 101 : (m.progress.pct || 0)) : (m.answer_count || 0), disp: m => bookProgress(m, t) },
+      // Sortiert nach dem letzten Bearbeitungszeitpunkt (last_activity) statt nach
+      // Prozent/Antwortzahl – so stehen die zuletzt bearbeiteten Bücher zusammen;
+      // ohne Aktivität → 0 (ans Ende). Angezeigt/gefiltert wird weiter der Stand.
+      { key: 'answers',   label: t('akt. Stand', 'Progress'),     val: m => m.last_activity ? new Date(m.last_activity).getTime() : 0, disp: m => bookProgress(m, t) },
       ...(auth.admin ? [{ key: 'cost', label: t('Kosten', 'Cost'), val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
     ]
     const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
