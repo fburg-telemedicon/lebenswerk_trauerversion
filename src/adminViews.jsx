@@ -940,6 +940,24 @@ function bookStatus(m, t) {
   return                        { rank: 0, label: t('In Arbeit', 'In progress'),               color: '#3f6212', bg: '#f7fee7', border: '#d9f99d' }
 }
 
+// „Akt. Stand" fürs Dashboard: Kapitel/Frage-Position bei Endnutzer-Interviews mit
+// Fragebogen (Position kommt aus m.progress vom Backend), sonst wie bisher
+// „Beiträge · Antworten". Bei freiem Interview (kein Katalog) ist die Gesamtzahl
+// der Fragen offen → nur die Antwortzahl (kein Prozentwert möglich).
+function bookProgress(m, t) {
+  const p = m.progress
+  if (p && p.done) return t('✓ abgeschlossen', '✓ completed')
+  if (p) return `${t('Kapitel', 'Chapter')} ${p.chapter}/${p.chapterTotal} · ${t('Frage', 'Question')} ${p.questionLabel}/${p.questionTotal}`
+  const a = m.answer_count || 0
+  const isEnduser = m.product_category === 'lifework' || isAnamnesisCategory(m.product_category)
+  if (isEnduser) {
+    if (a === 0) return t('noch nicht begonnen', 'not started yet')
+    return `${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
+  }
+  const c = m.contribution_count || 0
+  return `${c} ${c === 1 ? t('Beitrag', 'contribution') : t('Beiträge', 'contributions')} · ${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
+}
+
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
     const openSupport = useSupport()
@@ -953,7 +971,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
       { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
       { key: 'cutoff',    label: t('Erfassung bis', 'Collection until'), val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
       { key: 'status',    label: t('Status', 'Status'), val: m => bookStatus(m, t).rank, disp: m => bookStatus(m, t).label },
-      { key: 'answers',   label: t('Antworten', 'Responses'),     val: m => m.answer_count || 0, disp: m => `${m.answer_count || 0} ${t('Antworten', 'responses')}` },
+      { key: 'answers',   label: t('akt. Stand', 'Progress'),     val: m => m.progress ? (m.progress.done ? 101 : (m.progress.pct || 0)) : (m.answer_count || 0), disp: m => bookProgress(m, t) },
       ...(auth.admin ? [{ key: 'cost', label: t('Kosten', 'Cost'), val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
     ]
     const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
@@ -1137,7 +1155,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                         ) })()}
                       </td>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
-                        {(m.contribution_count || 0)} {(m.contribution_count === 1) ? t('Beitrag', 'contribution') : t('Beiträge', 'contributions')} · {(m.answer_count || 0)} {(m.answer_count === 1) ? t('Antwort', 'response') : t('Antworten', 'responses')}
+                        {bookProgress(m, t)}
                       </td>
                       {auth.admin && (
                       <td

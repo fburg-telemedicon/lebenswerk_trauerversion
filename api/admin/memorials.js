@@ -303,6 +303,35 @@ function sanitizeCatalogCats(input) {
 //   POST   ?catalogs=1  { name, product_categories, chapters }   (nur Admin)
 //   PATCH  ?catalogs=1&id=…  { name?, product_categories?, chapters? }  (nur Admin)
 //   DELETE ?catalogs=1&id=…                                       (nur Admin)
+// „Akt. Stand" eines Endnutzer-Interviews: aktuelle Katalog-Position (Kapitel/Frage)
+// aus der letzten gespeicherten Assistenten-Position (`msg.pos`) + Katalogstruktur.
+// Spiegelt catalogProgress() im Frontend (src/contributor.jsx). Ohne Katalog oder
+// ohne Position (freies Interview / noch nicht begonnen) → null (Liste zeigt dann
+// die Antwortzahl). `pos` liegt strukturiert in den Nachrichten (kein Marker-Parsing nötig).
+function computeCatalogProgress(chapters, messages) {
+  if (!Array.isArray(messages) || !messages.length) return null
+  let pos = null
+  for (let i = messages.length - 1; i >= 0; i--) { if (messages[i] && messages[i].pos) { pos = messages[i].pos; break } }
+  if (!pos) return null
+  if (pos.done) return { done: true, pct: 100 }
+  if (!Array.isArray(chapters) || !chapters.length) return null
+  const qCount = ch => (Array.isArray(ch && ch.questions) ? ch.questions.length : 0)
+  const totalQ = chapters.reduce((n, ch) => n + qCount(ch), 0)
+  const ci = pos.chapter - 1
+  if (totalQ === 0 || !(ci >= 0 && ci < chapters.length)) return null
+  const inChapter = qCount(chapters[ci])
+  if (!(pos.question >= 1 && pos.question <= inChapter)) return null
+  let before = 0
+  for (let i = 0; i < ci; i++) before += qCount(chapters[i])
+  return {
+    done: false,
+    chapter: pos.chapter, chapterTotal: chapters.length,
+    question: pos.question, questionTotal: inChapter,
+    questionLabel: pos.followup ? `${pos.question}.${pos.followup}` : String(pos.question),
+    pct: Math.round(((before + pos.question - 1) / totalQ) * 100),
+  }
+}
+
 // Die drei CODE-verwalteten Standard-Fragebögen (Lebenswerk, Anamnese, Anamnese
 // KVSW) werden beim ERSTEN Katalog-Abruf pro Prozess sichergestellt — idempotent
 // (update-or-insert). So erscheinen sie immer in der Liste (mit ihren Fragen) und
@@ -487,6 +516,23 @@ module.exports = async function handler(req, res) {
         const byCode = {}
         for (const u of eus || []) if (u.enduser_memorial) byCode[u.enduser_memorial] = u.username
         for (const m of memorials) if (byCode[m.id]) m.enduser_email = byCode[m.id]
+
+        // „Akt. Stand": aktuelle Kapitel/Frage-Position je Endnutzer-Buch. Nur für
+        // diese wenigen Bücher werden Transkripte geladen (EIN Beitrag je Buch) +
+        // die zugehörigen Katalog-Kapitel. Ohne Katalog/Position → null.
+        const catIds = [...new Set(memorials.filter(m => enduserCodes.includes(m.id) && m.catalog_id).map(m => m.catalog_id))]
+        const chaptersByCatId = {}
+        if (catIds.length) {
+          const { data: cats } = await supabase.from('question_catalogs').select('id, chapters').in('id', catIds)
+          for (const c of cats || []) chaptersByCatId[c.id] = Array.isArray(c.chapters) ? c.chapters : []
+        }
+        const { data: euContribs } = await supabase.from('contributions').select('memorial_id, messages').in('memorial_id', enduserCodes)
+        const msgsByCode = {}
+        for (const r of euContribs || []) { if (!msgsByCode[r.memorial_id]) msgsByCode[r.memorial_id] = r.messages }
+        for (const m of memorials) {
+          if (!enduserCodes.includes(m.id)) continue
+          m.progress = computeCatalogProgress(m.catalog_id ? chaptersByCatId[m.catalog_id] : null, msgsByCode[m.id])
+        }
       }
 
       // Grafikstil + Buchlayout kommen aus dem Haupt-Select; nur Defaults für
