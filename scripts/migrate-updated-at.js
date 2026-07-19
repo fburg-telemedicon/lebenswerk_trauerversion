@@ -55,9 +55,12 @@ async function main() {
     console.error('DATABASE_URL nicht gesetzt – Migration abgebrochen.')
     process.exit(2)
   }
+  // SSL exakt wie api/_lib/store.js: Azure Flexible Server verlangt SSL; nur
+  // PGSSL=disable schaltet es ab. (Nur-ASCII-Ausgabe, damit die az-CLI-Konsole
+  // auf Windows/cp1252 nicht am Unicode-Zeichen abstürzt.)
   const client = new Client({
     connectionString: url,
-    ssl: /sslmode=require/i.test(url) ? { rejectUnauthorized: false } : undefined,
+    ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
   })
   await client.connect()
   try {
@@ -67,14 +70,14 @@ async function main() {
     // Kurzer Funktionstest: liefert die Funktion jetzt last_activity?
     const { rows } = await client.query('select * from memorial_contrib_stats() limit 1')
     const hasCol = rows.length === 0 || Object.prototype.hasOwnProperty.call(rows[0], 'last_activity')
-    console.log(`✓ Migration erfolgreich. memorial_contrib_stats() liefert last_activity: ${hasCol ? 'ja' : 'NEIN (bitte prüfen)'}`)
+    console.log(`OK: Migration erfolgreich. memorial_contrib_stats() liefert last_activity: ${hasCol ? 'ja' : 'NEIN (bitte pruefen)'}`)
   } catch (e) {
     try { await client.query('rollback') } catch { /* ignore */ }
-    console.error('✗ Migration fehlgeschlagen:', e.message)
+    console.error('FEHLER: Migration fehlgeschlagen:', e.message)
     process.exitCode = 1
   } finally {
     await client.end()
   }
 }
 
-main().catch((e) => { console.error('✗ Ausnahme:', e); process.exit(1) })
+main().catch((e) => { console.error('FEHLER: Ausnahme:', e && e.message ? e.message : e); process.exit(1) })
