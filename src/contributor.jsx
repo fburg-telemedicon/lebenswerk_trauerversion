@@ -289,6 +289,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid') ? micMode : bookMode
   const handsFree = effMode !== 'manual' && !companionOn
   const micManualStop = handsFree && effMode === 'hybrid'
+  // Aktuelle Modus-Werte zusätzlich in Refs spiegeln, damit asynchrone Stellen
+  // (autoListen nach der Frage, der Silence-Timer der laufenden Aufnahme) IMMER den
+  // neuesten Modus lesen — sonst greift ein Moduswechsel erst eine Frage später,
+  // weil die Aufnahme der aktuellen Frage schon mit dem alten Wert geöffnet wurde.
+  const handsFreeRef = useRef(handsFree); handsFreeRef.current = handsFree
+  const micManualStopRef = useRef(micManualStop); micManualStopRef.current = micManualStop
   const openSupport = useSupport()
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -490,10 +496,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // Verzögerung, damit Wiedergabe/State sauber abgeschlossen sind). Startet nicht,
   // wenn bereits aufgenommen wird, die Testzeit abgelaufen oder der Tab inaktiv ist.
   function autoListen() {
-    if (!handsFree || expired || !active) return
+    if (!handsFreeRef.current || expired || !active) return
     if (mediaRecRef.current && mediaRecRef.current.state === 'recording') return
     setTimeout(() => {
-      if (!handsFree || expired || !active) return
+      if (!handsFreeRef.current || expired || !active) return
       if (mediaRecRef.current && mediaRecRef.current.state === 'recording') return
       handleMic('self')
     }, 300)
@@ -606,14 +612,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             // Freisprech (auto): nach erkannter Sprache bei anhaltender Pause automatisch
             // stoppen und senden. In der Mischform (micManualStop) NICHT — dort beendet
             // der Nutzer selbst, damit er beliebig lange überlegen/pausieren kann.
-            if (handsFree && !micManualStop && sawSpeech && (now - lastLevelAt >= MIC_PAUSE_MS)) {
+            if (handsFreeRef.current && !micManualStopRef.current && sawSpeech && (now - lastLevelAt >= MIC_PAUSE_MS)) {
               stopReason = 'pause'
               if (rec.state === 'recording') rec.stop()
               return
             }
             // Freisprech (auto): gar keine Sprache über längere Zeit → Runde beenden.
             // In der Mischform ebenfalls NICHT (langes Überlegen ist gewollt).
-            if (handsFree && !micManualStop && !sawSpeech && recStartedAt && (now - recStartedAt >= MIC_NOSPEECH_MS)) {
+            if (handsFreeRef.current && !micManualStopRef.current && !sawSpeech && recStartedAt && (now - recStartedAt >= MIC_NOSPEECH_MS)) {
               stopReason = 'nospeech'
               if (rec.state === 'recording') rec.stop()
               return
