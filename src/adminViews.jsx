@@ -958,6 +958,39 @@ function bookProgress(m, t) {
   return `${c} ${c === 1 ? t('Beitrag', 'contribution') : t('Beiträge', 'contributions')} · ${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
 }
 
+// Aufnahme-Modus als 3-Wege-Radio (alle Produkte). Zwei Flags (handsFree,
+// micManualStop) bilden drei Modi: Tippen / Auto (Sprechpausen) / Mischform.
+function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
+  const mode = handsFree === false ? 'manual' : (micManualStop ? 'hybrid' : 'auto')
+  const pick = k => set(k === 'manual' ? { handsFree: false, micManualStop: false }
+                      : k === 'hybrid' ? { handsFree: true, micManualStop: true }
+                      : { handsFree: true, micManualStop: false })
+  const opts = [
+    { key: 'manual', title: t('Mikrofon an-/ausschalten', 'Tap microphone on/off'),
+      sub: t('Die Person tippt das Mikrofon zum Sprechen an und wieder aus. Volle Kontrolle, kein automatisches Zuhören.', 'The person taps the microphone to start and stop speaking. Full control, no automatic listening.') },
+    { key: 'auto', title: t('Gespräch selbständig führen (Sprechpausen-Erkennung)', 'Conduct conversation automatically (pause detection)'),
+      sub: t('Das Mikrofon öffnet nach jeder Frage automatisch; nach einer kurzen Sprechpause wird die Antwort erkannt und gesendet. Kein Antippen nötig.', 'The microphone opens automatically after each question; after a short pause the answer is recognized and sent. No tapping needed.') },
+    { key: 'hybrid', title: t('Mischform: automatisch öffnen, selbst beenden', 'Hybrid: opens automatically, stop yourself'),
+      sub: t('Das Mikrofon öffnet nach jeder Frage automatisch (und ist sichtbar), aber die Person beendet die Antwort selbst per Tippen. Vorteil: beliebig lange überlegen, ohne dass die Aufnahme abbricht.', 'The microphone opens automatically after each question (and is visible), but the person stops the answer themselves by tapping. Advantage: think as long as you like without the recording cutting off.') },
+  ]
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
+      {opts.map(o => {
+        const on = mode === o.key
+        return (
+          <label key={o.key} style={{ display:'flex', alignItems:'flex-start', gap:10, cursor:'pointer', ...S.card, padding:'10px 14px', borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}>
+            <input type="radio" name="rec-mode" checked={on} onChange={() => pick(o.key)} style={{ width:16, height:16, marginTop:2, accentColor:'#1c1917', cursor:'pointer', flexShrink:0 }} />
+            <span style={{ minWidth:0 }}>
+              <span style={{ fontSize:14, fontWeight: on ? 600 : 500, display:'block' }}>{o.title}</span>
+              <span style={{ fontSize:12, color:'#78716c', display:'block', marginTop:2, lineHeight:1.45 }}>{o.sub}</span>
+            </span>
+          </label>
+        )
+      })}
+    </div>
+  )
+}
+
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
     const openSupport = useSupport()
@@ -1615,12 +1648,9 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Ohne Haken läuft das Interview unbegrenzt. Mit Haken zählt im Interview ein gut sichtbarer Countdown herunter; bei Null ist keine Sprachaufnahme/-ausgabe mehr möglich (Ansehen bleibt möglich).</p>
         </div>
         <div style={{ marginBottom: 24 }}>
-          <Lbl>Freisprech-Modus</Lbl>
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
-            <input type="checkbox" checked={createForm.handsFree !== false} onChange={e => setCreateForm({ ...createForm, handsFree: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-            <span style={{ fontSize:14 }}>Gespräch automatisch führen (Sprechpausen erkennen, kein Mikrofon-Antippen)</span>
-          </label>
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Standard: an. Die Person spricht einfach los; nach einer kurzen Sprechpause wird die Antwort automatisch erkannt und gesendet, danach öffnet sich das Mikrofon zur nächsten Frage von selbst. Ohne Haken muss zum Sprechen das Mikrofon angetippt werden.</p>
+          <Lbl>{t('Aufnahme-Modus', 'Recording mode')}</Lbl>
+          <RecordingModeRadio handsFree={createForm.handsFree} micManualStop={createForm.micManualStop}
+            set={patch => setCreateForm({ ...createForm, ...patch })} t={t} />
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -3005,12 +3035,10 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Ohne Haken unbegrenzt. Greift beim nächsten (Neu-)Start des Interviews.</p>
                 </div>
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>Freisprech-Modus</Lbl>
-                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
-                    <input type="checkbox" checked={od.handsFree !== false} onChange={e => setOd({ handsFree: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-                    <span style={{ fontSize:14 }}>Gespräch automatisch führen (Sprechpausen erkennen, kein Mikrofon-Antippen)</span>
-                  </label>
-                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Standard: an. Nach kurzer Sprechpause wird die Antwort automatisch gesendet; danach öffnet sich das Mikrofon zur nächsten Frage von selbst. Greift beim nächsten (Neu-)Start.</p>
+                  <Lbl>{t('Aufnahme-Modus', 'Recording mode')}</Lbl>
+                  <RecordingModeRadio handsFree={od.handsFree} micManualStop={od.micManualStop}
+                    set={patch => setOd(patch)} t={t} />
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Greift beim nächsten (Neu-)Start des Interviews.', 'Applies at the next (re)start of the interview.')}</p>
                 </div>
                 {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>

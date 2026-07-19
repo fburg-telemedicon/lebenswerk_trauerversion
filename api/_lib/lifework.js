@@ -207,7 +207,8 @@ async function ensureLifeworkSchema() {
       add column if not exists show_onboarding boolean,
       add column if not exists tts_voice text,
       add column if not exists gamification boolean,
-      add column if not exists hands_free boolean
+      add column if not exists hands_free boolean,
+      add column if not exists mic_manual_stop boolean
   `)
   schemaReady = true
 }

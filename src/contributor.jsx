@@ -23,14 +23,18 @@ import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocal
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
 
-// ── Mikrofon-Auto-Stopp ───────────────────────────────────────────────────────
+// ── Mikrofon-Auto-Stopp (drei Modi, per Buch im Expertenmodus) ────────────────
 // TIPP-MODUS (hands_free=false): NUR Höchstdauer (MIC_MAX_MS); bewusst KEIN Stille-
 // Stopp — man darf beliebig lange nachdenken. Der Pegel dient nur dazu, eine
 // Aufnahme OHNE jede Sprache gar nicht erst zur Erkennung zu schicken (STT-Kosten).
-// FREISPRECH-MODUS (hands_free=true, Standard): Nach erkannter Sprache stoppt die
-// Aufnahme automatisch bei einer Sprechpause (MIC_PAUSE_MS) und schickt die Antwort;
-// die nächste Frage öffnet das Mikro wieder von selbst. Ohne jede Sprache über
-// längere Zeit (MIC_NOSPEECH_MS) hört die Runde auf (kein Endlos-Mithören).
+// FREISPRECH/AUTO (hands_free=true, mic_manual_stop=false, Standard): Nach erkannter
+// Sprache stoppt die Aufnahme automatisch bei einer Sprechpause (MIC_PAUSE_MS) und
+// schickt die Antwort; die nächste Frage öffnet das Mikro wieder von selbst. Ohne
+// jede Sprache über längere Zeit (MIC_NOSPEECH_MS) hört die Runde auf.
+// MISCHFORM/HYBRID (hands_free=true, mic_manual_stop=true): Das Mikro öffnet nach der
+// Frage automatisch (und ist sichtbar), aber der Nutzer beendet SELBST per Tippen —
+// KEIN Pausen-/No-Speech-Auto-Stopp, damit man beliebig lange überlegen kann. Nur
+// die Höchstdauer (MIC_MAX_MS) greift als Sicherheitsnetz.
 const MIC_SILENCE_THRESHOLD = 0.025   // RMS (0..1) unterhalb dessen es als „still" gilt
 const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Auto-Stopp
 const MIC_PAUSE_MS          = 2500    // Freisprech: Sprechpause nach Sprache → Auto-Stopp+Senden
@@ -274,9 +278,17 @@ function GamificationHud({ chapters, prog, round, lang }) {
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch }) {
   const t = uiText(lang)
-  // Freisprech-Modus (Standard AN; per Buch im Expertenmodus abschaltbar). Im
-  // begleiteten Co-Interview (zwei Mikrofone) bleibt es bei manueller Steuerung.
+  // Drei Aufnahme-Modi (Expertenmodus, alle Produkte):
+  //  • Tipp-Modus       : hands_free=false → Mikro manuell an/aus.
+  //  • Freisprech (auto) : hands_free=true, mic_manual_stop=false → Mikro öffnet
+  //                        automatisch, Sprechpausen-Erkennung stoppt & sendet.
+  //  • Mischform (hybrid): hands_free=true, mic_manual_stop=true → Mikro öffnet
+  //                        automatisch, aber der Nutzer beendet SELBST (kein Auto-
+  //                        Stopp) — man kann also beliebig lange überlegen.
+  // `handsFree` = „Mikro öffnet automatisch" (auto ODER hybrid). `micManualStop` =
+  // hybrid. Im begleiteten Co-Interview bleibt es bei manueller Steuerung.
   const handsFree = memorial?.hands_free !== false && !companionOn
+  const micManualStop = handsFree && memorial?.mic_manual_stop === true
   const openSupport = useSupport()
   const [messages,   setMessages]   = useState(initialMessages)
   const [round,      setRound]      = useState(initialMessages.filter(m => m.role === 'user').length)
@@ -313,10 +325,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
   const chunksRef    = useRef([])
-  // Freisprech-Modus: EIN dauerhaft offener Mikrofon-Stream. Verhindert, dass iOS
-  // nach jeder Frage das „Mikrofonzugriff gewährt"-Banner einblendet (das kommt bei
-  // jedem neuen getUserMedia). Im Tipp-Modus bleibt er null (Stream pro Aufnahme).
-  const sharedStreamRef = useRef(null)
   const endRef       = useRef(null)
 
   // Test-Zeitlimit: 0 = unbegrenzt. Ist ein Limit gesetzt, läuft ab dem ersten
@@ -388,8 +396,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // ein, damit der Nutzer das Gespräch antippen und fortsetzen kann. Sobald wieder
   // aufgenommen wird, wird es automatisch ausgeblendet.
   const [handsFreeIdle, setHandsFreeIdle] = useState(false)
-  // Beim Verlassen der Ansicht den dauerhaft offenen Freisprech-Stream schließen.
-  useEffect(() => () => { try { sharedStreamRef.current?.getTracks().forEach(tr => tr.stop()) } catch {} sharedStreamRef.current = null }, [])
   useEffect(() => {
     if (!navigator.permissions?.query) return
     let live = true, permStatus = null
@@ -562,15 +568,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
 
     setMicNote('')
     try {
-      // Freisprech: einen bereits offenen Stream wiederverwenden (kein neues
-      // getUserMedia → kein iOS-Banner). Sonst (oder wenn er nicht mehr „live" ist)
-      // frisch anfordern; im Freisprech-Modus merken wir ihn uns.
-      let stream = sharedStreamRef.current
-      const streamLive = stream && stream.getAudioTracks().some(tr => tr.readyState === 'live')
-      if (!streamLive) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        sharedStreamRef.current = handsFree ? stream : null
-      }
+      // WICHTIG (iOS): Für JEDE Aufnahme einen frischen Stream anfordern und danach
+      // schließen (siehe onstop). Ein dauerhaft offener, wiederverwendeter Stream
+      // spart zwar auf iOS die „Mikrofonzugriff gewährt"-Leiste, liefert dort aber
+      // ab der 2. Aufnahme keinen Ton mehr (iOS Safari gibt einen Stream nicht an
+      // einen zweiten MediaRecorder weiter) → funktionierendes Mikro hat Vorrang.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const rec    = new MediaRecorder(stream)
       mediaRecRef.current = rec
       chunksRef.current   = []
@@ -600,16 +603,17 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             const rms = Math.sqrt(sumSq / buf.length)   // 0..1
             const now = Date.now()
             if (rms >= MIC_SILENCE_THRESHOLD) { sawSpeech = true; lastLevelAt = now }
-            // Freisprech: nach erkannter Sprache bei anhaltender Pause automatisch
-            // stoppen und senden (natürlicher Gesprächsfluss, kein Antippen nötig).
-            if (handsFree && sawSpeech && (now - lastLevelAt >= MIC_PAUSE_MS)) {
+            // Freisprech (auto): nach erkannter Sprache bei anhaltender Pause automatisch
+            // stoppen und senden. In der Mischform (micManualStop) NICHT — dort beendet
+            // der Nutzer selbst, damit er beliebig lange überlegen/pausieren kann.
+            if (handsFree && !micManualStop && sawSpeech && (now - lastLevelAt >= MIC_PAUSE_MS)) {
               stopReason = 'pause'
               if (rec.state === 'recording') rec.stop()
               return
             }
-            // Freisprech: gar keine Sprache über längere Zeit → Runde beenden
-            // (kein Endlos-Mithören; die Person tippt zum Weitersprechen erneut).
-            if (handsFree && !sawSpeech && recStartedAt && (now - recStartedAt >= MIC_NOSPEECH_MS)) {
+            // Freisprech (auto): gar keine Sprache über längere Zeit → Runde beenden.
+            // In der Mischform ebenfalls NICHT (langes Überlegen ist gewollt).
+            if (handsFree && !micManualStop && !sawSpeech && recStartedAt && (now - recStartedAt >= MIC_NOSPEECH_MS)) {
               stopReason = 'nospeech'
               if (rec.state === 'recording') rec.stop()
               return
@@ -632,9 +636,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
 
       rec.onstop = async () => {
         cleanupAnalysis()
-        // Im Freisprech-Modus den Stream OFFEN halten (siehe sharedStreamRef) — nur
-        // im Tipp-Modus die Tracks nach jeder Aufnahme schließen.
-        if (!handsFree) { stream.getTracks().forEach(t => t.stop()); sharedStreamRef.current = null }
+        // Tracks nach JEDER Aufnahme schließen (frischer Stream je Runde, iOS-sicher).
+        stream.getTracks().forEach(t => t.stop())
         setMicStream(null)
         const audioSeconds = recStartedAt ? (Date.now() - recStartedAt) / 1000 : 0
 
@@ -815,9 +818,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const micAnim   = micState === 'recording' ? 'lw-mic 1.5s ease-in-out infinite' : 'none'
   const micIcon   = micState === 'processing' ? '⏳' : '🎙'
   const micEn     = String(lang || '').startsWith('en')
-  const micLabel  = micState === 'recording'  ? (handsFree ? (micEn ? 'Listening — pause briefly when you’re done' : 'Ich höre zu — machen Sie eine kurze Pause, wenn Sie fertig sind') : t.micRecording)
+  const micLabel  = micState === 'recording'
+                    ? (micManualStop ? (micEn ? 'Listening — tap the microphone when you’re done' : 'Ich höre zu — tippen Sie auf das Mikrofon, wenn Sie fertig sind')
+                       : handsFree ? (micEn ? 'Listening — pause briefly when you’re done' : 'Ich höre zu — machen Sie eine kurze Pause, wenn Sie fertig sind')
+                       : t.micRecording)
                   : micState === 'processing' ? t.micProcessing
-                  : (handsFree ? (micEn ? 'Just start speaking — I’ll notice when you’re done' : 'Sprechen Sie einfach los — ich merke, wenn Sie fertig sind') : t.micIdle)
+                  : (micManualStop ? (micEn ? 'Start speaking — tap the microphone when you’re done' : 'Sprechen Sie los — tippen Sie auf das Mikrofon, wenn Sie fertig sind')
+                     : handsFree ? (micEn ? 'Just start speaking — I’ll notice when you’re done' : 'Sprechen Sie einfach los — ich merke, wenn Sie fertig sind')
+                     : t.micIdle)
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -942,7 +950,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         {/* 4. MIKROFON — im Freisprech-Modus KEIN Button/Idle-Text: die App hört
             nach jeder Frage automatisch zu. Die Karte erscheint dann nur beim
             Aufnehmen/Verarbeiten, bei blockiertem Mikro oder im Begleit-Modus. */}
-        {!aiLoading && latestQ && (!handsFree || micState !== 'idle' || handsFreeIdle || micPerm === 'denied' || memorial?.companion_mode === true) && (
+        {!aiLoading && latestQ && (!handsFree || micManualStop || micState !== 'idle' || handsFreeIdle || micPerm === 'denied' || memorial?.companion_mode === true) && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1rem 1rem' }}>
             {companionOn ? (
               // Begleiteter Modus: zwei Mikrofone. Immer nur EINS aktiv — während
@@ -969,7 +977,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                   )
                 })}
               </div>
-            ) : (handsFree && !handsFreeIdle) ? null : (
+            ) : (handsFree && !micManualStop && !handsFreeIdle) ? null : (
               <div style={{ marginBottom: 14 }}>
                 <button
                   onClick={() => handleMic('self')}
@@ -984,7 +992,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 <Waveform stream={micStream} color={(micState==='recording' && recSpeaker === 'companion') ? '#3b82f6' : '#dc2626'} />
               </div>
             )}
-            {(!handsFree || micState !== 'idle') && (
+            {(!handsFree || micManualStop || micState !== 'idle') && (
               <div style={{ fontSize:13, fontWeight:500, color: micState==='recording' ? (recSpeaker === 'companion' ? '#2563eb' : '#dc2626') : '#78716c', marginBottom:4 }}>
                 {micLabel}
               </div>
