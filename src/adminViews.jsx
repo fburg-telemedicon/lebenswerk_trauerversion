@@ -958,6 +958,19 @@ function bookProgress(m, t) {
   return `${c} ${c === 1 ? t('Beitrag', 'contribution') : t('Beiträge', 'contributions')} · ${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
 }
 
+// „Zuletzt gearbeitet" fürs Dashboard: Abstand in Tagen seit der letzten
+// Beitrags-Bearbeitung (m.last_activity, ISO-Zeitpunkt vom Backend). Liefert
+// null, wenn es noch keine Aktivität gibt (dann nichts anzeigen).
+function lastWorkedLabel(m, t) {
+  if (!m.last_activity) return null
+  const then = new Date(m.last_activity).getTime()
+  if (!Number.isFinite(then)) return null
+  const days = Math.floor((Date.now() - then) / 86400000)
+  if (days <= 0)  return t('zuletzt heute bearbeitet', 'last edited today')
+  if (days === 1) return t('zuletzt vor 1 Tag', 'last edited 1 day ago')
+  return t(`zuletzt vor ${days} Tagen`, `last edited ${days} days ago`)
+}
+
 // Aufnahme-Modus als 3-Wege-Radio (alle Produkte). Zwei Flags (handsFree,
 // micManualStop) bilden drei Modi: Tippen / Auto (Sprechpausen) / Mischform.
 function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
@@ -1191,7 +1204,8 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                         ) })()}
                       </td>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
-                        {bookProgress(m, t)}
+                        <div>{bookProgress(m, t)}</div>
+                        {(() => { const w = lastWorkedLabel(m, t); return w ? <div style={{ fontSize:11, color:'#a8a29e', marginTop:2 }}>{w}</div> : null })()}
                       </td>
                       {auth.admin && (
                       <td

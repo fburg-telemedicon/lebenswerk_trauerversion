@@ -467,6 +467,7 @@ module.exports = async function handler(req, res) {
       // Funktion angelegt ist): messages laden und im Node zählen.
       const contribCounts = {}
       const answerCounts  = {}
+      const lastActivity  = {} // memorial_id → ISO-Zeitpunkt der letzten Beitrags-Bearbeitung
       let statsRows = null
       try {
         const { data, error: rpcErr } = await supabase.rpc('memorial_contrib_stats')
@@ -476,18 +477,24 @@ module.exports = async function handler(req, res) {
         for (const s of statsRows) {
           contribCounts[s.memorial_id] = Number(s.contribution_count || 0)
           answerCounts[s.memorial_id]  = Number(s.answer_count || 0)
+          if (s.last_activity) lastActivity[s.memorial_id] = s.last_activity
         }
       } else {
-        const { data: contribRows } = await supabase.from('contributions').select('memorial_id, messages')
+        // Fallback ohne RPC: created_at genügt für „zuletzt gearbeitet" (updated_at
+        // gibt es erst nach dem Einmal-SQL; solange greift der Startzeitpunkt).
+        const { data: contribRows } = await supabase.from('contributions').select('memorial_id, messages, created_at')
         for (const r of contribRows || []) {
           contribCounts[r.memorial_id] = (contribCounts[r.memorial_id] || 0) + 1
           const answers = Array.isArray(r.messages) ? r.messages.filter(msg => msg?.role === 'user').length : 0
           answerCounts[r.memorial_id] = (answerCounts[r.memorial_id] || 0) + answers
+          const at = r.created_at
+          if (at && (!lastActivity[r.memorial_id] || at > lastActivity[r.memorial_id])) lastActivity[r.memorial_id] = at
         }
       }
       for (const m of memorials) {
         m.contribution_count = contribCounts[m.id] || 0
         m.answer_count       = answerCounts[m.id] || 0
+        m.last_activity      = lastActivity[m.id] || null
       }
 
       // Inhaber-Benutzernamen ergänzen (für die Admin-Liste). owner_user ist

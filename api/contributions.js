@@ -87,8 +87,23 @@ module.exports = async function handler(req, res) {
       // protokollierten Zeitpunkt nicht.
       if (consentAt) row.consent_at = consentAt
       if (consentVersion) row.consent_version = consentVersion
-      const { error } = await supabase.from('contributions').upsert(row, { onConflict: 'id' })
-      if (error) throw error
+      // Zeitpunkt der letzten Bearbeitung – bei jedem Speichern (auch beim
+      // Fortsetzen einer Session) neu gesetzt, damit das Dashboard "zuletzt
+      // gearbeitet vor X Tagen" korrekt anzeigt. Die Spalte wird per
+      // supabase/memorial-stats.sql angelegt; solange sie fehlt (Deploy vor
+      // dem Einmal-SQL), scheitert der Upsert mit dieser Spalte an einem
+      // "column ... does not exist" – dann wird ohne das Feld wiederholt, damit
+      // der Beitragenden-Flow nie am fehlenden Migrationsschritt hängen bleibt.
+      const { error } = await supabase.from('contributions')
+        .upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+      if (error) {
+        if (/updated_at/i.test(error.message || '')) {
+          const { error: retryErr } = await supabase.from('contributions').upsert(row, { onConflict: 'id' })
+          if (retryErr) throw retryErr
+        } else {
+          throw error
+        }
+      }
       return res.json({ id })
     }
 
