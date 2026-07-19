@@ -611,6 +611,17 @@ export async function submitFeedback(code, contributionId, rating, text) {
   return parseResponse(res) // { ok }
 }
 
+// Wiederaufnahme-Link dem Beitragenden per E-Mail schicken — AUS DER APP (statt
+// die externe Mail-App zu öffnen). session = geheime Beitrags-ID (Capability).
+export async function sendResumeLink(code, session, email, { subject, body } = {}) {
+  const res = await fetch('/api/send-resume', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ memorialCode: code, session, email, subject, body }),
+  })
+  return parseResponse(res) // { ok }
+}
+
 // Manager lädt ein eigenes Foto zum Buch hoch (auth).
 export async function adminUploadImage(token, code, { image, caption, description }) {
   const res = await fetch(`/api/admin/upload-image?code=${encodeURIComponent(code)}`, {

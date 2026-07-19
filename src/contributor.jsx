@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef, useContext } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen } from './api.js'
+import { askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
@@ -2843,10 +2843,29 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     navigator.clipboard.writeText(resumeUrl)
     setCopied('link'); setTimeout(() => setCopied(''), 2000)
   }
-  function mailResumeUrl() {
-    const subject = encodeURIComponent(t.mailSubject(ct.nounBook, memorial ? memorial.name : ''))
-    const body = encodeURIComponent(t.mailBody(ct.nounBook, memorial ? memorial.name : '', resumeUrl))
-    window.location.href = `mailto:?subject=${subject}&body=${body}`
+  // Wiederaufnahme-Link per E-Mail — AUS DER APP verschicken (nicht die externe
+  // Mail-App öffnen). Ist eine E-Mail-Adresse bekannt (Buch-Kontakt), direkt senden;
+  // sonst nach der Adresse fragen und dann senden.
+  const knownEmail = (memorial?.contact_email || memorial?.intake?.contact_email || '').trim()
+  const [mail, setMail] = useState({ open: false, email: '', sending: false, sent: false, err: '' })
+  async function sendResumeMail(addr) {
+    const e = String(addr || '').trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { setMail(m => ({ ...m, open: true, err: t.mailInvalid || 'Bitte eine gültige E-Mail-Adresse angeben.' })); return }
+    setMail(m => ({ ...m, sending: true, err: '' }))
+    try {
+      await sendResumeLink(code, contribId, e, {
+        subject: t.mailSubject(ct.nounBook, memorial ? memorial.name : ''),
+        body: t.mailBody(ct.nounBook, memorial ? memorial.name : '', resumeUrl),
+      })
+      setMail({ open: false, email: '', sending: false, sent: true, err: '' })
+    } catch (err) {
+      setMail(m => ({ ...m, sending: false, err: err.message || 'Senden fehlgeschlagen.' }))
+    }
+  }
+  function startMailResume() {
+    setMail({ open: false, email: knownEmail, sending: false, sent: false, err: '' })
+    if (knownEmail) sendResumeMail(knownEmail)
+    else setMail(m => ({ ...m, open: true }))
   }
 
   // Fortsetzen-Gate: EIN Tap auf „Fortsetzen" = Nutzer-Geste → schaltet die Tonausgabe
@@ -3210,10 +3229,28 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             <div style={{ background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:10, padding:'12px 14px', marginBottom:14, fontSize:13, lineHeight:1.6 }}>
               <strong>{t.pauseWay2Strong}</strong> {t.pauseWay2Body}
               <div style={{ background:'#fff', border:'1px solid #e7e5e4', borderRadius:8, padding:'8px 10px', marginTop:10, fontFamily:'monospace', fontSize:12, wordBreak:'break-all', color:'#44403c' }}>{resumeUrl}</div>
-              <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap', alignItems:'center' }}>
                 <button className="secondary" onClick={copyResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>{copied === 'link' ? t.copied : t.copyLink}</button>
-                <button className="secondary" onClick={mailResumeUrl} style={{ fontSize:12, padding:'6px 12px' }}>{t.mailBtn}</button>
+                {!mail.sent && (
+                  <button className="secondary" onClick={startMailResume} disabled={mail.sending} style={{ fontSize:12, padding:'6px 12px', opacity: mail.sending ? 0.6 : 1 }}>
+                    {mail.sending ? (t.loadingShort || 'Lädt …') : t.mailBtn}
+                  </button>
+                )}
+                {mail.sent && <span style={{ fontSize:12.5, color:'#15803d', fontWeight:600 }}>{t.mailSent || '✓ E-Mail gesendet.'}</span>}
               </div>
+              {mail.open && (
+                <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap', alignItems:'center' }}>
+                  <input type="email" inputMode="email" value={mail.email} autoFocus
+                    onChange={e => setMail(m => ({ ...m, email: e.target.value, err: '' }))}
+                    onKeyDown={e => { if (e.key === 'Enter') sendResumeMail(mail.email) }}
+                    placeholder={t.mailAskLabel || 'Ihre E-Mail-Adresse'}
+                    style={{ flex:'1 1 200px', minWidth:0, padding:'8px 10px', fontSize:13, border:'1px solid #d6d3d1', borderRadius:8 }} />
+                  <button onClick={() => sendResumeMail(mail.email)} disabled={mail.sending} style={{ fontSize:12, padding:'8px 14px', opacity: mail.sending ? 0.6 : 1 }}>
+                    {mail.sending ? (t.loadingShort || 'Lädt …') : (t.mailSend || 'Senden')}
+                  </button>
+                </div>
+              )}
+              {mail.err && <div style={{ fontSize:12.5, color:'#b91c1c', marginTop:6 }}>{mail.err}</div>}
             </div>
             <div style={{ borderTop:'1px solid #e7e5e4', paddingTop:14, display:'flex', gap:10, flexWrap:'wrap', justifyContent:'space-between' }}>
               <button className="ghost" onClick={handleResume} style={{ fontSize:14 }}>{t.continueTalk}</button>

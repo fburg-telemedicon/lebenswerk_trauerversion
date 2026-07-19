@@ -132,6 +132,7 @@ const DE = {
   pauseWay2Strong: '2. Optional:',
   pauseWay2Body: 'Sichern Sie sich zusätzlich diesen persönlichen Wiederaufnahme-Link — falls Sie das Gerät wechseln oder Browser-Daten gelöscht werden:',
   copyLink: '📋 Link kopieren', copied: '✓ Kopiert', mailBtn: '✉ Per Mail schicken',
+  mailAskLabel: 'Ihre E-Mail-Adresse', mailSend: 'Senden', mailSent: '✓ E-Mail gesendet.', mailInvalid: 'Bitte eine gültige E-Mail-Adresse angeben.',
   continueTalk: '← Weiter sprechen', finishNow: '✓ Beitrag jetzt beenden',
   mailSubject: (noun, name) => `Mein Beitrag zum ${noun}${name ? ' für ' + name : ''}`,
   mailBody: (noun, name, url) =>
@@ -407,6 +408,7 @@ const EN = {
   pauseWay2Strong: '2. Optional:',
   pauseWay2Body: 'Additionally save this personal resume link — in case you switch devices or your browser data is cleared:',
   copyLink: '📋 Copy link', copied: '✓ Copied', mailBtn: '✉ Send by email',
+  mailAskLabel: 'Your email address', mailSend: 'Send', mailSent: '✓ Email sent.', mailInvalid: 'Please enter a valid email address.',
   continueTalk: '← Keep talking', finishNow: '✓ Finish contribution now',
   mailSubject: (noun, name) => `My contribution to the ${noun}${name ? ' for ' + name : ''}`,
   mailBody: (noun, name, url) =>
