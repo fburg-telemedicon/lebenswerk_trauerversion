@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-20",
+      "items": [
+        "Tagesreport: Der Abschnitt „Gestern umgesetzt“ wird jetzt zuverlässig gefüllt. Ursache des zuvor leeren Abschnitts war, dass die maschinenlesbare Änderungsliste (changelog.json), aus der der Report ausschließlich liest, nicht mehr mitgepflegt wurde; die Pflege-Routine ist entsprechend korrigiert.",
+        "Tagesreport: Für manuelle Nachversände gibt es jetzt einen optionalen Korrektur-Hinweis, der als deutlich sichtbares Banner oben im Report (Betreff, HTML- und Text-Version) erscheint – z. B. wenn eine korrigierte Fassung eine automatisch versandte ersetzt."
+      ]
+    },
+    {
       "date": "2026-07-19",
       "items": [
         "Neues Produkt „Anamnese KVSW“ (Krankenhaus-Aufnahme, Klinikverbund Südwest): eine an die akute Krankenhausaufnahme angepasste Variante der Anamnese. Statt Reha-Themen fragt sie nach Aufnahmegrund/geplantem Eingriff, aktueller Medikation (inkl. Blutverdünner), Versorgung nach der Entlassung und Besonderheiten (Patientenverfügung, MRSA); Indikationen orientieren sich an den KVSW-Kernfachabteilungen. Eigenes Co-Brand-Logo im echten KVSW-Motiv und in KVSW-Farben. Die bestehende Reha-Anamnese bleibt unverändert.",
