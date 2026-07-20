@@ -18,11 +18,14 @@ async function getActiveRecipients(supabase) {
   return [...new Set((data || []).map(r => String(r.email || '').trim()).filter(Boolean))]
 }
 
-// opts: { supabase?, now?, recipients?(override), dryRun?, includeData? }
+// opts: { supabase?, now?, recipients?(override), dryRun?, includeData?, note? }
+// note: optionaler Hinweistext (z. B. Korrektur) – erscheint als Banner oben in
+// Betreff/HTML/Text. Nur für manuelle Nachversände.
 async function buildAndSendReport(opts = {}) {
   const supabase = opts.supabase || client()
+  const note = opts.note ? String(opts.note).trim().slice(0, 500) : ''
   const data = await gatherReport(supabase, { now: opts.now })
-  const subject = render.subject(data)
+  const subject = render.subject(data, note)
 
   // PDF bauen (fehlertolerant: scheitert die Rasterung, geht die Mail trotzdem raus).
   let pdf = null, pdfError = null
@@ -51,8 +54,8 @@ async function buildAndSendReport(opts = {}) {
   if (opts.dryRun) return result
   if (!recipients.length) { result.note = 'keine aktiven Empfänger'; return result }
 
-  const html = render.htmlBody(data)
-  const text = render.textBody(data)
+  const html = render.htmlBody(data, note)
+  const text = render.textBody(data, note)
   const attachments = pdf ? [{ filename: pdf.filename, contentBytes: pdf.base64, contentType: 'application/pdf' }] : undefined
 
   // Einzeln senden, damit Empfänger sich nicht gegenseitig sehen.

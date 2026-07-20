@@ -5,8 +5,9 @@
 //   POST   /api/admin/reports  {email,name?}         → Empfänger anlegen
 //   PATCH  /api/admin/reports?id=…  {active?,name?}  → ändern
 //   DELETE /api/admin/reports?id=…                   → löschen
-//   POST   /api/admin/reports?send=1  {to?}          → Report JETZT bauen & senden
+//   POST   /api/admin/reports?send=1  {to?, note?}   → Report JETZT bauen & senden
 //                                                      (to = String/Array override; sonst aktive Empfänger)
+//                                                      (note = optionaler Korrektur-Hinweis oben im Report)
 //   GET    /api/admin/reports?preview=1              → Kennzahlen sammeln, NICHT senden (Kontrolle)
 
 const { createClient } = require('../_lib/store')
@@ -23,8 +24,9 @@ module.exports = async function handler(req, res) {
     // On-Demand-Versand (zum Testen / manuell auslösen).
     if (req.method === 'POST' && (req.query.send === '1' || req.query.send === 'true')) {
       const to = req.body?.to
+      const note = req.body?.note ? String(req.body.note) : undefined
       const recipients = Array.isArray(to) ? to : (to ? [to] : null)
-      const result = await buildAndSendReport({ recipients: recipients || undefined })
+      const result = await buildAndSendReport({ recipients: recipients || undefined, note })
       return res.json({ ok: true, ...result })
     }
     // Vorschau der Kennzahlen ohne Versand.

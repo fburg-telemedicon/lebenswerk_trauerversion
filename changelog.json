@@ -2,6 +2,22 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-19",
+      "items": [
+        "Neues Produkt „Anamnese KVSW“ (Krankenhaus-Aufnahme, Klinikverbund Südwest): eine an die akute Krankenhausaufnahme angepasste Variante der Anamnese. Statt Reha-Themen fragt sie nach Aufnahmegrund/geplantem Eingriff, aktueller Medikation (inkl. Blutverdünner), Versorgung nach der Entlassung und Besonderheiten (Patientenverfügung, MRSA); Indikationen orientieren sich an den KVSW-Kernfachabteilungen. Eigenes Co-Brand-Logo im echten KVSW-Motiv und in KVSW-Farben. Die bestehende Reha-Anamnese bleibt unverändert.",
+        "Fünf weitere Interview-Sprachen für Beitragende: Französisch, Rumänisch, Türkisch, Russisch und Ukrainisch. Das KI-Interview wird in der gewählten Sprache geführt und Buch bzw. Bogen in dieser Sprache erstellt; Sprachausgabe und Spracherkennung sind eingerichtet. Die Übersetzungen sind zunächst maschinell – die fachliche Prüfung (v. a. der rechtliche Einwilligungstext) steht noch aus; verbindlich bleibt Deutsch.",
+        "Fragenkataloge lassen sich im Expertenmodus vorab ansehen: Über „Fragen ansehen“ öffnet sich eine Übersicht mit allen Kapiteln und Fragen des gewählten Fragebogens (Standard oder eigener Katalog) – bei Lebenswerk, Anamnese und Anamnese KVSW.",
+        "Dashboard: Sprach-Schaltflächen zeigen jetzt „Originalname / deutsche bzw. englische Bezeichnung“ (z. B. „Français / Französisch“), je nach eingestellter Dashboard-Sprache.",
+        "Dashboard: Die Buch-Liste nutzt die volle Fensterbreite und sitzt wieder korrekt – keine leeren Ränder und kein ungewolltes horizontales Scrollen mehr.",
+        "Dashboard: Neue Spalte „akt. Stand“ zeigt bei Einzelperson-Interviews (Lebenswerk, Anamnese) die aktuelle Position („Kapitel X/Y · Frage N/M“ bzw. „✓ abgeschlossen“); bei gemeinsamen Büchern weiterhin „Beiträge · Antworten“.",
+        "Dashboard: Die Spalte „akt. Stand“ zeigt zusätzlich, wann zuletzt am Buch gearbeitet wurde („zuletzt vor X Tagen“ / „zuletzt heute bearbeitet“), und die Liste ist nach dem letzten Bearbeitungszeitpunkt sortiert – zuletzt bearbeitete Bücher stehen zusammen.",
+        "Interview-Aufnahme: neuer dritter Modus „Mischform“ – das Mikrofon öffnet nach der Frage automatisch, der Nutzer beendet die Antwort aber selbst per Tippen (beliebig lange Denkpausen möglich, kein automatischer Stopp bei Sprechpausen).",
+        "Beitragende können den Aufnahme-Modus (automatisch / Mischform / manuell tippen) jetzt selbst im Menü umschalten; die Wahl wirkt sofort und wird pro Interview gemerkt.",
+        "iPhone-Fix: Das Mikrofon funktioniert wieder zuverlässig ab der zweiten Aufnahme (eine kürzlich eingeführte Optimierung hatte auf iOS Safari den Ton blockiert).",
+        "Beenden-Dialog: Der Link zum späteren Fortsetzen des Interviews wird nun direkt aus der App per E-Mail verschickt (statt über die externe Mail-App); ist am Buch schon eine Adresse hinterlegt, geht die Mail sofort raus, sonst wird sie kurz abgefragt."
+      ]
+    },
+    {
       "date": "2026-07-18",
       "items": [
         "Anamnese/Lebenswerk – Interview wird auch ohne lokalen Merker fortgesetzt (z. B. nach Home-Screen-Installation auf dem iPhone oder auf einem neuen Gerät): Der bisherige Fortschritt wird sicher vom Server geladen, ohne erneute Einwilligung oder Tutorial. Das gilt NUR für diese Einzelperson-Bücher; bei gemeinsamen Büchern (Gedenkbuch, Geburtstag …) bleibt der Zugriff auf einzelne Beiträge wie bisher ausschließlich über den persönlichen Wiederaufnahme-Link – niemand sieht fremde Beiträge.",

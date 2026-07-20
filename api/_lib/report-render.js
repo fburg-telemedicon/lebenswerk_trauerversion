@@ -17,11 +17,12 @@ function deltaText(d, money) {
   return ` (${d > 0 ? '+' : '−'}${v})`
 }
 
-function subject(d) {
-  return `Lebensgeschichten – Tagesreport ${d.dateLabel}`
+function subject(d, note) {
+  const base = `Lebensgeschichten – Tagesreport ${d.dateLabel}`
+  return note ? `[Korrektur] ${base}` : base
 }
 
-function htmlBody(d) {
+function htmlBody(d, note) {
   const y = d.yesterday
   const catStr = Object.entries(y.newMemorialsByCat).map(([k, v]) => `${catLabel(k)} ${v}`).join(' · ')
   const kpi = [
@@ -54,6 +55,7 @@ function htmlBody(d) {
       <h1 style="font-size:22px;margin:6px 0 2px">Tagesreport</h1>
       <div style="color:#9a9187;font-size:14px">${esc(d.dateLabel)}</div>
     </div>
+    ${note ? `<div style="background:#f7f1e4;border:1px solid #d8c9a6;border-radius:6px;padding:12px 14px;margin:16px 0;font-size:14px;color:#6b5a3a"><b>Korrektur:</b> ${esc(note)}</div>` : ''}
     <h2 style="font-size:16px;margin:22px 0 6px">Kurzüberblick gestern</h2>
     <table style="width:100%;border-collapse:collapse;font-size:15px">${rows}</table>
     <p style="font-size:14px;color:#6b645c;margin:16px 0">
@@ -71,12 +73,13 @@ function htmlBody(d) {
   </div>`
 }
 
-function textBody(d) {
+function textBody(d, note) {
   const y = d.yesterday
   const L = []
   L.push(`LEBENSGESCHICHTEN – Tagesreport`)
   L.push(d.dateLabel)
   L.push('')
+  if (note) { L.push(`KORREKTUR: ${note}`); L.push('') }
   L.push('Kurzüberblick gestern:')
   L.push(`  Neue Gedenkbücher: ${int(y.newMemorials)}${deltaText(y.delta.memorials)}`)
   L.push(`  Neue Beiträge: ${int(y.newContributions)}${deltaText(y.delta.contributions)}`)
