@@ -318,7 +318,12 @@ const ASC = 0.75, DESC = 0.25   // Ober-/Unterlänge der Standardfonts, in em
 
 // Alles, was Vorschau und PDF gemeinsam brauchen. Lädt die Bilder, rechnet Farben,
 // Geometrie und Textumbruch — einmal.
-export async function prepareCover({ bgUrl, pages, title, subtitle, layout }) {
+// `boxPos` steuert die Lage des Titelkastens auf der Vorderseite UND — neu —
+// die des Logo-Streifens auf der Rückseite. Bei einem Rückseitenmotiv, dessen
+// Hauptinhalt unten liegt, verdeckt der Streifen dort sonst genau das Motiv.
+// 'top' setzt beide nach oben; alle anderen Werte lassen den Streifen unten,
+// wo er bisher immer stand (unveränderte Wirkung für bestehende Bücher).
+export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxPos }) {
   const B = spineWidthMm(pages)
   const W = 2 * COVER.bleed + 2 * COVER.panelW + B   // 338 + B
   const H = COVER.height                              // 245
@@ -344,7 +349,7 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout }) {
   const lw = COVER.logoWidth
   const lh = lw * (logoImg.naturalHeight / logoImg.naturalWidth)
   const lx = COVER.logoCenterX - lw / 2
-  const ly = H - COVER.logoFromBottom - lh
+  const ly = boxPos === 'top' ? COVER.bleed + COVER.safety : H - COVER.logoFromBottom - lh
 
   const netTop = COVER.bleed + COVER.safety
   const netBottom = COVER.bleed + COVER.netH - COVER.safety
@@ -614,7 +619,8 @@ export function drawEbookCoverPage(doc, p) {
     // Rückseite: Logo unten mittig auf einem Farbstreifen (wie beim Druck-Cover).
     const lw = 40
     const lh = lw * (p.logoImg.naturalHeight / p.logoImg.naturalWidth)
-    const ly = H - 30 - lh
+    // Wie beim Druck-Cover: 'top' legt den Logo-Streifen nach oben, sonst unten.
+    const ly = p.boxPos === 'top' ? 30 : H - 30 - lh
     doc.setFillColor(p.bg[0], p.bg[1], p.bg[2])
     doc.rect(0, ly - 6, W, lh + 12, 'F')
     doc.addImage(p.logoData, 'PNG', (W - lw) / 2, ly, lw, lh, undefined, 'FAST')

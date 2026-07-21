@@ -2371,6 +2371,8 @@ Regeln:
         title: book.title || selected.name,
         subtitle: book.subtitle || '',
         layout: getBookLayout(selected.book_layout),
+        // Lage des Logo-Streifens auf der Rueckseite (siehe prepareCover).
+        boxPos: book.cover_box_pos || 'auto',
       })
       setCoverModal({ key, prep, filename: `${gen.filename}_${safeName(selected.name)}_Cover.pdf` })
     } catch (e) { setErr(`Druck-Cover fehlgeschlagen: ${e.message}`) }

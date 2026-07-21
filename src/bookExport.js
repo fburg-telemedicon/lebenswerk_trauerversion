@@ -576,7 +576,7 @@ export async function downloadEbookPdf(filename, book, contributors = [], logoDa
   // Anhängen danach rein synchron abläuft.
   const [front, back] = await Promise.all([
     prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'front', title: opts.coverTitle || book.title || '', subtitle: opts.coverSubtitle || book.subtitle || '', layout, boxPos: opts.coverBoxPos, maxPx: imgMaxPx, quality: imgQuality }),
-    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'back', layout, maxPx: imgMaxPx, quality: imgQuality }),
+    prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'back', layout, boxPos: opts.coverBoxPos, maxPx: imgMaxPx, quality: imgQuality }),
   ])
 
   // Innenteil identisch zum Druck bauen (ohne 4er-Auffüllung), aber mit
