@@ -26,3 +26,9 @@ Thumbs.db
 .vscode/
 .vercel
 .env*
+
+# Private Fotos (Kundenmaterial) - NIEMALS ins Repo
+Fotos*/
+
+# Lokale Live-API-Arbeitsdateien (Token, Kundendaten) - NIEMALS committen
+.lw_*
