@@ -15,6 +15,12 @@ export const BOOK_DISCLAIMER_TITLE = 'Hinweis zur Entstehung dieses Buches'
 export const BOOK_DISCLAIMER =
   'Dieses Buch wurde auf Grundlage von Interviews mit nahestehenden Personen mithilfe von künstlicher Intelligenz erstellt. Es gibt persönliche Erinnerungen und Schilderungen der Beitragenden wieder. Ihre inhaltliche Richtigkeit, Vollständigkeit und Aktualität können wir nicht überprüfen; eine Haftung hierfür ist – soweit gesetzlich zulässig – ausgeschlossen.'
 
+// Derselbe Hinweis für Dokumente, die KEIN Buch sind (Anamnesebogen): der
+// Buch-Hinweis passt dort weder in der Überschrift noch im Text.
+export const FORM_DISCLAIMER_TITLE = 'Hinweis zur Entstehung dieses Bogens'
+export const FORM_DISCLAIMER =
+  'Dieser Anamnesebogen wurde aus einem KI-geführten Gespräch mit der Patientin/dem Patienten erstellt und gibt ausschließlich deren/dessen Selbstauskunft wieder. Er ist nicht ärztlich validiert, enthält keine Diagnosen und ersetzt weder die ärztliche Anamnese noch eine Untersuchung. Die inhaltliche Richtigkeit und Vollständigkeit der Angaben können wir nicht überprüfen; eine Haftung hierfür ist – soweit gesetzlich zulässig – ausgeschlossen.'
+
 export function formatContribution(memorial, c) {
   const noun = getCategory(memorial?.product_category).nounBook
   const loc = uiText(memorial?.languages?.[0] || 'de').locale
@@ -590,10 +596,32 @@ export async function downloadEbookPdf(filename, book, contributors = [], logoDa
   return { blob }
 }
 
-// Fließtext (Pflegeexzerpt, Rede …) als A4-PDF. Gleiche Konvention wie beim
-// DOCX-Export: „# " / „## " am Absatzanfang sind Überschriften. Bewusst nüchtern
-// gesetzt — das Pflegeexzerpt wird ausgedruckt und in eine Akte geheftet.
-export function downloadTextPdf(filename, title, text, lang = 'de') {
+// Einheitliches Aufzählungszeichen: ein kleiner Kreis. Die KI liefert je nach
+// Abschnitt „• ", „- ", „– " oder „* " – im PDF wird daraus immer dasselbe Zeichen.
+const BULLET = '•'
+const BULLET_RE = /^[•●○◦·∙*\-–—]\s+(.*)$/
+
+// Markdown-Auszeichnungen entfernen, die im gespeicherten Text stehen (z. B. der
+// kursive Hinweis im Kopf des Anamnesebogens) — sie würden sonst wörtlich gedruckt.
+function docxText(s) {
+  return String(s ?? '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/(^|\s)_(.+?)_(?=$|[\s.,;:!?])/g, '$1$2')
+    .trim()
+}
+
+// Zusätzlich fürs PDF: die Standardschriften von jsPDF können nur WinAnsi —
+// Zeichen wie „⚠" kämen dort als Kästchen.
+function pdfText(s) {
+  return docxText(s).replace(/⚠️?\s*/g, '(!) ').trim()
+}
+
+// Fließtext (Pflegeexzerpt, Rede, Anamnesebogen …) als A4-PDF. Gleiche Konvention
+// wie beim DOCX-Export: „# " / „## " am Absatzanfang sind Überschriften. Bewusst
+// nüchtern gesetzt — das Dokument wird ausgedruckt und in eine Akte geheftet.
+// opts.logo: Data-URL des Inhaber-Logos (Seite 1, oben rechts).
+// opts.disclaimerTitle/-Text: überschreiben den Buch-Hinweis am Ende (Anamnesebogen).
+export async function downloadTextPdf(filename, title, text, lang = 'de', opts = {}) {
   const bt = uiText(lang)
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -602,13 +630,45 @@ export function downloadTextPdf(filename, title, text, lang = 'de') {
   const maxW = pageW - margin * 2
   let y = margin
 
-  const lh = size => size * 0.3528 * 1.42
+  // Einheitlich EINFACHER Zeilenabstand für alle Schriftgrößen (1,15 × Schriftgrad
+  // = „einfach" in Word). Absatzabstände ebenfalls überall gleich.
+  const LINE = 1.15
+  const GAP = 3            // Abstand nach jedem Absatz
+  const HEAD_GAP_BEFORE = 5 // Abstand vor einer Überschrift
+  const lh = size => size * 0.3528 * LINE
   const ensure = h => { if (y + h > pageH - margin - 8) { doc.addPage(); y = margin } }
-  const write = (str, { size = 11, style = 'normal', color = [40, 40, 40], gapAfter = 3 } = {}) => {
+  const write = (str, { size = 11, style = 'normal', color = [40, 40, 40], gapAfter = GAP, indent = 0 } = {}) => {
     doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...color)
-    const lines = doc.splitTextToSize(String(str ?? ''), maxW)
-    for (const line of lines) { ensure(lh(size)); doc.text(line, margin, y); y += lh(size) }
+    const lines = doc.splitTextToSize(String(str ?? ''), maxW - indent)
+    for (let i = 0; i < lines.length; i++) {
+      ensure(lh(size))
+      doc.text(lines[i], margin + indent, y)
+      y += lh(size)
+    }
     y += gapAfter
+  }
+  // Aufzählungspunkt mit hängendem Einzug: Folgezeilen stehen unter dem Text,
+  // nicht unter dem Kreis.
+  const writeBullet = (str, gapAfter = GAP) => {
+    const size = 11, textX = margin + 7
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(40, 40, 40)
+    const lines = doc.splitTextToSize(String(str ?? ''), maxW - 7)
+    for (let i = 0; i < lines.length; i++) {
+      ensure(lh(size))
+      if (i === 0) doc.text(BULLET, margin + 2, y)
+      doc.text(lines[i], textX, y)
+      y += lh(size)
+    }
+    y += gapAfter
+  }
+
+  // Logo des Inhabers auf Seite 1 (oben rechts). jsPDF kann nur PNG/JPEG.
+  const pdfLogo = await prepareLogoForExport(opts.logo)
+  if (pdfLogo && /^(png|jpe?g)$/.test(pdfLogo.kind)) {
+    let w = 34, h = w * pdfLogo.h / pdfLogo.w
+    if (h > 18) { h = 18; w = h * pdfLogo.w / pdfLogo.h }
+    doc.addImage(pdfLogo.dataUrl, pdfLogo.kind === 'png' ? 'PNG' : 'JPEG', pageW - margin - w, y, w, h)
+    y += h + 6
   }
 
   write(title, { size: 18, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
@@ -617,14 +677,24 @@ export function downloadTextPdf(filename, title, text, lang = 'de') {
   for (const raw of String(text || '').split('\n\n')) {
     const chunk = raw.trim()
     if (!chunk) continue
-    if (chunk.startsWith('## '))     write(chunk.slice(3), { size: 13, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
-    else if (chunk.startsWith('# ')) write(chunk.slice(2), { size: 15, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
-    else                             write(chunk, { size: 11, gapAfter: 4 })
+    if (chunk.startsWith('## '))     { y += HEAD_GAP_BEFORE; write(pdfText(chunk.slice(3)), { size: 13, style: 'bold', color: [25, 25, 25], gapAfter: 2 }) }
+    else if (chunk.startsWith('# ')) { y += HEAD_GAP_BEFORE; write(pdfText(chunk.slice(2)), { size: 15, style: 'bold', color: [25, 25, 25], gapAfter: 2 }) }
+    else {
+      // Zeilenweise, damit Aufzählungen einheitlich (kleiner Kreis + hängender
+      // Einzug) gesetzt werden und einzelne Umbrüche erhalten bleiben.
+      const lines = chunk.split('\n').map(l => l.trim()).filter(Boolean)
+      for (let i = 0; i < lines.length; i++) {
+        const bullet = lines[i].match(BULLET_RE)
+        const gapAfter = i === lines.length - 1 ? GAP : 0.8
+        if (bullet) writeBullet(pdfText(bullet[1]), gapAfter)
+        else        write(pdfText(lines[i]), { size: 11, gapAfter })
+      }
+    }
   }
 
   y += 4
-  write(bt.aiDisclaimerTitle, { size: 9, style: 'bold', color: [120, 113, 108], gapAfter: 1 })
-  write(bt.aiDisclaimer, { size: 8, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
+  write(opts.disclaimerTitle || bt.aiDisclaimerTitle, { size: 9, style: 'bold', color: [120, 113, 108], gapAfter: 1 })
+  write(opts.disclaimerText || bt.aiDisclaimer, { size: 8, style: 'italic', color: [120, 113, 108], gapAfter: 0 })
 
   // Seitenzahlen
   const total = doc.getNumberOfPages()
@@ -636,34 +706,57 @@ export function downloadTextPdf(filename, title, text, lang = 'de') {
   doc.save(filename)
 }
 
-export async function downloadAsDocx(filename, title, text, lang = 'de') {
+// Fließtext als DOCX — bewusst 1:1 wie downloadTextPdf gesetzt (einfacher
+// Zeilenabstand, dieselben Aufzählungskreise, Logo auf Seite 1, derselbe
+// Entstehungs-Hinweis), damit PDF und Word-Datei identisch aussehen.
+export async function downloadAsDocx(filename, title, text, lang = 'de', opts = {}) {
   const bt = uiText(lang)
-  const children = [
-    new Paragraph({
-      text: title,
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 400 },
-    }),
-  ]
+  const SINGLE = { line: 240, lineRule: 'auto' }   // einfacher Zeilenabstand
+  const children = []
+
+  // Logo des Inhabers oben auf Seite 1 (rechtsbündig).
+  const docxLogo = await prepareLogoForExport(opts.logo)
+  if (docxLogo && /^(png|jpe?g|gif)$/.test(docxLogo.kind)) {
+    let w = 130, h = Math.round(w * docxLogo.h / docxLogo.w)
+    if (h > 70) { h = 70; w = Math.round(h * docxLogo.w / docxLogo.h) }
+    try {
+      children.push(new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { after: 200 },
+        children: [new ImageRun({ data: dataUrlToUint8(docxLogo.dataUrl), transformation: { width: w, height: h } })] }))
+    } catch { /* defektes Logo darf den Export nicht abbrechen */ }
+  }
+
+  children.push(new Paragraph({
+    text: title,
+    heading: HeadingLevel.HEADING_1,
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 400, ...SINGLE },
+  }))
   for (const raw of text.split('\n\n')) {
     const chunk = raw.trim()
     if (!chunk) continue
     if (chunk.startsWith('## ')) {
-      children.push(new Paragraph({ text: chunk.slice(3), heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 120 } }))
+      children.push(new Paragraph({ text: docxText(chunk.slice(3)), heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 120, ...SINGLE } }))
     } else if (chunk.startsWith('# ')) {
-      children.push(new Paragraph({ text: chunk.slice(2), heading: HeadingLevel.HEADING_1, spacing: { before: 300, after: 120 } }))
+      children.push(new Paragraph({ text: docxText(chunk.slice(2)), heading: HeadingLevel.HEADING_1, spacing: { before: 300, after: 120, ...SINGLE } }))
     } else {
-      children.push(new Paragraph({ text: chunk, spacing: { after: 200 } }))
+      // Zeilenweise wie im PDF: Aufzählungen bekommen überall denselben kleinen
+      // Kreis (Word-Listenpunkt), Fließtextzeilen bleiben eigene Absätze.
+      const lines = chunk.split('\n').map(l => l.trim()).filter(Boolean)
+      for (let i = 0; i < lines.length; i++) {
+        const bullet = lines[i].match(BULLET_RE)
+        const after = i === lines.length - 1 ? 200 : 40
+        if (bullet) children.push(new Paragraph({ text: docxText(bullet[1]), bullet: { level: 0 }, spacing: { after, ...SINGLE } }))
+        else        children.push(new Paragraph({ text: docxText(lines[i]), spacing: { after, ...SINGLE } }))
+      }
     }
   }
   children.push(new Paragraph({
-    children: [new TextRun({ text: bt.aiDisclaimerTitle, size: 20, bold: true, color: '78716c' })],
-    spacing: { before: 500, after: 120 },
+    children: [new TextRun({ text: opts.disclaimerTitle || bt.aiDisclaimerTitle, size: 20, bold: true, color: '78716c' })],
+    spacing: { before: 500, after: 120, ...SINGLE },
   }))
   children.push(new Paragraph({
-    children: [new TextRun({ text: bt.aiDisclaimer, size: 18, italics: true, color: '78716c' })],
-    spacing: { after: 200 },
+    children: [new TextRun({ text: opts.disclaimerText || bt.aiDisclaimer, size: 18, italics: true, color: '78716c' })],
+    spacing: { after: 200, ...SINGLE },
   }))
   const doc = new Document({
     creator: 'Lebenswerk', title,

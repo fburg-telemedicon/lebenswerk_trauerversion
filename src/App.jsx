@@ -25,7 +25,7 @@ import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, con
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
-import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
+import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, FORM_DISCLAIMER, FORM_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
@@ -2159,19 +2159,34 @@ function Dashboard() {
     downloadGenerated(key)
   }
 
-  // Fließtext-PDF (Pflegeexzerpt/Rede). `lang` steuert nur den KI-Hinweis am Ende.
-  function downloadTextAsPdf(text, lang, suffix = '') {
+  // Fließtext-PDF (Pflegeexzerpt/Rede/Anamnesebogen). `lang` steuert nur den
+  // KI-Hinweis am Ende. Der Anamnesebogen ist KEIN Buch — dort steht ein eigener
+  // Entstehungs-Hinweis (deutsch, wie der Bogen selbst).
+  async function downloadTextAsPdf(text, lang, suffix = '') {
     if (!text) return
     const gen = GENERATORS.eulogy
     setDlBusy('eulogy:pdf'); setErr('')
     try {
-      downloadTextPdf(
+      await downloadTextPdf(
         `${gen.filename}_${safeName(selected.name)}${suffix}.pdf`,
         `${gen.label} – ${selected.name}`,
         text, lang,
+        textExportOpts(),
       )
     } catch (e) { setErr(`PDF fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
+  }
+
+  // Export-Optionen für Fließtext-Dokumente (PDF + Word identisch): Logo auf
+  // Seite 1 und – beim Anamnesebogen, der kein Buch ist – ein eigener
+  // Entstehungs-Hinweis statt des Buch-Hinweises.
+  function textExportOpts() {
+    return {
+      logo: selected?.owner_logo,
+      ...(isAnamnesis(selected?.product_category)
+        ? { disclaimerTitle: FORM_DISCLAIMER_TITLE, disclaimerText: FORM_DISCLAIMER }
+        : {}),
+    }
   }
 
   // Zielsprache des Exzerpts gewählt: Deutsch → direkt laden, sonst erst
@@ -2209,7 +2224,7 @@ Regeln:
         downloadTextAsPdf(translated, code, `_${code.toUpperCase()}`)
       } else {
         const filename = `${gen.filename}_${safeName(selected.name)}_${code.toUpperCase()}.docx`
-        await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, translated, code)
+        await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, translated, code, textExportOpts())
       }
     } catch (e) { setErr(`Übersetzung/Download fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
@@ -2223,7 +2238,7 @@ Regeln:
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
       if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
-      else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de')
+      else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de', textExportOpts())
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
   }

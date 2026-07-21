@@ -2,6 +2,14 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-21",
+      "items": [
+        "Anamnesebogen (Reha und KVSW), PDF und Word-Datei: einheitlich einfacher Zeilenabstand, überall dieselben Aufzählungspunkte (kleiner Kreis mit hängendem Einzug) und das Logo des Inhabers oben auf Seite 1. Versehentlich mitgedruckte Formatierungszeichen (z. B. Unterstriche im Kopf-Hinweis) werden entfernt.",
+        "Anamnesebogen: Der Schluss-Hinweis heißt nicht mehr „Hinweis zur Entstehung dieses Buches“ – der Bogen ist kein Buch. Er trägt jetzt den Titel „Hinweis zur Entstehung dieses Bogens“ und einen passenden Text (KI-geführtes Gespräch, Selbstauskunft, nicht ärztlich validiert, keine Diagnosen).",
+        "Anamnesebogen: Dopplungen zwischen den Abschnitten werden vermieden. Jeder Abschnitt wird einzeln aus dem gesamten Gespräch erzeugt und hat dieselbe Angabe (z. B. „wird zu Hause von der Ehefrau versorgt“) bisher mehrfach aufgenommen; jeder Abschnitt kennt nun die vollständige Gliederung und schreibt nur, was thematisch zu ihm gehört."
+      ]
+    },
+    {
       "date": "2026-07-20",
       "items": [
         "Tagesreport: Der Abschnitt „Gestern umgesetzt“ wird jetzt zuverlässig gefüllt. Ursache des zuvor leeren Abschnitts war, dass die maschinenlesbare Änderungsliste (changelog.json), aus der der Report ausschließlich liest, nicht mehr mitgepflegt wurde; die Pflege-Routine ist entsprechend korrigiert.",

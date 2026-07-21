@@ -984,6 +984,26 @@ ${flow}
 - Schreibe auf Deutsch`
 }
 
+// ABGRENZUNG gegen Dopplungen: Jeder Abschnitt wird in einem EIGENEN KI-Aufruf
+// erzeugt und bekommt dabei jeweils das GANZE Gespräch zu sehen — ohne diese Regel
+// landet dieselbe Aussage („Ehefrau versorgt zu Hause") in jedem Abschnitt, in den
+// sie irgendwie passt (Wohnsituation + Alltag/Selbstständigkeit + psychosoziale
+// Situation). Deshalb sieht jeder Abschnitt die vollständige Gliederung und weiß,
+// was NICHT ihm gehört.
+function anamnesisScopeRule(sections, section) {
+  const list = sections.map(s => `  ${s.label === section.label ? '>>' : '  '} ${s.label}`).join('\n')
+  const social = sections.find(s => s.key === 'sozial')?.label || 'Wohn- und Lebenssituation'
+  const daily = sections.find(s => s.key === 'alltag')?.label || 'Alltag und Selbstständigkeit'
+  const psych = sections.find(s => s.key === 'psychosozial')?.label || 'Psychosoziale Situation'
+  return `ABGRENZUNG ZU DEN ANDEREN ABSCHNITTEN (streng einhalten — sonst entstehen Dopplungen):
+Der Bogen besteht aus diesen Abschnitten; jeder wird getrennt aus demselben Gespräch geschrieben (>> = dieser hier):
+${list}
+- Schreibe AUSSCHLIESSLICH, was thematisch in „${section.label}" gehört. Jede Angabe aus dem Gespräch steht im gesamten Bogen genau EINMAL — in dem Abschnitt, in den sie am besten passt.
+- Gehört eine Aussage eher in einen anderen Abschnitt der Liste, lass sie hier WEG — auch dann, wenn sie hier gut hineinpassen würde. Wiederhole nichts „zur Einordnung", als Kontext oder als Zusammenfassung.
+- Beispiel: Wer zu Hause versorgt/unterstützt (z. B. „wird von der Ehefrau versorgt"), gehört genau einmal in „${social}" — NICHT zusätzlich in „${daily}" und NICHT in „${psych}". Dort steht nur, was dort NEU ist (z. B. konkrete Hilfsmittel bzw. die seelische Belastung selbst).
+- Auch innerhalb dieses Abschnitts jede Angabe nur einmal nennen — nicht als Stichpunkt und zusätzlich im Fließtext.`
+}
+
 // Bogen-Generierung: EIN Abschnitt je KI-Aufruf (wie das Pflegeexzerpt).
 // IMMER auf Deutsch — die Interviewsprache wird ignoriert; der Patient
 // bekommt für sein Review getrennt eine Übersetzung (Step 2).
@@ -997,14 +1017,16 @@ function anamnesisSection(memorial, contributions, section, styleInstruction) {
 DIESER ABSCHNITT: „${section.label}"
 ${section.brief}
 ${styleBlock}
+${anamnesisScopeRule(ANAMNESIS_SECTIONS, section)}
+
 Anforderungen:
 - Schreibe auf DEUTSCH, sachlich und knapp in nüchterner Dokumentationssprache (Fließtext oder kurze Stichpunkte mit „• "). Dritte Person oder unpersönliche Form.
 - Stütze dich AUSSCHLIESSLICH auf das Gespräch. Erfinde nichts, vermute nichts, ergänze nichts aus medizinischem Allgemeinwissen. Was das Gespräch nicht hergibt, wird NICHT behauptet — fehlt eine Angabe, schreibe knapp „Keine Angaben zu …" statt sie zu füllen.
 - KEINE Diagnosen, KEINE Verdachtsdiagnosen, KEINE Therapie-/Medikamentenempfehlungen, KEINE Bewertung. Nur wiedergeben, was die Person gesagt hat.
-- ROTE FLAGGEN sichtbar markieren: Nennt die Person akute Warnzeichen (z. B. akute Brustschmerzen/Luftnot, Gedanken an Selbsttötung/Selbstverletzung), stelle die betreffende Aussage im Abschnitt an den Anfang und markiere sie deutlich mit dem Präfix „⚠ ROTE FLAGGE: ". Nicht bewerten, nur kennzeichnen und die Aussage wörtlich sinngemäß wiedergeben.
+- ROTE FLAGGEN sichtbar markieren: Nennt die Person akute Warnzeichen (z. B. akute Brustschmerzen/Luftnot, Gedanken an Selbsttötung/Selbstverletzung), stelle die betreffende Aussage im Abschnitt an den Anfang und markiere sie deutlich mit dem Präfix „⚠ ROTE FLAGGE: ". Nicht bewerten, nur kennzeichnen und die Aussage wörtlich sinngemäß wiedergeben. Markiere jede rote Flagge nur EINMAL, im thematisch passenden Abschnitt.
 - FREMDANAMNESE getrennt ausweisen: Angaben, die im Gespräch mit „[Begleitperson]" markiert sind, stammen nicht von der Person selbst. Gib solche Angaben nur wieder, wenn sie zu diesem Abschnitt gehören, und kennzeichne sie ausdrücklich mit „Fremdanamnese (Begleitperson): …".
 - Konkret statt allgemein (z. B. „Schmerz im rechten Knie seit ca. 3 Monaten, morgens am stärksten" statt „Knieprobleme").
-- Absätze/Stichpunkte durch Zeilenumbruch trennen.
+- Absätze/Stichpunkte durch Zeilenumbruch trennen; Stichpunkte IMMER mit „• " beginnen (keine Bindestriche, Sternchen oder Nummern).
 - Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. KEINE Überschrift (die kommt vom Layout), keine Metakommentare, kein Markdown.
 
 ${companionNote(contributions)}\n\nAnamnesegespräch:\n\n${blocks(contributions)}`
@@ -1171,6 +1193,8 @@ function anamnesisKvswSection(memorial, contributions, section, styleInstruction
 DIESER ABSCHNITT: „${section.label}"
 ${section.brief}
 ${styleBlock}
+${anamnesisScopeRule(ANAMNESIS_KVSW_SECTIONS, section)}
+
 Anforderungen:
 - Schreibe auf DEUTSCH, sachlich und knapp in nüchterner Dokumentationssprache (Fließtext oder kurze Stichpunkte mit „• "). Dritte Person oder unpersönliche Form.
 - Stütze dich AUSSCHLIESSLICH auf das Gespräch. Erfinde nichts, vermute nichts, ergänze nichts aus medizinischem Allgemeinwissen. Was das Gespräch nicht hergibt, wird NICHT behauptet — fehlt eine Angabe, schreibe knapp „Keine Angaben zu …" statt sie zu füllen.
@@ -1178,7 +1202,7 @@ Anforderungen:
 - ROTE FLAGGEN sichtbar markieren: Nennt die Person akute Warnzeichen (z. B. akute Brustschmerzen/Luftnot, Gedanken an Selbsttötung/Selbstverletzung), stelle die betreffende Aussage im Abschnitt an den Anfang und markiere sie deutlich mit dem Präfix „⚠ ROTE FLAGGE: ". Nicht bewerten, nur kennzeichnen und die Aussage wörtlich sinngemäß wiedergeben.
 - FREMDANAMNESE getrennt ausweisen: Angaben, die im Gespräch mit „[Begleitperson]" markiert sind, stammen nicht von der Person selbst. Gib solche Angaben nur wieder, wenn sie zu diesem Abschnitt gehören, und kennzeichne sie ausdrücklich mit „Fremdanamnese (Begleitperson): …".
 - Konkret statt allgemein (z. B. „Schmerz im rechten Knie seit ca. 3 Monaten, morgens am stärksten" statt „Knieprobleme").
-- Absätze/Stichpunkte durch Zeilenumbruch trennen.
+- Absätze/Stichpunkte durch Zeilenumbruch trennen; Stichpunkte IMMER mit „• " beginnen (keine Bindestriche, Sternchen oder Nummern).
 - Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. KEINE Überschrift (die kommt vom Layout), keine Metakommentare, kein Markdown.
 
 ${companionNote(contributions)}\n\nAnamnesegespräch:\n\n${blocks(contributions)}`
