@@ -888,6 +888,8 @@ const ANAMNESIS_REDFLAG_RULE = `ROTE FLAGGEN – Sicherheit (kein Medizinprodukt
 // Bogen-Abschnitte (feste Gliederung). `greets:false` überall — der Bogen
 // wird nicht vorgelesen, sondern gedruckt. Reihenfolge = Reihenfolge im Bogen.
 const ANAMNESIS_SECTIONS = [
+  { key: 'zusammenfassung', label: 'Zusammenfassung', greets: false,
+    brief: `Kurzer Überblick als FLIESSTEXT (3–6 Sätze, KEINE Stichpunkte) für den ersten Blick des Behandlungsteams: Anlass der Reha, die im Vordergrund stehenden Beschwerden mit Dauer, die wesentlichen Vorerkrankungen, relevante Dauermedikation und Allergien, die häusliche/berufliche Situation in einem Satz sowie das wichtigste Anliegen für die Reha. Nur das Wesentliche — Einzelheiten stehen in den Abschnitten darunter. Nichts ergänzen, was nicht gesagt wurde; keine Diagnosen und keine Bewertung. Wird eine ROTE FLAGGE genannt, steht sie im ersten Satz.` },
   { key: 'anlass', label: 'Anlass und Zuweisungsdiagnose', greets: false,
     brief: 'Weshalb kommt die Person zur Reha: von ihr benannter Anlass, Zuweisungs-/Aufnahmediagnose (nur so, wie sie sie selbst nennt), Kostenträger/Zugang, soweit erwähnt. Keine eigene Diagnose ergänzen.' },
   { key: 'aktuell', label: 'Aktuelle Beschwerden und Verlauf', greets: false,
@@ -995,13 +997,23 @@ function anamnesisScopeRule(sections, section) {
   const social = sections.find(s => s.key === 'sozial')?.label || 'Wohn- und Lebenssituation'
   const daily = sections.find(s => s.key === 'alltag')?.label || 'Alltag und Selbstständigkeit'
   const psych = sections.find(s => s.key === 'psychosozial')?.label || 'Psychosoziale Situation'
+  // Die „Zusammenfassung" ist die EINE gewollte Ausnahme von der Einmal-Regel:
+  // Sie verdichtet bewusst, was unten im Detail steht. Alle anderen Abschnitte
+  // schreiben deshalb so, als gäbe es sie nicht.
+  if (section.key === 'zusammenfassung') {
+    return `ROLLE DIESES ABSCHNITTS: Er ist der einzige zusammenfassende Abschnitt des Bogens und steht ganz oben. Unter ihm folgen diese Detail-Abschnitte:
+${list}
+- Verdichte NUR das Wichtigste aus dem gesamten Gespräch zu einem kurzen Fließtext. Dass diese Punkte unten ausführlicher stehen, ist gewollt — hier keine Einzelheiten, keine Aufzählung, keine Überschriften.
+- Keine Angabe erfinden und nichts aufnehmen, was im Gespräch nicht vorkam.`
+  }
   return `ABGRENZUNG ZU DEN ANDEREN ABSCHNITTEN (streng einhalten — sonst entstehen Dopplungen):
 Der Bogen besteht aus diesen Abschnitten; jeder wird getrennt aus demselben Gespräch geschrieben (>> = dieser hier):
 ${list}
 - Schreibe AUSSCHLIESSLICH, was thematisch in „${section.label}" gehört. Jede Angabe aus dem Gespräch steht im gesamten Bogen genau EINMAL — in dem Abschnitt, in den sie am besten passt.
 - Gehört eine Aussage eher in einen anderen Abschnitt der Liste, lass sie hier WEG — auch dann, wenn sie hier gut hineinpassen würde. Wiederhole nichts „zur Einordnung", als Kontext oder als Zusammenfassung.
 - Beispiel: Wer zu Hause versorgt/unterstützt (z. B. „wird von der Ehefrau versorgt"), gehört genau einmal in „${social}" — NICHT zusätzlich in „${daily}" und NICHT in „${psych}". Dort steht nur, was dort NEU ist (z. B. konkrete Hilfsmittel bzw. die seelische Belastung selbst).
-- Auch innerhalb dieses Abschnitts jede Angabe nur einmal nennen — nicht als Stichpunkt und zusätzlich im Fließtext.`
+- Auch innerhalb dieses Abschnitts jede Angabe nur einmal nennen — nicht als Stichpunkt und zusätzlich im Fließtext.
+- EINZIGE Ausnahme von der Einmal-Regel ist der Abschnitt „Zusammenfassung" ganz oben: Er verdichtet die wichtigsten Punkte bewusst. Das entbindet dich NICHT davon, deinen Abschnitt vollständig zu schreiben — schreibe so, als gäbe es die Zusammenfassung nicht.`
 }
 
 // Bogen-Generierung: EIN Abschnitt je KI-Aufruf (wie das Pflegeexzerpt).
@@ -1122,6 +1134,8 @@ function anamnesisKvswIndication(memorial) {
 // Versorgung nach Entlassung), und statt „Reha-Ziele" die „Besonderheiten für den
 // Aufenthalt" (Patientenverfügung/Vollmacht, bekannte Infektionen, offene Fragen).
 const ANAMNESIS_KVSW_SECTIONS = [
+  { key: 'zusammenfassung', label: 'Zusammenfassung', greets: false,
+    brief: `Kurzer Überblick als FLIESSTEXT (3–6 Sätze, KEINE Stichpunkte) für den ersten Blick des aufnehmenden Teams: Aufnahmegrund (akut oder geplant, ggf. vorgesehener Eingriff), die im Vordergrund stehenden Beschwerden mit Dauer, die wesentlichen Vorerkrankungen, relevante Dauermedikation (insbesondere blutverdünnende Mittel) und Allergien, die häusliche Situation/Versorgung nach der Entlassung in einem Satz sowie Besonderheiten für den Aufenthalt (z. B. Patientenverfügung, bekannte Infektionen). Nur das Wesentliche — Einzelheiten stehen in den Abschnitten darunter. Nichts ergänzen, was nicht gesagt wurde; keine Diagnosen und keine Bewertung. Wird eine ROTE FLAGGE genannt, steht sie im ersten Satz.` },
   { key: 'aufnahmegrund', label: 'Aufnahmegrund und Einweisung', greets: false,
     brief: 'Weshalb kommt die Person ins Krankenhaus: von ihr benannter Aufnahmegrund, ob akut (z. B. über die Notaufnahme) oder geplant, ein ggf. vorgesehener Eingriff/eine Operation, einweisende Stelle (Notaufnahme, Haus-/Facharztpraxis) und betroffene Fachabteilung, nur so, wie die Person es selbst nennt. Keine eigene Diagnose ergänzen.' },
   { key: 'aktuell', label: 'Aktuelle Beschwerden und Verlauf', greets: false,

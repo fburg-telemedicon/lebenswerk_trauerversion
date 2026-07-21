@@ -2186,7 +2186,7 @@ function Dashboard() {
       // Banner des Beitragenden-Flows) — so trägt jeder Bogen ein Logo.
       logo: partnerLogoSrc(selected?.owner_logo, selected?.product_category),
       ...(isAnamnesis(selected?.product_category)
-        ? { disclaimerTitle: FORM_DISCLAIMER_TITLE, disclaimerText: FORM_DISCLAIMER, emphasizeLabels: true }
+        ? { disclaimerTitle: FORM_DISCLAIMER_TITLE, disclaimerText: FORM_DISCLAIMER }
         : {}),
     }
   }

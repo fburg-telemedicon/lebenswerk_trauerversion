@@ -602,24 +602,18 @@ const BULLET = '•'
 const BULLET_RE = /^[•●○◦·∙*\-–—]\s+(.*)$/
 
 // Eine Textzeile in fette/normale Stücke zerlegen — dieselbe Logik für PDF und
-// DOCX, damit beide Dateien identisch aussehen. Fett wird hervorgehoben, was den
-// Inhalt erschließt: die rote Flagge, der Fremdanamnese-Hinweis und die
-// Bezeichnung vor einem Doppelpunkt („Bluthochdruck: seit 2010"). Markdown-Reste
-// aus dem gespeicherten Text werden dabei aufgelöst (** → fett, _kursiv_ → weg).
+// DOCX, damit beide Dateien identisch aussehen. Fett wird nur, was im Text selbst
+// als **fett** ausgezeichnet ist; eine automatische Hervorhebung von Stichworten
+// gab es kurzzeitig, sie traf im Bogen aber zu oft daneben. Markdown-Reste aus dem
+// gespeicherten Text werden dabei aufgelöst (** → fett, _kursiv_ → weg).
 // forPdf: „⚠" ersetzen — die Standardschriften von jsPDF können nur WinAnsi und
 // würden daraus ein Kästchen machen.
-const LABEL_RE = /^((?:\(!\)\s*)?(?:⚠\s*)?ROTE FLAGGE:|Fremdanamnese \(Begleitperson\):|[^:.!?•]{2,60}:)\s*([\s\S]*)$/
-// labels: Bezeichnung vor dem Doppelpunkt fett setzen — nur für Dokumente mit
-// Stichwort-Charakter (Anamnesebogen), nicht für eine Trauerrede.
-function richTokens(line, { forPdf = false, labels = false } = {}) {
+function richTokens(line, { forPdf = false } = {}) {
   let s = String(line ?? '')
   if (forPdf) s = s.replace(/⚠️?\s*/g, '(!) ')
   s = s.replace(/(^|\s)_([^_]+)_(?=$|[\s.,;:!?])/g, '$1$2').trim()
   const out = []
-  const m = labels ? s.match(LABEL_RE) : null
-  let rest = s
-  if (m) { out.push({ t: m[1], b: true }); rest = m[2] }
-  for (const part of rest.split(/(\*\*[^*]+\*\*)/g)) {
+  for (const part of s.split(/(\*\*[^*]+\*\*)/g)) {
     if (!part) continue
     if (part.startsWith('**') && part.endsWith('**')) out.push({ t: part.slice(2, -2), b: true })
     else out.push({ t: part, b: false })
@@ -756,7 +750,7 @@ export async function downloadTextPdf(filename, title, text, lang = 'de', opts =
     for (let i = 0; i < lines.length; i++) {
       const bullet = lines[i].match(BULLET_RE)
       const gapAfter = i === lines.length - 1 ? GAP : 0
-      writeRich(richTokens(bullet ? bullet[1] : lines[i], { forPdf: true, labels: !!opts.emphasizeLabels }),
+      writeRich(richTokens(bullet ? bullet[1] : lines[i], { forPdf: true }),
                 { size: 11, gapAfter, bullet: !!bullet })
     }
   }
@@ -800,10 +794,8 @@ export async function downloadAsDocx(filename, title, text, lang = 'de', opts = 
     alignment: AlignmentType.CENTER,
     spacing: { after: 400, ...SINGLE },
   }))
-  // Zeile → Word-Runs (fett wie im PDF: rote Flagge, Fremdanamnese, Bezeichnung
-  // vor dem Doppelpunkt).
-  const runs = line => richTokens(line, { labels: !!opts.emphasizeLabels })
-    .map(t => new TextRun({ text: t.t, bold: t.b }))
+  // Zeile → Word-Runs (dieselbe Zerlegung wie im PDF)
+  const runs = line => richTokens(line).map(t => new TextRun({ text: t.t, bold: t.b }))
   for (const raw of text.split('\n\n')) {
     const chunk = raw.trim()
     if (!chunk) continue
