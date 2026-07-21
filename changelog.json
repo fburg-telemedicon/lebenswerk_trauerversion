@@ -4,6 +4,8 @@
     {
       "date": "2026-07-21",
       "items": [
+        "Anamnesebogen (beide Produkte): Der Zeilenabstand in Aufzählungen (z. B. Vorerkrankungen, Allergien) ist jetzt durchgehend einfach. Ursache war, dass die KI Stichpunkte mal mit einem Zeilenumbruch, mal mit einer Leerzeile trennt – letztere wurde beim Export als Absatzwechsel mit Zusatzabstand gesetzt. Aufeinanderfolgende Stichpunkte stehen nun immer direkt untereinander.",
+        "Anamnesebogen: Die neue Zusammenfassung wird jetzt tatsächlich als Fließtext geschrieben. Die Stil-Vorgabe des Bogens (telegrammartig, wo möglich Stichpunkte) hatte sie zuvor ebenfalls zu einer Aufzählung gemacht; für die Zusammenfassung gilt sie nicht mehr.",
         "Anamnesebogen (Reha und KVSW), PDF und Word-Datei: einheitlich einfacher Zeilenabstand, überall dieselben Aufzählungspunkte (kleiner Kreis mit hängendem Einzug) und das Logo des Inhabers oben auf Seite 1. Versehentlich mitgedruckte Formatierungszeichen (z. B. Unterstriche im Kopf-Hinweis) werden entfernt.",
         "Anamnesebogen: Der Schluss-Hinweis heißt nicht mehr „Hinweis zur Entstehung dieses Buches“ – der Bogen ist kein Buch. Er trägt jetzt den Titel „Hinweis zur Entstehung dieses Bogens“ und einen passenden Text (KI-geführtes Gespräch, Selbstauskunft, nicht ärztlich validiert, keine Diagnosen).",
         "Anamnesebogen (beide Produkte): Der Bogen beginnt jetzt mit einer kurzen Zusammenfassung im Fließtext (3–6 Sätze) vor dem ersten Abschnitt – Anlass/Aufnahmegrund, führende Beschwerden, wesentliche Vorerkrankungen, Dauermedikation und Allergien, häusliche Situation und das wichtigste Anliegen. Eine genannte rote Flagge steht im ersten Satz. Die Detail-Abschnitte darunter bleiben vollständig.",

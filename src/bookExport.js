@@ -621,6 +621,38 @@ function richTokens(line, { forPdf = false } = {}) {
   return out.filter(t => t.t.trim())
 }
 
+// Fließtext in Setz-Einheiten zerlegen (eine je Zeile). `blank` merkt sich, ob im
+// Quelltext eine Leerzeile davor stand — die KI trennt Stichpunkte mal mit einem
+// Umbruch, mal mit einer Leerzeile, und daraus entstand im Export der ungleiche
+// Zeilenabstand (z. B. bei „Vorerkrankungen").
+function textItems(text) {
+  const items = []
+  let blank = false
+  for (const rawLine of String(text || '').split('\n')) {
+    const l = rawLine.trim()
+    if (!l) { blank = true; continue }
+    const level = l.startsWith('## ') ? 2 : l.startsWith('# ') ? 1 : 0
+    const b = level ? null : l.match(BULLET_RE)
+    items.push({
+      kind: level ? 'heading' : b ? 'bullet' : 'text',
+      level, blank,
+      text: level ? l.slice(level + 1) : b ? b[1] : l,
+    })
+    blank = false
+  }
+  return items
+}
+
+// Abstand VOR einer Zeile. Aufeinanderfolgende Aufzählungspunkte stehen immer
+// direkt untereinander — unabhängig davon, ob im Quelltext eine Leerzeile
+// zwischen ihnen stand. Sonst gibt es Abstand nur bei echtem Absatzwechsel.
+function itemGapBefore(items, i, gap) {
+  const it = items[i], prev = items[i - 1]
+  if (!prev || prev.kind === 'heading') return 0
+  if (prev.kind === 'bullet' && it.kind === 'bullet') return 0
+  return it.blank ? gap : 0
+}
+
 // Logo-Quelle auflösen: Data-URL direkt, sonst laden. SVG (z. B. das KVSW-Logo)
 // können weder jsPDF noch docx — es wird über ein Canvas in ein PNG gerastert.
 async function resolveLogoDataUrl(src) {
@@ -730,29 +762,20 @@ export async function downloadTextPdf(filename, title, text, lang = 'de', opts =
   write(title, { size: 18, style: 'bold', color: [25, 25, 25], gapAfter: 2 })
   doc.setDrawColor(200); ensure(3); doc.line(margin, y, pageW - margin, y); y += 6
 
-  const chunks = String(text || '').split('\n\n').map(c => c.trim()).filter(Boolean)
-  for (let ci = 0; ci < chunks.length; ci++) {
-    const chunk = chunks[ci]
-    const heading = chunk.startsWith('## ') ? { size: 13, text: chunk.slice(3) }
-                  : chunk.startsWith('# ')  ? { size: 15, text: chunk.slice(2) }
-                  : null
-    if (heading) {
+  const items = textItems(text)
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    if (it.kind === 'heading') {
       // „Nicht vom Folgetext trennen": Passen Überschrift + zwei Textzeilen nicht
       // mehr auf die Seite, wandert die Überschrift mit auf die nächste.
       y += HEAD_GAP_BEFORE
-      if (y + lh(heading.size) + 2 + 2 * lh(11) > bottom()) { doc.addPage(); y = margin }
-      writeRich([{ t: heading.text, b: true }], { size: heading.size, color: [25, 25, 25], gapAfter: 2 })
+      const size = it.level === 1 ? 15 : 13
+      if (y + lh(size) + 2 + 2 * lh(11) > bottom()) { doc.addPage(); y = margin }
+      writeRich([{ t: it.text, b: true }], { size, color: [25, 25, 25], gapAfter: 2 })
       continue
     }
-    // Zeilenweise, damit Aufzählungen einheitlich gesetzt werden und einzelne
-    // Umbrüche erhalten bleiben — ohne Zusatzabstand zwischen den Zeilen.
-    const lines = chunk.split('\n').map(l => l.trim()).filter(Boolean)
-    for (let i = 0; i < lines.length; i++) {
-      const bullet = lines[i].match(BULLET_RE)
-      const gapAfter = i === lines.length - 1 ? GAP : 0
-      writeRich(richTokens(bullet ? bullet[1] : lines[i], { forPdf: true }),
-                { size: 11, gapAfter, bullet: !!bullet })
-    }
+    y += itemGapBefore(items, i, GAP)
+    writeRich(richTokens(it.text, { forPdf: true }), { size: 11, gapAfter: 0, bullet: it.kind === 'bullet' })
   }
 
   y += 4
@@ -796,33 +819,27 @@ export async function downloadAsDocx(filename, title, text, lang = 'de', opts = 
   }))
   // Zeile → Word-Runs (dieselbe Zerlegung wie im PDF)
   const runs = line => richTokens(line).map(t => new TextRun({ text: t.t, bold: t.b }))
-  for (const raw of text.split('\n\n')) {
-    const chunk = raw.trim()
-    if (!chunk) continue
-    if (chunk.startsWith('## ') || chunk.startsWith('# ')) {
-      const h2 = chunk.startsWith('## ')
+  // Zeilenweise wie im PDF (gleiche Zerlegung, gleiche Abstandsregel): Aufzählungen
+  // bekommen überall denselben kleinen Kreis (Word-Listenpunkt) und stehen ohne
+  // Zusatzabstand untereinander.
+  const items = textItems(text)
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    if (it.kind === 'heading') {
       // keepNext: Word zieht die Überschrift mit auf die nächste Seite, statt sie
       // allein am Seitenende stehen zu lassen.
       children.push(new Paragraph({
-        text: richTokens(chunk.slice(h2 ? 3 : 2)).map(t => t.t).join(' '),
-        heading: h2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_1,
+        text: richTokens(it.text).map(t => t.t).join(' '),
+        heading: it.level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
         keepNext: true, keepLines: true,
         spacing: { before: 300, after: 120, ...SINGLE },
       }))
     } else {
-      // Zeilenweise wie im PDF: Aufzählungen bekommen überall denselben kleinen
-      // Kreis (Word-Listenpunkt), Fließtextzeilen bleiben eigene Absätze. Kein
-      // Zusatzabstand zwischen den Zeilen eines Absatzes.
-      const lines = chunk.split('\n').map(l => l.trim()).filter(Boolean)
-      for (let i = 0; i < lines.length; i++) {
-        const bullet = lines[i].match(BULLET_RE)
-        const after = i === lines.length - 1 ? 160 : 0
-        children.push(new Paragraph({
-          children: runs(bullet ? bullet[1] : lines[i]),
-          ...(bullet ? { bullet: { level: 0 } } : {}),
-          spacing: { after, ...SINGLE },
-        }))
-      }
+      children.push(new Paragraph({
+        children: runs(it.text),
+        ...(it.kind === 'bullet' ? { bullet: { level: 0 } } : {}),
+        spacing: { before: itemGapBefore(items, i, 160), after: 0, ...SINGLE },
+      }))
     }
   }
   children.push(new Paragraph({
