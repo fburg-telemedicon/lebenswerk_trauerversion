@@ -109,6 +109,33 @@ function v2Scale(contributions, chapterTarget = 1100) {
   return { words, chapters, min, max: Math.max(max, min + 150) }
 }
 
+// ── Kapitelzahl ist eine ZIELSPANNE, keine bloße Obergrenze ───────
+// Früher bekam das Modell die berechnete Kapitelzahl nur als „HÖCHSTENS n —
+// Obergrenze, kein Soll". Für ein Sprachmodell ist das die Einladung, immer bei
+// den gewohnten ~10 Kapiteln zu landen: Bei verdoppelter Beitragsmenge wuchs das
+// Buch deshalb kein Stück, die zusätzlichen Interviews blieben faktisch ungenutzt.
+// Die Zahl leitet sich aber aus dem TATSÄCHLICH vorhandenen Material ab — mehr
+// Kapitel sind hier keine Erfindung, sondern ABDECKUNG. Darum: Spanne mit
+// Untergrenze, Nennung der Materialmenge, Abdeckungspflicht. Das Erfindungs-
+// verbot (NO_FILLER_RULE, chapterLengthRule) bleibt davon unberührt.
+function v2ChapterSpan(sc) {
+  const min = Math.max(4, Math.round(sc.chapters * 0.8))
+  return { min, max: Math.max(min, sc.chapters) }
+}
+
+// `sort`     – Sortierhinweis, z. B. „thematisch chronologisch sortiert (früh → spät)"
+// `material` – vollständige Phrase inkl. Verb: „Die Beiträge umfassen" / „Das Interview umfasst"
+function v2CountRule(sc, { sort, material }) {
+  const { min, max } = v2ChapterSpan(sc)
+  return `${min}–${max} Kapitel${sort ? `, ${sort}` : ''}. Das ist eine ZIELSPANNE, keine bloße Obergrenze: ${material} rund ${sc.words} Wörter Rohmaterial, und dieses Material soll VOLLSTÄNDIG auf die Kapitel verteilt werden. Unter ${min} Kapiteln bleibt Stoff ungenutzt — das ist ein Fehler, nicht Zurückhaltung. Erreicht wird die Spanne ausschließlich durch AUFTEILEN des vorhandenen Materials, NIEMALS durch Wiederholungen oder Erfundenes: Ein Kapitel ohne echten Stoff darf nicht entstehen.`
+}
+
+// Abdeckungspflicht — nur sinnvoll, wenn es mehrere Beiträge gibt.
+function v2CoverageRule(n) {
+  if (!(n > 1)) return ''
+  return `\n- ABDECKUNG: Aus JEDEM der ${n} Beiträge muss Stoff in mindestens einem Kapitel landen. Prüfe die fertige Gliederung vor der Ausgabe daraufhin — bleibt ein Beitrag komplett unberücksichtigt, fehlt ein Kapitel oder ein "themes" ist zu eng gefasst.`
+}
+
 // ── Umfang ist eine OBERGRENZE, kein Soll ─────────────────────────
 // Die Skalierung leitet aus der Materialmenge ab, wie lang ein Buch WERDEN DARF.
 // Für ein Sprachmodell ist eine Wort-Untergrenze aber eine Aufforderung, sie zu
@@ -340,9 +367,10 @@ ${lines.join('\n')}`
 function memorialV2Outline(memorial, contributions) {
   const g = genderNote(memorial)
   const sc = v2Scale(contributions)
+  const span = v2ChapterSpan(sc)
   return `Du bist ein erfahrener Biograph. Aus den folgenden Interviews mit ${contributions.length} Menschen, die ${memorial.name}${g} kannten, planst du eine Lebensgeschichte (Variante 2: Aufbau nach Lebensstationen).
 
-Plane jetzt das Gerüst: Titel, Untertitel und HÖCHSTENS ${sc.chapters} Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und ${span.min}–${span.max} Kapitel nach Lebensstationen (z. B. Kindheit, Schule, Familie, Reisen, Beruf, Charakter, Hobbies, Wendepunkte, Vermächtnis). Wähle nur Stationen, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -354,7 +382,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 }
 
 Regeln:
-- HÖCHSTENS ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät). Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie die Beiträge inhaltlich tragen. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.
+- ${v2CountRule(sc, { sort: 'thematisch chronologisch sortiert (früh → spät)', material: 'Die Beiträge umfassen' })}${v2CoverageRule(contributions.length)}
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
 - "title" persönlich, würdevoll, bezogen auf ${memorial.name}
@@ -603,12 +631,14 @@ function makeV2Outline(p) {
   return (memorial, contributions) => {
     const g = genderNote(memorial)
     const sc = v2Scale(contributions)
-    const sortRule = p.v2Chronological
-      ? `HÖCHSTENS ${sc.chapters} Kapitel, thematisch chronologisch sortiert (früh → spät). Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie die Beiträge inhaltlich tragen. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.`
-      : `HÖCHSTENS ${sc.chapters} Kapitel, thematisch sinnvoll sortiert. Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie die Beiträge inhaltlich tragen. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.`
+    const span = v2ChapterSpan(sc)
+    const sortRule = v2CountRule(sc, {
+      sort: p.v2Chronological ? 'thematisch chronologisch sortiert (früh → spät)' : 'thematisch sinnvoll sortiert',
+      material: 'Die Beiträge umfassen',
+    }) + v2CoverageRule(contributions.length)
     return `Du bist ${p.v2Role}. Aus den folgenden Beiträgen von ${contributions.length} Menschen, die ${memorial.name}${g} ${p.knowVerb}, planst du ${p.v2NounIndef} (Variante 2: ${p.v2Concept}).
 
-Plane jetzt das Gerüst: Titel, Untertitel und HÖCHSTENS ${sc.chapters} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und ${span.min}–${span.max} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -737,9 +767,10 @@ const LIFEWORK_CHAPTER_WORDS = 2000
 
 function lifeworkV2Outline(memorial, contributions) {
   const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
+  const span = v2ChapterSpan(sc)
   return `Du bist ein erfahrener Biograph. Aus dem folgenden Interview, das ${memorial.name} über das eigene Leben gegeben hat, planst du eine Autobiographie.
 
-Plane jetzt das Gerüst: Titel, Untertitel und HÖCHSTENS ${sc.chapters} Kapitel entlang der Lebensstationen (z. B. Kindheit, Jugend und Schulzeit, Aufbruch ins Erwachsenenleben, Beruf, Liebe und Familie, Leidenschaften, Krisen und Wendepunkte, Werte, Vermächtnis). Wähle nur Kapitel, die das Interview inhaltlich tatsächlich hergibt. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und ${span.min}–${span.max} Kapitel entlang der Lebensstationen (z. B. Kindheit, Jugend und Schulzeit, Aufbruch ins Erwachsenenleben, Beruf, Liebe und Familie, Leidenschaften, Krisen und Wendepunkte, Werte, Vermächtnis). Wähle nur Kapitel, die das Interview inhaltlich tatsächlich hergibt. Die Kapitel-TEXTE werden später separat geschrieben.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -751,7 +782,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 }
 
 Regeln:
-- HÖCHSTENS ${sc.chapters} Kapitel, chronologisch sortiert (früh → spät); rein thematische Kapitel (Werte, Vermächtnis) dürfen ans Ende. Diese Zahl ist eine OBERGRENZE, kein Soll: Plane nur so viele Kapitel, wie das Interview inhaltlich trägt. Lieber wenige volle Kapitel als viele dünne — ein Kapitel ohne echten Stoff darf NICHT entstehen, es würde nur mit Wiederholungen oder Erfundenem gefüllt.
+- ${v2CountRule(sc, { sort: 'chronologisch sortiert (früh → spät); rein thematische Kapitel (Werte, Vermächtnis) dürfen ans Ende', material: 'Das Interview umfasst' })}
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen hier behandelt werden
 - "title" persönlich und würdevoll, bezogen auf das Leben von ${memorial.name}
