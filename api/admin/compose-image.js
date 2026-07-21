@@ -15,7 +15,7 @@
 // Bildunterschriften werden eingebrannt, Falz (vertikale Mitte) und Beschnitt
 // (Außenkanten) berücksichtigt. Gerendert wird DETERMINISTISCH mit sharp.
 //
-// Ergebnis wird wie ein generiertes Bild abgelegt (<CODE>/<uuid>.png + _thumb.jpg),
+// Ergebnis wird wie ein generiertes Bild abgelegt (<CODE>/<uuid>.jpg + _thumb.jpg),
 // läuft danach unverändert durch Signierung, DOCX, Druck-PDF und Löschung.
 
 const { createClient } = require('../_lib/store')
@@ -340,11 +340,22 @@ async function composeBuffers(bufs, metas) {
   return await base.composite(overlays).png().toBuffer()
 }
 
+// ── Warum die fertige Doppelseite JPEG ist ────────────────────────
+// Intern wird mit PNG gerechnet (Alphakanal für Rahmen, Schatten und Caption-
+// Kästen). Das ERGEBNIS ist aber ein Foto und wurde als PNG rund 3,5–6,5 MB je
+// Seite gross. Bei einem Buch mit vielen Fotoseiten summierte sich das auf ~35 MB,
+// und da das Druck-PDF die Bilder unverkleinert einbettet, scheiterte danach
+// „Auf Server ablegen": der Client schickt das PDF base64-kodiert im JSON (+37 %),
+// womit es am 50-MB-Limit von express.json in server.js zerbrach.
+// JPEG q88 mit 4:4:4 (kein Chroma-Subsampling, damit Kanten und Text in den
+// Bildunterschriften scharf bleiben) bringt dieselbe Seite auf ~0,5 MB.
 async function compose(images) {
+  const sharp = require('sharp')
   const n = Math.min(images.length, 4)
   const use = images.slice(0, n)
   const bufs = await Promise.all(use.map(im => downloadBuffer(im.path)))
-  return await composeBuffers(bufs, use)
+  const composed = await composeBuffers(bufs, use)
+  return await sharp(composed).jpeg({ quality: 88, chromaSubsampling: '4:4:4' }).toBuffer()
 }
 
 module.exports = async function handler(req, res) {
@@ -366,19 +377,22 @@ module.exports = async function handler(req, res) {
       .slice(0, 4)
     if (clean.length === 0) return res.status(400).json({ error: 'Keine gültigen Bildpfade.' })
 
-    const png = await compose(clean)
-    const storagePath = `${code}/${crypto.randomUUID()}.png`
-    const { error: upErr } = await supabase.storage.from(IMAGE_BUCKET).upload(storagePath, png, {
-      contentType: 'image/png', upsert: false,
+    const spread = await compose(clean)
+    const storagePath = `${code}/${crypto.randomUUID()}.jpg`
+    const { error: upErr } = await supabase.storage.from(IMAGE_BUCKET).upload(storagePath, spread, {
+      contentType: 'image/jpeg', upsert: false,
     })
     if (upErr) return res.status(500).json({ error: `Storage-Upload fehlgeschlagen: ${upErr.message}` })
 
-    // Thumbnail wie bei generierten Bildern (<pfad>_thumb.jpg).
+    // Thumbnail wie bei generierten Bildern (<pfad>_thumb.jpg). Die Endung wird
+    // generisch ersetzt — signMemorialImages leitet den Thumb-Pfad genauso ab
+    // (api/admin/memorials.js: /\.(png|jpe?g|webp)$/i), damit passen alte
+    // PNG-Doppelseiten und neue JPEG-Doppelseiten gleichermassen.
     try {
       const sharp = require('sharp')
-      const thumb = await sharp(png).resize(480, 320, { fit: 'cover' }).jpeg({ quality: 72 }).toBuffer()
+      const thumb = await sharp(spread).resize(480, 320, { fit: 'cover' }).jpeg({ quality: 72 }).toBuffer()
       await supabase.storage.from(IMAGE_BUCKET)
-        .upload(storagePath.replace(/\.png$/i, '_thumb.jpg'), thumb, { contentType: 'image/jpeg', upsert: true })
+        .upload(storagePath.replace(/\.(png|jpe?g|webp)$/i, '_thumb.jpg'), thumb, { contentType: 'image/jpeg', upsert: true })
     } catch (e) { console.warn('Kompositor-Thumbnail übersprungen:', e.message) }
 
     return res.json({ storagePath })
