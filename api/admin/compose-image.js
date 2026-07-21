@@ -216,6 +216,24 @@ function captionPlate(cx, baselineY, lines, F, lh) {
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="#140f0b" fill-opacity="0.40"/>`
 }
 
+// ── Warum Bildunterschriften mehrzeilig sein muessen ──────────────
+// Frueher stand an den Aufrufstellen `wrapText(...)[0]`: der Umbruch wurde
+// korrekt berechnet und dann wurde nur die ERSTE Zeile gezeichnet. Alles
+// darueber hinaus verschwand stillschweigend, ohne Auslassungszeichen — aus
+// "Grecja, sklep z gabkami" wurde "Grecja, sklep z". Betroffen war jede
+// Unterschrift ab etwa 20 Zeichen in den Raster-Layouts.
+// `baselineY` ist die Grundlinie der LETZTEN Zeile: mehrzeilige Unterschriften
+// wachsen nach OBEN und laufen damit nicht aus dem Bild oder in den Beschnitt.
+const CAPTION_MAX_LINES = 2
+function captionSvg(cx, baselineY, lines, F, fill = '#f7f2ea') {
+  if (!lines || lines.length === 0) return ''
+  const lh = Math.round(F * 1.25)
+  const top = baselineY - (lines.length - 1) * lh
+  const texts = lines.map((ln, i) =>
+    `<text x="${cx}" y="${top + i * lh}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="${fill}">${escapeXml(ln)}</text>`).join('')
+  return captionPlate(cx, top, lines, F, lh) + texts
+}
+
 async function composeBuffers(bufs, metas) {
   const sharp = require('sharp')
   const n = Math.min(bufs.length, 4)
@@ -241,9 +259,9 @@ async function composeBuffers(bufs, metas) {
       const c = cap(0)
       if (c) {
         const F = Math.round(outW * 0.02), maxCh = Math.floor(outW / (F * 0.5))
-        const line = wrapText(c, maxCh)[0]
+        const lines = wrapText(c, maxCh).slice(0, CAPTION_MAX_LINES)
         const capY = outH - Math.round(outH * 0.045)
-        const grad = `<svg width="${outW}" height="${outH}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0.7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.6"/></linearGradient></defs><rect width="${outW}" height="${outH}" fill="url(#g)"/>${captionPlate(outW / 2, capY, [line], F, F)}<text x="${outW / 2}" y="${capY}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(line)}</text></svg>`
+        const grad = `<svg width="${outW}" height="${outH}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0.7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.6"/></linearGradient></defs><rect width="${outW}" height="${outH}" fill="url(#g)"/>${captionSvg(outW / 2, capY, lines, F)}</svg>`
         overlays.push({ input: Buffer.from(grad), left: 0, top: 0 })
       }
       return await base.composite(overlays).png().toBuffer()
@@ -268,9 +286,9 @@ async function composeBuffers(bufs, metas) {
       const c = cap(0)
       if (c) {
         const F = Math.round(30 * S)
-        const line = wrapText(c, Math.max(10, Math.floor(box.w / (F * 0.5))))[0]
+        const lines = wrapText(c, Math.max(10, Math.floor(box.w / (F * 0.5)))).slice(0, CAPTION_MAX_LINES)
         const cy = Math.min(Math.round(box.y + box.h + Math.round(30 * S)), H - Math.round(30 * S))
-        overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${captionPlate(W / 2, cy, [line], F, F)}<text x="${W / 2}" y="${cy}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f7f2ea">${escapeXml(line)}</text></svg>`), left: 0, top: 0 })
+        overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${captionSvg(W / 2, cy, lines, F)}</svg>`), left: 0, top: 0 })
       }
       return await base.composite(overlays).png().toBuffer()
     }
@@ -330,10 +348,10 @@ async function composeBuffers(bufs, metas) {
     const c = cap(i)
     if (c) {
       const F = Math.round(22 * S)
-      const line = wrapText(c, Math.max(8, Math.floor(box.w / (F * 0.5))))[0]
+      const lines = wrapText(c, Math.max(8, Math.floor(box.w / (F * 0.5)))).slice(0, CAPTION_MAX_LINES)
       const cy = Math.min(Math.round(box.y + box.h + Math.round(34 * S)), cl.y + cl.h - Math.round(6 * S))
       const ccx = Math.round(box.x + box.w / 2)
-      capParts.push(`${captionPlate(ccx, cy, [line], F, F)}<text x="${ccx}" y="${cy}" text-anchor="middle" font-family="${SERIF}" font-size="${F}" fill="#f4eee4">${escapeXml(line)}</text>`)
+      capParts.push(captionSvg(ccx, cy, lines, F, '#f4eee4'))
     }
   }
   if (capParts.length) overlays.push({ input: Buffer.from(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${capParts.join('')}</svg>`), left: 0, top: 0 })

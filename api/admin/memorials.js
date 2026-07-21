@@ -948,10 +948,23 @@ module.exports = async function handler(req, res) {
       const isBookField = field === 'book_v1' || field === 'book_v2'
       let orphanPaths = []
       if (isBookField) {
-        const { data: existing } = await supabase.from('memorials').select(field).eq('id', code).single()
+        const { data: existing } = await supabase.from('memorials')
+          .select(`${field}, uploaded_images`).eq('id', code).single()
         const oldPaths = collectImagePaths(existing?.[field])
         const newPaths = new Set(collectImagePaths(text))
-        orphanPaths = [...new Set(oldPaths.filter(p => p && !newPaths.has(p)))]
+        // HOCHGELADENE Originalfotos sind NIE Waisen, auch wenn sie gerade nicht
+        // (mehr) im Buch referenziert sind: sie gehoeren dem Nutzer, stehen in
+        // memorials.uploaded_images und werden nur ueber den Upload-Endpunkt
+        // bzw. die Loeschung des ganzen Buchs entfernt. Ohne diesen Schutz
+        // reichte es, ein echtes Foto als Cover zu setzen und das Cover danach
+        // zu wechseln — das Original war dann samt Thumbnail unwiederbringlich
+        // geloescht (genau so ist es einmal passiert).
+        const protectedPaths = new Set()
+        for (const u of (Array.isArray(existing?.uploaded_images) ? existing.uploaded_images : [])) {
+          if (u?.path) protectedPaths.add(String(u.path).replace(/^\/+/, ''))
+          if (u?.thumb_path) protectedPaths.add(String(u.thumb_path).replace(/^\/+/, ''))
+        }
+        orphanPaths = [...new Set(oldPaths.filter(p => p && !newPaths.has(p) && !protectedPaths.has(String(p).replace(/^\/+/, ''))))]
       }
 
       // Generierungs-Zeitstempel mitschreiben (für den Tagesreport: "neu erzeugte

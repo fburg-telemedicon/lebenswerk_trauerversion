@@ -2257,7 +2257,8 @@ Regeln:
       // Seitenzahl am Buch festhalten — sie bestimmt die Rückenstärke des Covers
       // und schaltet den Cover-Button frei.
       if (pages && pages !== data.print_pages) {
-        const updated = { ...data, print_pages: pages }
+        // Auch hier auf den frischen Stand schreiben (siehe freshBook).
+        const updated = { ...(await freshBook(gen.field)), print_pages: pages }
         await adminSaveMemorialText(token, selected.id, gen.field, updated)
         setSelected(s => ({ ...s, [gen.field]: updated }))
         setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, [gen.field]: updated } : x))
@@ -2315,6 +2316,22 @@ Regeln:
   // Cover-Hintergrund sicherstellen: vorhandenen wiederverwenden, sonst erzeugen und
   // am Buch speichern. Gibt die signierte Bild-URL zurück. Genutzt von Druck-Cover
   // UND E-Book (beide brauchen denselben Hintergrund).
+  // Holt den AKTUELLEN Buchstand vom Server. Notwendig vor jedem Speichern, das
+  // ein bestehendes Buch fortschreibt: `selected` kann beliebig alt sein (offener
+  // Tab, parallel arbeitender Kollege, serverseitiger Job). Wer das ganze
+  // Buchobjekt aus `selected` zurueckschreibt, macht daraus ein blindes
+  // Ueberschreiben — so gingen schon einmal frisch gesetzte Kapitelbilder und
+  // die Buchsprache verloren.
+  async function freshBook(field) {
+    const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+    if (!r.ok) throw new Error('Aktueller Buchstand konnte nicht geladen werden.')
+    const all = await r.json()
+    const m = all.find(x => x.id === selected.id)
+    if (!m) throw new Error('Buch nicht mehr gefunden.')
+    setMemorials(all); setSelected(m)
+    return m[field]
+  }
+
   async function ensureCoverBackground(key) {
     const gen = GENERATORS[key]
     const book = selected?.[gen.field]
@@ -2334,7 +2351,10 @@ Regeln:
       setErr('')
       // Der alte Hintergrund wird beim Speichern serverseitig aufgeräumt
       // (collectImagePaths kennt cover_image_path).
-      const updated = { ...book, cover_image_path: storagePath, cover_image_style: style, cover_prompt_v: COVER_PROMPT_VERSION }
+      // NUR die Cover-Felder auf den FRISCHEN Serverstand legen — nicht das
+      // (moeglicherweise veraltete) `book` aus dem State zurueckschreiben.
+      const current = await freshBook(gen.field)
+      const updated = { ...current, cover_image_path: storagePath, cover_image_style: style, cover_prompt_v: COVER_PROMPT_VERSION }
       await adminSaveMemorialText(token, selected.id, gen.field, updated)
       // Neu laden, damit die signierte URL für den frischen Hintergrund ankommt.
       const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
