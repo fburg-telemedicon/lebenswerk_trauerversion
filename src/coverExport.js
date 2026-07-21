@@ -323,12 +323,37 @@ const ASC = 0.75, DESC = 0.25   // Ober-/Unterlänge der Standardfonts, in em
 // Hauptinhalt unten liegt, verdeckt der Streifen dort sonst genau das Motiv.
 // 'top' setzt beide nach oben; alle anderen Werte lassen den Streifen unten,
 // wo er bisher immer stand (unveränderte Wirkung für bestehende Bücher).
+// ── Polnisch & Co. auf dem Umschlag ───────────────────────────────
+// Die jsPDF-Standardfonts (times/helvetica) können nur Latin-1. Titel und
+// Untertitel mit Latin-Extended-A (ś, ż, ł, ć, ą, ę, ź …) wurden damit als
+// Falschglyphen gesetzt — aus „Osiemnaście … najbliższych" wurde
+// „Osiemnaıſcie … najbliı̇szych" — und zusätzlich falsch vermessen, weil die
+// Breiten nicht stimmen. Der Innenteil löst das längst so (bookExport.js);
+// der Umschlag hat es bisher nicht getan. Gleiche Lösung, gleicher Font.
+const NEEDS_UNICODE = /[Ā-ɏ]/
+function registerUnicodeFont(doc, fonts) {
+  doc.addFileToVFS('DejaVuSerif.ttf', fonts.regular)
+  doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'normal')
+  doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'italic')
+  doc.addFileToVFS('DejaVuSerif-Bold.ttf', fonts.bold)
+  doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bold')
+  doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bolditalic')
+}
+
 export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxPos }) {
   const B = spineWidthMm(pages)
   const W = 2 * COVER.bleed + 2 * COVER.panelW + B   // 338 + B
   const H = COVER.height                              // 245
-  const HF = layout?.heading?.pdf || 'times'
-  const BF = layout?.body?.pdf || 'times'
+  let HF = layout?.heading?.pdf || 'times'
+  let BF = layout?.body?.pdf || 'times'
+  // Font einmal laden und im prep mitgeben: downloadCoverPdf/drawCoverPreview
+  // arbeiten synchron und können nicht selbst nachladen.
+  let fonts = null
+  if (NEEDS_UNICODE.test(`${title || ''} ${subtitle || ''}`)) {
+    const f = await import('./fonts/dejavuSerif.js')
+    fonts = { regular: f.DEJAVU_SERIF, bold: f.DEJAVU_SERIF_BOLD }
+    HF = 'DejaVuSerif'; BF = 'DejaVuSerif'
+  }
 
   const [bgData, bgImg, logoData, logoImg, spineData, spineImg] = await Promise.all([
     toDataUrl(bgUrl), loadImage(bgUrl),
@@ -364,6 +389,7 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxP
 
   // Textumbruch + Schriftgrade über eine jsPDF-Instanz messen (identisch zum PDF).
   const m = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [W, H] })
+  if (fonts) registerUnicodeFont(m, fonts)
   const textX = COVER.textStartX + B
   const textW = (COVER.textEndX + B) - textX
   m.setFont(HF, 'bold'); m.setFontSize(TITLE_SIZE)
@@ -376,7 +402,9 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxP
   // Rückentitel: größter Grad, der in die Rückenbreite B passt, dann so weit
   // verkleinern, bis der Titel der LÄNGE nach hineinpasst (nie kürzen).
   let spineSize = B / PT_TO_MM / (ASC + DESC)
-  let spineLine = String(title || '')
+  // Rücken trägt Titel UND Untertitel (durch · getrennt). Die Schleife unten
+  // verkleinert so lange, bis die ganze Zeile der Länge nach hineinpasst.
+  let spineLine = [String(title || ''), String(subtitle || '')].filter(Boolean).join(' · ')
   m.setFont(HF, 'bold'); m.setFontSize(spineSize)
   while (spineLine && m.getTextWidth(spineLine) > spineTextLen && spineSize > 3) {
     spineSize -= 0.25
@@ -401,7 +429,7 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxP
     B, W, H, HF, BF, bg, fg,
     images: { bgData, bgImg, logoData, logoImg, spineData, spineImg },
     spineMidX, spineBandX, spineBandW, frontX,
-    lx, ly, lw, lh,
+    lx, ly, lw, lh, fonts,
     spineLogoW, spineLogoH, spineLogoCY,
     spineLine, spineSize, spineTextW, spineTextBottom, spineTextLen,
     textX, textW, titleLines, subLines, boxH,
@@ -517,6 +545,9 @@ export function drawCoverPreview(canvasEl, p, boxYKey) {
 export function downloadCoverPdf(filename, p, boxYKey) {
   const boxY = p.boxYByPos[boxYKey] ?? p.boxYByPos.auto
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [p.W, p.H] })
+  // Font auch auf DIESER Instanz registrieren — prepareCover hat ihn nur auf der
+  // Mess-Instanz. Ohne das faellt jsPDF auf times zurueck und setzt Falschglyphen.
+  if (p.fonts) registerUnicodeFont(doc, p.fonts)
   drawCoverPdf(doc, p, boxY)
   doc.save(filename)
   return { spineMm: p.B, widthMm: p.W, heightMm: p.H }
