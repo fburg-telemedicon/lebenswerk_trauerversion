@@ -32,11 +32,19 @@ export const DEFAULT_LOGO = '/logo-lebensgeschichten.png'
 // `category` = Produktkategorie des Buchs: Ohne eigenes Firmenlogo trägt ein
 // Lebenswerk das Lebenswerk-Logo und eine Anamnese das Anamni.ai-Logo statt des
 // Lebensgeschichten-Standardlogos.
+// Logo-Quelle für ein Buch/einen Bogen: hinterlegtes Firmenlogo, sonst das
+// Produktlogo. Wird außer vom Banner auch von den Exporten (PDF/Word) genutzt,
+// damit das gedruckte Dokument dasselbe Logo trägt wie der Bildschirm.
+export function partnerLogoSrc(logoUrl, category) {
+  return logoUrl
+      || (category === 'lifework'       ? '/lebenswerk-logo.png'
+       :  category === 'anamnesis_kvsw' ? '/logo-anamni-kvsw.svg'
+       :  category === 'anamnesis'      ? '/logo-anamni.png'
+       :  DEFAULT_LOGO)
+}
+
 export function PartnerBanner({ logoUrl, category }) {
-  const fallback = category === 'lifework'       ? '/lebenswerk-logo.png'
-                 : category === 'anamnesis_kvsw' ? '/logo-anamni-kvsw.svg'
-                 : category === 'anamnesis'      ? '/logo-anamni.png'
-                 : DEFAULT_LOGO
+  const fallback = partnerLogoSrc(null, category)
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'16px 1.25rem', display:'flex', alignItems:'center', gap:12 }}>

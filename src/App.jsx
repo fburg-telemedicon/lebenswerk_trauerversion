@@ -56,7 +56,7 @@ function CoverPreview({ prep, posKey, width = 420 }) {
 import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { SupportProvider, useSupport } from './support.jsx'
-import { S, Lbl, Err, Back, Dots, PartnerBanner, col, th, FooterVisibilityCtx } from './ui.jsx'
+import { S, Lbl, Err, Back, Dots, PartnerBanner, partnerLogoSrc, col, th, FooterVisibilityCtx } from './ui.jsx'
 import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
@@ -2182,9 +2182,11 @@ function Dashboard() {
   // Entstehungs-Hinweis statt des Buch-Hinweises.
   function textExportOpts() {
     return {
-      logo: selected?.owner_logo,
+      // Firmenlogo des Managers; ist keins hinterlegt, das Produktlogo (wie im
+      // Banner des Beitragenden-Flows) — so trägt jeder Bogen ein Logo.
+      logo: partnerLogoSrc(selected?.owner_logo, selected?.product_category),
       ...(isAnamnesis(selected?.product_category)
-        ? { disclaimerTitle: FORM_DISCLAIMER_TITLE, disclaimerText: FORM_DISCLAIMER }
+        ? { disclaimerTitle: FORM_DISCLAIMER_TITLE, disclaimerText: FORM_DISCLAIMER, emphasizeLabels: true }
         : {}),
     }
   }
