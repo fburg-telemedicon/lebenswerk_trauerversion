@@ -857,8 +857,14 @@ module.exports = async function handler(req, res) {
       // Auftragsdaten (Stammdaten des Buchs) bearbeiten. Nur die mitgesendeten
       // Felder werden aktualisiert; Validierung/Normalisierung wie bei POST.
       if (meta && typeof meta === 'object') {
-        // Anamnese (Reha + KVSW): Patientenname und betreuende Ärztin/Arzt dürfen leer sein.
-        if (!isAnamnesisCategory(meta.productCategory)) {
+        // Endnutzer-Kategorien (Lebenswerk + Anamnese): Name und Organisator dürfen
+        // leer bleiben — beim Anlegen sind sie dort ausdrücklich optional (der
+        // Endnutzer trägt seinen Namen beim ersten Start selbst nach, siehe POST:
+        // `if (!name && !isEnduser)`). Bisher prüfte das PATCH nur die Anamnese;
+        // ein Lebenswerk OHNE Namen ließ sich deshalb anlegen, aber danach nicht
+        // mehr speichern („Name darf nicht leer sein.") — jede spätere Änderung war
+        // blockiert, bis jemand einen Namen erfand.
+        if (!isEnduserCategory(meta.productCategory)) {
           if (meta.name != null && !String(meta.name).trim()) return res.status(400).json({ error: 'Name darf nicht leer sein.' })
           if (meta.organizer != null && !String(meta.organizer).trim()) return res.status(400).json({ error: 'Organisator darf nicht leer sein.' })
         }

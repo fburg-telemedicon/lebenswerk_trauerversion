@@ -4,6 +4,7 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Behoben: Ein Lebenswerk ohne Namen ließ sich anlegen, danach aber nicht mehr speichern — jede spätere Änderung scheiterte an „Name darf nicht leer sein“. Beim Anlegen ist der Name dort ausdrücklich optional (der Erzähler trägt ihn beim ersten Start selbst nach); die Prüfung beim Speichern kannte diese Ausnahme nur für die Anamnese.",
         "Gastbeiträge lassen sich jetzt schon beim Anlegen eines Lebenswerks einschalten (Expertenmodus der Anlage-Maske). Bisher gab es den Schalter erst nach dem Speichern in den Auftragsdaten des fertigen Buchs — wer ihn beim Anlegen suchte, fand ihn nicht. Gast-Link und QR-Code stehen damit sofort nach dem Anlegen bereit.",
         "Vor der Mikrofon-Abfrage erklärt die App jetzt kurz, was gleich passiert und warum — und weist darauf hin, dass ein „Blockieren“ dauerhaft gilt. Das ist wichtiger, als es klingt: Wer im Browser-Dialog einmal blockiert, wird nie wieder gefragt und kann ohne Änderung in den Geräte-Einstellungen gar nicht erzählen. Wer möchte, kann die Entscheidung auch aufschieben; dann kommt die Frage beim ersten Tippen aufs Mikrofon. In allen 13 Sprachen.",
         "Lebenswerk: Die Zahl der Vertiefungsfragen je Thema steht bei neuen Büchern jetzt auf 2 statt 7. Beim Erzählen eines ganzen Lebens halten zu viele Nachfragen die erzählende Person an einer Station fest, statt die Lebensstationen abzuschreiten.",
