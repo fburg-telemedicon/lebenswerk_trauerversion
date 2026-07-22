@@ -4,6 +4,7 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Foto-Auswahl: Die Galerie bot auf Android auch Videos an, obwohl nur Fotos verarbeitet werden können. Ursache waren zusätzliche Formatangaben im Auswahlfeld, die Android dazu brachten, einfach alle Dateien anzuzeigen. Jetzt erscheinen nur noch Bilder — und wer doch ein Video erwischt, liest jetzt „Videos können nicht hochgeladen werden“ statt einer technischen Fehlermeldung (in allen 13 Sprachen).",
         "Buchliste: Führte ein Spaltenfilter zu einem leeren Ergebnis, ließ sich das Filtermenü nicht mehr öffnen — man kam nur noch über „Filter zurücksetzen“ oben wieder heraus. Ursache war, dass das aufgeklappte Menü an der Unterkante der (dann sehr flachen) Tabelle abgeschnitten wurde. Zusätzlich steht jetzt ein Hinweis „Kein Buch passt zu den gesetzten Filtern“ mit einem Zurücksetzen-Knopf direkt in der Tabelle.",
         "Foto-Upload: Fotos aus der Handy-Galerie wurden teils abgewiesen, bevor überhaupt etwas hochgeladen wurde. Die Prüfung im Browser war zu streng — Android-Galerien liefern Dateien oft ohne Formatangabe, und neuere Formate wie AVIF fehlten in der Liste. Jetzt wird nur noch abgelehnt, was erkennbar kein Bild ist.",
         "Foto-Upload: Wenn ein Bild wirklich nicht verarbeitet werden kann, steht jetzt der Grund da („Bildformat nicht unterstützt“, „Bild ist zu groß“) statt „Bitte später erneut versuchen“ — ein HEIC-Foto vom iPhone funktioniert auch morgen nicht, der Hinweis war irreführend.",

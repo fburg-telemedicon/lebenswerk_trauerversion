@@ -1332,6 +1332,12 @@ function ContributorPhotoUpload({ code, contribId, t }) {
     // Jetzt umgekehrt: Nur ablehnen, was ERKENNBAR kein Bild ist (Video, PDF …).
     // Alles andere wird versucht; scheitert es wirklich, meldet das der Server.
     const type = String(file.type || '')
+    if (/^video\//.test(type)) {
+      // Häufigster Fehlgriff in der Galerie — deshalb eine eigene, klare Meldung
+      // statt eines technischen Fehlers.
+      setErr(t.uploadNoVideo || 'Videos können nicht hochgeladen werden – bitte ein Foto auswählen.')
+      return
+    }
     const clearlyNotImage = type && !/^image\//.test(type) && !/^application\/octet-stream$/.test(type)
     if (clearlyNotImage) {
       setErr(`${t.uploadError} (${type})`)
@@ -1377,7 +1383,11 @@ function ContributorPhotoUpload({ code, contribId, t }) {
       {!staged ? (
         <label className="secondary" style={{ display:'inline-block', cursor:'pointer', padding:'10px 16px', borderRadius:8, fontSize:14 }}>
           {t.uploadPick}
-          <input type="file" accept="image/*,.heic,.heif" onChange={onPick} style={{ display:'none' }} />
+          {/* NUR `image/*`: Die zusätzlichen Endungen .heic/.heif führten auf Android
+              dazu, dass die Galerie ALLE Dateien anbot — also auch Videos, die hier
+              nichts verloren haben. iOS braucht sie nicht: Safari bietet bei image/*
+              die Fotomediathek an und wandelt HEIC beim Auswählen selbst in JPEG um. */}
+          <input type="file" accept="image/*" onChange={onPick} style={{ display:'none' }} />
         </label>
       ) : (
         <div>

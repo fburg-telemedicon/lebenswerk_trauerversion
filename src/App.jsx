@@ -410,7 +410,9 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange, category
         ) : (
           <label className="secondary" style={{ display:'inline-block', cursor: busy ? 'default' : 'pointer', padding:'9px 16px', borderRadius:8, fontSize:14, opacity: busy ? 0.6 : 1 }}>
             {busy ? 'Wird hochgeladen …' : (docMode ? '＋ Dokument hochladen' : '＋ Foto hochladen')}
-            <input type="file" accept="image/*,.heic,.heif" onChange={onPick} disabled={busy} style={{ display:'none' }} />
+            {/* siehe ContributorPhotoUpload: .heic/.heif im accept öffnet auf Android
+                die Dateiauswahl für ALLES (inkl. Videos); image/* genügt auch für iOS. */}
+            <input type="file" accept="image/*" onChange={onPick} disabled={busy} style={{ display:'none' }} />
           </label>
         )}
       </div>
