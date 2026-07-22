@@ -249,7 +249,7 @@ function appleGuess() {
 const CTX_LABELS = {
   role: 'Rolle', code: 'Buch-Code', category: 'Kategorie', view: 'Ansicht',
   lang: 'Sprache', lastError: 'Letzte Meldung', device: 'Gerät', model: 'Modell',
-  screen: 'Bildschirm', micPerm: 'Mikrofon-Freigabe',
+  screen: 'Bildschirm', micPerm: 'Mikrofon-Freigabe', wakeLock: 'Bildschirm wach halten',
   browser: 'Browser', bundle: 'App-Version', time: 'Zeitpunkt',
 }
 const MIC_PERM_LABEL = { granted: 'erteilt', denied: 'blockiert', prompt: 'noch nicht entschieden', unknown: 'unbekannt' }
@@ -271,6 +271,9 @@ function buildContext(opts) {
   if (!ctx.model) { const g = appleGuess(); if (g) ctx.model = g }
   try { ctx.screen = `${window.screen?.width || '?'}×${window.screen?.height || '?'} @${window.devicePixelRatio || 1}x` } catch { /* egal */ }
   if (opts.micPerm) ctx.micPerm = MIC_PERM_LABEL[opts.micPerm] || String(opts.micPerm)
+  // Hält der Browser den Bildschirm wach? (iOS erst ab 16.4 — häufige Ursache für
+  // „das Gespräch bricht ab", ohne dass der Nutzer etwas falsch macht.)
+  try { ctx.wakeLock = navigator.wakeLock?.request ? 'unterstützt' : 'NICHT unterstützt (Bildschirm schläft)' } catch { /* egal */ }
   try { ctx.browser = navigator.userAgent } catch { /* egal */ }
   const b = bundleMarker(); if (b) ctx.bundle = b
   ctx.time = new Date().toISOString()

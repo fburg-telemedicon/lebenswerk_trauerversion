@@ -40,6 +40,45 @@ const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Aut
 const MIC_PAUSE_MS          = 2500    // Freisprech: Sprechpause nach Sprache → Auto-Stopp+Senden
 const MIC_NOSPEECH_MS       = 15000   // Freisprech: gar keine Sprache → Runde beenden
 
+// ── Bildschirmsperre verhindern (Screen Wake Lock) ───────────────────────────
+// Beim Erzählen fasst niemand das Handy an — nach 30 Sekunden ging der Bildschirm
+// aus, die Aufnahme lief ins Leere und das Gespräch riss ab. Die Screen-Wake-Lock-
+// API hält den Bildschirm an, solange die Seite SICHTBAR ist.
+//
+// Zwei Eigenheiten, die das Verhalten erklären:
+//  • Der Lock wird vom Browser automatisch freigegeben, sobald der Tab in den
+//    Hintergrund geht (App gewechselt, Bildschirm manuell gesperrt). Deshalb holen
+//    wir ihn bei jedem `visibilitychange` neu — sonst ist er nach dem ersten
+//    Weggucken für immer weg.
+//  • Unterstützung: Android Chrome seit Version 84, iOS Safari **erst ab 16.4**.
+//    Auf älteren iPhones gibt es keinen Weg, das aus einer Web-App zu verhindern
+//    (die kursierenden Video-Tricks greifen in die Audio-Sitzung ein und würden
+//    hier Aufnahme und Vorlesen stören). Dort schläft der Bildschirm weiter.
+function useWakeLock(active) {
+  useEffect(() => {
+    if (!active || !navigator.wakeLock?.request) return
+    let released = false
+    let lock = null
+    const acquire = async () => {
+      if (released || document.visibilityState !== 'visible') return
+      try {
+        lock = await navigator.wakeLock.request('screen')
+        // Der Browser kann den Lock jederzeit selbst aufheben (Akku, Systemdialog).
+        lock.addEventListener?.('release', () => { lock = null })
+      } catch { /* z. B. Akkusparmodus → nicht weiter tragisch */ }
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible' && !lock) acquire() }
+    acquire()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      released = true
+      document.removeEventListener('visibilitychange', onVisible)
+      try { lock?.release() } catch { /* egal */ }
+      lock = null
+    }
+  }, [active])
+}
+
 // ── Mikrofon-Freigabe gleich beim Start anfragen ─────────────────────────────
 // Eine Web-App kann die Systemeinstellungen NICHT selbst öffnen (das können nur
 // native Apps) — sie kann aber den Berechtigungsdialog auslösen. Deshalb fragen
@@ -3191,6 +3230,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
   // globale Footer ausgeblendet. In den übrigen Schritten (Info/Fertig) bleibt er.
   useEffect(() => { setHideFooter?.(view === 'interview'); return () => setHideFooter?.(false) }, [view])
+  // Bildschirm im Interview wach halten (siehe useWakeLock).
+  useWakeLock(view === 'interview')
   // Support-Formular mit dem aktuellen Kontext (Buch, Rolle, Ansicht, Sprache) öffnen.
   const openSupportHere = (extra = {}) => openSupport({
     role: isSelf ? 'enduser' : 'contributor',
