@@ -3069,6 +3069,10 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                   [isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : 'Organisator', selected.organizer || dash],
                   ...(oci.useGender ? [['Geschlecht', selected.gender || dash]] : []),
                   ...((oci.extra || []).map(f => [f.label.replace(/\s*\*$/, ''), (f.options?.find(o => o.value === selected.intake?.[f.key])?.label) || selected.intake?.[f.key] || dash])),
+                  // Kontakt-E-Mail: kommt aus der Anlage-Maske oder (bei Lebenswerk/
+                  // Anamnese) aus einer Support-Anfrage. Muss löschbar sein — leeres
+                  // Feld speichern entfernt sie.
+                  ['Kontakt-E-Mail', selected.enduser_email || selected.intake?.contact_email || dash],
                   ...(oci.useDate ? [[oci.dateLabel, selected.funeral_date ? new Date(selected.funeral_date).toLocaleDateString('de-DE') : dash]] : []),
                   ...(oci.useCutoff ? [['Erfassung bis', selected.funeral_date ? `${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : `${cutoffDays(selected)} Tage vorher`]] : []),
                   ['Sprachen', orderLangLabels],
@@ -3129,6 +3133,20 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                     )}
                   </div>
                 ))}
+                {/* Kontakt-E-Mail. Leeren + speichern löscht sie vom Buch. Bei den
+                    Endnutzer-Kategorien kann sie zusätzlich aus dem Endnutzer-Konto
+                    stammen (enduser_email) — die steht am Konto, nicht am Buch, und
+                    ist hier deshalb nur zur Information sichtbar. */}
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Kontakt-E-Mail</Lbl>
+                  <input type="email" value={od.intake?.contact_email || ''} placeholder="z. B. name@example.de"
+                    onChange={e => setOd({ intake: { ...od.intake, contact_email: e.target.value } })} />
+                  <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                    {selected.enduser_email
+                      ? <>Anmeldeadresse des Endnutzers: <strong>{selected.enduser_email}</strong> (steht am Konto, nicht am Buch — hier nicht änderbar).</>
+                      : <>Feld leeren und speichern entfernt die Adresse vom Buch.</>}
+                  </p>
+                </div>
                 {oci.useDate && (
                   <div style={{ marginBottom:14 }}>
                     <Lbl>{oci.dateLabel}</Lbl>

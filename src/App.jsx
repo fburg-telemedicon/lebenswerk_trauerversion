@@ -943,6 +943,12 @@ function Dashboard() {
     // Bei Selbst-Interviews (Lebenswerk, Anamnese) sind Name + Organisator optional
     // — der Endnutzer/Patient trägt seinen Namen ggf. selbst beim Start nach.
     if (!isAnamnesis(selected.product_category) && selected.product_category !== 'lifework' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
+    // Kontakt-E-Mail: leer = löschen. Der Schlüssel wird ENTFERNT statt auf ''
+    // gesetzt, sonst bliebe eine leere Adresse als Feld stehen und Prüfungen wie
+    // `if (!intake.contact_email)` verhielten sich uneinheitlich.
+    const intake = { ...(d.intake || {}) }
+    const mail = String(intake.contact_email || '').trim()
+    if (mail) intake.contact_email = mail; else delete intake.contact_email
     setOrderSaving(true); setErr('')
     try {
       const saved = await adminUpdateMemorialMeta(token, selected.id, {
@@ -950,7 +956,7 @@ function Dashboard() {
         bookVariant: d.bookVariant, funeralDate: d.funeralDate || null,
         cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo, showTranscript: d.showTranscript,
         showContributors: d.showContributors, photoUploadTab: d.photoUploadTab,
-        intake: d.intake, languages: d.languages, note: d.note,
+        intake, languages: d.languages, note: d.note,
         pickupAddress: d.pickupAddress,
         imageStyle: d.imageStyle,
         bookLayout: d.bookLayout,
@@ -987,7 +993,7 @@ function Dashboard() {
         show_transcript: d.showTranscript !== false,
         show_contributors: d.showContributors !== false,
         photo_upload_tab: d.photoUploadTab === true,
-        intake: d.intake && Object.keys(d.intake).length ? d.intake : (d.intake || null),
+        intake: Object.keys(intake).length ? intake : null,
         languages: (d.languages && d.languages.length) ? d.languages : ['de'],
         note: d.note.trim() || null,
         pickup_address: hasAddr ? { ...pa, country: (pa.country || '').trim() || 'Deutschland' } : null,
