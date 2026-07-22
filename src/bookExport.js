@@ -398,10 +398,15 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
 
   const newPage = () => { doc.addPage([PDF_PAGE_W, PDF_PAGE_H]); page++ }
   const isRecto = p => p % 2 === 1
+  // opts.parity (Default true): Kapitel rechts beginnen lassen und dafür ggf. eine
+  // LEERE Seite einschieben. Das ist reine Drucklogik (im gebundenen Buch ist die
+  // Parität sichtbar). Im E-Book gibt es keine linke/rechte Seite — dort wirken
+  // die Leerseiten wie ein Fehler, deshalb `parity: false`.
+  const parity = opts.parity !== false
   // Auf die nächste rechte Seite springen (ggf. eine leere linke Seite davor).
-  const startRecto = () => { newPage(); if (!isRecto(page)) { pageEmpty.add(page); newPage() } }
+  const startRecto = () => { newPage(); if (parity && !isRecto(page)) { pageEmpty.add(page); newPage() } }
   // Auf die nächste linke Seite springen (für die linke Bildhälfte).
-  const startVerso = () => { newPage(); if (isRecto(page)) { pageEmpty.add(page); newPage() } }
+  const startVerso = () => { newPage(); if (parity && isRecto(page)) { pageEmpty.add(page); newPage() } }
 
   // Eine Hälfte des Cover-skalierten Doppelseiten-Bildes randlos setzen.
   // side: 'left' zeigt Doppelseiten-Bereich 0…154, 'right' zeigt 154…308.
@@ -467,8 +472,10 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
     if (img) {
       startVerso(); drawHalf(img, 'left')   // linke Seite: linke Bildhälfte
       newPage();    drawHalf(img, 'right')  // rechte Seite: rechte Bildhälfte
-      newPage(); pageEmpty.add(page)        // leere linke Seite
-      newPage()                             // rechte Seite: Kapitelbeginn
+      newPage()                             // Kapitelbeginn …
+      // … im Druck erst nach einer leeren linken Seite, damit das Kapitel rechts
+      // anfängt. Im E-Book (parity:false) folgt der Text direkt aufs Bild.
+      if (parity) { pageEmpty.add(page); newPage() }
     } else {
       startRecto()                          // ohne Bild trotzdem rechts beginnen
     }
@@ -579,9 +586,10 @@ export async function downloadEbookPdf(filename, book, contributors = [], logoDa
     prepareEbookCoverPage({ bgUrl: opts.coverBgUrl, side: 'back', layout, boxPos: opts.coverBoxPos, maxPx: imgMaxPx, quality: imgQuality }),
   ])
 
-  // Innenteil identisch zum Druck bauen (ohne 4er-Auffüllung), aber mit
-  // verkleinerten JPEG-Bildern und komprimierten PDF-Streams.
-  const { doc } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, { ...opts, pad4: false, compress: true, imageMaxPx: imgMaxPx, imageQuality: imgQuality })
+  // Innenteil wie beim Druck, aber ohne die reine Drucklogik: keine 4er-Auffüllung
+  // (pad4) und keine Leerseiten für den rechts beginnenden Kapitelanfang (parity).
+  // Dazu verkleinerte JPEG-Bilder und komprimierte PDF-Streams.
+  const { doc } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, { ...opts, pad4: false, parity: false, compress: true, imageMaxPx: imgMaxPx, imageQuality: imgQuality })
 
   // Rückseite hinten anhängen (nach der Nummerierung → bekommt keine Seitenzahl).
   doc.addPage([PDF_PAGE_W, PDF_PAGE_H])
