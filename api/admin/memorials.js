@@ -29,7 +29,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, guest_enabled, guest_code`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -883,6 +883,19 @@ module.exports = async function handler(req, res) {
         if ('micManualStop' in meta) update.mic_manual_stop = meta.micManualStop === true
         if ('micModeSwitch' in meta) update.mic_mode_switch = meta.micModeSwitch !== false
         if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
+        // Gastbeiträge (nur Lebenswerk): Der Gast-Link ist ein EIGENES Geheimnis.
+        // Der Code wird beim ERSTEN Einschalten erzeugt und danach behalten —
+        // Ausschalten sperrt den Link, macht aber bereits gedruckte QR-Codes nicht
+        // dauerhaft wertlos, weil dasselbe Geheimnis beim Wiedereinschalten gilt.
+        if ('guestEnabled' in meta && meta.productCategory === LIFEWORK) {
+          const on = meta.guestEnabled === true
+          update.guest_enabled = on
+          if (on) {
+            await ensureLifeworkSchema()
+            const { data: cur } = await supabase.from('memorials').select('guest_code').eq('id', code).maybeSingle()
+            if (!cur?.guest_code) update.guest_code = genCode()
+          }
+        }
         if ('proofMax' in meta)      update.proof_max = sanitizeProofMax(meta.proofMax)
         if ('showOnboarding' in meta) update.show_onboarding = meta.showOnboarding !== false
         // Verbrauchte Probedrucke zurücksetzen (Admin gewährt neue Versuche).
@@ -894,7 +907,9 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|guest_enabled|guest_code|column/i.test(error.message || '')) {
+          delete update.guest_enabled
+          delete update.guest_code
           delete update.image_style
           delete update.book_layout
           delete update.text_style
@@ -916,7 +931,9 @@ module.exports = async function handler(req, res) {
         }
         if (error) throw error
         await audit(req, { actor: req.auth, action: 'memorial.update', target: code, detail: { meta: Object.keys(update) } })
-        return res.json({ ok: true })
+        // Ein frisch erzeugter Gast-Code muss zurück an die Oberfläche, sonst
+        // stünde der zweite Link erst nach einem Neuladen zur Verfügung.
+        return res.json({ ok: true, ...(update.guest_code ? { guestCode: update.guest_code } : {}) })
       }
 
       // family_tree / life_poster: die extrahierten Strukturen der beiden

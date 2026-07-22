@@ -878,6 +878,7 @@ function Dashboard() {
       micModeSwitch: m.mic_mode_switch !== false,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
+      guestEnabled: m.guest_enabled === true,
       showOnboarding: m.show_onboarding !== false,
       // Fragebogen (nur Anamnese im Detail editierbar): gespeicherte catalog_id auf
       // die UI-Werte abbilden — keiner → '__free__' (freie Fragen), ein in der
@@ -909,7 +910,7 @@ function Dashboard() {
     if (!isAnamnesis(selected.product_category) && selected.product_category !== 'lifework' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
     setOrderSaving(true); setErr('')
     try {
-      await adminUpdateMemorialMeta(token, selected.id, {
+      const saved = await adminUpdateMemorialMeta(token, selected.id, {
         name: d.name, organizer: d.organizer, gender: d.gender || null,
         bookVariant: d.bookVariant, funeralDate: d.funeralDate || null,
         cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo, showTranscript: d.showTranscript,
@@ -930,6 +931,8 @@ function Dashboard() {
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
+        // Gastbeiträge (nur Lebenswerk; das Backend ignoriert das Feld sonst).
+        guestEnabled: d.guestEnabled === true,
         // Fragebogen NUR bei der Anamnese mitschicken (dort gibt es den Detail-Picker).
         // Bei anderen Kategorien nicht senden → deren catalog_id/followups bleiben unberührt.
         ...(isAnamnesis(selected.product_category) ? { catalogId: d.catalogId, followups: d.followups } : {}),
@@ -966,6 +969,10 @@ function Dashboard() {
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
+        guest_enabled: d.guestEnabled === true,
+        // Beim ERSTEN Einschalten erzeugt das Backend den Gast-Code und gibt ihn
+        // zurück; danach bleibt der bestehende erhalten.
+        ...(saved && saved.guestCode ? { guest_code: saved.guestCode } : {}),
         // Fragebogen wird (wie oben beim Speichern) NUR bei der Anamnese mitgeschickt
         // → auch nur dort lokal spiegeln, damit der Detail-Picker nach dem Speichern
         // nicht auf den alten Wert zurückspringt. Normalisierung wie im Backend:

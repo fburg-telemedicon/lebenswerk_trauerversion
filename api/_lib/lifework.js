@@ -209,8 +209,19 @@ async function ensureLifeworkSchema() {
       add column if not exists gamification boolean,
       add column if not exists hands_free boolean,
       add column if not exists mic_manual_stop boolean,
-      add column if not exists mic_mode_switch boolean
+      add column if not exists mic_mode_switch boolean,
+      add column if not exists guest_enabled boolean,
+      add column if not exists guest_code varchar(16)
   `)
+  // Gastbeiträge: Der Gast-Link ist ein EIGENES Geheimnis, nicht der Buch-Code —
+  // beim Lebenswerk ist der Buch-Code die einzige Berechtigung des Endnutzers
+  // (Einstellungen, Korrekturabzug, Buchbearbeitung). Der Gast-Code wird beim
+  // Nachschlagen wie ein Code behandelt, muss also eindeutig sein; NULL-Werte
+  // bleiben außen vor (Teilindex), sonst kollidierten alle Bücher ohne Gastlink.
+  await pool().query(`
+    create unique index if not exists memorials_guest_code_uidx
+      on memorials (guest_code) where guest_code is not null
+  `).catch(() => {})
   schemaReady = true
 }
 

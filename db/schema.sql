@@ -50,7 +50,11 @@ create table if not exists question_catalogs (
 -- memorials (Gedenkbücher / Projekte)
 -- ----------------------------------------------------------------------------
 create table if not exists memorials (
-  id               varchar(6)  primary key,
+  -- Zugangscode. genCode() liefert 10 Zeichen (api/_lib/codes.js); varchar(6)
+  -- stammt aus der Anfangszeit und haette bei einer Neuinstallation jeden Code
+  -- abgeschnitten. Bestehende Installationen wurden per api/admin/db-maint.js
+  -- verbreitert. Alte 6-stellige Codes bleiben gueltig.
+  id               varchar(16) primary key,
   name             text        not null,
   birth_year       text,
   death_year       text,
@@ -83,17 +87,26 @@ create table if not exists memorials (
   book_v2_at       timestamptz,
   eulogy_at        timestamptz,
   catalog_id       uuid        references question_catalogs(id) on delete set null,
-  followups        integer     not null default 7
+  followups        integer     not null default 7,
+  -- Gastbeitraege zum Lebenswerk: eigener Zugangscode fuer weitere Beitragende.
+  -- Bewusst NICHT der Buch-Code — der ist beim Lebenswerk die einzige
+  -- Berechtigung des Endnutzers (Einstellungen, Korrekturabzug, Buchbearbeitung).
+  guest_enabled    boolean,
+  guest_code       varchar(16)
 );
 create index if not exists memorials_owner_user_idx on memorials(owner_user);
+-- Der Gast-Code wird wie ein Zugangscode nachgeschlagen und muss eindeutig sein;
+-- Buecher ohne Gastlink (NULL) bleiben ausserhalb des Teilindex.
+create unique index if not exists memorials_guest_code_uidx
+  on memorials (guest_code) where guest_code is not null;
 create index if not exists memorials_catalog_id_idx on memorials(catalog_id);
 
 -- ----------------------------------------------------------------------------
 -- contributions (Interview-Beiträge)
 -- ----------------------------------------------------------------------------
 create table if not exists contributions (
-  id                     text        primary key,   -- „geheime" Beitrags-ID, 6–14 Zeichen (NICHT varchar(6))
-  memorial_id            varchar(6)  not null references memorials(id) on delete cascade,
+  id                     text        primary key,   -- „geheime" Beitrags-ID, 6–14 Zeichen (deshalb text, nicht varchar)
+  memorial_id            varchar(16) not null references memorials(id) on delete cascade,
   contributor_name       text        not null,
   relationship           text        not null,
   messages               jsonb       not null default '[]',

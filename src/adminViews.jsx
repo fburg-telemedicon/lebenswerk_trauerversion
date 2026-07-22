@@ -2389,7 +2389,12 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
               <div style={{ minWidth:0 }}>
-                <Lbl>{t('Einladungslink (für Beitragende)', 'Invitation link (for contributors)')}</Lbl>
+                {/* Beim Lebenswerk ist dieser Link der Zugang des Endnutzers SELBST —
+                    er öffnet Einstellungen, Korrekturabzug und Buchbearbeitung und darf
+                    deshalb nicht an Beitragende gehen. Dafür gibt es den Gast-Link unten. */}
+                <Lbl>{selected.product_category === 'lifework'
+                  ? 'Zugangslink (nur für den Endnutzer)'
+                  : t('Einladungslink (für Beitragende)', 'Invitation link (for contributors)')}</Lbl>
                 <a
                   href={inviteUrl}
                   target="_blank"
@@ -2414,6 +2419,43 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
               </button>
             </div>
           </div>
+
+          {/* Gastbeiträge: zweiter Link mit EIGENEM Code, für Angehörige und Freunde.
+              Erscheint nur beim Lebenswerk und nur, wenn die Experteneinstellung an ist. */}
+          {selected.product_category === 'lifework' && selected.guest_enabled === true && selected.guest_code && (
+            <div style={{ ...S.card, marginBottom:'1.5rem', borderColor:'#bbf7d0', background:'#f0fdf4' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+                <div style={{ minWidth:0 }}>
+                  <Lbl>Gast-Link (für Angehörige und Freunde)</Lbl>
+                  <a
+                    href={`${window.location.origin}/?code=${selected.guest_code}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display:'block', fontFamily:'monospace', fontSize:13, wordBreak:'break-all', color:'#15803d', marginTop:6, textDecoration:'underline' }}
+                  >{`${window.location.origin}/?code=${selected.guest_code}`}</a>
+                </div>
+                <button className="secondary" onClick={() => copyInvite(selected.guest_code)} style={{ fontSize:13, flexShrink:0 }}>
+                  {copied === selected.guest_code ? t('✓ Kopiert', '✓ Copied') : t('📋 Kopieren', '📋 Copy')}
+                </button>
+              </div>
+              <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+                <img
+                  src={qrCodeUrl(`${window.location.origin}/?code=${selected.guest_code}`, 220)}
+                  alt={`QR-Code für den Gast-Link`}
+                  width={220}
+                  height={220}
+                  style={{ borderRadius:8, background:'#fff' }}
+                />
+                <button className="secondary" onClick={() => copyQR(selected.guest_code)} style={{ fontSize: 13 }}>
+                  {copied === `qr-${selected.guest_code}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
+                </button>
+              </div>
+              <p style={{ fontSize:12.5, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'8px 10px', margin:'14px 0 0' }}>
+                ⚠ <b>Noch nicht aktiv.</b> Der Link ist erzeugt und reserviert, führt aber bis zum nächsten
+                Ausbauschritt ins Leere. Bitte noch nicht verteilen oder drucken.
+              </p>
+            </div>
+          )}
 
           {/* Gutscheinnutzung: Freischaltcodes, die für DIESES Buch eingelöst wurden.
               Wird nur für Admins geladen (bookCodes bleibt sonst leer). */}
@@ -3084,6 +3126,21 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                     <span style={{ fontSize:14 }}>Umschalter für den begleiteten Modus anbieten</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Begleitperson (z. B. Pflegekraft) kann das Gespräch mit eigenem, blauem Mikrofon mitführen.</p>
+                </div>
+                )}
+                {selected.product_category === 'lifework' && (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Gastbeiträge (weitere Beitragende)</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.guestEnabled === true} onChange={e => setOd({ guestEnabled: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Zweiten Link für Angehörige und Freunde erzeugen</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>
+                    Nach dem Speichern erscheint oben ein zweiter Link samt QR-Code. Er ist ein eigenes Geheimnis —
+                    der Buch-Code selbst darf NICHT weitergegeben werden, denn er öffnet den Endnutzer-Bereich
+                    (Einstellungen, Korrekturabzug, Buchbearbeitung). Ausschalten sperrt den Gast-Link; beim
+                    Wiedereinschalten gilt derselbe Link weiter.
+                  </p>
                 </div>
                 )}
                 {selected.product_category === 'lifework' && (
