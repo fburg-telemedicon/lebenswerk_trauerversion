@@ -6,7 +6,9 @@
       "items": [
         "E-Book-Umschlag: Titel und Untertitel werden jetzt mit allen Sonderzeichen gesetzt (z. B. polnisch ś, ż, ł, ć, ą, ę). Bisher standen dort Falschzeichen.",
         "E-Book-Umschlag: Der Titel bleibt zuverlässig innerhalb der Seite. Er wurde bisher an der falschen Stelle umgebrochen und lief nach rechts über den Rand hinaus; sehr lange Wörter werden zusätzlich automatisch etwas kleiner gesetzt.",
-        "E-Book: keine leeren Seiten mehr. Die Leerseiten vor Kapitelanfängen sind Drucklogik (damit ein Kapitel im gebundenen Buch rechts beginnt) und entfallen im E-Book – der Kapiteltext folgt dort direkt auf das Kapitelbild. Die Druckversion bleibt unverändert."
+        "E-Book: keine leeren Seiten mehr. Die Leerseiten vor Kapitelanfängen sind Drucklogik (damit ein Kapitel im gebundenen Buch rechts beginnt) und entfallen im E-Book – der Kapiteltext folgt dort direkt auf das Kapitelbild. Die Druckversion bleibt unverändert.",
+        "Lebenswerk: Vorbereitung für Gastbeiträge. In den Experteneinstellungen lässt sich künftig ein zweiter Zugang für Angehörige und Freunde erzeugen, damit sie eigene Erinnerungen zu einem Lebenswerk beisteuern können. Der Schalter und der zugehörige Link samt QR-Code sind angelegt; nutzbar wird der Zugang mit dem nächsten Ausbauschritt.",
+        "Lebenswerk: Der bestehende Link auf der Buch-Detailseite heißt jetzt „Zugangslink (nur für den Endnutzer)“. Er öffnet den persönlichen Bereich des Erzählers und sollte nicht weitergegeben werden — die früher dort stehende Bezeichnung „Einladungslink“ legte genau das nahe."
       ]
     },
     {
