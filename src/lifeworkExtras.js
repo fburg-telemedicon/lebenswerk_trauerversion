@@ -14,19 +14,25 @@
 // Maße in mm, Ursprung oben links (wie coverExport.js).
 
 import { jsPDF } from 'jspdf'
-import { selfOnly } from './categories.js'
+import { selfOnly, guestOnly, guestSourceNote, contributionBlocks } from './categories.js'
 
 // ════════════════════════════════════════════════════════════════
 // 1) STAMMBAUM
 // ════════════════════════════════════════════════════════════════
 
 export function treeSystem(memorial, allContributions) {
-  // Stammbaum und Poster lesen nur die SELBSTerzählung. Gastbeiträge sind
-  // Fremdaussagen; sie in eine Familienstruktur oder auf ein Lebensposter zu
-  // übernehmen, ist eine eigene Abwägung (Nebenprodukte: Paket 6).
+  // Stammbaum und Poster nutzen auch freigegebene Gastbeiträge: Angehörige
+  // kennen die Familie oft genauer, als der Erzähler sie im Gespräch aufzählt.
+  // Maßgeblich bleibt die Selbstauskunft (siehe guestSourceNote).
+  // Eine Kennzeichnung IM ERGEBNIS gibt es hier bewusst nicht — ein Stammbaum
+  // ist eine Datenstruktur, „(Fremdangabe)" hinter jedem Namen machte ihn
+  // unlesbar. Beim Pflegeexzerpt ist das anders: es geht in die Pflegeakte.
   const contributions = selfOnly(allContributions)
+  const guests = guestOnly(allContributions)
+  const guestNote = guestSourceNote(allContributions, memorial)
+  const guestBlock = guests.length ? `\n\nBeiträge Angehöriger und Freunde:\n\n${contributionBlocks(guests)}` : ''
   const lines = contributions.flatMap(c => (c.messages || []).map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`))
-  return `Du bist Genealoge. Du liest das folgende autobiographische Interview mit ${memorial.name} und extrahierst daraus die FAMILIE als Datenstruktur für einen Stammbaum.
+  return `Du bist Genealoge. Du liest die folgenden Quellen zu ${memorial.name} und extrahierst daraus die FAMILIE als Datenstruktur für einen Stammbaum.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 {
@@ -40,19 +46,19 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 
 Regeln:
 - "root" ist IMMER die Hauptperson (${memorial.name}).
-- Nimm nur Personen auf, die das Interview WIRKLICH nennt: Eltern, Großeltern, Geschwister, Partner/Partnerin, Kinder, Enkel. Keine Freunde, Kollegen, Bekannte.
-- Erfinde NICHTS. Kein Name, kein Jahr, keine Angabe, die nicht im Interview steht.
-- "name": Nennt das Interview keinen Namen, gib einen LEEREN String zurück (das Blatt schreibt dann „Name nicht genannt"). Erfinde NIEMALS einen Namen. Kosenamen/Teilnamen („Opa Karl") sind erlaubt, wenn sie so vorkommen.
+- Nimm nur Personen auf, die die Quellen WIRKLICH nennen: Eltern, Großeltern, Geschwister, Partner/Partnerin, Kinder, Enkel. Keine Freunde, Kollegen, Bekannte.
+- Erfinde NICHTS. Kein Name, kein Jahr, keine Angabe, die nicht in den Quellen steht.
+- "name": Nennen die Quellen keinen Namen, gib einen LEEREN String zurück (das Blatt schreibt dann „Name nicht genannt"). Erfinde NIEMALS einen Namen. Kosenamen/Teilnamen („Opa Karl") sind erlaubt, wenn sie so vorkommen.
 - "role": kurz und eindeutig, z. B. "Hauptperson", "Mutter", "Vater", "Ehefrau", "Ehemann", "Tochter", "Sohn", "Schwester", "Bruder", "Großmutter", "Enkelin".
 - "born"/"died": nur belegte Jahreszahlen, sonst leerer String. Niemals schätzen.
-- "note": höchstens 8 Wörter — Beruf, Wesenszug oder ein Detail, das das Interview hergibt (z. B. „Schreiner, ruhig und humorvoll"); sonst leerer String.
+- "note": höchstens 8 Wörter — Beruf, Wesenszug oder ein Detail, das die Quellen hergeben (z. B. „Schreiner, ruhig und humorvoll"); sonst leerer String.
 - "couples": Paare (Ehe/Partnerschaft), je Paar EIN Eintrag.
 - "parents": jede Eltern-Kind-Beziehung EINZELN (ein Elternteil + ein Kind pro Eintrag).
-- Höchstens 24 Personen. Gibt das Interview keine Familie her, gib eine leere "people"-Liste zurück.
+- Höchstens 24 Personen. Geben die Quellen keine Familie her, gib eine leere "people"-Liste zurück.
 - Namen und Rollen auf Deutsch.
 - Gültiges JSON, keine trailing commas.
 
-Interview:\n\n${lines.join('\n')}`
+${guestNote}\n\nInterview mit ${memorial.name}:\n\n${lines.join('\n')}${guestBlock}`
 }
 
 // Personen nach Generationen anordnen: Die Hauptperson ist Generation 0, ihre
@@ -152,7 +158,7 @@ function paintTree(d, layout, memorial) {
   const top = margin + frame + 6
   d.text('Stammbaum', W / 2, top + 4, { size: 9, align: 'center', color: TREE.gold, font: 'times', bold: true })
   d.text(memorial.name || '', W / 2, top + 14, { size: 19, bold: true, align: 'center', color: TREE.ink, font: 'times', maxW: W - 2 * (margin + frame), maxLines: 1 })
-  d.text('Auf Grundlage der im Interview erwähnten Beziehungen.', W / 2, top + 21, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
+  d.text('Auf Grundlage der erzählten Beziehungen.', W / 2, top + 21, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
   d.text('Fehlende Namen sind als „Name nicht genannt" markiert.', W / 2, top + 25, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
   d.line(W / 2 - 26, top + 30, W / 2 + 26, top + 30, TREE.goldSoft)
 
@@ -236,7 +242,7 @@ function paintTree(d, layout, memorial) {
     { t: '*  geboren', w: 22 },
     { t: '†  verstorben', w: 27 },
     { t: 'Ehe/Partnerschaft', w: 34, heart: true },
-    { t: '„Name nicht genannt" = im Interview kein Name gefallen', w: 78 },
+    { t: '„Name nicht genannt" = kein Name gefallen', w: 78 },
   ]
   const gapL = 8
   const totalL = parts.reduce((n, p) => n + p.w, 0) + gapL * (parts.length - 1)
@@ -488,8 +494,11 @@ export const getPosterStyle = k => POSTER_STYLES.find(s => s.key === k) || POSTE
 
 export function posterSystem(memorial, allContributions) {
   const contributions = selfOnly(allContributions)   // siehe treeSystem
+  const guests = guestOnly(allContributions)
+  const guestNote = guestSourceNote(allContributions, memorial)
+  const guestBlock = guests.length ? `\n\nBeiträge Angehöriger und Freunde:\n\n${contributionBlocks(guests)}` : ''
   const lines = contributions.flatMap(c => (c.messages || []).map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`))
-  return `Du bist Kurator und Informationsdesigner. Aus dem folgenden autobiographischen Interview mit ${memorial.name} entwickelst du ein LEBENSPOSTER (DIN A2 quer): eine illustrierte Landkarte dieses Lebens. Ein Pfad führt durch die Lebensabschnitte; an ihm liegen einzelne Stationen, jede mit einer kleinen Illustration und wenigen Worten.
+  return `Du bist Kurator und Informationsdesigner. Aus den folgenden Quellen zu ${memorial.name} entwickelst du ein LEBENSPOSTER (DIN A2 quer): eine illustrierte Landkarte dieses Lebens. Ein Pfad führt durch die Lebensabschnitte; an ihm liegen einzelne Stationen, jede mit einer kleinen Illustration und wenigen Worten.
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 {
@@ -524,16 +533,16 @@ Regeln zum AUFBAU:
 - "values": 5–8 Stück. "places": 3–6 Stück. "quote": genau EIN Satz.
 
 Regeln zur WAHRHEIT (die wichtigsten):
-- Erfinde NICHTS. Keine Jahreszahl, kein Ort, kein Ereignis, kein Zitat, das nicht im Interview steht. Lieber eine Station weniger.
+- Erfinde NICHTS. Keine Jahreszahl, kein Ort, kein Ereignis, kein Zitat, das nicht in den Quellen steht. Lieber eine Station weniger.
 - Ist ein Jahr unklar, lass "year" leer, statt zu raten.
-- Der "quote" muss so oder fast so im Interview gefallen sein. Gibt das Interview keinen Satz her, gib "" zurück.
+- Der "quote" muss so oder fast so gefallen sein und stammt AUSSCHLIESSLICH aus dem Interview mit ${memorial.name} — ein Poster-Zitat spricht in der Ich-Form, dort darf keine fremde Stimme stehen. Gibt das Interview keinen Satz her, gib "" zurück.
 
 Sonstiges:
 - Kurz, konkret, bildhaft — dies ist ein Poster, kein Fließtext.
 - Alles auf Deutsch, NUR "image_prompt" auf Englisch.
 - Gültiges JSON, keine trailing commas.
 
-Interview:\n\n${lines.join('\n')}`
+${guestNote}\n\nInterview mit ${memorial.name}:\n\n${lines.join('\n')}${guestBlock}`
 }
 
 // Alle Bild-Aufträge des Posters, in Reihenfolge. Schlüssel "si:ti" = Abschnitt/Station.

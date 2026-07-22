@@ -2113,11 +2113,22 @@ function Dashboard() {
         const anamnesisHeader = isAnamnesisBogen
           ? `# Anamnesebogen (Selbstauskunft)\n\n_Hinweis: Dieser Bogen wurde aus der Patientenselbstauskunft KI-generiert. Er ist nicht ärztlich validiert und ersetzt keine ärztliche Anamnese oder Untersuchung._\n\n${[selected?.name && `Name: ${selected.name}`, (getCategory(selected?.product_category).intake.extra || []).map(f => selected?.intake?.[f.key] && `${f.label.replace(/\s*\*$/, '')}: ${(f.options?.find(o => o.value === selected.intake[f.key])?.label) || selected.intake[f.key]}`).filter(Boolean).join(' · ')].filter(Boolean).join('\n')}`
           : null
+        // Pflegeexzerpt mit Gastbeiträgen: Das Dokument enthält dann auch
+        // Fremdangaben. Sie sind im Text einzeln als „(Fremdangabe: …)"
+        // gekennzeichnet — aber eine Pflegekraft, die das Blatt in der Akte
+        // findet, muss vorab wissen, dass es sie überhaupt gibt und was die
+        // Klammer bedeutet. Deshalb ein fester Kopf.
+        const careHasGuests = selected?.product_category === 'lifework'
+          && bookContribs.some(c => c.is_guest)
+        const careHeader = careHasGuests
+          ? `_Hinweis zu den Quellen: Dieses Exzerpt beruht auf der Selbstauskunft von ${selected?.name || 'der Person'} sowie auf Angaben von Angehörigen und Freunden. Angaben, die ausschließlich von Dritten stammen, sind im Text mit „(Fremdangabe: Name, Beziehung)" gekennzeichnet; alles Übrige hat die Person selbst erzählt. Bei Widerspruch gilt die Selbstauskunft._`
+          : null
+        const docHeader = anamnesisHeader || careHeader
         const steps = sections.map((section, i) => ({
           system: gen.sectionSystem(selected, bookContribs, section, extraArg) + dir,
           user: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.`,
           label: `Abschnitt: ${section.label}`,
-          ...(withHeadings ? { prefix: `${i === 0 && anamnesisHeader ? anamnesisHeader + '\n\n' : ''}## ${section.label}` } : {}),
+          ...(withHeadings ? { prefix: `${i === 0 && docHeader ? docHeader + '\n\n' : ''}## ${section.label}` } : {}),
         }))
         stepsTotal = steps.length
         setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))

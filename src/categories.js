@@ -60,6 +60,38 @@ export function chapterVoices(ch) {
 export const selfOnly = list => (list || []).filter(c => !isGuestContribution(c))
 export const guestOnly = list => (list || []).filter(isGuestContribution)
 
+// Die Beiträge als Prompt-Block, jeder mit „=== Name (Beziehung) ===" darüber.
+// Für die Nebenprodukte (Stammbaum, Lebensposter, Pflegeexzerpt) exportiert,
+// damit Gastbeiträge dort MIT ihrer Herkunft ankommen — ohne Namenszeile wüsste
+// das Modell nicht, wer spricht, und könnte Fremdaussagen nicht kennzeichnen.
+export const contributionBlocks = blocks
+
+// Gemeinsame Direktive für die Nebenprodukte: Gastbeiträge sind erlaubtes
+// Material, aber nachrangig. `marked` verlangt zusätzlich, dass jede allein auf
+// einer Fremdaussage beruhende Angabe im Text als solche gekennzeichnet wird —
+// das gilt fürs Pflegeexzerpt, das in die Pflegeakte geht und wo eine Pflegekraft
+// wissen muss, ob der Mensch das selbst gesagt hat oder die Tochter.
+// Ohne Gastbeiträge liefert die Funktion einen leeren String; die Prompts der
+// bestehenden Bücher ändern sich dadurch um kein Zeichen.
+export function guestSourceNote(contributions, memorial, { marked = false } = {}) {
+  const guests = guestOnly(contributions)
+  if (!guests.length) return ''
+  const who = memorial?.name || 'die Hauptperson'
+  const markRules = marked
+    ? `
+- KENNZEICHNUNGSPFLICHT: Jede Angabe, die AUSSCHLIESSLICH aus einem Beitrag von Angehörigen stammt, endet mit „(Fremdangabe: Name, Beziehung)" — z. B. „schläft schlecht bei Vollmond (Fremdangabe: Anna Meier, Tochter)". Was ${who} selbst gesagt hat, bleibt ungekennzeichnet.
+- Bestätigt eine Fremdangabe nur, was ${who} ohnehin selbst gesagt hat, bleibt sie ungekennzeichnet — gekennzeichnet wird ausschließlich ZUSÄTZLICHE Information.
+- WIDERSPRUCH: Widerspricht eine Fremdangabe der Selbstauskunft, gilt die SELBSTAUSKUNFT. Die abweichende Angabe darfst du anfügen, aber nur ausdrücklich als „(Fremdangabe: Name, Beziehung — abweichend)".`
+    : `
+- Bei Widerspruch gilt die Selbstauskunft von ${who}. Fremdangaben ergänzen, sie überschreiben nichts.`
+  return `
+
+BEITRÄGE ANGEHÖRIGER UND FREUNDE — zusätzliche Quelle:
+Neben dem Interview mit ${who} liegen Beiträge anderer Menschen ÜBER ${who} vor (unten als eigener Block). Du darfst sie verwenden.
+- Maßgeblich bleibt, was ${who} SELBST erzählt hat; Fremdangaben füllen Lücken.${markRules}
+- Erfinde auch aus ihnen nichts hinzu und übernimm keine bloßen Vermutungen („ich glaube", „vielleicht war es").`
+}
+
 // Der Gast-Stoff als eigener Prompt-Abschnitt. Ohne Gastbeiträge bleibt alles
 // leer — die Prompts der übrigen Bücher ändern sich dadurch um kein Zeichen.
 function guestVoiceParts(contributions, memorial) {
@@ -941,10 +973,17 @@ const LIFEWORK_CARE_SECTIONS = [
 ]
 
 function lifeworkCareSection(memorial, allContributions, section, styleInstruction) {
-  // Das Pflegeexzerpt geht in die Pflegeakte und muss belastbar sein. Es speist
-  // sich deshalb allein aus dem, was der Mensch SELBST gesagt hat — Fremdaussagen
-  // Dritter gehören dort nicht ungeprüft hinein (Nebenprodukte: Paket 6).
+  // Das Pflegeexzerpt geht in die Pflegeakte. Freigegebene Gastbeiträge dürfen
+  // hinein — Angehörige wissen oft gerade das, was für die Pflege zählt und was
+  // der Mensch über sich selbst nicht erzählt. Aber sie müssen ERKENNBAR sein:
+  // Eine Pflegekraft muss unterscheiden können, ob „mag keine Berührung am Kopf"
+  // von der Person selbst kommt oder von der Tochter. Deshalb marked:true.
   const contributions = selfOnly(allContributions)
+  const guests = guestOnly(allContributions)
+  const guestNote = guestSourceNote(allContributions, memorial, { marked: true })
+  const guestBlock = guests.length
+    ? `\n\nBeiträge Angehöriger und Freunde (kennzeichnungspflichtig, siehe oben):\n\n${blocks(guests)}`
+    : ''
   const styleBlock = styleInstruction
     ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n`
     : ''
@@ -956,14 +995,15 @@ ${styleBlock}
 Anforderungen:
 - Schreibe AUSSCHLIESSLICH über ${memorial.name} in der dritten Person
 - NUR pflegerelevante Informationen: Was ändert das Handeln am Bett, im Gespräch, im Tagesablauf? Anekdoten ohne Nutzen für die Pflege lässt du weg
-- Stütze dich AUSSCHLIESSLICH auf das Interview. Erfinde nichts, vermute nichts. Was das Interview nicht hergibt, wird nicht behauptet — fehlt eine Angabe, benenne die Lücke in einem knappen Halbsatz („keine Angaben zu …") statt sie zu füllen
+- Stütze dich AUSSCHLIESSLICH auf die unten stehenden Quellen. Erfinde nichts, vermute nichts. Was dort nicht steht, wird nicht behauptet — fehlt eine Angabe, benenne die Lücke in einem knappen Halbsatz („keine Angaben zu …") statt sie zu füllen
 - KEINE medizinischen Diagnosen, keine Therapieempfehlungen, keine Medikation — du bist Biograph, nicht Behandler
 - Konkret statt allgemein: „hört morgens gern Blasmusik" statt „mag Musik"
 - Absätze durch eine Leerzeile (\\n\\n) trennen
 - Auf Deutsch
 - Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. Keine Überschrift, keine Metakommentare, kein Markdown.
+${guestNote}
 
-${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
+${companionNote(contributions)}\n\nInterview mit ${memorial.name} (Selbstauskunft):\n\n${blocks(contributions)}${guestBlock}`
 }
 
 // ════════════════════════════════════════════════════════════════
