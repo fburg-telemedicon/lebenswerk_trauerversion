@@ -2450,9 +2450,15 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                   {copied === `qr-${selected.guest_code}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
                 </button>
               </div>
-              <p style={{ fontSize:12.5, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'8px 10px', margin:'14px 0 0' }}>
-                ⚠ <b>Noch nicht aktiv.</b> Der Link ist erzeugt und reserviert, führt aber bis zum nächsten
-                Ausbauschritt ins Leere. Bitte noch nicht verteilen oder drucken.
+              <p style={{ fontSize:12.5, color:'#3f6212', lineHeight:1.6, margin:'14px 0 0' }}>
+                Angehörige und Freunde erzählen darüber <b>über</b> {selected.name || 'die Person'} — ein eigenes
+                Interview, das die Selbsterzählung ergänzt. Gastbeiträge erscheinen unten in der Beitragsliste
+                (mit „Gast" gekennzeichnet).
+              </p>
+              <p style={{ fontSize:12.5, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'8px 10px', margin:'10px 0 0' }}>
+                ⚠ Gastbeiträge fließen <b>noch nicht</b> in das erzeugte Buch ein — die Autobiographie entsteht
+                weiterhin allein aus dem Selbst-Interview. Hochgeladene Gast-<b>Fotos</b> stehen dagegen sofort
+                zur Verfügung.
               </p>
             </div>
           )}
@@ -2555,7 +2561,15 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                         {c.contributor_name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{c.contributor_name}</div>
+                        <div style={{ fontWeight: 600, fontSize: 15, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                          {c.contributor_name}
+                          {/* Über den Gast-Link erzählt: Diese Person spricht ÜBER den
+                              Endnutzer, nicht als er — für den Manager auf einen Blick
+                              erkennbar, weil beides sonst gleich aussieht. */}
+                          {c.is_guest && (
+                            <span style={{ fontSize:11, fontWeight:600, color:'#15803d', background:'#dcfce7', border:'1px solid #bbf7d0', borderRadius:20, padding:'2px 8px' }}>Gast</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: 13, color: '#78716c' }}>
                           {c.relationship} · {new Date(c.created_at).toLocaleDateString('de-DE')} · {answerCount} Antwort{answerCount !== 1 ? 'en' : ''}
                         </div>

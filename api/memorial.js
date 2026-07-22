@@ -15,6 +15,7 @@ const { normalizeTextStyle } = require('./_lib/text-styles')
 const { LIFEWORK } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
 const { isEnduserCategory, isAnamnesisCategory } = require('./_lib/categories')
+const { resolvePublicCode } = require('./_lib/access')
 
 // Endnutzer-Kategorien (Lebenswerk, Anamnese, Anamnese KVSW): EIN Endnutzer/Patient
 // spricht selbst und darf über den Buch-Code (ohne Login) seine eigenen Stammdaten/
@@ -177,6 +178,13 @@ module.exports = async function handler(req, res) {
       // Flow; fail-open (sperrt bei Limiter-Ausfall niemanden aus).
       if (!(await enforce(req, res, { name: 'memorial', limit: 60, windowSeconds: 60 }))) return
 
+      // Buch-Code ODER Gast-Code (Gastbeiträge zum Lebenswerk). Gelesen wird das
+      // echte Buch; nach außen bleibt aber der GESCHICKTE Code stehen (siehe unten),
+      // damit der Buch-Code — beim Lebenswerk die volle Berechtigung des Endnutzers —
+      // den Gast-Browser nie erreicht.
+      const target = await resolvePublicCode(supabase, code)
+      if (!target) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
+
       // BEWUSST nur die für den Beitragenden-Flow nötigen Felder ausliefern –
       // NICHT die ganze Zeile. Insbesondere die generierten Inhalte
       // (book_v1/book_v2/eulogy_text) enthalten die aggregierten Erinnerungen
@@ -193,9 +201,9 @@ module.exports = async function handler(req, res) {
       // show_onboarding + tts_voice sind neu — fehlt eine der Spalten noch, wird OHNE
       // sie erneut gelesen (Beitragenden-Flow darf NIE an einer Migration hängen).
       let { data, error } = await supabase
-        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch`).eq('id', code).single()
+        .from('memorials').select(`${PUBLIC_FIELDS_BASE}, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch`).eq('id', target.id).single()
       if (error && /show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|column/i.test(error.message || '')) {
-        ;({ data, error } = await supabase.from('memorials').select(PUBLIC_FIELDS_BASE).eq('id', code).single())
+        ;({ data, error } = await supabase.from('memorials').select(PUBLIC_FIELDS_BASE).eq('id', target.id).single())
       }
       if (error || !data) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
 
@@ -253,6 +261,20 @@ module.exports = async function handler(req, res) {
       // owner_user + catalog_id waren nur intern nötig – nicht nach außen geben;
       // der Katalog-Inhalt wird als `catalog` (Name + Kapitel) mitgeschickt.
       const { owner_user, catalog_id, ...publicData } = data
+      // Gast: Der Client soll WEITER mit seinem Gast-Code arbeiten (er hängt an
+      // jedem Folge-Aufruf). Würde hier die echte id ausgeliefert, hätte der Gast
+      // den Buch-Code — und damit beim Lebenswerk Einstellungen, Korrekturabzug
+      // und Buchbearbeitung. `guest: true` schaltet den Beitragenden-Modus frei.
+      if (target.guest) {
+        publicData.id = target.code
+        publicData.guest = true
+        // Die Kontakt-E-Mail gehört dem Buchinhaber, nicht dem Gast.
+        publicData.contact_email = null
+      }
+      // Der Lebenswerk-Fragenkatalog führt durch das EIGENE Leben („Welche
+      // Erinnerungen aus deiner Kindheit …") – für einen Gast, der über einen
+      // anderen Menschen erzählt, wäre er sinnlos. Gäste interviewt die KI frei.
+      if (target.guest) catalog = null
       return res.json({ ...publicData, owner_logo, catalog })
     }
 

@@ -5,7 +5,7 @@
 // wirkt als Capability; zusätzlich muss der Gedenkbuch-Code passen.
 
 const { createClient } = require('./_lib/store')
-const { memorialExists } = require('./_lib/access')
+const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -21,7 +21,9 @@ module.exports = async function handler(req, res) {
     if (!id || !code) return res.status(400).json({ error: 'contributionId/memorialCode fehlt.' })
     const r = parseInt(rating, 10)
     if (!Number.isInteger(r) || r < 1 || r > 5) return res.status(400).json({ error: 'Ungültige Bewertung.' })
-    if (!(await memorialExists(supabase, code))) return res.status(403).json({ error: 'Ungültiger Code.' })
+    // Buch-Code ODER Gast-Code (Gastbeiträge zum Lebenswerk).
+    const target = await resolvePublicCode(supabase, code)
+    if (!target) return res.status(403).json({ error: 'Ungültiger Code.' })
 
     const { data, error } = await supabase.from('contributions')
       .update({
@@ -29,7 +31,7 @@ module.exports = async function handler(req, res) {
         feedback_text: String(text || '').trim().slice(0, 2000) || null,
         feedback_at: new Date().toISOString(),
       })
-      .eq('id', id).eq('memorial_id', code)
+      .eq('id', id).eq('memorial_id', target.id)
       .select('id').maybeSingle()
     if (error) {
       // Spalten evtl. noch nicht migriert (supabase/feedback.sql) → still ignorieren.

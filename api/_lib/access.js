@@ -68,4 +68,35 @@ async function memorialExists(supabase, code) {
   return Boolean(data)
 }
 
-module.exports = { loadAccessibleMemorial, loadAccessibleContribution, memorialExists }
+// Öffentlichen Code auflösen: BUCH-Code oder GAST-Code (Gastbeiträge zum
+// Lebenswerk). Der Gast-Code ist ein eigenes Geheimnis und NICHT der Buch-Code —
+// beim Lebenswerk öffnet der Buch-Code den Endnutzer-Bereich (Einstellungen,
+// Korrekturabzug, Buchbearbeitung), ein Gast darf davon nichts sehen.
+//
+// Deshalb dieser eine Resolver, den jeder öffentliche Endpunkt benutzt:
+//   • intern wird IMMER mit `id` (dem echten Buch-Code) gearbeitet — sonst
+//     scheitert jeder Beitrag am Fremdschlüssel contributions.memorial_id;
+//   • nach außen bleibt `code` (der Code, den der Aufrufer geschickt hat), damit
+//     der echte Buch-Code den Gast-Browser nie erreicht.
+// Rückgabe: { id, guest, code } oder null (unbekannt/gesperrt).
+async function resolvePublicCode(supabase, code) {
+  const c = (code || '').toUpperCase().trim()
+  if (!c) return null
+  const { data, error } = await supabase
+    .from('memorials').select('id').eq('id', c).maybeSingle()
+  if (error) throw error
+  if (data) return { id: data.id, guest: false, code: c }
+  // Kein Buch-Code → Gast-Code? Ein ausgeschalteter Gastlink (guest_enabled =
+  // false) gilt als unbekannt, damit das Abschalten sofort greift. Fehlen die
+  // Spalten noch (Migration nicht gelaufen), gibt es eben keine Gastcodes.
+  const { data: g, error: gErr } = await supabase
+    .from('memorials').select('id, guest_enabled').eq('guest_code', c).maybeSingle()
+  if (gErr) {
+    if (/guest_code|guest_enabled|column/i.test(gErr.message || '')) return null
+    throw gErr
+  }
+  if (!g || g.guest_enabled !== true) return null
+  return { id: g.id, guest: true, code: c }
+}
+
+module.exports = { loadAccessibleMemorial, loadAccessibleContribution, memorialExists, resolvePublicCode }

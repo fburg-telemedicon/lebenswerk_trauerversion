@@ -17,7 +17,7 @@
 
 const { createClient } = require('./_lib/store')
 const { costLLM, recordCost, enforceBudget } = require('./_lib/cost')
-const { memorialExists } = require('./_lib/access')
+const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { verifyToken } = require('./_lib/auth')
 const { callAzure } = require('./_lib/llm')
@@ -44,11 +44,14 @@ module.exports = async function handler(req, res) {
     // Rechnung. Prüfung VOR dem (kostenpflichtigen) Modell-Aufruf.
     const code = String(memorialCode || '').toUpperCase().trim()
     if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
-    if (!(await memorialExists(supabase, code))) {
+    // Gültig ist der Buch-Code ODER der Gast-Code (Gastbeiträge zum Lebenswerk).
+    // Gebucht wird immer auf das ECHTE Buch (target.id).
+    const target = await resolvePublicCode(supabase, code)
+    if (!target) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
     // Kosten-Obergrenze je Buch: erschöpft → alle KI-Funktionen gestoppt (402).
-    if (!(await enforceBudget(res, code))) return
+    if (!(await enforceBudget(res, target.id))) return
 
     // Einziges LLM: Azure OpenAI (EU). Kein Fallback – ist Azure nicht
     // erreichbar oder unkonfiguriert, wirft callAzure und der Handler
@@ -57,7 +60,7 @@ module.exports = async function handler(req, res) {
 
     if (result.inT || result.outT) {
       await recordCost({
-        memorial_id: code,
+        memorial_id: target.id,
         contribution_id: contributionId || null,
         kind: kind || 'reasoning',
         provider: result.provider,

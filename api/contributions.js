@@ -13,6 +13,7 @@ const { createClient } = require('./_lib/store')
 const { genCode } = require('./_lib/codes')
 const { enforce } = require('./_lib/ratelimit')
 const { isEnduserCategory } = require('./_lib/categories')
+const { resolvePublicCode } = require('./_lib/access')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -44,6 +45,10 @@ module.exports = async function handler(req, res) {
       // GETEILTEN Büchern (mehrere Beitragende teilen den Code) wird NICHTS geliefert,
       // sonst könnte man fremde Beiträge auslesen. Nötig für installierte iOS-Apps
       // (eigener Speicher) und Gerätewechsel.
+      // WICHTIG: Dieser Weg gilt NUR für den Buch-Code des Endnutzers. Ein
+      // GAST-Code (Gastbeiträge zum Lebenswerk) darf hier nie etwas bekommen —
+      // sonst läse ein Gast die Sitzung des Endnutzers aus. Deshalb wird
+      // bewusst NICHT aufgelöst, sondern direkt auf memorials.id geprüft.
       if (!id && code && req.query.enduser === '1') {
         const { data: mem } = await supabase
           .from('memorials').select('product_category').eq('id', code).maybeSingle()
@@ -61,7 +66,13 @@ module.exports = async function handler(req, res) {
       let q = supabase.from('contributions').select(RESUME_FIELDS).eq('id', id)
       // Wenn ein Code mitgegeben wird, muss er zum Beitrag passen – sonst
       // wird nichts geliefert (defense in depth; die ID allein genügt schon).
-      if (code) q = q.eq('memorial_id', code)
+      // Der Gast schickt seinen GAST-Code mit; verglichen wird gegen das echte
+      // Buch dahinter. Unbekannter Code → nichts (kein Fortsetzen).
+      if (code) {
+        const target = await resolvePublicCode(supabase, code)
+        if (!target) return res.json(null)
+        q = q.eq('memorial_id', target.id)
+      }
       const { data, error } = await q.maybeSingle()
       if (error) throw error
       return res.json(data || null)
@@ -72,10 +83,18 @@ module.exports = async function handler(req, res) {
       if (!memorialCode || !contributorName || !relationship || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'Pflichtfelder fehlen.' })
       }
+      // Der Beitragende schickt entweder den Buch-Code oder (Gastbeiträge zum
+      // Lebenswerk) seinen Gast-Code. Gespeichert wird IMMER am echten Buch —
+      // der Gast-Code ist kein Fremdschlüssel. `is_guest` merkt sich die
+      // Herkunft: Ein Gast erzählt ÜBER die Person, nicht als sie, und darf
+      // deshalb nicht wie das Selbst-Interview verarbeitet werden.
+      const target = await resolvePublicCode(supabase, memorialCode)
+      if (!target) return res.status(403).json({ error: 'Ungültiger Code.' })
       const id = (contributionId && String(contributionId).trim()) || genCode()
       const row = {
         id,
-        memorial_id: memorialCode.toUpperCase(),
+        memorial_id: target.id,
+        is_guest: target.guest,
         contributor_name: contributorName,
         relationship,
         messages,
@@ -94,8 +113,15 @@ module.exports = async function handler(req, res) {
       // dem Einmal-SQL), scheitert der Upsert mit dieser Spalte an einem
       // "column ... does not exist" – dann wird ohne das Feld wiederholt, damit
       // der Beitragenden-Flow nie am fehlenden Migrationsschritt hängen bleibt.
-      const { error } = await supabase.from('contributions')
-        .upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+      const save = r => supabase.from('contributions')
+        .upsert({ ...r, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+      let { error } = await save(row)
+      // is_guest ist neu (Gastbeiträge) – fehlt die Spalte noch, ohne sie erneut
+      // speichern. Der Beitragenden-Flow darf nie an einer Migration hängen.
+      if (error && /is_guest/i.test(error.message || '')) {
+        delete row.is_guest
+        ;({ error } = await save(row))
+      }
       if (error) {
         if (/updated_at/i.test(error.message || '')) {
           const { error: retryErr } = await supabase.from('contributions').upsert(row, { onConflict: 'id' })

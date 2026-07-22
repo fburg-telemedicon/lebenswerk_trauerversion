@@ -760,6 +760,39 @@ ${flow}
 - Schreibe auf Deutsch`
 }
 
+// Gastbeiträge zum Lebenswerk: Hier erzählt NICHT die Hauptperson, sondern ein
+// Angehöriger oder Freund ÜBER sie — und zwar über einen LEBENDEN Menschen.
+// Der Gedenkbuch-Prompt lässt sich dafür nicht recyceln: Er ist auf Trauer,
+// Rückblick und Abschied getrimmt („respektiere die Trauer", „was die Person
+// bedeutete", „Abschied") und würde einen lebenden Menschen wie einen
+// Verstorbenen behandeln. Deshalb ein eigener Builder: Präsens, kein Nachruf-
+// Duktus, und ausdrücklich das Ziel, die Selbsterzählung zu ERGÄNZEN — nicht
+// zu ersetzen.
+function lifeworkGuestInterview(memorial, name, rel, address, contributorGender) {
+  const g = genderNote(memorial)
+  const addr = addressRule(address)
+  const gen = contributorGenderRule(contributorGender)
+  const who = memorial?.name || 'die Hauptperson'
+  return `Du bist ein einfühlsamer Biograph. Du führst ein persönliches Gespräch mit ${name} (${rel}) über ${who}${g}. ${who} schreibt gerade die eigene Autobiographie; dieses Gespräch steuert die Sicht von außen bei.
+
+Ziel: Geschichten, Szenen und Beobachtungen sammeln, die ${who} selbst so nicht erzählen würde oder gar nicht weiß — was andere an ${who} erleben, was in Erinnerung geblieben ist, gemeinsame Momente.
+
+Regeln:
+- ${who} LEBT. Sprich durchgehend im Präsens („ist", „macht", „erzählt gern") und über Vergangenes im normalen Rückblick — KEIN Nachruf-Ton, kein Abschied, keine Trauer, keine Formulierungen wie „hat uns hinterlassen" oder „bleibt in Erinnerung".
+- ${addr}${gen ? `\n- ${gen}` : ''}
+- Stelle immer nur EINE Frage pro Nachricht, maximal 2 kurze Sätze
+- Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
+- Frage nach konkreten Erlebnissen, Szenen und Anekdoten, nicht nach Allgemeinem oder nach Charakter-Adjektiven
+- Frage aus ${name}s eigener Perspektive: gemeinsam Erlebtes, erste Begegnung, typische Momente, kleine Eigenheiten, Situationen, in denen ${who} ${name} beeindruckt oder überrascht hat
+- Bohre nicht zu tief: höchstens EINE Nachfrage zu einer Antwort, danach ein neues Themenfeld
+- Variiere die Themenfelder bewusst: erste Begegnung, gemeinsamer Alltag, gemeinsame Reisen oder Feste, Arbeit, Familie, Krisen und Beistand, Humor und Marotten, was ${name} von ${who} gelernt hat, was ${name} ${who} gern einmal sagen würde
+- Es ist ausdrücklich in Ordnung, wenn ${name} nur wenig beitragen kann — dieses Gespräch darf kurz bleiben.
+- ${THIRD_PARTY_RULE}
+${interviewGreetingRule(name)}
+${interviewScopeRule(name)}
+- Schreibe auf Deutsch`
+}
+
 // Die Autobiographie speist sich aus EINEM Erzähler; „contributions" ist hier
 // faktisch das eine (lange) Interview. Der Stoff ist entsprechend dicht, deshalb
 // längere Kapitel (~2000 Wörter) als bei den Beitrags-Büchern.
@@ -1700,7 +1733,19 @@ export const CATEGORIES = {
       consentNoun: 'Lebenswerks',
       interviewButton: '🎙 Interview beginnen →',
     },
+    // Gastbeiträge: Wer über den Gast-Link kommt, erzählt ÜBER die Person —
+    // also braucht er Beziehungsfeld und andere Wortwahl als der Endnutzer.
+    guestContributor: {
+      heading: 'Ihr Beitrag',
+      introNoun: 'Lebenswerk von',
+      relationshipLabel: 'Ihre Beziehung zu {name} *',
+      relationshipPlaceholder: 'z. B. Tochter, Freund, Kollegin, Nachbar …',
+      relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Tochter" oder „Freund" (im Sinne von „ich bin die Tochter / der Freund von {name}").',
+      consentNoun: 'Lebenswerks',
+      interviewButton: '🎙 Sprach-Interview beginnen →',
+    },
     interviewSystem: lifeworkInterview,
+    guestInterviewSystem: lifeworkGuestInterview,
     generators: {
       // Lebenswerk kennt nur Variante 2. book_v1 zeigt bewusst auf dieselben
       // Builder, damit nichts bricht, falls irgendwo doch V1 angefragt wird —
@@ -1853,4 +1898,13 @@ export function defaultTtsVoice(category) {
 
 export function getCategory(slug) {
   return CATEGORIES[slug] || CATEGORIES[DEFAULT_CATEGORY]
+}
+
+// Welcher Interview-Prompt gilt für DIESEN Zugang? `memorial.guest` setzt
+// /api/memorial, wenn der Beitragende über einen Gast-Link gekommen ist. Der
+// Gast erzählt ÜBER die Person, der Endnutzer als sie — ein und dieselbe
+// Kategorie, zwei völlig verschiedene Rollen.
+export function interviewSystemFor(memorial) {
+  const cat = getCategory(memorial?.product_category)
+  return (memorial?.guest && cat.guestInterviewSystem) ? cat.guestInterviewSystem : cat.interviewSystem
 }

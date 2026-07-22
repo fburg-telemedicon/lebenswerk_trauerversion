@@ -276,6 +276,8 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange, category
   const uploaderLabel = u => {
     if (u.source === 'manager') return 'Manager (selbst hochgeladen)'
     const c = u.contribution_id ? contribs.find(x => x.id === u.contribution_id) : null
+    // Über den Gast-Link hochgeladen (Gastbeiträge zum Lebenswerk) – kenntlich machen.
+    if (u.source === 'guest') return `${c?.contributor_name || 'Gast'} (Gast)`
     return c?.contributor_name || 'Beitragende:r'
   }
   const [busy, setBusy]     = useState(false)
@@ -1580,6 +1582,16 @@ function Dashboard() {
     downloadFile(`${safeName(selected.name)}_alle-Beitraege.txt`, text)
   }
 
+  // Was fließt in die ERZEUGTEN Produkte (Buch, Pflegeexzerpt, Stammbaum,
+  // Lebensposter)? Gastbeiträge (Gastbeiträge zum Lebenswerk, is_guest) bleiben
+  // vorerst draußen: Eine Autobiographie in der Ich-Form darf der Person keine
+  // fremden Sätze in den Mund legen. Ihr Einbau als abgesetzte „Stimmen-Kästen"
+  // am Kapitelende folgt mit der Buchsynthese; bis dahin sieht der Manager sie
+  // in der Beitragsliste, die Erzeugung ignoriert sie.
+  // Die Beitragsliste, Downloads einzelner Transkripte und die Transkript-Prüfung
+  // arbeiten bewusst weiter mit `contributions` (also inklusive Gästen).
+  const bookContribs = contributions.filter(c => c.is_guest !== true)
+
   // Generatoren werden aus der Kategorie-Konfiguration des aktuell gewählten
   // Buches abgeleitet (Fallback: memorial, solange keins gewählt ist).
   const activeCat = getCategory(selected?.product_category)
@@ -1683,7 +1695,7 @@ function Dashboard() {
     try {
       const reportRaw = await askLLM(
         reviewSystemPrompt(selected),
-        [{ role: 'user', content: `BUCHTEXT:\n${extractReviewText(value)}\n\n${contributionsContext(contributions)}` }],
+        [{ role: 'user', content: `BUCHTEXT:\n${extractReviewText(value)}\n\n${contributionsContext(bookContribs)}` }],
         { memorialCode: selected.id, kind: 'review', token }
       )
       const parsed = tryParseJSON(reportRaw) || {}
@@ -1996,7 +2008,7 @@ function Dashboard() {
         // Bildphase läuft danach serverseitig robust (Job + Worker), unabhängig
         // von der Browser-Verbindung.
         setGenProgress(p => ({ ...p, [key]: 'Buch-Gerüst wird geplant …' }))
-        const outlineSys = gen.outlineSystem(selected, contributions) + dir
+        const outlineSys = gen.outlineSystem(selected, bookContribs) + dir
         let outline = null, lastOutlineRaw = ''
         for (let attempt = 1; attempt <= 3; attempt++) {
           checkCancel()
@@ -2010,7 +2022,7 @@ function Dashboard() {
           throw new Error('Buch-Gerüst konnte nicht als JSON gelesen werden (auch nach mehreren Versuchen).' + (snip ? ` Antwort des KI-Dienstes begann mit: „${snip}…"` : ' Der KI-Dienst lieferte eine leere Antwort.'))
         }
         const chapterPlans = key === 'book_v1'
-          ? contributions.map((c, i) => ({ number: i + 1, contribution: c }))
+          ? bookContribs.map((c, i) => ({ number: i + 1, contribution: c }))
           : (Array.isArray(outline.chapters) ? outline.chapters : [])
         if (chapterPlans.length === 0) throw new Error('Keine Kapitel im Buch-Gerüst gefunden.')
         // Kapitel-Prompts als Job-Plan – der Worker schreibt die Kapitel, ordnet
@@ -2021,7 +2033,7 @@ function Dashboard() {
             // Die GANZE Gliederung mitgeben: Jedes Kapitel entsteht in einem eigenen
             // KI-Aufruf mit allen Beiträgen im Kontext — ohne die Gliederung landete
             // dieselbe Anekdote in mehreren Kapiteln.
-            : gen.chapterSystem(selected, contributions, plan, chapterPlans)) + dir,
+            : gen.chapterSystem(selected, bookContribs, plan, chapterPlans)) + dir,
           user: 'Erzeuge jetzt dieses eine Kapitel als JSON.',
           meta: {
             number: plan.number,
@@ -2037,7 +2049,7 @@ function Dashboard() {
           title: outline.title, subtitle: outline.subtitle || '',
           dir, skipImages, imageStyle: selected.image_style || DEFAULT_IMAGE_STYLE,
           uploads, oldChapters, chapterSteps,
-          reviewSystem: reviewSystemPrompt(selected), reviewContribContext: contributionsContext(contributions),
+          reviewSystem: reviewSystemPrompt(selected), reviewContribContext: contributionsContext(bookContribs),
         })
         genJobRef.current[key] = jobId
         const finalJob = await pollGeneration(key, jobId)
@@ -2068,7 +2080,7 @@ function Dashboard() {
           ? `# Anamnesebogen (Selbstauskunft)\n\n_Hinweis: Dieser Bogen wurde aus der Patientenselbstauskunft KI-generiert. Er ist nicht ärztlich validiert und ersetzt keine ärztliche Anamnese oder Untersuchung._\n\n${[selected?.name && `Name: ${selected.name}`, (getCategory(selected?.product_category).intake.extra || []).map(f => selected?.intake?.[f.key] && `${f.label.replace(/\s*\*$/, '')}: ${(f.options?.find(o => o.value === selected.intake[f.key])?.label) || selected.intake[f.key]}`).filter(Boolean).join(' · ')].filter(Boolean).join('\n')}`
           : null
         const steps = sections.map((section, i) => ({
-          system: gen.sectionSystem(selected, contributions, section, extraArg) + dir,
+          system: gen.sectionSystem(selected, bookContribs, section, extraArg) + dir,
           user: `Schreibe jetzt den Abschnitt „${section.label}" der ${gen.noun}.`,
           label: `Abschnitt: ${section.label}`,
           ...(withHeadings ? { prefix: `${i === 0 && anamnesisHeader ? anamnesisHeader + '\n\n' : ''}## ${section.label}` } : {}),
@@ -2081,7 +2093,7 @@ function Dashboard() {
           // diesen Menschen betreuen — sie müssen gerade das Schwierige wissen; eine
           // Datenschutzprüfung würde genau den Zweck des Dokuments anmahnen.
           reviewSystem: reviewSystemPrompt(selected, { mode: withHeadings ? 'facts' : 'full' }),
-          reviewContribContext: contributionsContext(contributions),
+          reviewContribContext: contributionsContext(bookContribs),
         })
         genJobRef.current[key] = jobId
         const finalJob = await pollGeneration(key, jobId) // wartet bis done/error/canceled
@@ -2246,7 +2258,7 @@ Regeln:
     setDlBusy(`${key}:docx`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
-      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de', textExportOpts())
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
@@ -2260,7 +2272,7 @@ Regeln:
     setDlBusy(`${key}:pdf`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      const { pages, blob } = await downloadPrintPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      const { pages, blob } = await downloadPrintPdf(filename, data, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
       // Seitenzahl am Buch festhalten — sie bestimmt die Rückenstärke des Covers
       // und schaltet den Cover-Button frei.
       if (pages && pages !== data.print_pages) {
@@ -2423,7 +2435,7 @@ Regeln:
     setDlBusy(`${key}:ebook`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_eBook.pdf`
-      const { blob } = await downloadEbookPdf(filename, data, contributions, selected.owner_logo, getBookLayout(selected.book_layout), {
+      const { blob } = await downloadEbookPdf(filename, data, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), {
         showContributors: selected.show_contributors !== false,
         selfNarrated: selected.product_category === 'lifework',
         coverBgUrl: bgUrl,
@@ -2540,12 +2552,12 @@ Regeln:
     try {
       const params = isTree
         ? { resultType: 'json', field, kind: 'family_tree', memorialCode: selected.id, label: 'Familie wird gelesen',
-            system: treeSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
+            system: treeSystem(selected, bookContribs), user: 'Gib jetzt das JSON aus.' }
         // Poster: EIN Satz Inhalte, daraus je gewähltem Stil ein Blatt. Der Worker
         // zeichnet die Szenen einzeln; die Detailansicht zeigt die Blätter nebeneinander.
         : { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id,
             posterStyles,
-            system: posterSystem(selected, contributions), user: 'Gib jetzt das JSON aus.' }
+            system: posterSystem(selected, bookContribs), user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId
       await pollGeneration(kind, jobId)

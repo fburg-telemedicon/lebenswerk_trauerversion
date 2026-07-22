@@ -533,9 +533,20 @@ module.exports = async function handler(req, res) {
           const { data: cats } = await supabase.from('question_catalogs').select('id, chapters').in('id', catIds)
           for (const c of cats || []) chaptersByCatId[c.id] = Array.isArray(c.chapters) ? c.chapters : []
         }
-        const { data: euContribs } = await supabase.from('contributions').select('memorial_id, messages').in('memorial_id', enduserCodes)
+        // Der „Akt. Stand" misst den Fortschritt des ENDNUTZERS im Fragenkatalog.
+        // Gastbeiträge (Gastbeiträge zum Lebenswerk) sind eigene Interviews und
+        // müssen hier draußen bleiben — sonst zeigte die Liste den Stand eines
+        // Gastes an. is_guest ist neu: fehlt die Spalte, wird ohne sie gelesen.
+        let { data: euContribs, error: euErr } = await supabase
+          .from('contributions').select('memorial_id, messages, is_guest').in('memorial_id', enduserCodes)
+        if (euErr && /is_guest|column/i.test(euErr.message || '')) {
+          ;({ data: euContribs } = await supabase.from('contributions').select('memorial_id, messages').in('memorial_id', enduserCodes))
+        }
         const msgsByCode = {}
-        for (const r of euContribs || []) { if (!msgsByCode[r.memorial_id]) msgsByCode[r.memorial_id] = r.messages }
+        for (const r of euContribs || []) {
+          if (r.is_guest) continue
+          if (!msgsByCode[r.memorial_id]) msgsByCode[r.memorial_id] = r.messages
+        }
         for (const m of memorials) {
           if (!enduserCodes.includes(m.id)) continue
           m.progress = computeCatalogProgress(m.catalog_id ? chaptersByCatId[m.catalog_id] : null, msgsByCode[m.id])

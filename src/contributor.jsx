@@ -11,7 +11,7 @@ import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buil
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
+import { getCategory, interviewSystemFor, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -478,7 +478,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       let content = t.companionOffMsg
       let pos = null
       try {
-        const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+        const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
         const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...withPosMarkers(messagesRef.current)], { memorialCode: memorial?.id, kind: 'interview' })
         // Die feste Bestätigung und die KI-Frage werden zu EINER Nachricht — der
         // Marker gehört an die Nachricht, nicht mitten in den Text.
@@ -544,7 +544,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   async function loadFirst() {
     setAiLoading(true)
     try {
-      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const q = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }], { memorialCode: memorial?.id, kind: 'interview' })
       applyMessages([toAssistantMsg(q)])
     } catch (e) { setErr(e.message) }
@@ -745,7 +745,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     if (companionOn) return
     setAiLoading(true)
     try {
-      const sys   = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+      const sys   = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
       const reply = await askLLM(sys, [{ role: 'user', content: '[Interview beginnt]' }, ...withPosMarkers(newMsgs)], { memorialCode: memorial?.id, kind: 'interview' })
       const finalMsgs = [...newMsgs, toAssistantMsg(reply)]
       applyMessages(finalMsgs)
@@ -841,8 +841,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           <div style={{ fontWeight: 600, fontSize: 15 }}>{memorial.name}</div>
           {/* Bei Selbst-Interviews (Lebenswerk, Anamnese) erzählt die Person über sich
               selbst — „Name · Ich selbst" wäre nur die Zeile darüber ein zweites Mal.
-              Nur bei Beitragenden-Kategorien zeigt die untere Zeile Name + Beziehung. */}
-          {memorial?.product_category !== 'lifework' && !isAnamnesisCategory(memorial?.product_category) && (
+              Nur bei Beitragenden-Kategorien zeigt die untere Zeile Name + Beziehung —
+              beim Lebenswerk also nur für GÄSTE (die erzählen über die Person). */}
+          {(memorial?.product_category !== 'lifework' || memorial?.guest) && !isAnamnesisCategory(memorial?.product_category) && (
             <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -926,7 +927,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         <Err msg={err} />
         {err && (
           <div style={{ marginTop:-4, marginBottom:12, textAlign:'center' }}>
-            <button onClick={() => openSupport({ role: memorial?.product_category === 'lifework' ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, suggestedName: contribForm?.name })}
+            <button onClick={() => openSupport({ role: (memorial?.product_category === 'lifework' && !memorial?.guest) ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, suggestedName: contribForm?.name })}
               className="secondary" style={{ fontSize:12.5, padding:'6px 14px' }}>
               ✉ {t.supportButton || 'Support kontaktieren'}
             </button>
@@ -1112,7 +1113,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
   async function loadFirst() {
     setLoading(true)
     try {
-      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship)
       const q = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }])
       setMessages([toAssistantMsg(q)])
     } catch(e) { setErr(e.message) }
@@ -1125,7 +1126,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
     const newMsgs = [...messages, { role:'user', content:text }]
     setMessages(newMsgs); setRound(r=>r+1); setLoading(true)
     try {
-      const sys = getCategory(memorial?.product_category).interviewSystem(memorial, contribForm.name, contribForm.relationship)
+      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship)
       const reply = await askLLM(sys, [{ role:'user', content:'[Interview beginnt]' }, ...withPosMarkers(newMsgs)])
       setMessages([...newMsgs, toAssistantMsg(reply)])
     } catch(e) { setErr(e.message) }
@@ -1142,7 +1143,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
       <div style={{ flexShrink:0, borderBottom:'1px solid #e7e5e4', padding:'12px 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
         <div>
           <div style={{ fontWeight:600, fontSize:15 }}>{memorial.name}</div>
-          {memorial?.product_category !== 'lifework' && (
+          {(memorial?.product_category !== 'lifework' || memorial?.guest) && (
             <div style={{ fontSize:12, color:'#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -2448,7 +2449,9 @@ function OnboardShot({ slideKey, icon, color }) {
 
 function OnboardingCarousel({ memorial, lang = 'de', onClose }) {
   const s = ONBOARD_L10N[lang] || ONBOARD_L10N.de
-  const isSelf = memorial?.product_category === 'lifework'
+  // Gäste (Gastbeiträge zum Lebenswerk) sind BEITRAGENDE, nicht der Endnutzer —
+  // Einstellungen und Probedruck gibt es für sie nicht, also auch keine Slides dazu.
+  const isSelf = memorial?.product_category === 'lifework' && !memorial?.guest
   // Slides aus der Buch-Konfiguration ableiten — nur freigeschaltete Funktionen.
   const slides = []
   const add = (key, icon, color) => slides.push({ key, icon, color, title: s.slides[key][0], body: s.slides[key][1] })
@@ -2598,7 +2601,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
       // neues Gerät). Bei Endnutzern (EINE Person, Code privat) vom SERVER
       // wiederaufnehmen, statt frisch zu starten (sonst Einwilligung/Onboarding erneut
       // und Interview von vorn). Geteilte Bücher NICHT → normale Info-Maske.
-      if (memorial.product_category === 'lifework' || isAnamnesisCategory(memorial.product_category)) {
+      // NICHT für Gäste: Der Gast-Link ist geteilt (viele Angehörige, ein Code) —
+      // eine serverseitige Wiederaufnahme würde die Sitzung eines anderen Gastes
+      // (bzw. gar nichts) liefern. Gäste laufen den normalen Beitragenden-Weg.
+      if (!memorial.guest && (memorial.product_category === 'lifework' || isAnamnesisCategory(memorial.product_category))) {
         getEnduserResume(code)
           .then(contrib => {
             if (contrib && Array.isArray(contrib.messages) && contrib.messages.length) {
@@ -2629,7 +2635,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     // Code/Login) → ohne Rückfrage fortsetzen.
     // Lebenswerk/Anamnese: keine „Fortsetzen oder neu?"-Rückfrage, aber EIN kurzer
     // „Fortsetzen"-Screen als Nutzer-Geste (schaltet die Tonausgabe frei).
-    if (memorial.product_category === 'lifework' || isAnamnesisCategory(memorial.product_category)) { setResumeGate(local); return }
+    // Gäste teilen sich EINEN Link — hier gilt (wie bei den geteilten Büchern)
+    // die Rückfrage „Fortsetzen oder neu?", sonst landet der zweite Gast auf
+    // demselben Gerät im Beitrag des ersten.
+    if (!memorial.guest && (memorial.product_category === 'lifework' || isAnamnesisCategory(memorial.product_category))) { setResumeGate(local); return }
     setResumePrompt(local)
   }, [memorial])
 
@@ -2782,13 +2791,21 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   const L       = lang || (langs.length === 1 ? langs[0] : DEFAULT_LANGUAGE)
   const needLang = !!memorial && langs.length > 1 && !lang
   const t  = uiText(L)
-  const ct = contributorL10n(memorial?.product_category, L)
+  // Gastbeiträge zum Lebenswerk: Wer über den GAST-Link kommt, ist ein normaler
+  // Beitragender — er erzählt ÜBER die Person, nicht als sie, und darf vom
+  // Endnutzer-Bereich (Einstellungen, Korrekturabzug) nichts sehen. `guest`
+  // setzt /api/memorial anhand des aufgelösten Codes; der echte Buch-Code
+  // erreicht diesen Browser nie.
+  const isGuest = memorial?.guest === true
+  const ct = contributorL10n(memorial?.product_category, L, isGuest)
   // Selbst-Erzähler (Lebenswerk, Anamnese): Die Person IST die Hauptperson — keine
   // Beziehungsangabe, die Beziehung wird intern fest gesetzt (Spalte ist NOT NULL).
-  // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck, Logo) hängen dagegen
-  // an isLifework, nicht an isSelf.
-  const isSelf = memorial?.product_category === 'lifework' || isAnamnesisCategory(memorial?.product_category)
-  const isLifework = memorial?.product_category === 'lifework'
+  // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck) hängen dagegen
+  // an isLifework, nicht an isSelf. Das Lebenswerk-LOGO gilt für beide Zugänge —
+  // dafür steht isLifeworkBook.
+  const isSelf = (memorial?.product_category === 'lifework' && !isGuest) || isAnamnesisCategory(memorial?.product_category)
+  const isLifeworkBook = memorial?.product_category === 'lifework'
+  const isLifework = isLifeworkBook && !isGuest
   const isAnamnesis = isAnamnesisCategory(memorial?.product_category)
   const SELF_REL = 'Ich selbst'
   // Im Interview steckt das ☰-Menü (mit Datenschutz/Impressum) — dort wird der
@@ -2836,7 +2853,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   }, [L])
 
   // Ohne Firmenlogo trägt ein Lebenswerk das Lebenswerk-Logo statt des Standard-Logos.
-  const bannerLogo = memorial?.owner_logo || (isLifework ? '/lebenswerk-logo.png' : null)
+  const bannerLogo = memorial?.owner_logo || (isLifeworkBook ? '/lebenswerk-logo.png' : null)
   const resumeUrl = `${window.location.origin}/?code=${code}&session=${contribId}`
 
   function copyResumeUrl() {
@@ -2934,7 +2951,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                     // Endnutzer-Kategorien (Lebenswerk, Anamnese): die Wahl festschreiben
                     // (Buch auf diese eine Sprache pinnen), damit die Sprachauswahl nicht
                     // bei jedem Start erneut erscheint – weder beim Login noch über den Code-Link.
-                    if ((memorial?.product_category === 'lifework' || isAnamnesisCategory(memorial?.product_category)) && memorial?.id) {
+                    // Gäste pinnen NICHTS: Ihre Sprachwahl gilt nur für sie, das
+                    // Buch gehört dem Endnutzer (und /api/memorial würde den
+                    // Gast-Code ohnehin nicht als Buch-Code akzeptieren).
+                    if (!isGuest && (memorial?.product_category === 'lifework' || isAnamnesisCategory(memorial?.product_category)) && memorial?.id) {
                       pinMemorialLang(memorial.id, lc).catch(() => { /* nicht kritisch */ })
                     }
                   }} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>

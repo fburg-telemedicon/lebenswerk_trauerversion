@@ -14,7 +14,7 @@
 //    Inhalt an fremde Adressen verschickt werden kann.
 
 const { createClient } = require('./_lib/store')
-const { memorialExists } = require('./_lib/access')
+const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { sendMail } = require('./_lib/graphmail')
 const { isSuppressed } = require('./_lib/suppress')
@@ -38,10 +38,14 @@ module.exports = async function handler(req, res) {
     if (!subj || !text) return res.status(400).json({ error: 'Betreff/Text fehlt.' })
     // Der Text MUSS den echten Wiederaufnahme-Link (session=…) enthalten.
     if (!text.includes('session=' + sess)) return res.status(400).json({ error: 'Ungültiger Wiederaufnahme-Link.' })
-    if (!(await memorialExists(supabase, code))) return res.status(403).json({ error: 'Ungültiger Code.' })
+    // Buch-Code ODER Gast-Code (Gastbeiträge zum Lebenswerk). Der Wiederaufnahme-
+    // Link, den der Gast bekommt, trägt seinen eigenen Code — geprüft wird gegen
+    // das echte Buch dahinter.
+    const target = await resolvePublicCode(supabase, code)
+    if (!target) return res.status(403).json({ error: 'Ungültiger Code.' })
     // Session-Capability prüfen: der Beitrag muss existieren und zu diesem Buch gehören.
     const { data: contrib } = await supabase
-      .from('contributions').select('id').eq('id', sess).eq('memorial_id', code).maybeSingle()
+      .from('contributions').select('id').eq('id', sess).eq('memorial_id', target.id).maybeSingle()
     if (!contrib) return res.status(403).json({ error: 'Ungültige Sitzung.' })
     // Abgemeldete Adressen bekommen nichts (still „ok" zurück, kein Info-Leak).
     if (await isSuppressed(to)) return res.json({ ok: true, suppressed: true })

@@ -93,7 +93,9 @@ async function storeUpload(supabase, code, { base64, caption, description, sourc
     width,
     height,
     quality_flag,
-    source: source === 'manager' ? 'manager' : 'contributor',
+    // 'guest' = über den Gast-Link hochgeladen (Gastbeiträge zum Lebenswerk);
+    // technisch ein Beitragenden-Upload, aber der Manager soll die Herkunft sehen.
+    source: source === 'manager' ? 'manager' : (source === 'guest' ? 'guest' : 'contributor'),
     contribution_id: contributionId || null,
     consent: {
       granted: Boolean(consent),

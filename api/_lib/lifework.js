@@ -222,6 +222,13 @@ async function ensureLifeworkSchema() {
     create unique index if not exists memorials_guest_code_uidx
       on memorials (guest_code) where guest_code is not null
   `).catch(() => {})
+  // Herkunft eines Beitrags: über den Gast-Link erzählt (true) oder vom Endnutzer
+  // selbst (false/NULL). Ohne diese Markierung wäre ein Gastbeitrag von der
+  // Selbsterzählung nicht zu unterscheiden — die Autobiographie würde der Person
+  // fremde Sätze in den Mund legen.
+  await pool().query(`
+    alter table contributions add column if not exists is_guest boolean
+  `).catch(() => {})
   schemaReady = true
 }
 

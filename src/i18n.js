@@ -725,9 +725,103 @@ const CONTRIB = {
 }
 
 
-export function contributorL10n(slug, lang) {
+// Gastbeiträge zum Lebenswerk: Der Gast erzählt ÜBER die Person, nicht als sie.
+// Deutsch steht (wie bei allen Kategorien) in src/categories.js unter
+// `guestContributor`; hier liegen die Übersetzungen. Fehlt eine Sprache, greift
+// Deutsch — wie überall im Beitragenden-Flow.
+const GUEST_CONTRIB = {
+  en: {
+    heading: 'Your contribution', introNoun: 'Life’s work of',
+    relationshipLabel: 'Your relationship to {name} *',
+    relationshipPlaceholder: 'e.g. daughter, friend, colleague, neighbour …',
+    relationshipHint: 'From your perspective: who are you to {name}? Enter your own role – e.g. “daughter” or “friend” (meaning “I am {name}’s daughter / friend”).',
+    consentNoun: 'life’s work (autobiography)', interviewButton: '🎙 Start voice interview →',
+  },
+  pl: {
+    heading: 'Twój wkład', introNoun: 'Dzieło życia:',
+    relationshipLabel: 'Twoja relacja z {name} *',
+    relationshipPlaceholder: 'np. córka, przyjaciel, koleżanka, sąsiad …',
+    relationshipHint: 'Z Twojej perspektywy: kim jesteś dla osoby {name}? Wpisz swoją rolę – np. „córka" lub „przyjaciel".',
+    consentNoun: 'dzieła życia (autobiografii)', interviewButton: '🎙 Rozpocznij wywiad głosowy →',
+  },
+  es: {
+    heading: 'Su aportación', introNoun: 'Obra de vida de',
+    relationshipLabel: 'Su relación con {name} *',
+    relationshipPlaceholder: 'p. ej. hija, amigo, compañera, vecino …',
+    relationshipHint: 'Desde su perspectiva: ¿quién es usted para {name}? Indique su propio papel: p. ej. «hija» o «amigo».',
+    consentNoun: 'la obra de vida (autobiografía)', interviewButton: '🎙 Comenzar la entrevista →',
+  },
+  it: {
+    heading: 'Il suo contributo', introNoun: 'Opera di una vita di',
+    relationshipLabel: 'Il suo rapporto con {name} *',
+    relationshipPlaceholder: 'p. es. figlia, amico, collega, vicino …',
+    relationshipHint: 'Dal suo punto di vista: chi è lei per {name}? Indichi il suo ruolo, p. es. «figlia» o «amico».',
+    consentNoun: 'dell’opera di una vita (autobiografia)', interviewButton: '🎙 Iniziare l’intervista →',
+  },
+  eu: {
+    heading: 'Zure ekarpena', introNoun: 'Bizitza-lana:',
+    relationshipLabel: '{name}(r)ekin duzun harremana *',
+    relationshipPlaceholder: 'adib. alaba, laguna, lankidea, auzokoa …',
+    relationshipHint: 'Zure ikuspegitik: nor zara {name}(r)entzat? Idatzi zure rola – adib. «alaba» edo «laguna».',
+    consentNoun: 'bizitza-lanaren (autobiografia)', interviewButton: '🎙 Hasi elkarrizketa →',
+  },
+  he: {
+    heading: 'התרומה שלך', introNoun: 'מפעל חייו של',
+    relationshipLabel: 'הקשר שלך אל {name} *',
+    relationshipPlaceholder: 'למשל בת, חבר, עמיתה, שכן …',
+    relationshipHint: 'מנקודת מבטך: מי אתה עבור {name}? כתוב את תפקידך – למשל „בת" או „חבר".',
+    consentNoun: 'מפעל החיים (אוטוביוגרפיה)', interviewButton: '🎙 להתחיל את הראיון →',
+  },
+  ar: {
+    heading: 'مساهمتك', introNoun: 'عمل حياة',
+    relationshipLabel: 'علاقتك بـ {name} *',
+    relationshipPlaceholder: 'مثلاً ابنة، صديق، زميلة، جار …',
+    relationshipHint: 'من وجهة نظرك: من أنت بالنسبة إلى {name}؟ اكتب دورك – مثلاً «ابنة» أو «صديق».',
+    consentNoun: 'عمل الحياة (سيرة ذاتية)', interviewButton: '🎙 بدء المقابلة →',
+  },
+  fr: {
+    heading: 'Votre contribution', introNoun: 'Œuvre de vie de',
+    relationshipLabel: 'Votre lien avec {name} *',
+    relationshipPlaceholder: 'p. ex. fille, ami, collègue, voisin …',
+    relationshipHint: 'De votre point de vue : qui êtes-vous pour {name} ? Indiquez votre rôle – p. ex. « fille » ou « ami ».',
+    consentNoun: 'de l’œuvre de vie (autobiographie)', interviewButton: '🎙 Commencer l’entretien →',
+  },
+  ro: {
+    heading: 'Contribuția dumneavoastră', introNoun: 'Opera vieții lui',
+    relationshipLabel: 'Relația dumneavoastră cu {name} *',
+    relationshipPlaceholder: 'de ex. fiică, prieten, colegă, vecin …',
+    relationshipHint: 'Din perspectiva dumneavoastră: cine sunteți pentru {name}? Indicați rolul – de ex. „fiică" sau „prieten".',
+    consentNoun: 'operei vieții (autobiografie)', interviewButton: '🎙 Începeți interviul →',
+  },
+  tr: {
+    heading: 'Katkınız', introNoun: 'Yaşam eseri:',
+    relationshipLabel: '{name} ile ilişkiniz *',
+    relationshipPlaceholder: 'ör. kızı, arkadaşı, iş arkadaşı, komşusu …',
+    relationshipHint: 'Sizin bakış açınızdan: {name} için kimsiniz? Kendi rolünüzü yazın – ör. „kızı" ya da „arkadaşı".',
+    consentNoun: 'yaşam eserinin (otobiyografi)', interviewButton: '🎙 Görüşmeye başla →',
+  },
+  ru: {
+    heading: 'Ваш вклад', introNoun: 'Дело жизни:',
+    relationshipLabel: 'Ваше отношение к {name} *',
+    relationshipPlaceholder: 'напр. дочь, друг, коллега, сосед …',
+    relationshipHint: 'С вашей точки зрения: кем вы приходитесь {name}? Укажите свою роль – напр. «дочь» или «друг».',
+    consentNoun: 'дела жизни (автобиографии)', interviewButton: '🎙 Начать интервью →',
+  },
+  uk: {
+    heading: 'Ваш внесок', introNoun: 'Справа життя:',
+    relationshipLabel: 'Ваше ставлення до {name} *',
+    relationshipPlaceholder: 'напр. донька, друг, колега, сусід …',
+    relationshipHint: 'З вашої точки зору: ким ви є для {name}? Вкажіть свою роль – напр. «донька» або «друг».',
+    consentNoun: 'справи життя (автобіографії)', interviewButton: '🎙 Почати інтерв’ю →',
+  },
+}
+
+// `guest` = über den Gast-Link gekommen (Gastbeiträge zum Lebenswerk). Dann
+// gilt der Gast-Wortlaut der Kategorie statt des Endnutzer-Wortlauts.
+export function contributorL10n(slug, lang, guest = false) {
   const cat = CATEGORIES[slug] || CATEGORIES.memorial
-  const base = { nounBook: cat.nounBook, ...cat.contributor }
-  const overlay = (CONTRIB[lang] || {})[slug]
+  const useGuest = guest && cat.guestContributor
+  const base = { nounBook: cat.nounBook, ...(useGuest ? cat.guestContributor : cat.contributor) }
+  const overlay = useGuest ? GUEST_CONTRIB[lang] : (CONTRIB[lang] || {})[slug]
   return overlay ? { ...base, ...overlay } : base
 }

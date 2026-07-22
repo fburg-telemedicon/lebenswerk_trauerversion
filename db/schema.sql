@@ -120,7 +120,11 @@ create table if not exists contributions (
   transcript_checked_at  timestamptz,
   transcript_corrections jsonb       not null default '[]',
   consent_at             timestamptz,
-  consent_version        text
+  consent_version        text,
+  -- Gastbeiträge zum Lebenswerk: true = über den Gast-Link erzählt (jemand
+  -- anders spricht ÜBER die Person), NULL/false = die Person selbst bzw. ein
+  -- normaler Beitragender. Steuert Prompt und Buchsynthese.
+  is_guest               boolean
 );
 create index if not exists contributions_memorial_id_idx on contributions(memorial_id);
 create index if not exists contributions_feedback_at_idx

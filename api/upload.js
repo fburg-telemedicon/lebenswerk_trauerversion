@@ -10,7 +10,7 @@
 
 const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
-const { memorialExists } = require('./_lib/access')
+const { resolvePublicCode } = require('./_lib/access')
 const { appendUpload } = require('./_lib/upload-asset')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -25,7 +25,11 @@ module.exports = async function handler(req, res) {
     // Missbrauchsschutz: begrenzt Uploads pro IP (fail-open).
     if (!(await enforce(req, res, { name: 'upload', limit: 40, windowSeconds: 300 }))) return
 
-    if (!(await memorialExists(supabase, code))) {
+    // Buch-Code ODER Gast-Code (Gastbeiträge zum Lebenswerk). Das Foto gehört in
+    // JEDEM Fall zum echten Buch — Gastfotos sind der wertvollste Teil des
+    // Gastbeitrags und sollen im selben Ordner liegen (Art.-17-Löschung).
+    const target = await resolvePublicCode(supabase, code)
+    if (!target) {
       return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
     }
 
@@ -33,11 +37,11 @@ module.exports = async function handler(req, res) {
     if (!image) return res.status(400).json({ error: 'Kein Bild übergeben.' })
     if (!consent) return res.status(400).json({ error: 'Ohne Einverständniserklärung ist kein Upload möglich.' })
 
-    const entry = await appendUpload(supabase, code, {
+    const entry = await appendUpload(supabase, target.id, {
       base64: image,
       caption,
       description,
-      source: 'contributor',
+      source: target.guest ? 'guest' : 'contributor',
       contributionId: contributionId || null,
       consent: true,
     })

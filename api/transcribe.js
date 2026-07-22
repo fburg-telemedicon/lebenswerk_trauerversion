@@ -10,7 +10,7 @@
 
 const { createClient } = require('./_lib/store')
 const { costSTT, recordCost, enforceBudget } = require('./_lib/cost')
-const { memorialExists } = require('./_lib/access')
+const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -99,11 +99,14 @@ module.exports = async function handler(req, res) {
     // anonymer STT-Proxy auf fremde Rechnung). Prüfung VOR dem Anbieter-Aufruf.
     const code = String(memorialCode || '').toUpperCase().trim()
     if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
-    if (!(await memorialExists(supabase, code))) {
+    // Buch-Code ODER Gast-Code (Gastbeiträge zum Lebenswerk); gebucht wird auf
+    // das echte Buch.
+    const target = await resolvePublicCode(supabase, code)
+    if (!target) {
       return res.status(403).json({ error: 'Ungültiger Code.' })
     }
     // Kosten-Obergrenze je Buch erschöpft → keine Spracherkennung mehr (402).
-    if (!(await enforceBudget(res, code))) return
+    if (!(await enforceBudget(res, target.id))) return
 
     const buffer = Buffer.from(audio, 'base64')
     const ext    = mimeType?.includes('ogg') ? 'ogg'
@@ -115,7 +118,7 @@ module.exports = async function handler(req, res) {
     {
       const secs = Number.isFinite(parseFloat(audioSeconds)) ? parseFloat(audioSeconds) : 0
       await recordCost({
-        memorial_id: code,
+        memorial_id: target.id,
         contribution_id: contributionId || null,
         kind: 'stt',
         provider: result.provider,
