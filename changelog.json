@@ -4,6 +4,7 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Korrigiert: Wer aus einem GETEILTEN Buch (Gedenkbuch, Geburtstag, Jubiläum …) den Support anschrieb, dessen private E-Mail-Adresse wurde am Buch als Kontaktadresse gespeichert und stand im Dashboard, als wäre sie die des Organisators. Sie war für die Antwort auf die Anfrage gedacht, nicht als Projektkontakt. Das passiert jetzt nur noch bei Lebenswerk und Anamnese — dort gehört das Buch genau einer Person.",
         "Neue Kennzahl im Tagesreport: „Mikrofon blockiert“ — wie viele der begonnenen Interviews am Mikrofon scheitern, als Anteil und aufgeschlüsselt nach Plattform (Android/iPhone, Browser oder installierte App). Damit ist die Dunkelziffer messbar statt geschätzt: Wer das Mikrofon nicht zum Laufen bringt, schreibt meist keinen Support, sondern hört auf.",
         "Der Zähler ist bewusst ein reines Tagesaggregat: kein Buch-Code, keine Kennung, keine IP, keine Uhrzeit, keine Einzelzeile — und nichts wird auf dem Gerät gespeichert. Es ist damit keine Verarbeitung personenbezogener Daten.",
         "Buchliste im Dashboard: neue Spalte „Erstellt“ mit Datum und Uhrzeit (sortierbar, nach Tag filterbar); auf der Buch-Detailseite steht das Anlagedatum jetzt in der Kopfzeile.",

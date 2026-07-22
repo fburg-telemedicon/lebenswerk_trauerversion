@@ -18,6 +18,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { sendSupportMail } = require('./_lib/invitemail')
 const { sendMail } = require('./_lib/graphmail')
 const { callAzure } = require('./_lib/llm')
+const { isEnduserCategory } = require('./_lib/categories')
 const { costLLM, recordCost } = require('./_lib/cost')
 const { isSuppressed, isConfirmed, confirmLink, unsubscribeLink } = require('./_lib/suppress')
 const { checkAuth } = require('./_lib/auth')
@@ -286,10 +287,18 @@ module.exports = async function handler(req, res) {
     // gespeichert ist (weder eine frühere Kontakt-Mail im intake NOCH ein Endnutzer-
     // Konto mit E-Mail). So kann ein Patient mit reinem Code-Zugang später kontaktiert
     // werden und muss die Adresse nicht erneut angeben. Best effort.
+    //
+    // NUR bei den Endnutzer-Kategorien (Lebenswerk, Anamnese): Dort gehört das Buch
+    // genau EINER Person, ihre Adresse ist die Adresse des Buchs. Bei den geteilten
+    // Büchern (Gedenkbuch, Geburtstag, Jubiläum …) schreiben dagegen viele
+    // Beitragende — dort landete sonst die Privatadresse desjenigen am Buch, der
+    // zufällig als Erster den Support anschreibt. Sie war für die Antwort auf seine
+    // Anfrage gedacht, nicht als Kontakt des Projekts (Zweckbindung), und im
+    // Dashboard sieht sie aus wie die Adresse des Organisators.
     if (memorialId && replyEmail) {
       try {
-        const { data: mem } = await supabase.from('memorials').select('intake').eq('id', memorialId).maybeSingle()
-        if (mem) {
+        const { data: mem } = await supabase.from('memorials').select('intake, product_category').eq('id', memorialId).maybeSingle()
+        if (mem && isEnduserCategory(mem.product_category)) {
           const intake = (mem.intake && typeof mem.intake === 'object') ? mem.intake : {}
           if (!intake.contact_email) {
             const { data: acct } = await supabase
