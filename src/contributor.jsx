@@ -397,6 +397,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // proaktive Hilfe (eine blockierte Berechtigung kann nur der Nutzer in den
   // Browser-Einstellungen wieder freigeben — das ist eine Browser-Sicherheitsregel).
   const [micPerm, setMicPerm] = useState('unknown') // granted | denied | prompt | unknown
+  // Ton-/Mikrofontest (aus dem Hinweiskasten heraus erreichbar; zusätzlich im Menü)
+  const [soundTest, setSoundTest] = useState(false)
   // Freisprech-Modus: das Mikro wurde nach einer längeren Sprechpause automatisch
   // gestoppt (kein Ton erkannt). Dann blenden wir DOCH wieder ein Mikrofon + Hinweis
   // ein, damit der Nutzer das Gespräch antippen und fortsetzen kann. Sobald wieder
@@ -717,9 +719,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       const noMic  = nm === 'NotFoundError' || nm === 'OverconstrainedError' || nm === 'DevicesNotFoundError'
       const inUse  = nm === 'NotReadableError' || nm === 'AbortError' || nm === 'TrackStartError'
       if (isPerm) {
+        // Die eigentliche Schritt-für-Schritt-Anleitung steht geräteabhängig in
+        // MicBlockedBox (wird direkt darunter eingeblendet, micPerm='denied').
+        setMicPerm('denied')
         setErr(en
-          ? 'Microphone access is blocked. Even if you just allowed it: tap the lock icon in the address bar → Permissions → Microphone → Allow, then reload. If you installed the app on the home screen, also allow it under Android: Settings → Apps → this app → Permissions → Microphone.'
-          : 'Mikrofon-Zugriff ist blockiert. Auch wenn Sie eben zugestimmt haben: Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Berechtigungen" → „Mikrofon" → „Zulassen" und laden Sie die Seite neu. Falls Sie die App auf dem Startbildschirm installiert haben, erlauben Sie das Mikrofon zusätzlich unter Android: Einstellungen → Apps → diese App → Berechtigungen → Mikrofon.')
+          ? 'Microphone access is blocked — even if you just allowed it. Please follow the steps below.'
+          : 'Der Mikrofon-Zugriff ist blockiert — auch wenn Sie eben zugestimmt haben. Bitte folgen Sie den Schritten unten.')
       } else if (noMic) {
         setErr(en ? 'No microphone found. Please check that a microphone is available and enabled.' : 'Kein Mikrofon gefunden. Bitte prüfen Sie, ob ein Mikrofon vorhanden und aktiviert ist.')
       } else if (inUse) {
@@ -1005,11 +1010,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               </div>
             )}
             {micState === 'idle' && micPerm === 'denied' && (
-              <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 11px' }}>
-                🎙 {String(lang || '').startsWith('en')
-                  ? 'The microphone is blocked for this site. Tap the lock icon in the address bar → Microphone → Allow, then reload.'
-                  : 'Das Mikrofon ist für diese Seite blockiert. Tippen Sie in der Adressleiste auf das Schloss-Symbol → „Mikrofon" → „Zulassen" und laden Sie die Seite neu.'}
-              </div>
+              <MicBlockedBox lang={lang} onTest={() => setSoundTest(true)} />
             )}
             {/* Freisprech-Pause: Hinweis zum Weitersprechen (nur bis wieder aufgenommen wird). */}
             {handsFree && handsFreeIdle && micState === 'idle' && micPerm !== 'denied' && (
@@ -1094,6 +1095,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         )})}
         <div ref={endRef} /><div style={{ height:'1.5rem' }} />
       </div>
+      {soundTest && <SoundMicTest lang={lang} onClose={() => setSoundTest(false)} />}
     </div>
   )
 }
@@ -1394,6 +1396,294 @@ function InstallMenuItem({ t, row, sep, onClose }) {
   )
 }
 
+// ── Mikrofon-Freigabe: gerätespezifische Anleitung ───────────────────────────
+// WICHTIG: Die App läuft sehr oft als installierte PWA im Vollbild — dort gibt es
+// GAR KEINE Adressleiste und damit auch kein Schloss-Symbol. Eine pauschale
+// „Tippen Sie in der Adressleiste auf das Schloss" -Anleitung führt genau dann in
+// die Irre (und wird zusätzlich mit dem Schloss-Symbol im Menü verwechselt).
+// Deshalb ermitteln wir Plattform + Anzeigemodus und zeigen nur den Weg, den es
+// auf diesem Gerät wirklich gibt.
+function micHelp(lang) {
+  const en = String(lang || '').startsWith('en')
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || ''
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isAndroid = /Android/.test(ua)
+  let standalone = false
+  try {
+    standalone = window.matchMedia?.('(display-mode: standalone)')?.matches === true
+      || window.matchMedia?.('(display-mode: fullscreen)')?.matches === true
+      || window.navigator.standalone === true
+  } catch { /* egal */ }
+
+  const title = en ? 'Allow the microphone' : 'Mikrofon freigeben'
+  // Installierte App (Vollbild, keine Adressleiste) — der einzige Weg führt über
+  // die Systemeinstellungen des Geräts.
+  if (standalone && isAndroid) {
+    return { title, steps: en ? [
+      'Leave the app (home button) and open Android Settings.',
+      'Go to "Apps" and pick this app from the list (same name and icon as on your home screen).',
+      'Tap "Permissions" → "Microphone" → "Allow".',
+      'Open the app again and tap the microphone.',
+    ] : [
+      'App verlassen (Home-Taste) und die Android-„Einstellungen" öffnen.',
+      'Auf „Apps" tippen und diese App in der Liste auswählen (gleicher Name und gleiches Symbol wie auf dem Startbildschirm).',
+      'Auf „Berechtigungen" → „Mikrofon" → „Zulassen" tippen.',
+      'App wieder öffnen und das Mikrofon antippen.',
+    ], hint: en
+      ? 'Shortcut: press and hold the app icon on the home screen → "App info" → "Permissions" → "Microphone".'
+      : 'Abkürzung: Auf dem Startbildschirm lange auf das App-Symbol drücken → „App-Info" → „Berechtigungen" → „Mikrofon".' }
+  }
+  if (standalone && isIOS) {
+    return { title, steps: en ? [
+      'Leave the app and open the iPhone "Settings".',
+      'Scroll down to this app and tap it.',
+      'Switch "Microphone" on.',
+      'Open the app again and tap the microphone.',
+    ] : [
+      'App verlassen und die iPhone-„Einstellungen" öffnen.',
+      'Nach unten zu dieser App scrollen und sie antippen.',
+      '„Mikrofon" einschalten.',
+      'App wieder öffnen und das Mikrofon antippen.',
+    ], hint: '' }
+  }
+  if (isIOS) {
+    return { title, steps: en ? [
+      'In Safari, tap the "aA" icon on the left of the address bar.',
+      'Choose "Website Settings" → set "Microphone" to "Allow".',
+      'Reload the page.',
+    ] : [
+      'In Safari links in der Adressleiste auf „aA" tippen.',
+      '„Website-Einstellungen" wählen → „Mikrofon" auf „Erlauben" stellen.',
+      'Die Seite neu laden.',
+    ], hint: en
+      ? 'Also check iPhone Settings → Safari → Microphone.'
+      : 'Zusätzlich prüfen: iPhone-Einstellungen → Safari → Mikrofon.' }
+  }
+  if (isAndroid) {
+    return { title, steps: en ? [
+      'In Chrome, tap the icon to the left of the web address (sliders or lock).',
+      'Tap "Permissions" → "Microphone" → "Allow".',
+      'Reload the page.',
+    ] : [
+      'In Chrome auf das Symbol links neben der Web-Adresse tippen (Schieberegler oder Schloss).',
+      'Auf „Berechtigungen" → „Mikrofon" → „Zulassen" tippen.',
+      'Die Seite neu laden.',
+    ], hint: en
+      ? 'No address bar visible? Then the app is installed on the home screen: Android Settings → Apps → this app → Permissions → Microphone.'
+      : 'Keine Adressleiste zu sehen? Dann läuft die App vom Startbildschirm: Android-Einstellungen → Apps → diese App → Berechtigungen → Mikrofon.' }
+  }
+  return { title, steps: en ? [
+    'Click the icon to the left of the web address in the browser bar.',
+    'Set "Microphone" to "Allow".',
+    'Reload the page.',
+  ] : [
+    'Im Browser auf das Symbol links neben der Web-Adresse klicken.',
+    '„Mikrofon" auf „Zulassen" stellen.',
+    'Die Seite neu laden.',
+  ], hint: en
+    ? 'Also check that the system allows the browser to use the microphone.'
+    : 'Zusätzlich prüfen, ob das System dem Browser das Mikrofon erlaubt.' }
+}
+
+// Kompakter Hinweiskasten „Mikrofon blockiert" mit der passenden Anleitung.
+function MicBlockedBox({ lang, onTest }) {
+  const en = String(lang || '').startsWith('en')
+  const h = micHelp(lang)
+  return (
+    <div style={{ maxWidth:360, margin:'2px auto 6px', fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'9px 12px', textAlign:'left' }}>
+      <div style={{ fontWeight:700, marginBottom:5 }}>🎙 {en ? 'The microphone is blocked' : 'Das Mikrofon ist blockiert'}</div>
+      <ol style={{ margin:'0 0 0 16px', padding:0 }}>{h.steps.map((s, i) => <li key={i} style={{ marginBottom:2 }}>{s}</li>)}</ol>
+      {h.hint && <div style={{ marginTop:6, color:'#a16207' }}>{h.hint}</div>}
+      <div style={{ marginTop:8, display:'flex', gap:8, flexWrap:'wrap' }}>
+        <button onClick={() => window.location.reload()} style={{ fontSize:12, padding:'6px 12px' }}>{en ? 'Reload' : 'Neu laden'}</button>
+        {onTest && <button onClick={onTest} className="secondary" style={{ fontSize:12, padding:'6px 12px' }}>{en ? 'Sound & microphone test' : 'Ton- und Mikrofontest'}</button>}
+      </div>
+    </div>
+  )
+}
+
+// ── Ton- und Mikrofontest ────────────────────────────────────────────────────
+// Zwei Schritte, ohne KI-Kosten (reines Web Audio + lokale Aufnahme):
+//  1. Testton (Sinus, kurz) → prüft Lautstärke/Stummschalter/Kopfhörer.
+//  2. Kurze Aufnahme mit Live-Pegel → sofortige Wiedergabe. Wir merken uns den
+//     Spitzenpegel: bleibt er praktisch bei null, war das Mikrofon stumm.
+// Die Aufnahme verlässt das Gerät NICHT (keine Transkription, kein Upload).
+function SoundMicTest({ lang, onClose }) {
+  const en = String(lang || '').startsWith('en')
+  const [tonePlaying, setTonePlaying] = useState(false)
+  const [toneDone, setToneDone]       = useState(false)
+  const [recState, setRecState]       = useState('idle') // idle | rec | done | error
+  const [stream, setStream]           = useState(null)
+  const [peak, setPeak]               = useState(0)
+  const [url, setUrl]                 = useState('')
+  const [err, setErr]                 = useState('')
+  const recRef   = useRef(null)
+  const stopRef  = useRef(null)
+  const urlRef   = useRef('')
+
+  useEffect(() => () => {
+    try { stopRef.current?.() } catch {}
+    try { recRef.current?.state === 'recording' && recRef.current.stop() } catch {}
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+  }, [])
+
+  // 1) Testton: 880 Hz, 1,2 s, sanft ein-/ausgeblendet (kein Knacken).
+  async function playTone() {
+    setTonePlaying(true)
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext
+      const ctx = new AC()
+      await ctx.resume().catch(() => {})
+      const osc = ctx.createOscillator(), gain = ctx.createGain()
+      osc.type = 'sine'; osc.frequency.value = 880
+      const t0 = ctx.currentTime
+      gain.gain.setValueAtTime(0.0001, t0)
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.06)
+      gain.gain.setValueAtTime(0.25, t0 + 1.0)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2)
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.start(t0); osc.stop(t0 + 1.25)
+      osc.onended = () => { ctx.close().catch(() => {}); setTonePlaying(false); setToneDone(true) }
+    } catch (e) {
+      setTonePlaying(false); setToneDone(true)
+      setErr(en ? 'The test tone could not be played on this device.' : 'Der Testton konnte auf diesem Gerät nicht abgespielt werden.')
+    }
+  }
+
+  // 2) Aufnahme (max. 6 s) mit Live-Pegelmessung; danach direkte Wiedergabe.
+  async function startRec() {
+    setErr(''); setPeak(0)
+    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = ''; setUrl('') }
+    let st
+    try {
+      st = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (e) {
+      setRecState('error')
+      setErr(en ? 'No access to the microphone.' : 'Kein Zugriff auf das Mikrofon.')
+      return
+    }
+    setStream(st); setRecState('rec')
+    // Spitzenpegel messen (RMS aus dem Zeitsignal).
+    let raf = 0, ctx = null, maxLvl = 0
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext
+      ctx = new AC()
+      const src = ctx.createMediaStreamSource(st)
+      const an  = ctx.createAnalyser(); an.fftSize = 1024
+      src.connect(an)
+      const buf = new Uint8Array(an.fftSize)
+      const tick = () => {
+        raf = requestAnimationFrame(tick)
+        an.getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
+        const rms = Math.sqrt(sum / buf.length)
+        if (rms > maxLvl) { maxLvl = rms; setPeak(rms) }
+      }
+      tick()
+    } catch { /* Pegel optional */ }
+
+    const chunks = []
+    let rec
+    try { rec = new MediaRecorder(st) } catch { rec = new MediaRecorder(st, { mimeType: 'audio/webm' }) }
+    recRef.current = rec
+    rec.ondataavailable = e => { if (e.data?.size) chunks.push(e.data) }
+    rec.onstop = () => {
+      cancelAnimationFrame(raf); ctx?.close().catch(() => {})
+      st.getTracks().forEach(tr => tr.stop())
+      setStream(null); setRecState('done')
+      try {
+        const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' })
+        const u = URL.createObjectURL(blob)
+        urlRef.current = u; setUrl(u)
+      } catch { /* Wiedergabe entfällt */ }
+    }
+    const stopAll = () => { try { rec.state === 'recording' && rec.stop() } catch {} }
+    stopRef.current = stopAll
+    rec.start()
+    setTimeout(stopAll, 6000)
+  }
+
+  const quiet = recState === 'done' && peak < 0.02
+  const box = { border:'1px solid #e7e5e4', borderRadius:12, padding:'12px 14px', marginBottom:10 }
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:70, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:'18px 18px 26px', maxWidth:460, width:'100%', boxShadow:'0 -2px 16px rgba(0,0,0,.2)', maxHeight:'88vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+          <div style={{ fontSize:16, fontWeight:700 }}>{en ? 'Sound & microphone test' : 'Ton- und Mikrofontest'}</div>
+          <button onClick={onClose} aria-label="×" style={{ background:'none', border:'none', fontSize:24, cursor:'pointer', color:'#78716c', lineHeight:1 }}>×</button>
+        </div>
+
+        {/* Schritt 1: Hören */}
+        <div style={box}>
+          <div style={{ fontSize:14.5, fontWeight:600, marginBottom:4 }}>{en ? '1. Can you hear us?' : '1. Hören Sie uns?'}</div>
+          <p style={{ fontSize:13, color:'#78716c', lineHeight:1.5, margin:'0 0 10px' }}>
+            {en ? 'Play a short test tone. If you hear nothing: turn the volume up, and on an iPhone check the silent switch on the side.'
+                : 'Kurzen Testton abspielen. Wenn Sie nichts hören: Lautstärke hochdrehen — beim iPhone zusätzlich den Stummschalter an der Seite prüfen.'}
+          </p>
+          <button onClick={playTone} disabled={tonePlaying} style={{ fontSize:13, padding:'9px 16px' }}>
+            {tonePlaying ? (en ? 'Playing …' : 'Spielt …') : (en ? '🔊 Play test tone' : '🔊 Testton abspielen')}
+          </button>
+          {toneDone && !tonePlaying && (
+            <div style={{ fontSize:12.5, color:'#78716c', marginTop:8 }}>
+              {en ? 'Heard nothing? Then the volume is off, the device is muted, or headphones are connected somewhere else.'
+                  : 'Nichts gehört? Dann ist die Lautstärke aus, das Gerät stummgeschaltet oder ein Kopfhörer anderweitig verbunden.'}
+            </div>
+          )}
+        </div>
+
+        {/* Schritt 2: Sprechen */}
+        <div style={box}>
+          <div style={{ fontSize:14.5, fontWeight:600, marginBottom:4 }}>{en ? '2. Do we hear you?' : '2. Hören wir Sie?'}</div>
+          <p style={{ fontSize:13, color:'#78716c', lineHeight:1.5, margin:'0 0 10px' }}>
+            {en ? 'Record a few seconds and play them back. The recording stays on your device — nothing is sent or saved.'
+                : 'Ein paar Sekunden aufnehmen und gleich anhören. Die Aufnahme bleibt auf Ihrem Gerät — nichts wird gesendet oder gespeichert.'}
+          </p>
+          {recState === 'rec' ? (
+            <>
+              {stream && <div style={{ maxWidth:320, margin:'0 auto 8px' }}><Waveform stream={stream} /></div>}
+              <div style={{ textAlign:'center' }}>
+                <button onClick={() => stopRef.current?.()} style={{ fontSize:13, padding:'9px 16px' }}>{en ? '⏹ Stop' : '⏹ Stoppen'}</button>
+                <div style={{ fontSize:12.5, color:'#dc2626', marginTop:6 }}>
+                  {en ? 'Please say a sentence out loud …' : 'Bitte sprechen Sie einen Satz laut aus …'}
+                </div>
+              </div>
+            </>
+          ) : (
+            <button onClick={startRec} style={{ fontSize:13, padding:'9px 16px' }}>
+              {recState === 'done' ? (en ? '🎙 Record again' : '🎙 Nochmal aufnehmen') : (en ? '🎙 Start recording' : '🎙 Aufnahme starten')}
+            </button>
+          )}
+          {recState === 'done' && (
+            <div style={{ marginTop:10 }}>
+              {quiet ? (
+                <div style={{ fontSize:12.5, lineHeight:1.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'8px 11px' }}>
+                  {en ? 'We did not detect any sound. The microphone is muted, blocked or used by another app.'
+                      : 'Es wurde kein Ton erkannt. Das Mikrofon ist stumm, blockiert oder von einer anderen App belegt.'}
+                </div>
+              ) : (
+                <div style={{ fontSize:12.5, lineHeight:1.5, color:'#166534', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'8px 11px' }}>
+                  {en ? 'Sound detected — the microphone works. Listen to the recording to check the volume.'
+                      : 'Ton erkannt — das Mikrofon funktioniert. Zur Kontrolle die Aufnahme anhören.'}
+                </div>
+              )}
+              {url && <audio src={url} controls style={{ width:'100%', marginTop:8 }} />}
+            </div>
+          )}
+          {recState === 'error' && <div style={{ fontSize:12.5, color:'#b91c1c', marginTop:8 }}>{err}</div>}
+        </div>
+
+        {/* Anleitung zur Freigabe — immer erreichbar, nicht nur im Fehlerfall. */}
+        {(recState === 'error' || quiet) && <MicBlockedBox lang={lang} />}
+        {err && recState !== 'error' && <div style={{ fontSize:12.5, color:'#b91c1c' }}>{err}</div>}
+        <button onClick={onClose} className="secondary" style={{ width:'100%', marginTop:6, fontSize:13, padding:'10px 16px' }}>
+          {en ? 'Close' : 'Schließen'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Auswahl-Dialog für den Aufnahme-Modus (Beitragender wechselt selbst, wenn der
 // Manager es erlaubt hat). Zeigt die drei Modi; aktueller ist markiert. Die Wahl
 // überschreibt den Buch-Standard und wird je Code gemerkt (localStorage).
@@ -1435,8 +1725,9 @@ function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
   )
 }
 
-function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel }) {
+function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel }) {
   const [open, setOpen] = useState(false)
+  const [test, setTest] = useState(false)   // Ton- und Mikrofontest
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
     ...(withPhoto    ? [{ id:'photo',    icon: photoIcon || '📷', label: photoLabel || t.tabPhoto }] : []),
@@ -1469,6 +1760,13 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withB
                 <span style={{ fontSize:19 }}>🎙️</span><span>{micModeLabel || 'Mikrofon-Modus'}</span>
               </button>
             </>)}
+            {/* Selbsttest: Testton hören + kurz aufnehmen und anhören. Klärt die zwei
+                häufigsten Störungen (Lautstärke aus / Mikrofon nicht freigegeben),
+                ohne dass jemand am Telefon mitraten muss. */}
+            <button onClick={() => { setOpen(false); setTest(true) }} style={row}>
+              <span style={{ fontSize:19 }}>🔊</span>
+              <span>{String(lang || '').startsWith('en') ? 'Sound & microphone test' : 'Ton- und Mikrofontest'}</span>
+            </button>
             {onToggleTx && <div style={sep} />}
             {onToggleTx && (
               <button onClick={onToggleTx} aria-pressed={!!showTx} style={row}>
@@ -1502,8 +1800,10 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withB
             {/* Rechtslinks: hierher verlagert aus dem Seiten-Footer (der im Interview
                 ausgeblendet ist). Öffnen die statischen Rechtsseiten in einem neuen Tab. */}
             <div style={sep} />
+            {/* Bewusst KEIN Schloss-Symbol: es wird sonst mit dem Schloss/Berechtigungs-
+                Symbol des Browsers (Mikrofon-Freigabe) verwechselt. */}
             <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
-              <span style={{ fontSize:19 }}>🔒</span><span>{t.consentLink || 'Datenschutzerklärung'}</span>
+              <span style={{ fontSize:19, fontWeight:700 }} aria-hidden="true">§</span><span>{t.consentLink || 'Datenschutzerklärung'}</span>
             </a>
             <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
               <span style={{ fontSize:19 }}>📄</span><span>{t.imprintLink || 'Impressum'}</span>
@@ -1511,6 +1811,7 @@ function ContribMenu({ tab, setTab, t, withPhoto, withSettings, withProof, withB
           </div>
         </div>
       )}
+      {test && <SoundMicTest lang={lang} onClose={() => setTest(false)} />}
     </>
   )
 }
@@ -3224,7 +3525,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
-            <ContribMenu tab={tab} setTab={setTab} t={t} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
+            <ContribMenu tab={tab} setTab={setTab} t={t} lang={L} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
               photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : null} photoIcon={isAnamnesis ? '📄' : null}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
