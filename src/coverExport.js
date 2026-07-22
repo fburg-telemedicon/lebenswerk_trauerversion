@@ -581,8 +581,18 @@ function downscaleImageToJpeg(imgEl, maxPx, quality) {
 // Druck-Cover (dort im Dialog gewählt), damit E-Book und Cover übereinstimmen.
 // maxPx/quality: Hintergrund verkleinert als JPEG einbetten (kleine Dateigröße).
 export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layout, boxPos, maxPx, quality }) {
-  const HF = layout?.heading?.pdf || 'times'
-  const BF = layout?.body?.pdf || 'times'
+  let HF = layout?.heading?.pdf || 'times'
+  let BF = layout?.body?.pdf || 'times'
+  // Wie beim Druck-Cover (prepareCover): die jsPDF-Standardfonts koennen kein
+  // Latin-Extended-A. Ohne den eingebetteten Unicode-Font wuerden polnische
+  // Zeichen als Falschglyphen gesetzt UND falsch vermessen — der Titel bricht
+  // dann an der falschen Stelle um und laeuft ueber den Seitenrand hinaus.
+  let fonts = null
+  if (NEEDS_UNICODE.test(`${title || ''} ${subtitle || ''}`)) {
+    const f = await import('./fonts/dejavuSerif.js')
+    fonts = { regular: f.DEJAVU_SERIF, bold: f.DEJAVU_SERIF_BOLD }
+    HF = 'DejaVuSerif'; BF = 'DejaVuSerif'
+  }
   const bgImg = await loadImage(bgUrl)
   const bgData = maxPx ? downscaleImageToJpeg(bgImg, maxPx, quality || 0.72) : await toDataUrl(bgUrl)
   const { bg, fg } = pickAccentColor(bgImg)
@@ -602,7 +612,7 @@ export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layo
   // Doppelseiten-Koordinaten; für die Vorderseite das rechte Drittel/Hälfte prüfen.
   const analysis = side === 'front' ? renderCoverCanvas(bgImg, EB_SPREAD_W, EB_PAGE_H) : null
 
-  return { side, HF, BF, bg, fg, bgData, bgImg, logoData, logoImg, baseX, offY,
+  return { side, HF, BF, fonts, bg, fg, bgData, bgImg, logoData, logoImg, baseX, offY,
     dw: fit.w, dh: fit.h, boxPos: boxPos || 'auto',
     title: String(title || ''), subtitle: String(subtitle || ''), _analysis: analysis }
 }
@@ -610,16 +620,35 @@ export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layo
 // Zeichnet eine vorbereitete E-Book-Coverseite auf die AKTUELLE jsPDF-Seite.
 export function drawEbookCoverPage(doc, p) {
   const W = EB_PAGE_W, H = EB_PAGE_H
+  // Das Innenteil-Dokument hat den Unicode-Font nur dann schon, wenn der BUCHTEXT
+  // Sonderzeichen enthaelt — beim Cover-Titel muss er ggf. nachgereicht werden.
+  if (p.fonts && !doc.getFontList()?.DejaVuSerif) registerUnicodeFont(doc, p.fonts)
   const bgFmt = /^data:image\/jpe?g/i.test(p.bgData) ? 'JPEG' : 'PNG'
   doc.addImage(p.bgData, bgFmt, p.baseX, p.offY, p.dw, p.dh, undefined, 'FAST')
 
   if (p.side === 'front') {
     const textW = W - 2 * EB_BOX_PAD_X
-    doc.setFont(p.HF, 'bold'); doc.setFontSize(TITLE_SIZE)
-    const titleLines = doc.splitTextToSize(p.title, textW)
-    doc.setFont(p.BF, 'italic'); doc.setFontSize(SUB_SIZE)
-    const subLines = p.subtitle ? doc.splitTextToSize(p.subtitle, textW) : []
-    const blockH = titleLines.length * TITLE_LH + (subLines.length ? 4 + subLines.length * SUB_LH : 0)
+    // Umbruch messen und, falls eine Zeile trotzdem zu breit bleibt (langes,
+    // unteilbares Wort), den Grad verkleinern statt ueber den Rand zu laufen.
+    const fitLines = (font, style, size, text, minSize) => {
+      doc.setFont(font, style)
+      let s = size, lines = []
+      for (;;) {
+        doc.setFontSize(s)
+        lines = doc.splitTextToSize(text, textW)
+        const widest = lines.reduce((m, ln) => Math.max(m, doc.getTextWidth(ln)), 0)
+        if (widest <= textW || s <= minSize) break
+        s -= 0.5
+      }
+      return { lines, size: s }
+    }
+    const t = fitLines(p.HF, 'bold', TITLE_SIZE, p.title, 12)
+    const sub = p.subtitle ? fitLines(p.BF, 'italic', SUB_SIZE, p.subtitle, 8) : { lines: [], size: SUB_SIZE }
+    const titleLines = t.lines, subLines = sub.lines
+    // Zeilenabstaende mit dem tatsaechlichen Grad skalieren.
+    const titleLh = TITLE_LH * (t.size / TITLE_SIZE)
+    const subLh = SUB_LH * (sub.size / SUB_SIZE)
+    const blockH = titleLines.length * titleLh + (subLines.length ? 4 + subLines.length * subLh : 0)
     const boxH = blockH + 2 * BOX_PAD_Y
 
     const safeTop = 16, safeBottom = H - 16
@@ -638,13 +667,13 @@ export function drawEbookCoverPage(doc, p) {
     doc.setFillColor(p.bg[0], p.bg[1], p.bg[2])
     doc.rect(0, boxY, W, boxH, 'F')
     doc.setTextColor(p.fg[0], p.fg[1], p.fg[2])
-    let ty = boxY + BOX_PAD_Y + TITLE_LH * 0.72
-    doc.setFont(p.HF, 'bold'); doc.setFontSize(TITLE_SIZE)
-    for (const ln of titleLines) { doc.text(ln, W / 2, ty, { align: 'center' }); ty += TITLE_LH }
+    let ty = boxY + BOX_PAD_Y + titleLh * 0.72
+    doc.setFont(p.HF, 'bold'); doc.setFontSize(t.size)
+    for (const ln of titleLines) { doc.text(ln, W / 2, ty, { align: 'center' }); ty += titleLh }
     if (subLines.length) {
       ty += 4
-      doc.setFont(p.BF, 'italic'); doc.setFontSize(SUB_SIZE)
-      for (const ln of subLines) { doc.text(ln, W / 2, ty, { align: 'center' }); ty += SUB_LH }
+      doc.setFont(p.BF, 'italic'); doc.setFontSize(sub.size)
+      for (const ln of subLines) { doc.text(ln, W / 2, ty, { align: 'center' }); ty += subLh }
     }
   } else {
     // Rückseite: Logo unten mittig auf einem Farbstreifen (wie beim Druck-Cover).
