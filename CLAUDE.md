@@ -2,73 +2,131 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **✅ Azure-Migration abgeschlossen (Cutover 2026-07-13).** **Produktion läuft auf Azure**, nicht mehr auf Supabase/Vercel: Backend = **Azure Container Apps** (`lebenswerk-web`, Express-`server.js` bündelt die `/api`-Handler), DB = **Azure Database for PostgreSQL Flexible Server** (`lebenswerk-pg`, North Europe) über `api/_lib/store.js` (ersetzt `@supabase/supabase-js`), Storage = **Azure Blob** (`lebenswerkstore0713`, SAS statt Signed URLs), Crons = **Container Apps Jobs** (`scripts/cron-run.js`). Azure OpenAI/Speech/FLUX unverändert. Domain `lebensgeschichten.ai` → Azure (Managed-Zertifikat). RG `lebenswerk-rg`, Abo = Azure-Sponsorship. **Runbook/Details: `infra/MIGRATION.md`.** Teile dieses Dokuments unten beschreiben noch den **alten** Vercel/Supabase-Zustand — im Zweifel gelten `infra/MIGRATION.md` + `api/_lib/store.js`. Wichtige neue Env: `DATABASE_URL`, `AZURE_STORAGE_ACCOUNT`/`_KEY`, `CRON_SELF_BASE_URL` (interne Worker-Aufrufe!), `DEMO_BOOK_URL`, `VITE_PUBLIC_ASSET_BASE`.
+> **Production runs on Azure** (cutover 2026-07-13). Backend = **Azure Container Apps** (`lebenswerk-web`, Express `server.js` serves the `/api` handlers + the built SPA), DB = **Azure Database for PostgreSQL Flexible Server** (`lebenswerk-pg`, North Europe) via `api/_lib/store.js`, Storage = **Azure Blob** (`lebenswerkstore0713`, SAS-signed reads), Crons = **Container Apps Jobs** (`scripts/cron-run.js`), LLM/TTS/STT/Image = Azure OpenAI, Azure AI Speech, Azure FLUX. Domain `lebensgeschichten.ai` → Azure (managed certificate). RG `lebenswerk-rg`, Azure Sponsorship subscription. **Runbook: `infra/MIGRATION.md`.**
+>
+> Supabase and Vercel are **gone from production**. `vercel.json` and `supabase/*.sql` still exist as historical/rollback artifacts — see "Legacy artifacts" below. Do not treat them as live configuration.
 
 ## Commands
 
 - `npm run build` — Vite production build to `dist/`.
-- `node server.js` — startet den Express-Server (API + statisches `dist/`), Port `8080` (bzw. `$PORT`). Braucht die Env-Variablen unten (v. a. `DATABASE_URL`, `AZURE_STORAGE_*`).
-- `node scripts/cron-run.js <purge|report|transcript-check|generate>` — führt einen Cron-Job lokal/im Container aus (Autorisierung via `CRON_SECRET`).
-- Container-Build/-Deploy: `Dockerfile` + `infra/provision.sh` (einmalig) + `infra/deploy.sh` (App + Cron-Jobs). Details: `infra/MIGRATION.md`.
-- **Alt (bis Cutover):** `npm run dev` (=`vercel dev`) und `vercel --prod` existieren noch; Produktion läuft bis zum DNS-Umzug auf Vercel (URL **lebensgeschichten.ai**).
+- `node server.js` — Express server (API + static `dist/`), port `8080` (or `$PORT`). Needs the env vars below (above all `DATABASE_URL`, `AZURE_STORAGE_*`).
+- `node scripts/cron-run.js <purge|report|transcript-check|generate>` — runs one cron job locally or in the container.
+- `psql "$DATABASE_URL" -f db/schema.sql` — idempotent schema apply (see Database).
+- Deploy: **push to `main`** — `.github/workflows/deploy.yml` builds the image in ACR (`lebenswerkacr0713`) via OIDC and updates the Container App *and* all cron jobs to the same image. Manual/first-time provisioning: `infra/provision.sh`, then `infra/deploy.sh` (that script also owns the env vars/secrets — the GitHub Action deliberately does not touch them).
 
-There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail.
+There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail. `npm run dev` is still wired to `vercel dev` in `package.json` but is vestigial and not the way this project runs; use `node server.js`.
 
 All user-facing text is German; keep new strings German unless asked otherwise.
 
 ## Required environment variables
 
-Set in Vercel (production) and in a local `.env` for `vercel dev`:
+Set on the Container App (via `infra/deploy.sh`) and in a local `.env` for `node server.js`:
 
 | Var | Purpose |
 |---|---|
-| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | **Required — sole interview + book/eulogy LLM (EU), no fallback.** Azure OpenAI gpt-4.1. The deployment lives on a **Microsoft Foundry** resource, so `callAzure` uses the **v1 API**: `POST {endpoint}/openai/v1/chat/completions?api-version=preview` with `model`=deployment in the body. Endpoint = `https://<resource>.services.ai.azure.com` (NOT the classic `…openai.azure.com`). `AZURE_OPENAI_API_VERSION` optional, **must be `preview`** (date versions like `2024-10-21` → "DeploymentNotFound"). Deployment name (e.g. `gpt-4.1`) is also the pricing key in `cost.js`. If unset/unreachable, `/api/ask` errors — the Anthropic/Claude fallback was removed 2026-06-22. |
-| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | **Required — sole TTS + STT (EU), no fallback.** Azure AI Speech (Neural TTS in `speak.js`, Fast Transcription in `transcribe.js`); region e.g. `westeurope`. Optional: `AZURE_SPEECH_TTS_VOICE` (default `de-DE-KatjaNeural`), `AZURE_SPEECH_TTS_RATE` (default `+6%`), `AZURE_SPEECH_ENDPOINT`. If unset/unreachable, `/api/speak` and `/api/transcribe` error — the OpenAI `tts-1-hd`/`whisper-1` fallback was removed 2026-06-22. |
-| `DATABASE_URL` | **(Azure)** Postgres-Verbindung zu Azure Database for PostgreSQL Flexible Server, `…?sslmode=require`. Von `api/_lib/store.js` (pg-Pool) genutzt. Ersetzt `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`. |
-| `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY` | **(Azure)** Blob-Storage-Account + Key. `store.js` legt Buch-/Upload-Bilder im privaten Container `memorial-images` ab und signiert Lese-URLs per **SAS** (ersetzt Supabase Signed URLs). Öffentliche Container: `demo-books`, `memorial-videos`. |
-| `DEMO_BOOK_URL` | **(Azure)** Volle Blob-URL des Demo-Buch-PDFs; `server.js` leitet `/demobuch` dorthin weiter (ersetzt den vercel.json-Rewrite). |
-| `VITE_PUBLIC_ASSET_BASE` | **(Azure, Build-Zeit)** Basis-URL des Blob-Storage (`https://<acct>.blob.core.windows.net`) — wird beim Vite-Build in die SPA gebacken (Intro-Video). Als Docker-`--build-arg` übergeben. |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | **Entfällt nach dem Azure-Cutover.** Wird nur noch für den einmaligen Daten-Export aus Supabase gebraucht (siehe `infra/MIGRATION.md`). |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. (The old static `ADMIN_TOKEN` is no longer used.) |
-| `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`) |
-| `CRON_SECRET` | Secret for the daily retention purge cron (`/api/cron/purge`). Vercel auto-sends it as `Authorization: Bearer <CRON_SECRET>` on cron calls; the endpoint refuses everything if unset. |
-| `RETENTION_DAYS` | Optional. Days after `funeral_date` (else `created_at`) before a memorial is auto-deleted (default `90`). |
-| `AZURE_FLUX_ENDPOINT` / `AZURE_FLUX_KEY` | **Required for image generation** — FLUX.2 [pro] via Microsoft Foundry is the **only** image module (OpenAI/gpt-image-1 removed 2026-06-21). Foundry resource endpoint (`https://<resource>.services.ai.azure.com`) + key. Optional: `AZURE_FLUX_MODEL` (body `model`, default `FLUX.2-pro`), `AZURE_FLUX_MODEL_PATH` (endpoint path, default `flux-2-pro`), `AZURE_FLUX_API_VERSION` (default `preview`). |
-| `AZURE_FLUX_IMG2IMG` | **Optional feature flag — image-to-image (Personen-Ähnlichkeit).** If set (any truthy value), `generate-image.js` attaches an uploaded reference photo (base64) to the FLUX request so generated people resemble the real photo but placed in the chapter's era. **Verify the Foundry FLUX.2 endpoint actually accepts reference images before enabling** — if the request errors, the handler automatically retries text-to-image. `AZURE_FLUX_IMG2IMG_FIELD` (default `input_image`) sets the request body field name for the reference. Only reference photos with upload consent covering AI processing are ever passed (gated client-side). |
+| `DATABASE_URL` | Postgres connection to Azure Flexible Server, `…?sslmode=require`. Used by the pg pool in `api/_lib/store.js`. Optional: `PGSSL=disable` (local only), `PG_POOL_MAX` (default 8). |
+| `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY` | Blob storage account + key. `store.js` writes book/upload images to the **private** container `memorial-images` and signs read URLs via **SAS**. Public containers: `demo-books`, `memorial-videos`. |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | **Required — sole interview + book/eulogy LLM (EU), no fallback.** Azure OpenAI `gpt-4.1`. The deployment lives on a **Microsoft Foundry** resource, so `api/_lib/llm.js` uses the **v1 API**: `POST {endpoint}/openai/v1/chat/completions?api-version=preview` with `model`=deployment in the body. Endpoint = `https://<resource>.services.ai.azure.com` (NOT the classic `…openai.azure.com`). `AZURE_OPENAI_API_VERSION` optional, **must be `preview`** (date versions like `2024-10-21` → "DeploymentNotFound"). The deployment name is also the pricing key in `cost.js`. |
+| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | **Required — sole TTS + STT (EU), no fallback.** Azure AI Speech (Neural TTS in `speak.js`, Fast Transcription in `transcribe.js`); region e.g. `westeurope`. Optional: `AZURE_SPEECH_TTS_VOICE` (default `de-DE-KatjaNeural`), `AZURE_SPEECH_TTS_RATE` (default `+6%`), `AZURE_SPEECH_ENDPOINT`. |
+| `AZURE_FLUX_ENDPOINT` / `AZURE_FLUX_KEY` | **Required for image generation** — FLUX.2 [pro] via Microsoft Foundry is the **only** image module. Foundry resource endpoint + key. Optional: `AZURE_FLUX_MODEL` (default `FLUX.2-pro`), `AZURE_FLUX_MODEL_PATH` (default `flux-2-pro`), `AZURE_FLUX_API_VERSION` (default `preview`). |
+| `AZURE_FLUX_IMG2IMG` | **Optional feature flag — image-to-image (person likeness).** If truthy, `generate-image.js` attaches an uploaded reference photo (base64) so generated people resemble the real photo, placed in the chapter's era. On error it automatically retries text-to-image. `AZURE_FLUX_IMG2IMG_FIELD` (default `input_image`) names the request body field. Only reference photos whose upload consent covers AI processing are ever passed (gated client-side). |
+| `DEMO_BOOK_URL` | Full blob URL of the demo book PDF; `server.js` redirects `/demobuch` there. |
+| `VITE_PUBLIC_ASSET_BASE` | **Build time.** Blob storage base URL (`https://<acct>.blob.core.windows.net`), baked into the SPA by Vite (intro video). Passed as a Docker `--build-arg` by the deploy workflow. |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. |
+| `CRON_SECRET` | Authorises the cron endpoints; `scripts/cron-run.js` sends it. The endpoints refuse everything if unset. |
+| `CRON_SELF_BASE_URL` | Base URL the cron/worker uses to call back into its own HTTP API. |
+| `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`). |
+| `RETENTION_DAYS` | Days after `funeral_date` (else `created_at`) before a memorial is auto-deleted (default `90`). |
+| `JSON_LIMIT` | Body size limit for the Express JSON parser (default `50mb`; base64 audio/images). |
 
 ## Architecture
 
-### Frontend — single-file SPA
+### Frontend — SPA, no router
 
-`src/App.jsx` is ~1900 lines and contains the **entire** UI as one component driven by a `view` string state machine. There is no router. Two top-level flows are selected at boot:
+A `view` string state machine drives everything; there is no router. The UI is split across several files in `src/` (App.jsx alone is ~3700 lines — do not expect one file to hold it all):
 
-- **ContributorFlow** — active when the URL has `?code=XXXXXX` (the 6-char memorial code from `genCode()` in `api/_lib/codes.js`). The contributor goes through an info form → voice or text interview → done screen. Voice mode uses `MediaRecorder` → base64 → `/api/transcribe` (Azure STT) → `askLLM()` → `/api/speak` (Azure TTS) → autoplay. Interview sessions persist **both** to `localStorage` (`lw_session_<code>`, 60-day TTL) **and** to Supabase, so a contributor can resume via `?code=XXX&session=YYY` even on another device.
-- **Admin panel** — no URL flag; the user logs in via `/api/admin/login`, the bearer token is stored in `sessionStorage` as `lw_admin_token` (plus `lw_admin_auth` = `{ admin, cats }`). Views: `list` → `create-category` → `create` → `created`; `detail` (one memorial) → `contribution`, `book-v1`, `book-v2`, `eulogy`, `costs`; `users` (admin-only user management). The detail view also embeds a cost-breakdown table fetched in parallel with contributions.
+- `src/App.jsx` — boot, admin state machine, generation orchestration (`GENERATORS`, `generate()`, `pollGeneration`), auth/token handling.
+- `src/contributor.jsx` — `ContributorFlow`, the whole end-user/contributor experience (interview, voice, uploads, proof, end-user settings).
+- `src/adminViews.jsx` — the admin views (list, create, detail, users, costs…) as ~17 exported components.
+- `src/categories.js` — single source for everything category-specific (labels, contributor wording, **all KI prompt builders**).
+- `src/api.js` — thin fetch client. Keeps a module-level `currentAudio` so `stopSpeaking()` always cancels previous TTS playback.
+- `src/bookExport.js`, `src/coverExport.js`, `src/bookLayouts.js`, `src/lifeworkExtras.js` — PDF/DOCX/e-book/cover rendering and the two graphical side products (family tree, life poster) via `jspdf` / `docx` in the browser.
+- `src/i18n.js`, `src/i18nLangs.js`, `src/adminI18n.jsx`, `src/proofI18n.js` — contributor-flow UI strings and language directives.
+
+Two top-level flows are selected at boot:
+
+- **ContributorFlow** — active when the URL has `?code=XXXXXXXXXX` (the memorial code). `genCode()` in `api/_lib/codes.js` produces **10 characters** from a 32-char confusion-free alphabet (`DEFAULT_LEN = 10`, 32^10 ≈ 10^15); the code columns are `varchar(16)`. **Older 6-character codes remain valid** — never assume a fixed length when parsing. Voice mode: `MediaRecorder` → base64 → `/api/transcribe` (Azure STT) → `askLLM()` → `/api/speak` (Azure TTS) → autoplay. Sessions persist to `localStorage` (`lw_session_<code>`, 60-day TTL) **and** to the database, so a contributor can resume via `?code=…&session=…` on another device.
+- **Admin panel** — no URL flag; login via `/api/admin/login`, bearer token in `sessionStorage` as `lw_admin_token` (plus `lw_admin_auth` = `{ admin, cats }`). Views: `list` → `create-category` → `create` → `created`; `detail` → `contribution`, `book-v1`, `book-v2`, `eulogy`, `costs`; `users` (admin only).
 
 ### Product categories & customer groups (multi-tenant)
 
-There are **eight product categories** (slugs in `api/_lib/categories.js` and `src/categories.js`): `memorial` (Gedenkbuch — the original behaviour), `birthday`, `anniversary`, `farewell`, `service`, `company`, `newborn`, `encouragement`. Each memorial row carries `product_category`.
+There are **eleven product categories**; `CATEGORY_ORDER` in `src/categories.js` is the authoritative list: `lifework`, `anamnesis`, `anamnesis_kvsw`, `memorial`, `birthday`, `anniversary`, `farewell`, `service`, `company`, `newborn`, `encouragement`. Each memorial row carries `product_category`. Slugs also exist backend-side in `api/_lib/categories.js`, which additionally exports the predicates `isEnduserCategory` / `isAnamnesisCategory`.
 
-**Languages (de/pl/en).** Each memorial has `languages` (text[], offered to contributors; default `{de}`), chosen via checkboxes at creation. `src/i18n.js` holds the contributor-flow UI strings, per-category contributor text overlays (pl/en; German comes from `categories.js`), and `langDirective(lang)` — a prefix prepended to the interview prompt so the AI speaks the contributor's language. If a memorial offers >1 language the contributor picks one **first** (ContributorFlow `needLang` gate, `lang` state, `L` effective). For book/eulogy generation the admin is asked the target language when >1 is offered (`requestGenerate` → `genLangModal` → `generate(..., {lang})`, which prepends `langDirective`). The admin UI itself stays German.
+Two shapes of category:
 
-`src/categories.js` is the single source for everything category-specific in the **frontend**: form labels (`intake`), contributor-flow wording (`contributor`), and the **KI prompt builders** (`interviewSystem`, `generators.book_v1/_v2.{outlineSystem,chapterSystem}`, `finalText.{styles,sections,sectionSystem}`). The `memorial` entry reproduces the original prompts verbatim; the other five share generic builders parameterised by a `PROFILES` object. `GENERATORS` in `App.jsx` and `getCategory(...).interviewSystem` read from here — there are no longer any standalone prompt functions in `App.jsx`.
+- **Contributor categories** (`memorial`, `birthday`, …) — many people contribute via one shared `?code=` link.
+- **End-user categories** (`lifework`, `anamnesis`, `anamnesis_kvsw`, see `isEnduserCategory`) — **one** person speaks about themselves. `isSelf` in `contributor.jsx` is derived from the category, and for `lifework` **the book code alone is the end user's only credential** (`api/memorial.js` allows PATCH of own name/gender/image style/layout with the code, no login). Keep that in mind before handing a code to anyone else.
 
-Auth is now **multi-user**. Login (`api/admin/login.js`) accepts either the env superadmin (`ADMIN_USERNAME`) → token claims `{ admin:true, cats:'*' }`, or a row in `app_users` (scrypt-hashed password) → claims `{ uid, admin:false, cats: user.allowed_categories }`. **Allowed categories are set per user** (no customer-group layer); the admin picks them when creating/editing the user in the `users` view. `checkAuth` (in `api/_lib/auth.js`) verifies the signed token and attaches `req.auth`; `canAccessCategory(req.auth, cat)` gates creation. `api/admin/users.js` (admin-only) is the user CRUD. Non-admins only see memorials where `owner_user` = their uid AND `product_category` ∈ their cats (filtered in `api/admin/memorials.js` GET). Memorial creation goes **only** through the **authenticated** `POST /api/admin/memorials`, so `owner_user`/`product_category` are set server-side from the token. `api/memorial.js` is now **GET-only** (read one memorial by code for the contributor flow); there is no public create endpoint.
+**Languages.** Each memorial has `languages` (text[], default `{de}`). `src/i18n.js` holds contributor-flow UI strings, per-category contributor overlays, and `langDirective(lang)`, prepended to the interview prompt. With >1 language the contributor picks one first (`needLang` gate); for book/eulogy generation the admin is asked the target language. The admin UI itself stays German.
 
-`src/api.js` is the thin fetch client used by App.jsx. The OpenAI TTS player keeps a module-level `currentAudio` so `stopSpeaking()` always cancels the previous playback.
+**Auth is multi-user.** `api/admin/login.js` accepts either the env superadmin (`ADMIN_USERNAME`) → claims `{ admin:true, cats:'*' }`, or a row in `app_users` (scrypt-hashed password) → claims `{ uid, admin:false, cats: user.allowed_categories }`. Allowed categories are set per user. `checkAuth` (`api/_lib/auth.js`) verifies the signed token and attaches `req.auth`; `canAccessCategory` gates creation. **`api/_lib/access.js` is the IDOR guard** — `loadAccessibleMemorial` / `loadAccessibleContribution` return 404 (never 403) for foreign books so codes cannot be enumerated; use them in every new admin endpoint that takes a code or id. Memorial creation goes **only** through the authenticated `POST /api/admin/memorials`. `api/memorial.js` is GET + a narrow end-user PATCH, not a create endpoint.
 
-DOCX export uses the `docx` npm package directly in the browser (`downloadStructuredDocx` / `downloadAsDocx` in `App.jsx`), including embedding chapter images fetched from Supabase signed URLs.
+### Backend — Express on Container Apps
 
-### Backend — Vercel serverless functions
+`server.js` walks the `api/` tree and registers **every file as a route** at `/api/<path>` (directories starting with `_` are skipped), handing `(req, res)` to the existing `module.exports = async (req,res) => …` handlers. It parses JSON centrally, redirects `/demobuch` to `DEMO_BOOK_URL`, then serves `dist/` statically with an SPA fallback to `index.html`.
 
-Two namespaces under `/api/`:
+Consequences worth remembering:
 
-- **Public** (`/api/ask`, `/api/contributions`, `/api/memorial`, `/api/speak`, `/api/transcribe`, `/api/upload`) — no auth, called from the contributor flow. `/api/upload` accepts a contributor's own photo (base64) + caption + description + **mandatory consent** (rights + AI processing of all depicted persons); needs a valid `?code`, rate-limited.
-- **Admin** (`/api/admin/*`) — auth logic lives centrally in `api/_lib/auth.js`. Every handler calls `checkAuth(req, res)`, which verifies a `Authorization: Bearer <token>` whose token is an HMAC-SHA256-signed payload with an embedded expiry (12 h TTL). The login endpoint (`api/admin/login.js`) compares username/password with a constant-time hash compare (`verifyCredentials`) and, on success, returns a freshly signed token (`issueToken`). If `ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_TOKEN_SECRET` are not all set, every request is refused (503) — there are no fallback defaults. The frontend treats a 401 as an expired session and logs out.
+- **There are no per-function timeouts and no per-function memory settings any more.** The `functions` block in `vercel.json` is dead configuration. Long-running work must budget its own time (see the generation worker).
+- Adding an endpoint = adding a file under `api/`. No route table to update.
 
-Function timeouts are overridden in `vercel.json`: `ask` and `admin/generate-image` get 60 s, `transcribe` gets 30 s. The book-generation flow can sequentially call `admin/generate-image` once per chapter from the browser, so each call must stay inside its own 60 s budget.
+Two namespaces:
 
-`vercel.json` also rewrites everything except `/api/*` to `index.html` for the SPA.
+- **Public** (`/api/ask`, `/api/contributions`, `/api/memorial`, `/api/speak`, `/api/transcribe`, `/api/upload`, `/api/feedback`, `/api/pdf`, …) — no auth, called from the contributor flow, rate-limited, and gated on a valid existing `code` so they cannot be abused as an anonymous AI proxy (`api/_lib/access.js`).
+- **Admin** (`/api/admin/*`) — `checkAuth(req, res)` verifies an `Authorization: Bearer <token>` (HMAC-SHA256-signed payload with a 12 h expiry). The frontend treats 401 as an expired session and logs out.
+
+### Crons
+
+Four **Container Apps Jobs**, all running the same image, each `node scripts/cron-run.js <sub>` (created in `infra/deploy.sh`):
+
+| Job | Schedule | Sub |
+|---|---|---|
+| `lebenswerk-web-cron-purge` | `0 3 * * *` | `purge` — retention deletion |
+| `lebenswerk-web-cron-transcript` | `0 22 * * *` | `transcript-check` |
+| `lebenswerk-web-cron-report` | `0 23 * * *` | `report` — daily email report |
+| `lebenswerk-web-cron-generate` | `*/10 * * * *` | `generate` — backstop for the generation worker |
+
+The `crons` block in `vercel.json` is dead configuration.
+
+### Generation runs server-side
+
+Book, image and eulogy generation is **not** a browser loop any more. The browser enqueues a job (`enqueueGeneration` → `api/admin/generate-job.js`) and polls it (`pollGeneration`); the worker `api/cron/generate.js` executes it in phases (chapters → images → save) with a time budget and self-continuation, backed by `api/_lib/genjobs.js`. Single-shot prompts are still **built in the browser** from `src/categories.js` and passed as `steps:[{system,user,label}]`, so most prompt builders never had to be ported; `api/_lib/genprompts.js` holds the ones the worker needs itself (book_v2 chapters, image assignment, face refs, `tryParseJSON`). Closing the tab no longer kills a generation.
+
+The LLM is required to return raw JSON; `tryParseJSON` strips stray markdown fences and isolates the outermost `{…}`. Books are stored as jsonb on the memorial row via `PATCH /api/admin/memorials?code=…` with `field` ∈ `{book_v1, book_v2, eulogy_text}` (allowlist enforced server-side). Eulogy/final-text style presets live per category in `src/categories.js` (`finalText.styles`), not in App.jsx.
+
+### Data layer — `api/_lib/store.js`
+
+`store.js` is an **in-house replacement for `@supabase/supabase-js`**. It exposes the same call surface the codebase already used — `supabase.from('t').select/insert/update/delete/upsert`, `supabase.rpc`, `supabase.storage.from('container').upload/download/remove/list/createSignedUrls` — and returns supabase-shaped `{ data, error, count }`, but talks to **Postgres (pg pool)** and **Azure Blob** underneath. `createClient(url, key)` **ignores both arguments**; the connection comes from `DATABASE_URL`.
+
+That is why handlers still read like Supabase code and still say `createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)` — those env vars are unused leftovers, not a live dependency. When touching a handler, feel free to drop them; do not conclude the project talks to Supabase. `store.js` also carries a **column-type registry** (`JSONB_COLS` etc.) that decides how JS values are encoded on write — **add new `jsonb` / `text[]` columns there**, or an empty array will be written as the wrong type. `pool` is exported for the few places the query builder cannot express (e.g. `create table if not exists`).
+
+### Database
+
+Azure Database for PostgreSQL Flexible Server (PG 16).
+
+- **`db/schema.sql` is the canonical, idempotent schema** — it consolidates all the earlier incremental migrations and can be re-run safely. Additional `db/*.sql` files cover later increments.
+- **No Row Level Security.** Azure Postgres is not exposed through a public PostgREST-style API; only the backend connects, with a dedicated DB user. The old "RLS as a firewall" layer was dropped deliberately, not forgotten — do not re-add RLS expecting it to matter.
+- `gen_random_uuid()` comes from PG core; `pgcrypto` is deliberately avoided (would need the `azure.extensions` allowlist).
+
+Main tables: `memorials`, `contributions`, `app_users`, `cost_events`, `generation_jobs`, plus catalogs/feedback/reports tables. `memorials` carries the per-book configuration (`product_category`, `owner_user`, `intake`, `languages`, `book_v1`/`book_v2` jsonb, `eulogy_text`, `uploaded_images`, `family_tree`, `life_poster`, `image_style`, `book_layout`, `text_style`, `companion_mode`, `proof_enabled`/`proof_max`/`proof_used`, `interview_closed`, `book_finalized`, …). `SELECT_COLS` in `api/admin/memorials.js` is a practical inventory of the current column set.
+
+**Adding a memorial column** follows a well-worn pattern, copy it: column in `db/schema.sql` → `SELECT_COLS` + insert/update mapping in `api/admin/memorials.js` (including its defensive "column does not exist" fallback) → draft field in `App.jsx` → control in `adminViews.jsx`. `companion_mode` and `proof_enabled` are the cleanest examples.
+
+### Storage
+
+Azure Blob, account `lebenswerkstore0713`. Container `memorial-images` is **private**; book images live at `<MEMORIAL_CODE>/<uuid>.png`, contributor uploads flat alongside as `<CODE>/up-<uuid>.jpg` (+ `_thumb.jpg`) so folder-wide Art. 17 deletion catches everything. Read URLs are minted as **SAS links** (1 h) by `signMemorialImages` and attached as `image_url` per chapter; `image_path` is the canonical reference stored in the book JSON, `image_url` is regenerated on every load. `demo-books` and `memorial-videos` are public containers.
+
+The codebase still calls these "buckets" in places (`IMAGE_BUCKET = 'memorial-images'`) — that is naming inherited from the Supabase era, not a second storage system.
 
 ### Cost tracking
 
@@ -76,41 +134,27 @@ Function timeouts are overridden in `vercel.json`: `ask` and `admin/generate-ima
 
 1. Call the provider.
 2. Compute USD cost via `costLLM` / `costTTS` / `costSTT` / `costImage`.
-3. `await recordCost({ memorial_id, kind, provider, model, cost_usd, ...usage })` — this inserts a row into the `cost_events` Supabase table. EUR is computed at insert time via `USD_TO_EUR`.
+3. `await recordCost({ memorial_id, kind, provider, model, cost_usd, ...usage })` — inserts a row into `cost_events`; EUR is computed at insert time via `USD_TO_EUR`.
 
-Pricing constants are keyed by exact model string. For `gpt-image-1` the key is composite: `${model}-${quality}-${size}` (e.g. `gpt-image-1-high-1536x1024`). When adding a new model, add its pricing here first or its costs will silently record as 0.
-
-`api/admin/memorials.js` aggregates `cost_events` per memorial on every GET so the admin list shows `cost_total_eur` without a separate call. `api/admin/costs.js` returns full breakdown (events + byKind aggregation) for one memorial.
-
-### Database
-
-Supabase Postgres. **`supabase/schema.sql` is incomplete** — it only defines the original `memorials` and `contributions` tables. The live schema also has, added later without migration files:
-
-- `memorials.gender`, `memorials.book_variant`, `memorials.book_v1` (jsonb), `memorials.book_v2` (jsonb), `memorials.eulogy_text`, `memorials.funeral_date`, `memorials.cutoff_days`
-- `memorials.product_category` (text, default `'memorial'`), `memorials.owner_user` (uuid → `app_users`), `memorials.intake` (jsonb, category-specific optional fields) — added by `supabase/users.sql`
-- `memorials.uploaded_images` (jsonb, default `[]`) — metadata of user-uploaded photos (path, caption, description, orientation, quality_flag, source, contribution_id, consent) — added by **`supabase/uploads.sql`** (run once in the SQL editor). Binaries live **flat** in the `memorial-images` bucket as `<CODE>/up-<uuid>.jpg` (+ `_thumb.jpg`) so the existing folder-wide Art.-17 deletion catches them.
-- `app_users` (`id`, `username`, `pw_hash`, `pw_salt`, `allowed_categories` text[], `is_admin`, `created_at`) — defined in `supabase/users.sql` (no customer-group table; categories are per user)
-- `contributions.contributor_gender`, `contributions.contributor_address`
-- A `cost_events` table (columns inferred from `recordCost` inserts: `memorial_id`, `contribution_id`, `kind`, `provider`, `model`, `input_tokens`, `output_tokens`, `audio_seconds`, `characters`, `images`, `cost_usd`, `cost_eur`, `metadata`, `created_at`).
-
-Treat the running Supabase project as the source of truth; do not assume `schema.sql` reflects production. **Run `supabase/users.sql` once in the Supabase SQL editor** to add the multi-tenant tables/columns before this build works in production.
-
-**RLS is enabled** on `memorials`, `contributions`, `cost_events`, and `app_users` (see `supabase/rls.sql`) with **no policies** — so `anon`/`authenticated` get zero access via the public PostgREST API; only the backend's `service_role` (which bypasses RLS) can read/write. When adding a new table, enable RLS on it too (re-run / extend `supabase/rls.sql`) or it will be world-accessible through the public API.
-
-Images generated for books live in the **private** Supabase Storage bucket `memorial-images` under `<MEMORIAL_CODE>/<uuid>.png`. The admin memorials endpoint mints 1-hour signed URLs (`signMemorialImages`) and attaches them as `image_url` on each chapter before returning to the frontend — `image_path` is the canonical reference stored in `book_v1` / `book_v2` JSON; `image_url` is regenerated on each load.
-
-### Books and eulogy
-
-Two book variants are generated by `App.jsx` (`bookV1System` / `bookV2System` build the prompt; `generate()` calls `askClaude` then loops over `chapters[]` calling `adminGenerateImage` for each). Claude is required to return raw JSON; `tryParseJSON` strips stray markdown fences and isolates the outermost `{…}` before parsing. Books are stored as jsonb on the memorial row via `PATCH /api/admin/memorials?code=…` with `field` ∈ `{book_v1, book_v2, eulogy_text}` (allowlist enforced server-side).
-
-Eulogy has three style presets (`EULOGY_STYLES` in App.jsx) — the user picks one in a modal and the chosen `instruction` string is injected into the system prompt.
+Pricing constants are keyed by exact model string (`gpt-4.1`, `flux-2-pro-1536x1024`). When adding a model, add its pricing **first** or costs silently record as 0. `api/admin/memorials.js` aggregates `cost_events` per memorial on every GET (`cost_total_eur`); `api/admin/costs.js` returns the full breakdown for one memorial.
 
 ### Model defaults
 
-- Interview & generation: **Azure OpenAI `gpt-4.1`** (EU) via `callAzure` in `api/ask.js` (v1 Foundry API). **Sole LLM — no fallback**; the Anthropic/Claude path was removed 2026-06-22. If Azure is down/unconfigured, `/api/ask` errors.
-- TTS: **Azure AI Speech** Neural (`api/speak.js`), default voice `de-DE-KatjaNeural`. **Sole TTS — no fallback** (OpenAI `tts-1-hd` removed 2026-06-22).
-- STT: **Azure AI Speech** Fast Transcription (`api/transcribe.js`). **Sole STT — no fallback** (OpenAI `whisper-1` removed 2026-06-22).
-- Image: **FLUX.2 [pro]** via Microsoft Foundry (`api/admin/generate-image.js`), 1536×1024 PNG into the `memorial-images` bucket. **Sole image module** — the OpenAI/gpt-image-1 path was removed 2026-06-21. Pricing keyed `flux-2-pro-1536x1024` in `cost.js`. No fallback: if Azure FLUX is down or unconfigured, image generation returns a 502 error. The spread directive now **prefers people** in the chapter's era (previously "no people"); with `AZURE_FLUX_IMG2IMG` set it uses an uploaded reference photo for likeness (see env table).
-- **User-uploaded photos in books**: during book generation (`generate()` in `App.jsx`) uploaded photos (`memorials.uploaded_images`) are assigned to chapters — deterministically by `contribution_id` (v1) and via an LLM assignment call (`imageAssignSystem`) for the rest. A chapter with assigned uploads gets **one composed landscape spread** from `api/admin/compose-image.js` (sharp: 1..4 photos grouped into templates, fold/bleed-safe, captions baked in) instead of a FLUX image; chapters without uploads still get FLUX. Composed spreads are stored exactly like generated images (`<CODE>/<uuid>.png`), so signing/DOCX/print-PDF/deletion are unchanged. `compose-image` has a 60 s `maxDuration` in `vercel.json`. Raw uploads are purged with contributions at retention (`purgeMemorialContributions`); composed spreads (part of the book) stay.
+- Interview & generation: **Azure OpenAI `gpt-4.1`** (EU) via `api/_lib/llm.js`. Sole LLM, no fallback.
+- TTS: **Azure AI Speech** Neural (`api/speak.js`), default `de-DE-KatjaNeural`. Sole TTS, no fallback.
+- STT: **Azure AI Speech** Fast Transcription (`api/transcribe.js`). Sole STT, no fallback.
+- Image: **FLUX.2 [pro]** via Microsoft Foundry (`api/admin/generate-image.js`), 1536×1024 PNG. Sole image module, no fallback — a 502 if Azure FLUX is down.
+- **User-uploaded photos in books**: uploads are assigned to chapters (deterministically by `contribution_id` for v1, via an LLM assignment call for the rest). A chapter with assigned uploads gets **one composed landscape spread** from `api/admin/compose-image.js` (sharp: 1..4 photos into fold/bleed-safe templates, captions baked in) instead of a FLUX image. Composed spreads are stored exactly like generated images, so signing/DOCX/print-PDF/deletion are unchanged. Raw uploads are purged with contributions at retention; composed spreads stay (they are part of the book).
 
-When swapping models, update both the API call site **and** `PRICING` in `api/_lib/cost.js`.
+When swapping models, update both the call site **and** `PRICING` in `api/_lib/cost.js`.
+
+## Legacy artifacts — present in the repo, NOT live
+
+| Artifact | Status |
+|---|---|
+| `vercel.json` | Kept from the migration as a rollback reference. Its `functions` (maxDuration) and `crons` blocks have **no effect**; the `/demobuch` rewrite still points at an old Supabase URL. Superseded by `server.js` + Container Apps Jobs + `DEMO_BOOK_URL`. |
+| `supabase/*.sql` | The historical incremental migrations. Superseded by `db/schema.sql`. Useful as history; do not run against production. |
+| `supabase/rls.sql` | RLS no longer applies (see Database). |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | Unused. Still passed to `createClient()` in most handlers, where both arguments are ignored. |
+| `npm run dev` (`vercel dev`) | Vestigial. Use `node server.js`. |
+| `@supabase/supabase-js` | Not a dependency — `api/_lib/store.js` replaces it. |
