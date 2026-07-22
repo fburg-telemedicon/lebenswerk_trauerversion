@@ -12,7 +12,7 @@ const { createClient } = require('./_lib/store')
 const { costTTS, recordCost, enforceBudget } = require('./_lib/cost')
 const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
-const { ALLOWED_TTS_VOICES, voiceGender, MULTILINGUAL_VOICE } = require('./_lib/ttsvoices')
+const { ALLOWED_TTS_VOICES, voiceGender, MULTILINGUAL_VOICE, VOICE_FEMALE_HD } = require('./_lib/ttsvoices')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -42,7 +42,11 @@ function stripForSpeech(s) {
 // Achtung, der Schlüssel ist der VOLLE Sprachcode: `de-CH` (Schweiz) darf nicht
 // auf `de` gekürzt werden, sonst spricht eine deutsche Stimme mit einem Schweizer.
 const TTS_VOICES = {
-  de:      process.env.AZURE_SPEECH_TTS_VOICE       || 'de-DE-KatjaNeural',
+  // Rückfall für Bücher OHNE gespeicherte Stimme (alle vor der HD-Umstellung
+  // angelegten). Bewusst dieselbe HD-Stimme, die `defaultTtsVoice()` neuen Büchern
+  // gibt — sonst sprachen zwei Drittel des Bestands weiter mit der alten
+  // Standardstimme, allein abhängig davon, ob die Env-Variable gesetzt ist.
+  de:      process.env.AZURE_SPEECH_TTS_VOICE       || VOICE_FEMALE_HD,
   'de-CH': process.env.AZURE_SPEECH_TTS_VOICE_DE_CH || 'de-CH-LeniNeural',
   pl:      process.env.AZURE_SPEECH_TTS_VOICE_PL    || 'pl-PL-ZofiaNeural',
   en:      process.env.AZURE_SPEECH_TTS_VOICE_EN    || 'en-US-JennyNeural',

@@ -4,6 +4,7 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Sprachausgabe: Bücher, die vor der Umstellung auf die neuen HD-Stimmen angelegt wurden, haben keine Stimme gespeichert und liefen deshalb auf die alte Standardstimme zurück — rund zwei Drittel des Bestands, je nach Servereinstellung. Der Rückfall ist jetzt dieselbe HD-Stimme, die neue Bücher bekommen.",
         "Gastbeiträge: Öffnete ein Gast den Link zu einem Buch, dessen Interview bereits abgeschlossen war, sah er nur eine leere Seite mit Menü. Ursache: Die App sprang automatisch in den Probedruck-Tab, den es für Gäste gar nicht gibt. Jetzt erscheint eine verständliche Meldung („Das Buch ist schon fertig\"), und ein nicht vorhandener Tab fällt generell auf das Interview zurück — eine leere Seite kann so nicht mehr entstehen.",
         "Der Bildschirm schaltet sich während des Interviews nicht mehr ab. Beim Erzählen fasst niemand das Handy an — bisher ging das Display nach kurzer Zeit aus und das Gespräch riss ab. Die Sperre wird auch nach einem kurzen Blick in eine andere App automatisch wieder aufgehoben. Nur ältere iPhones (vor iOS 16.4) können das technisch nicht; dort hilft weiterhin nur eine längere Bildschirm-Zeitsperre in den Einstellungen.",
         "Die Kontakt-E-Mail eines Buches steht jetzt in den Auftragsdaten und ist dort wie alle anderen Stammdaten bearbeitbar — Feld leeren und speichern entfernt die Adresse. Bei Lebenswerk und Anamnese wird zusätzlich die Anmeldeadresse des Endnutzers angezeigt; die gehört zum Konto und bleibt dort unverändert.",
