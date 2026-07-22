@@ -297,7 +297,7 @@ function GamificationHud({ chapters, prog, round, lang }) {
 }
 
 // ── Sprach-Interview ──────────────────────────────────────────────
-function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch, micMode = null }) {
+function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch, micMode = null, onSoundTest }) {
   const t = uiText(lang)
   // Drei Aufnahme-Modi (Expertenmodus, alle Produkte):
   //  • Tipp-Modus       : manual → Mikro manuell an/aus.
@@ -418,8 +418,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // proaktive Hilfe (eine blockierte Berechtigung kann nur der Nutzer in den
   // Browser-Einstellungen wieder freigeben — das ist eine Browser-Sicherheitsregel).
   const [micPerm, setMicPerm] = useState('unknown') // granted | denied | prompt | unknown
-  // Ton-/Mikrofontest (aus dem Hinweiskasten heraus erreichbar; zusätzlich im Menü)
-  const [soundTest, setSoundTest] = useState(false)
   // Freisprech-Modus: das Mikro wurde nach einer längeren Sprechpause automatisch
   // gestoppt (kein Ton erkannt). Dann blenden wir DOCH wieder ein Mikrofon + Hinweis
   // ein, damit der Nutzer das Gespräch antippen und fortsetzen kann. Sobald wieder
@@ -475,6 +473,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       }
     } else if (!active && wasActiveRef.current) {
       stopSpeaking(); setIsPlaying(false); setTtsLoading(false)
+      // Auch eine LAUFENDE Aufnahme beenden. Sonst liefen im Ton-/Mikrofontest
+      // (oder in einem anderen Tab) zwei Aufnahmen gleichzeitig — auf den meisten
+      // Geräten belegt die erste das Mikrofon und der Test misst nichts.
+      // Stoppen statt Verwerfen: das Gesagte wird normal transkribiert und
+      // gesendet, es geht also nichts verloren.
+      if (mediaRecRef.current?.state === 'recording') { try { mediaRecRef.current.stop() } catch { /* egal */ } }
     }
     wasActiveRef.current = active
   }, [active]) // eslint-disable-line
@@ -1031,7 +1035,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               </div>
             )}
             {micState === 'idle' && micPerm === 'denied' && (
-              <MicBlockedBox lang={lang} onTest={() => setSoundTest(true)} />
+              <MicBlockedBox lang={lang} onTest={onSoundTest} />
             )}
             {/* Freisprech-Pause: Hinweis zum Weitersprechen (nur bis wieder aufgenommen wird). */}
             {handsFree && handsFreeIdle && micState === 'idle' && micPerm !== 'denied' && (
@@ -1116,7 +1120,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         )})}
         <div ref={endRef} /><div style={{ height:'1.5rem' }} />
       </div>
-      {soundTest && <SoundMicTest lang={lang} onClose={() => setSoundTest(false)} />}
     </div>
   )
 }
@@ -1746,9 +1749,8 @@ function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
   )
 }
 
-function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel }) {
+function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel, onSoundTest }) {
   const [open, setOpen] = useState(false)
-  const [test, setTest] = useState(false)   // Ton- und Mikrofontest
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
     ...(withPhoto    ? [{ id:'photo',    icon: photoIcon || '📷', label: photoLabel || t.tabPhoto }] : []),
@@ -1784,7 +1786,7 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
             {/* Selbsttest: Testton hören + kurz aufnehmen und anhören. Klärt die zwei
                 häufigsten Störungen (Lautstärke aus / Mikrofon nicht freigegeben),
                 ohne dass jemand am Telefon mitraten muss. */}
-            <button onClick={() => { setOpen(false); setTest(true) }} style={row}>
+            <button onClick={() => { setOpen(false); onSoundTest?.() }} style={row}>
               <span style={{ fontSize:19 }}>🔊</span>
               <span>{String(lang || '').startsWith('en') ? 'Sound & microphone test' : 'Ton- und Mikrofontest'}</span>
             </button>
@@ -1832,7 +1834,6 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
           </div>
         </div>
       )}
-      {test && <SoundMicTest lang={lang} onClose={() => setTest(false)} />}
     </>
   )
 }
@@ -2905,6 +2906,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // null = Buch-Standard. In localStorage je Code gemerkt, damit die Wahl bleibt.
   const [micMode, setMicMode]                 = useState(() => { try { return localStorage.getItem('lw_micmode_' + code) || null } catch { return null } })
   const [micModeOpen, setMicModeOpen]         = useState(false)        // Modus-Auswahl-Dialog offen
+  // Ton-/Mikrofontest. Bewusst HIER (nicht im Menü oder im Interview), weil er das
+  // Interview stilllegen muss, solange er offen ist — sonst laufen Vorlesen bzw.
+  // Aufnahme und Test gleichzeitig.
+  const [soundTest, setSoundTest]             = useState(false)
   const chooseMicMode = (mode) => { setMicMode(mode); try { mode ? localStorage.setItem('lw_micmode_' + code, mode) : localStorage.removeItem('lw_micmode_' + code) } catch {} }
   const saveQueueRef                          = useRef(Promise.resolve())
   // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
@@ -3496,6 +3501,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             <p style={{ ...S.muted, maxWidth:360, margin:'0 auto' }}>Der Interview-Teil ist abgeschlossen. Deine vorläufige Druckversion findest du im Tab „{t.tabProof || 'Probedruck'}".</p>
           </div>
         ) : (
+          // `active` ist hier doppelt belegt: Der offene Ton-/Mikrofontest legt das
+          // Interview still wie ein Tab-Wechsel — keine Sprachausgabe, kein
+          // automatisches Zuhören, laufende Aufnahme wird beendet. Sonst belegt das
+          // Interview das Mikrofon und der Test misst nichts.
           <VoiceInterview
             memorial={memorial}
             contribForm={isSelf ? { ...contribForm, relationship: SELF_REL } : contribForm}
@@ -3509,9 +3518,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             setShowTx={setShowTx}
             companionOn={companionOn}
             setCompanionOn={setCompanionOn}
-            active={tab === 'interview'}
+            active={tab === 'interview' && !soundTest}
             onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)}
             micMode={micMode}
+            onSoundTest={() => setSoundTest(true)}
           />
         )
         // Das ☰-Menü ist immer vorhanden (auch ohne Foto-/Probedruck-Tab), damit
@@ -3555,7 +3565,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               onSupport={() => openSupportHere({ view: 'interview' })}
               onSwitchInterview={switchInterview}
               onMicMode={(memorial?.mic_mode_switch !== false && !companionOn) ? () => setMicModeOpen(true) : null}
-              micModeLabel={String(L || '').startsWith('en') ? 'Microphone mode' : 'Mikrofon-Modus'} />
+              micModeLabel={String(L || '').startsWith('en') ? 'Microphone mode' : 'Mikrofon-Modus'}
+              onSoundTest={() => setSoundTest(true)} />
+            {soundTest && <SoundMicTest lang={L} onClose={() => setSoundTest(false)} />}
             {micModeOpen && (
               <MicModeChooser lang={L} memorial={memorial} micMode={micMode}
                 onPick={m => { chooseMicMode(m); setMicModeOpen(false) }}

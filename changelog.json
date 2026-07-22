@@ -4,6 +4,8 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Ton- und Mikrofontest: Solange der Test offen ist, pausiert das Interview vollständig — es liest nichts vor, hört nicht automatisch zu, und eine laufende Aufnahme wird sauber beendet (das Gesagte geht nicht verloren). Vorher liefen Interview und Test gleichzeitig und stritten um dasselbe Mikrofon. Beim Schließen läuft das Interview normal weiter und wiederholt die letzte Frage.",
+        "Support-Tickets zeigen jetzt das Gerätemodell (z. B. „SM-G991B“) — Chrome verschweigt es seit Version 110 im Browserkennzeichen, die App fragt es deshalb zusätzlich über die Client Hints ab. Auf dem iPhone gibt Apple das Modell grundsätzlich nicht heraus; dort steht ersatzweise das Bildschirmmaß.",
         "Die Mikrofon-Freigabe wird jetzt gleich beim Start des Interviews abgefragt statt erst beim ersten Antippen des Mikrofons — man entscheidet einmal am Anfang, und eine Blockade fällt sofort auf statt mitten im Gespräch. (Auf dem iPhone bewusst weiterhin beim ersten Antippen: dort würde ein früher Mikrofonzugriff die Tonausgabe auf die leise Hörmuschel umleiten.)",
         "Support-Tickets: Der Buch-Code ist jetzt ein Link direkt auf die Buch-Detailseite.",
         "Support-Tickets zeigen jetzt „Gerät“ im Klartext — Betriebssystem, Browser und ob die App vom Startbildschirm im Vollbild läuft — dazu den Stand der Mikrofon-Freigabe. Damit ist beim Lesen sofort klar, welche Anleitung gilt. Außerdem wird die letzte Fehlermeldung nicht mehr nach 300 Zeichen mitten im Satz abgeschnitten.",

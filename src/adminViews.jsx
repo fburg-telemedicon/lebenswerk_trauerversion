@@ -3539,7 +3539,7 @@ export function SupportView({ supportData, loading, err, setView, logout, openMe
   const rows = Array.isArray(supportData) ? supportData : []
   const openCount = rows.filter(r => !r.handled).length
   const fmt = ts => { try { return new Date(ts).toLocaleString('de-DE', { dateStyle:'medium', timeStyle:'short' }) } catch { return ts } }
-  const CTX_LABEL = { role:'Rolle', code:'Buch-Code', category:'Kategorie', view:'Ansicht', lang:'Sprache', lastError:'Letzte Meldung', device:'Gerät', micPerm:'Mikrofon-Freigabe', browser:'Browser', bundle:'App-Version', time:'Zeitpunkt' }
+  const CTX_LABEL = { role:'Rolle', code:'Buch-Code', category:'Kategorie', view:'Ansicht', lang:'Sprache', lastError:'Letzte Meldung', device:'Gerät', model:'Modell', screen:'Bildschirm', micPerm:'Mikrofon-Freigabe', browser:'Browser', bundle:'App-Version', time:'Zeitpunkt' }
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

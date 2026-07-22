@@ -10,7 +10,7 @@
 // Der Diagnose-Kontext wird dem Nutzer VOR dem Absenden unveränderbar angezeigt
 // (Transparenz + Datenschutz) und automatisch mitgeschickt.
 
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { sendSupport } from './api.js'
 
 const SupportCtx = createContext(() => {})
@@ -146,10 +146,42 @@ function deviceSummary() {
   } catch { return '' }
 }
 
+// Gerätemodell, soweit es der Browser überhaupt preisgibt.
+//  • Android/altes Chrome + Samsung Internet + Firefox: Modellkürzel steht im
+//    User-Agent (z. B. „SM-G991B"). ACHTUNG: Chrome friert den User-Agent seit
+//    Version 110 ein und schreibt dort nur noch „K" — deshalb zusätzlich die
+//    Client Hints (siehe modelFromHints, asynchron).
+//  • iOS: Apple gibt das Modell GRUNDSÄTZLICH nicht heraus, weder im User-Agent
+//    noch über Hints. Dort hilft nur das Bildschirmmaß als Näherung.
+function modelFromUA() {
+  try {
+    const ua = navigator.userAgent || ''
+    const m = ua.match(/Android[^;)]*;\s*([^;)]+?)\s*(?:Build\/|;|\))/i)
+    const raw = (m?.[1] || '').trim()
+    if (!raw || raw === 'K' || /^wv$/i.test(raw)) return ''
+    return raw
+  } catch { return '' }
+}
+// User-Agent Client Hints (Chrome/Edge/Samsung Internet, nur HTTPS). Liefert das
+// echte Modell auch dann, wenn der User-Agent es verschweigt. Rein asynchron und
+// ohne Nachfrage beim Nutzer; auf iOS/Firefox schlicht nicht vorhanden.
+async function modelFromHints() {
+  try {
+    const uad = navigator.userAgentData
+    if (!uad?.getHighEntropyValues) return {}
+    const h = await uad.getHighEntropyValues(['model', 'platformVersion', 'platform'])
+    const out = {}
+    if (h.model) out.model = h.model
+    if (h.platform && h.platformVersion) out.platformVersion = `${h.platform} ${h.platformVersion}`
+    return out
+  } catch { return {} }
+}
+
 // Menschlich lesbare Beschriftungen der Diagnose-Felder.
 const CTX_LABELS = {
   role: 'Rolle', code: 'Buch-Code', category: 'Kategorie', view: 'Ansicht',
-  lang: 'Sprache', lastError: 'Letzte Meldung', device: 'Gerät', micPerm: 'Mikrofon-Freigabe',
+  lang: 'Sprache', lastError: 'Letzte Meldung', device: 'Gerät', model: 'Modell',
+  screen: 'Bildschirm', micPerm: 'Mikrofon-Freigabe',
   browser: 'Browser', bundle: 'App-Version', time: 'Zeitpunkt',
 }
 const MIC_PERM_LABEL = { granted: 'erteilt', denied: 'blockiert', prompt: 'noch nicht entschieden', unknown: 'unbekannt' }
@@ -166,6 +198,9 @@ function buildContext(opts) {
   // mitten im Satz abgeschnitten, gerade die wichtigen Hinweise am Ende fehlten.
   if (opts.lastError) ctx.lastError = String(opts.lastError).slice(0, 1200)
   const dev = deviceSummary(); if (dev) ctx.device = dev
+  const mdl = modelFromUA(); if (mdl) ctx.model = mdl
+  // Bildschirmmaß identifiziert iPhones recht gut (dort steht das Modell nirgends).
+  try { ctx.screen = `${window.screen?.width || '?'}×${window.screen?.height || '?'} @${window.devicePixelRatio || 1}x` } catch { /* egal */ }
   if (opts.micPerm) ctx.micPerm = MIC_PERM_LABEL[opts.micPerm] || String(opts.micPerm)
   try { ctx.browser = navigator.userAgent } catch { /* egal */ }
   const b = bundleMarker(); if (b) ctx.bundle = b
@@ -175,7 +210,22 @@ function buildContext(opts) {
 
 function SupportModal({ opts, onClose }) {
   const s = L10N[opts.lang] || L10N.de
-  const context = buildContext(opts)
+  // Grundkontext sofort (er wird dem Nutzer angezeigt), Modell/OS-Version aus den
+  // Client Hints kommen asynchron nach — sie treffen ein, lange bevor jemand das
+  // Formular ausgefüllt hat, und werden mitgeschickt.
+  const [context, setContext] = useState(() => buildContext(opts))
+  useEffect(() => {
+    let live = true
+    modelFromHints().then(h => {
+      if (!live || (!h.model && !h.platformVersion)) return
+      setContext(c => ({
+        ...c,
+        ...(h.model ? { model: h.model } : {}),
+        ...(h.platformVersion ? { device: `${h.platformVersion} · ${String(c.device || '').split(' · ').slice(1).join(' · ')}` } : {}),
+      }))
+    })
+    return () => { live = false }
+  }, [])
   const [name, setName]   = useState(opts.suggestedName || '')
   const [email, setEmail] = useState(opts.suggestedEmail || '')
   const [phone, setPhone] = useState('')
