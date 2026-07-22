@@ -2454,6 +2454,12 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
     const dash = '—'
     const fmtDateTime = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
     const orderVariant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+    // Endnutzer-Kategorien (Lebenswerk, Anamnese): Es gibt dort KEINE Buch-Variante
+    // zu wählen — beim Lebenswerk existiert nur Variante 2, die Anamnese hat gar
+    // kein Buch. Die Anlage-Maske blendet sie längst aus (`!isEnduser`); auf der
+    // Detailseite stand sie trotzdem noch an drei Stellen und suggerierte eine
+    // Auswahl, die es nicht gibt.
+    const isEnduserCat = isAnamnesis || selected.product_category === 'lifework'
     const orderLangLabels = sortLangs(selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
@@ -2499,7 +2505,7 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
           <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
             {isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt: ' : t('Organisator:', 'Organizer:') + ' '}{selected.organizer || '—'}
             {selected.gender ? ` · ${selected.gender}` : ''}
-            {selected.book_variant ? ` · ${t('Buch-Variante', 'Book variant')} ${selected.book_variant}` : ''}
+            {(!isEnduserCat && selected.book_variant) ? ` · ${t('Buch-Variante', 'Book variant')} ${selected.book_variant}` : ''}
             {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
             {selected.funeral_date ? ` · ${t('Erfassung bis:', 'Collection until:')} ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} ${t('Tage vorher', 'days before')})` : ''}
             {selected.created_at ? ` · ${t('erstellt am', 'created on')} ${fmtDateTime(selected.created_at)}` : ''}
@@ -2760,7 +2766,7 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                 </div>
               )
             )}
-            {!isAnamnesis && (() => {
+            {!isEnduserCat && (() => {
               const variant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
               return (
                 <div style={{ ...S.card, marginBottom:'1rem', background:'#f5f5f4', borderColor:'#e7e5e4' }}>
@@ -3095,7 +3101,7 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                   ...(oci.useDate ? [[oci.dateLabel, selected.funeral_date ? new Date(selected.funeral_date).toLocaleDateString('de-DE') : dash]] : []),
                   ...(oci.useCutoff ? [['Erfassung bis', selected.funeral_date ? `${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} Tage vorher)` : `${cutoffDays(selected)} Tage vorher`]] : []),
                   ['Sprachen', orderLangLabels],
-                  ['Buch-Variante', orderVariant.title],
+                  ...(isEnduserCat ? [] : [['Buch-Variante', orderVariant.title]]),
                   ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
                   ['Transkript-Anzeige', selected.show_transcript !== false ? 'Ja' : 'Nein'],
                   ['Namensliste im Buch', selected.show_contributors !== false ? 'Ja' : 'Nein'],
@@ -3184,9 +3190,9 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                     </p>
                   </div>
                 )}
-                {/* Anamnese kennt kein Buch → keine Buch-Variante (DB bleibt beim
-                    gespeicherten Default). */}
-                {!isAnamnesis && (
+                {/* Anamnese kennt kein Buch, das Lebenswerk nur Variante 2 → keine
+                    Auswahl anbieten (DB bleibt beim gespeicherten Default). */}
+                {!isEnduserCat && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Buch-Variante *</Lbl>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
