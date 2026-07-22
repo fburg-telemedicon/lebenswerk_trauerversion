@@ -3019,6 +3019,19 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // Interview stilllegen muss, solange er offen ist — sonst laufen Vorlesen bzw.
   // Aufnahme und Test gleichzeitig.
   const [soundTest, setSoundTest]             = useState(false)
+  // Hinweis vor dem Browser-Dialog „Mikrofon zulassen?" (siehe needsMicPriming).
+  const [micPrime, setMicPrime]               = useState(false)
+  const [micPermFlow, setMicPermFlow]         = useState('unknown')
+  useEffect(() => {
+    if (!navigator.permissions?.query) return
+    let live = true, st = null
+    navigator.permissions.query({ name: 'microphone' }).then(s => {
+      if (!live) return
+      st = s; setMicPermFlow(s.state)
+      s.onchange = () => { if (live) setMicPermFlow(s.state) }
+    }).catch(() => {})
+    return () => { live = false; if (st) st.onchange = null }
+  }, [])
   const chooseMicMode = (mode) => { setMicMode(mode); try { mode ? localStorage.setItem('lw_micmode_' + code, mode) : localStorage.removeItem('lw_micmode_' + code) } catch {} }
   const saveQueueRef                          = useRef(Promise.resolve())
   // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
@@ -3203,9 +3216,32 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     setView('info')
   }
 
+  // Ein „Blockieren" im Browser-Dialog ist ENDGÜLTIG: Chrome merkt es sich pro
+  // Domain und fragt nie wieder; nur die Geräte-Einstellungen helfen dann noch.
+  // Deshalb VOR dem Browser-Dialog ein eigener Hinweis, was gleich passiert und
+  // warum — wer versteht, worum es geht, blockiert seltener aus Reflex.
+  // Nur zeigen, wenn der Dialog auch wirklich kommt: nicht bei bereits erteilter
+  // oder bereits verweigerter Berechtigung, und nicht auf iOS (dort fragen wir
+  // bewusst erst beim ersten Mikrofon-Tippen, siehe prewarmMic).
+  function needsMicPriming() {
+    try {
+      const ua = navigator.userAgent || ''
+      if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return false
+      if (!navigator.mediaDevices?.getUserMedia) return false
+      return micPermFlow !== 'granted' && micPermFlow !== 'denied'
+    } catch { return false }
+  }
+
   function startInterview() {
+    if (needsMicPriming()) { setMicPrime(true); return }   // erst erklären, dann fragen
+    beginInterview()
+  }
+
+  // withMic=false: Der Nutzer hat „Später entscheiden" gewählt — dann lösen wir den
+  // Berechtigungsdialog jetzt NICHT aus; er kommt beim ersten Tippen aufs Mikrofon.
+  function beginInterview(withMic = true) {
     unlockAudio()
-    prewarmMic()   // Berechtigungsdialog gleich hier, nicht erst am ersten Mikrofon-Tap
+    if (withMic) prewarmMic()   // Berechtigungsdialog gleich hier, nicht erst am ersten Mikrofon-Tap
     // Lebenswerk: Was der Manager bei der Anlage NICHT gesetzt hat (Name,
     // Geschlecht, Anredeform), gibt der Endnutzer hier ein — es gehört ans BUCH
     // (Titel/Poster/Stammbaum lesen den Namen, das Geschlecht steuert die KI-
@@ -3456,6 +3492,30 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             </div>
           </div>
         </>
+      )}
+
+      {/* Hinweis VOR dem Browser-Dialog. Der „Verstanden"-Tap ist zugleich die
+          Nutzer-Geste, die getUserMedia (und auf iOS die Audio-Freischaltung)
+          braucht — deshalb löst erst dieser Klick den Berechtigungsdialog aus. */}
+      {micPrime && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:80, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:16, padding:'22px 22px 18px', maxWidth:420, width:'100%', boxShadow:'0 4px 24px rgba(0,0,0,.25)' }}>
+            <div style={{ fontSize:34, textAlign:'center', marginBottom:8 }}>🎙️</div>
+            <h2 style={{ fontSize:18, fontWeight:700, marginBottom:10, textAlign:'center' }}>
+              {t.micPrimeTitle || 'Gleich fragt Ihr Browser nach dem Mikrofon'}
+            </h2>
+            <p style={{ fontSize:14, lineHeight:1.65, color:'#57534e', margin:'0 0 18px' }}>
+              {t.micPrimeBody || 'Das Interview wird gesprochen — dafür braucht die App Zugriff auf Ihr Mikrofon. Bitte tippen Sie im nächsten Fenster auf „Zulassen“.'}
+            </p>
+            <button onClick={() => { setMicPrime(false); beginInterview() }} style={{ width:'100%', fontSize:15, padding:'13px 20px' }}>
+              {t.micPrimeOk || 'Verstanden – weiter'}
+            </button>
+            <button onClick={() => { setMicPrime(false); beginInterview(false) }} className="ghost"
+              style={{ width:'100%', fontSize:13, padding:'10px 16px', marginTop:6, color:'#78716c' }}>
+              {t.micPrimeLater || 'Später entscheiden'}
+            </button>
+          </div>
+        </div>
       )}
 
       {!needLang && view === 'info' && (

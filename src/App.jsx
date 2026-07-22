@@ -1122,6 +1122,10 @@ function Dashboard() {
       showTranscript: false,
       showContributors: false,
       photoUploadTab: true,
+      // Nachfragen je Frage: beim Lebenswerk bewusst nur 2. Der Erzähler spricht
+      // über sein ganzes Leben — zu viele Vertiefungsfragen halten ihn an einer
+      // Station fest, statt die Lebensstationen abzuschreiten.
+      followups: 2,
       enduserEmail: '',
     }
   }
