@@ -3259,8 +3259,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   }, [isSelf, memorial])
   // Ist der Interview-Teil (nach Start der Druckversion) endgültig abgeschlossen,
   // direkt in den Probedruck-Tab wechseln — der Interview-Tab zeigt dann nur einen Hinweis.
+  // NUR wenn es den Probedruck-Tab überhaupt gibt (Endnutzer beim Lebenswerk mit
+  // aktiviertem Probedruck). Für GÄSTE existiert er nicht — die landeten sonst auf
+  // einem Tab ohne Inhalt und sahen eine komplett leere Seite mit ☰-Menü.
   useEffect(() => {
-    if (memorial?.interview_closed && tab === 'interview') setTab('proof')
+    const hasProof = isLifework && !isGuest && memorial?.proof_enabled === true
+    if (memorial?.interview_closed && tab === 'interview' && hasProof) setTab('proof')
   }, [memorial]) // eslint-disable-line
   // Schreibrichtung: Hebräisch/Arabisch laufen von rechts nach links. Wir setzen
   // die Richtung auf das ganze Dokument (nicht nur einen Container), damit auch
@@ -3537,6 +3541,13 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         const withProof    = isLifework && memorial.proof_enabled === true
         // Anamnese: eigener Tab, in dem der Patient den Bogen prüft/bestätigt (Step 2).
         const withBogen    = isAnamnesis
+        // Sicherheitsnetz: Zeigt `tab` auf einen Tab, den es in dieser Rolle gar
+        // nicht gibt (z. B. ein Gast auf 'proof'), wäre die Seite vollständig leer —
+        // nur das ☰-Menü stünde da. Dann auf das Interview zurückfallen.
+        const tabOk = tab === 'interview'
+          || (tab === 'photo' && withPhoto) || (tab === 'proof' && withProof)
+          || (tab === 'bogen' && withBogen) || (tab === 'settings' && withSettings)
+        const cur = tabOk ? tab : 'interview'
         // Das ☰-Menü ist im Interview IMMER vorhanden — auch für Beitragende ohne
         // Foto-/Probedruck-Tab. „Später fortsetzen/beenden", der Transkript-Umschalter
         // und die Rechtslinks (Datenschutz/Impressum) liegen dort; der In-Interview-
@@ -3546,8 +3557,22 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         const vi = (memorial.interview_closed || memorial.book_finalized) ? (
           <div style={{ ...S.page, paddingTop:'2.5rem', textAlign:'center' }}>
             <div style={{ fontSize:34, marginBottom:8 }}>✅</div>
-            <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Interview abgeschlossen</h2>
-            <p style={{ ...S.muted, maxWidth:360, margin:'0 auto' }}>Der Interview-Teil ist abgeschlossen. Deine vorläufige Druckversion findest du im Tab „{t.tabProof || 'Probedruck'}".</p>
+            {/* Gäste haben keinen Probedruck-Tab — für sie ist die Nachricht eine
+                andere: Das Buch ist fertig, ihr Beitrag käme zu spät. Der alte Text
+                verwies auf einen Tab, den sie gar nicht sehen. */}
+            {isGuest ? (<>
+              <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>
+                {String(L || '').startsWith('en') ? 'This book is already finished' : 'Das Buch ist schon fertig'}
+              </h2>
+              <p style={{ ...S.muted, maxWidth:380, margin:'0 auto' }}>
+                {String(L || '').startsWith('en')
+                  ? 'Thank you for your interest! This book has already been completed, so no further contributions are possible. Please get in touch with the person who sent you the link.'
+                  : 'Vielen Dank für Ihr Interesse! Dieses Buch wurde bereits abgeschlossen, deshalb sind keine weiteren Beiträge mehr möglich. Wenden Sie sich gerne an die Person, die Ihnen den Link geschickt hat.'}
+              </p>
+            </>) : (<>
+              <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Interview abgeschlossen</h2>
+              <p style={{ ...S.muted, maxWidth:360, margin:'0 auto' }}>Der Interview-Teil ist abgeschlossen. Deine vorläufige Druckversion findest du im Tab „{t.tabProof || 'Probedruck'}".</p>
+            </>)}
           </div>
         ) : (
           // `active` ist hier doppelt belegt: Der offene Ton-/Mikrofontest legt das
@@ -3567,7 +3592,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             setShowTx={setShowTx}
             companionOn={companionOn}
             setCompanionOn={setCompanionOn}
-            active={tab === 'interview' && !soundTest}
+            active={cur === 'interview' && !soundTest}
             onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)}
             micMode={micMode}
             onSoundTest={() => setSoundTest(true)}
@@ -3580,9 +3605,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         // Streifen über dem Logo).
         return (
           <div style={{ paddingBottom: 24 }}>
-            <div style={{ display: tab === 'interview' ? 'block' : 'none' }}>{vi}</div>
+            <div style={{ display: cur === 'interview' ? 'block' : 'none' }}>{vi}</div>
             {withPhoto && (
-              <div style={{ display: tab === 'photo' ? 'block' : 'none' }}>
+              <div style={{ display: cur === 'photo' ? 'block' : 'none' }}>
                 <div style={{ ...S.page, paddingTop:'2rem' }}>
                   {/* Anamnese: derselbe Upload, aber vollständig auf Dokumente umformuliert. */}
                   <ContributorPhotoUpload code={code} contribId={contribId} t={isAnamnesis ? { ...t, ...anamneseDocT(L) } : t} />
@@ -3590,27 +3615,27 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               </div>
             )}
             {withProof && (
-              <div style={{ display: tab === 'proof' ? 'block' : 'none' }}>
+              <div style={{ display: cur === 'proof' ? 'block' : 'none' }}>
                 <ProofTab code={code} token={endUserToken} memorial={memorial} contribId={contribId} lang={L} t={t}
                   onMemorialPatch={p => setMemorial(m => m ? { ...m, ...p } : m)} />
               </div>
             )}
             {withBogen && (
-              <div style={{ display: tab === 'bogen' ? 'block' : 'none' }}>
+              <div style={{ display: cur === 'bogen' ? 'block' : 'none' }}>
                 <AnamnesisReview code={code} token={endUserToken} memorial={memorial} contribId={contribId} lang={L}
                   onDone={() => setView('done')} />
               </div>
             )}
             {withSettings && (
-              <div style={{ display: tab === 'settings' ? 'block' : 'none' }}>
+              <div style={{ display: cur === 'settings' ? 'block' : 'none' }}>
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
-            <ContribMenu tab={tab} setTab={setTab} t={t} lang={L} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
+            <ContribMenu tab={cur} setTab={setTab} t={t} lang={L} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
               photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : null} photoIcon={isAnamnesis ? '📄' : null}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
-              onPause={tab === 'interview' ? handlePause : null}
+              onPause={cur === 'interview' ? handlePause : null}
               onSupport={() => openSupportHere({ view: 'interview' })}
               onSwitchInterview={switchInterview}
               onMicMode={(memorial?.mic_mode_switch !== false && !companionOn) ? () => setMicModeOpen(true) : null}
