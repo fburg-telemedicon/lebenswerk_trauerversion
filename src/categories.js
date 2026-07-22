@@ -842,6 +842,21 @@ ${flow}
 // Verstorbenen behandeln. Deshalb ein eigener Builder: Präsens, kein Nachruf-
 // Duktus, und ausdrücklich das Ziel, die Selbsterzählung zu ERGÄNZEN — nicht
 // zu ersetzen.
+// Eröffnung für GÄSTE. Sie kommen über einen weitergeleiteten Link und wissen oft
+// nicht, worum es geht — deshalb die Einordnung gleich in die gesprochene Begrüßung,
+// statt sie vorher als Text hinzustellen (den liest im Sprachmodus ohnehin niemand).
+// Bewusst kürzer als die Eröffnung des Erzähler-Interviews: Der Gast trägt nur einen
+// Ausschnitt bei, eine lange Bedienungsanleitung wäre hier unangemessen.
+function guestGreetingRule(name, who) {
+  return `- Eröffne das Gespräch mit einer warmen Begrüßung und ordne kurz ein, worum es geht. Sprich dabei ALLE folgenden Punkte an – natürlich in Fließtext verwoben, NICHT als Aufzählung, keine Nummerierung:
+  1. ${who} lässt gerade die eigene Lebensgeschichte als Buch aufschreiben.
+  2. ${name} ist als Wegbegleiterin oder Wegbegleiter eingeladen und wird deshalb einige Fragen ÜBER ${who} bekommen — einfach frei erzählen, so wie einer guten Freundin.
+  3. Was ${name} erzählt, erscheint im Buch als eigener Beitrag mit ${name}s Namen — es wird ${who} NICHT in den Mund gelegt.
+  4. Ganz kurz zur Bedienung: Fällt zu einer Frage nichts ein, genügt „weiter"; man kann jederzeit um eine Wiederholung bitten und jederzeit pausieren.
+  Formuliere das lebendig und einladend (etwa 4–5 Sätze) und stelle im selben Zug direkt die erste Frage. Wiederhole diese Erklärung NICHT in späteren Nachrichten.
+- Beachte das durchgehend: Sagt ${name} „weiter"/„nächste Frage", gehe sofort und ohne Nachbohren weiter; bringt ${name} ein eigenes Thema oder eine Bitte (z. B. um Wiederholung) ein, greife es auf.`
+}
+
 function lifeworkGuestInterview(memorial, name, rel, address, contributorGender) {
   const g = genderNote(memorial)
   const addr = addressRule(address)
@@ -862,7 +877,7 @@ Regeln:
 - Variiere die Themenfelder bewusst: erste Begegnung, gemeinsamer Alltag, gemeinsame Reisen oder Feste, Arbeit, Familie, Krisen und Beistand, Humor und Marotten, was ${name} von ${who} gelernt hat, was ${name} ${who} gern einmal sagen würde
 - Es ist ausdrücklich in Ordnung, wenn ${name} nur wenig beitragen kann — dieses Gespräch darf kurz bleiben.
 - ${THIRD_PARTY_RULE}
-${interviewGreetingRule(name)}
+${guestGreetingRule(name, who)}
 ${interviewScopeRule(name)}
 - Schreibe auf Deutsch`
 }
@@ -1839,13 +1854,6 @@ export const CATEGORIES = {
       relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Tochter" oder „Freund" (im Sinne von „ich bin die Tochter / der Freund von {name}").',
       consentNoun: 'Lebenswerks',
       interviewButton: '🎙 Sprach-Interview beginnen →',
-      // Kurze Einordnung für Gäste. Viele öffnen den Link ohne zu wissen, worum es
-      // geht — und ohne den entscheidenden Punkt: Sie erzählen ÜBER einen anderen
-      // Menschen, und ihre Worte werden diesem nicht in den Mund gelegt.
-      aboutTitle: 'Worum es geht',
-      about1: '{name} lässt gerade die eigene Lebensgeschichte als Buch aufschreiben.',
-      about2: 'Sie sind als Wegbegleiterin oder Wegbegleiter eingeladen: Die KI stellt Ihnen ein paar Fragen ÜBER {name}. Erzählen Sie einfach frei — so, wie Sie es einer guten Freundin erzählen würden.',
-      about3: 'Ihre Erinnerungen erscheinen im Buch als eigener Beitrag mit Ihrem Namen, nicht als Worte von {name}. Etwa 10 Minuten; Sie können jederzeit pausieren.',
     },
     interviewSystem: lifeworkInterview,
     guestInterviewSystem: lifeworkGuestInterview,

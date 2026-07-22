@@ -287,11 +287,29 @@ async function processBook(job, deadline) {
           else if (!ch.image_prompt) { ch.image_error = 'kein image_prompt im Kapitel' }
           else {
             const refPath = result.faceRefByChapter?.[ch.number] || result.faceRefGlobal
-            const { storagePath, img2img } = await adminPost('/api/admin/generate-image', { memorialCode: code, prompt: ch.image_prompt, imageStyle: p.imageStyle, variant: p.variant, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPath ? { referencePaths: [refPath] } : {}) })
-            // `img2img` = ein echtes Referenzfoto ging in die Bildgenerierung ein.
-            // Wird am Kapitel festgehalten, weil der KI-Hinweis im Buch genau das
-            // offenlegen muss (Personen-Ähnlichkeit auf Basis eines Fotos).
-            ch.image_path = storagePath; ch.image_error = null; ch.image_ref = Boolean(img2img)
+            // Bis zu 3 Versuche. FLUX antwortet gelegentlich ohne Bilddaten und ohne
+            // Polling-Adresse („Keine Bilddaten von FLUX erhalten") oder braucht unter
+            // Last länger als das Poll-Fenster — beides geht beim nächsten Versuch
+            // meist durch. Ein einzelnes fehlendes Kapitelbild ist ärgerlicher als
+            // zwei zusätzliche Aufrufe. NICHT wiederholt wird ein Inhaltsfilter-
+            // Treffer: derselbe Prompt wird auch beim dritten Mal blockiert.
+            let lastErr = null
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                const { storagePath, img2img } = await adminPost('/api/admin/generate-image', { memorialCode: code, prompt: ch.image_prompt, imageStyle: p.imageStyle, variant: p.variant, chapterNumber: ch.number, chapterHeading: ch.heading, ...(refPath ? { referencePaths: [refPath] } : {}) })
+                // `img2img` = ein echtes Referenzfoto ging in die Bildgenerierung ein.
+                // Wird am Kapitel festgehalten, weil der KI-Hinweis im Buch genau das
+                // offenlegen muss (Personen-Ähnlichkeit auf Basis eines Fotos).
+                ch.image_path = storagePath; ch.image_error = null; ch.image_ref = Boolean(img2img)
+                lastErr = null
+                break
+              } catch (e) {
+                lastErr = e
+                if (isContentFilter(e.message) || attempt === 3) break
+                await sleep(2500 * attempt)
+              }
+            }
+            if (lastErr) throw lastErr
           }
         }
       } catch (e) {

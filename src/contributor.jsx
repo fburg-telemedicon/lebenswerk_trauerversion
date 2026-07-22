@@ -3163,7 +3163,13 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     // Eine bereits erteilte Einwilligung (aus der lokalen Sitzung) übernehmen: Sie
     // deckt die Verarbeitung, nicht die einzelne Sitzung → beim Neubeginn nicht
     // erneut abfragen. Ohne vorige Einwilligung bleibt der Haken nötig.
-    const priorConsent = resumePrompt?.consentAt || consentAt || null
+    // Eine bereits erteilte Einwilligung gilt der VERARBEITUNG, nicht der Sitzung —
+    // aber immer nur für DIESELBE Person. Bei geteilten Links (Beitragende, Gäste)
+    // heißt „neu beginnen" in aller Regel: Jetzt erzählt jemand anderes. Dessen
+    // Einwilligung darf nicht aus der vorigen Sitzung geerbt werden, sonst hat die
+    // App eine Einwilligung, die diese Person nie gegeben hat. Nur beim Selbst-
+    // Interview (Lebenswerk/Anamnese, ein Buch = eine Person) wird sie übernommen.
+    const priorConsent = isSelf ? (resumePrompt?.consentAt || consentAt || null) : null
     clearLocalSession(code)
     setResumePrompt(null)
     setContribId(genContribId())
@@ -3443,19 +3449,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
             {ct.introNoun} <strong>{memorial?.name}</strong>
           </p>
-          {/* Gäste kommen über einen weitergeleiteten Link und wissen oft nicht,
-              worum es geht. Drei Sätze vorweg — vor allem der dritte: Ihre Worte
-              werden der erzählenden Person NICHT in den Mund gelegt. */}
-          {isGuest && ct.about1 && (
-            <div style={{ ...S.card, background:'#f5f9f5', borderColor:'#cfe3cf', marginBottom:'1.5rem', padding:'14px 16px' }}>
-              <div style={{ fontSize:14.5, fontWeight:700, marginBottom:8, color:'#1c1917' }}>{ct.aboutTitle}</div>
-              <ul style={{ margin:0, paddingLeft:18, fontSize:14, lineHeight:1.6, color:'#44403c' }}>
-                {[ct.about1, ct.about2, ct.about3].filter(Boolean).map((s, i) => (
-                  <li key={i} style={{ marginBottom:6 }}>{String(s).replace(/\{name\}/g, memorial?.name || '')}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Die Einordnung für Gäste („worum es geht") steht bewusst NICHT hier,
+              sondern wird von der KI zu Beginn des Interviews gesprochen — siehe
+              guestGreetingRule in src/categories.js. Im Sprachmodus liest ohnehin
+              kaum jemand einen Kasten, bevor er auf das Mikrofon tippt. */}
           {askName && (
           <div style={{ marginBottom:14 }}><Lbl>{isSelf ? t.yourNameSelf : t.yourName}</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder={t.fullName} /></div>
           )}
