@@ -563,6 +563,19 @@ export async function adminUpdateContributionMeta(token, id, { contributorName, 
   return parseResponse(res) // updated contribution row
 }
 
+// Kuratierung eines Gastbeitrags (Gastbeiträge zum Lebenswerk):
+// 'approved' | 'rejected' | 'pending'. Der Server prüft den Wert und die
+// Zugehörigkeit des Beitrags; ohne die Spalte antwortet er mit 503 statt still
+// zu schlucken — eine verschluckte Freigabe wäre schlimmer als ein Fehler.
+export async function adminSetGuestStatus(token, id, guestStatus) {
+  const res = await fetch(`/api/admin/contributions?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ guestStatus }),
+  })
+  return parseResponse(res) // updated contribution row
+}
+
 // Transkript-Prüfung speichern: korrigierte messages + optional Prüf-Zeitstempel
 // und Korrekturliste (für Bericht/Undo). Für Undo/Redo nur messages+corrections
 // senden (transcriptCheckedAt weglassen, damit der „geprüft"-Stempel bleibt).

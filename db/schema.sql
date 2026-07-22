@@ -124,7 +124,10 @@ create table if not exists contributions (
   -- Gastbeiträge zum Lebenswerk: true = über den Gast-Link erzählt (jemand
   -- anders spricht ÜBER die Person), NULL/false = die Person selbst bzw. ein
   -- normaler Beitragender. Steuert Prompt und Buchsynthese.
-  is_guest               boolean
+  is_guest               boolean,
+  -- Kuratierung des Managers, nur für Gastbeiträge: 'pending' (jeder neue
+  -- Gastbeitrag) | 'approved' | 'rejected'. NULL bei allen anderen Beiträgen.
+  guest_status           text
 );
 create index if not exists contributions_memorial_id_idx on contributions(memorial_id);
 create index if not exists contributions_feedback_at_idx

@@ -1879,7 +1879,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
     )
 }
 
-export function ContributionView({ selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages, saveContribMeta, saveAnswerText }) {
+export function ContributionView({ setGuestStatus, selectedContrib, selected, setView, dlOne, exportContribution, deleteContribution, logout, deleteMessages, saveContribMeta, saveAnswerText }) {
     const t = useAdminT()
     const c = selectedContrib
     const [ansEdit, setAnsEdit] = useState(null)   // Index der Nachricht, die gerade editiert wird
@@ -1954,8 +1954,9 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontWeight:700, fontSize:18, display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ fontWeight:700, fontSize:18, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                     {c.contributor_name}
+                    <GuestBadge c={c} />
                     <button className="secondary" onClick={startEditMeta} title={t('Name & Beziehung ändern', 'Change name & relationship')} style={{ fontSize:11, padding:'3px 8px' }}>{t('✏ ändern', '✏ edit')}</button>
                   </div>
                   <div style={{ fontSize:13, color:'#78716c' }}>{c.relationship}</div>
@@ -1968,6 +1969,18 @@ export function ContributionView({ selectedContrib, selected, setView, dlOne, ex
               <div><span style={{ color:'#a8a29e' }}>{t('Erstellt:', 'Created:')}</span> {new Date(c.created_at).toLocaleString('de-DE')}</div>
               <div><span style={{ color:'#a8a29e' }}>{t('Antworten:', 'Responses:')}</span> {c.messages.filter(m => m.role === 'user').length}</div>
             </div>
+            {/* Kuratierung: Beim Gastbeitrag entscheidet der Manager hier, nachdem
+                er das Gespräch gelesen hat — der naheliegendste Ort dafür. */}
+            {c.is_guest && (
+              <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #e7e5e4' }}>
+                <Lbl>Gastbeitrag freigeben</Lbl>
+                <p style={{ ...S.muted, fontSize:12.5, margin:'4px 0 10px' }}>
+                  Nur freigegebene Gastbeiträge wirken sich aus. Offene und abgelehnte bleiben samt ihrer
+                  Fotos aus dem Buch heraus.
+                </p>
+                <GuestActions c={c} setGuestStatus={setGuestStatus} />
+              </div>
+            )}
           </div>
 
           {pairs.length === 0 ? (
@@ -2313,7 +2326,47 @@ function PosterGallery({ poster, onZoom, onDownload, extraDl }) {
   )
 }
 
-export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
+// ── Kuratierung der Gastbeiträge (Gastbeiträge zum Lebenswerk) ────
+// Nur Gastbeiträge tragen einen Status; für alle anderen rendern beide
+// Komponenten nichts. Ohne gesetzten Status gilt „offen" — so sind auch
+// Beiträge aus der Zeit vor der Kuratierung richtig einsortiert.
+const GUEST_LOOK = {
+  pending:  { label: 'Gast · offen',       fg: '#92400e', bg: '#fef3c7', bd: '#fde68a' },
+  approved: { label: 'Gast · freigegeben', fg: '#15803d', bg: '#dcfce7', bd: '#bbf7d0' },
+  rejected: { label: 'Gast · abgelehnt',   fg: '#b91c1c', bg: '#fee2e2', bd: '#fecaca' },
+}
+const guestState = c => (c?.is_guest ? (GUEST_LOOK[c.guest_status] ? c.guest_status : 'pending') : null)
+
+function GuestBadge({ c }) {
+  const st = guestState(c)
+  if (!st) return null
+  const look = GUEST_LOOK[st]
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, color: look.fg, background: look.bg, border: `1px solid ${look.bd}`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+      {look.label}
+    </span>
+  )
+}
+
+// Freigeben / Ablehnen. Die jeweils geltende Entscheidung wird nicht als Knopf
+// wiederholt — stattdessen steht dort „zurück auf offen", damit eine
+// Fehlentscheidung in einem Schritt rückgängig zu machen ist.
+function GuestActions({ c, setGuestStatus }) {
+  const st = guestState(c)
+  const [busy, setBusy] = useState(false)
+  if (!st || !setGuestStatus) return null
+  const go = async (next) => { setBusy(true); await setGuestStatus(c.id, next); setBusy(false) }
+  const btn = { fontSize: 12, padding: '5px 11px', opacity: busy ? 0.6 : 1 }
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+      {st !== 'approved' && <button disabled={busy} onClick={() => go('approved')} style={btn}>✓ Freigeben</button>}
+      {st !== 'rejected' && <button className="secondary" disabled={busy} onClick={() => go('rejected')} style={{ ...btn, color: '#b91c1c' }}>✕ Ablehnen</button>}
+      {st !== 'pending' && <button className="ghost" disabled={busy} onClick={() => go('pending')} style={{ ...btn, color: '#78716c', textDecoration: 'underline' }}>zurück auf offen</button>}
+    </div>
+  )
+}
+
+export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -2452,13 +2505,13 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
               </div>
               <p style={{ fontSize:12.5, color:'#3f6212', lineHeight:1.6, margin:'14px 0 0' }}>
                 Angehörige und Freunde erzählen darüber <b>über</b> {selected.name || 'die Person'} — ein eigenes
-                Interview, das die Selbsterzählung ergänzt. Gastbeiträge erscheinen unten in der Beitragsliste
-                (mit „Gast" gekennzeichnet).
+                Interview, das die Selbsterzählung ergänzt. Jeder Gastbeitrag erscheint unten in der
+                Beitragsliste und wartet dort auf <b>Ihre Freigabe</b>; ohne sie wirkt er nirgends.
               </p>
               <p style={{ fontSize:12.5, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'8px 10px', margin:'10px 0 0' }}>
-                ⚠ Gastbeiträge fließen <b>noch nicht</b> in das erzeugte Buch ein — die Autobiographie entsteht
-                weiterhin allein aus dem Selbst-Interview. Hochgeladene Gast-<b>Fotos</b> stehen dagegen sofort
-                zur Verfügung.
+                ⚠ Der <b>Text</b> freigegebener Gastbeiträge fließt noch nicht ins Buch — die Autobiographie
+                entsteht weiterhin allein aus dem Selbst-Interview. Freigegebene Gast-<b>Fotos</b> stehen dagegen
+                sofort zur Verfügung.
               </p>
             </div>
           )}
@@ -2546,6 +2599,20 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom:'1.5rem' }}>
+              {/* Kuratierung: Offene Gastbeiträge sind eine Aufgabe des Managers und
+                  sollen nicht in der Liste untergehen. Ohne Freigabe wirkt ein
+                  Gastbeitrag nirgends — auch seine Fotos nicht. */}
+              {guestPendingCount > 0 && (
+                <div style={{ ...S.card, background:'#fffbeb', borderColor:'#fde68a', marginBottom:4 }}>
+                  <div style={{ fontWeight:600, marginBottom:4 }}>
+                    ⏳ {guestPendingCount === 1 ? 'Ein Gastbeitrag wartet' : `${guestPendingCount} Gastbeiträge warten`} auf Freigabe
+                  </div>
+                  <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+                    Bitte durchsehen und freigeben oder ablehnen. Solange ein Gastbeitrag offen ist, bleibt er
+                    samt seiner Fotos aus dem Buch heraus.
+                  </p>
+                </div>
+              )}
               {contributions.map((c, i) => {
                 const answerCount = c.messages.filter(m => m.role === 'user').length
                 return (
@@ -2565,14 +2632,16 @@ export function DetailView({ selected, catalogs = [], orderDraft, setOrderDraft,
                           {c.contributor_name}
                           {/* Über den Gast-Link erzählt: Diese Person spricht ÜBER den
                               Endnutzer, nicht als er — für den Manager auf einen Blick
-                              erkennbar, weil beides sonst gleich aussieht. */}
-                          {c.is_guest && (
-                            <span style={{ fontSize:11, fontWeight:600, color:'#15803d', background:'#dcfce7', border:'1px solid #bbf7d0', borderRadius:20, padding:'2px 8px' }}>Gast</span>
-                          )}
+                              erkennbar, weil beides sonst gleich aussieht. Der Chip
+                              zeigt zugleich den Kuratierungs-Stand. */}
+                          <GuestBadge c={c} />
                         </div>
                         <div style={{ fontSize: 13, color: '#78716c' }}>
                           {c.relationship} · {new Date(c.created_at).toLocaleDateString('de-DE')} · {answerCount} Antwort{answerCount !== 1 ? 'en' : ''}
                         </div>
+                        {c.is_guest && (
+                          <div style={{ marginTop: 8 }}><GuestActions c={c} setGuestStatus={setGuestStatus} /></div>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

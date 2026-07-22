@@ -14,6 +14,7 @@ const { genCode } = require('./_lib/codes')
 const { enforce } = require('./_lib/ratelimit')
 const { isEnduserCategory } = require('./_lib/categories')
 const { resolvePublicCode } = require('./_lib/access')
+const { ensureLifeworkSchema } = require('./_lib/lifework')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -106,6 +107,23 @@ module.exports = async function handler(req, res) {
       // protokollierten Zeitpunkt nicht.
       if (consentAt) row.consent_at = consentAt
       if (consentVersion) row.consent_version = consentVersion
+      // Kuratierung: Ein neuer Gastbeitrag startet auf 'pending'. WICHTIG — der
+      // Beitragende speichert während des Interviews laufend (Upsert auf
+      // dieselbe id); eine bereits gefallene Entscheidung des Managers
+      // ('approved'/'rejected') darf dabei nicht auf 'pending' zurückfallen.
+      // Deshalb erst den bestehenden Stand lesen. Fehlt die Spalte noch, bleibt
+      // guest_status weg (der Upsert-Fallback unten fängt das ohnehin ab).
+      if (target.guest) {
+        // Sicherstellen, dass is_guest/guest_status existieren. Der Schalter
+        // „Gastbeiträge" legt sie zwar an, aber Bücher, die vor dieser Version
+        // freigeschaltet wurden, haben guest_status noch nicht — und ein Gast-
+        // beitrag OHNE Markierung sähe später aus wie die Selbsterzählung.
+        // Idempotent und pro Container nur einmal wirklich ausgeführt.
+        await ensureLifeworkSchema().catch(() => { /* Fallback unten greift */ })
+        const { data: prev } = await supabase
+          .from('contributions').select('guest_status').eq('id', id).maybeSingle()
+        row.guest_status = prev?.guest_status || 'pending'
+      }
       // Zeitpunkt der letzten Bearbeitung – bei jedem Speichern (auch beim
       // Fortsetzen einer Session) neu gesetzt, damit das Dashboard "zuletzt
       // gearbeitet vor X Tagen" korrekt anzeigt. Die Spalte wird per
@@ -116,10 +134,12 @@ module.exports = async function handler(req, res) {
       const save = r => supabase.from('contributions')
         .upsert({ ...r, updated_at: new Date().toISOString() }, { onConflict: 'id' })
       let { error } = await save(row)
-      // is_guest ist neu (Gastbeiträge) – fehlt die Spalte noch, ohne sie erneut
-      // speichern. Der Beitragenden-Flow darf nie an einer Migration hängen.
-      if (error && /is_guest/i.test(error.message || '')) {
+      // is_guest/guest_status sind neu (Gastbeiträge) – fehlt eine der Spalten
+      // noch, ohne sie erneut speichern. Der Beitragenden-Flow darf nie an einer
+      // Migration hängen.
+      if (error && /is_guest|guest_status/i.test(error.message || '')) {
         delete row.is_guest
+        delete row.guest_status
         ;({ error } = await save(row))
       }
       if (error) {

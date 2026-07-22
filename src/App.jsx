@@ -5,7 +5,7 @@ import {
   askLLM, speakText, stopSpeaking, primeAudio, adminDeleteMemorial, adminSaveMemorialText, adminUpdateMemorialMeta, adminGenerateImage,
   uploadContributorImage, adminUploadImage, adminDeleteUpload, adminUpdateUpload,
   enqueueGeneration, getGenerationJob, cancelGenerationJob,
-  adminDeleteContribution, adminUpdateContributionMessages, adminUpdateContributionMeta, adminSaveTranscriptCheck, adminLockAction,
+  adminDeleteContribution, adminUpdateContributionMessages, adminUpdateContributionMeta, adminSetGuestStatus, adminSaveTranscriptCheck, adminLockAction,
   getMemorialCosts,
   adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminListAudit, adminListFeedback, adminSetFeedbackDone, adminDeleteFeedback,
   adminListCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog,
@@ -276,8 +276,15 @@ function ManagerPhotos({ code, token, uploads, contributions, onChange, category
   const uploaderLabel = u => {
     if (u.source === 'manager') return 'Manager (selbst hochgeladen)'
     const c = u.contribution_id ? contribs.find(x => x.id === u.contribution_id) : null
-    // Über den Gast-Link hochgeladen (Gastbeiträge zum Lebenswerk) – kenntlich machen.
-    if (u.source === 'guest') return `${c?.contributor_name || 'Gast'} (Gast)`
+    // Über den Gast-Link hochgeladen (Gastbeiträge zum Lebenswerk). Der
+    // Kuratierungs-Stand gehört dazu: Ein Foto aus einem offenen oder abgelehnten
+    // Gastbeitrag ist zwar gespeichert, kommt aber nicht ins Buch — ohne diesen
+    // Hinweis wäre für den Manager nicht erklärbar, warum es dort fehlt.
+    if (u.source === 'guest') {
+      const st = c ? (c.guest_status || 'pending') : 'pending'
+      const note = st === 'approved' ? 'Gast, freigegeben' : st === 'rejected' ? 'Gast, abgelehnt – nicht im Buch' : 'Gast, Freigabe offen – noch nicht im Buch'
+      return `${c?.contributor_name || 'Gast'} (${note})`
+    }
     return c?.contributor_name || 'Beitragende:r'
   }
   const [busy, setBusy]     = useState(false)
@@ -1582,15 +1589,40 @@ function Dashboard() {
     downloadFile(`${safeName(selected.name)}_alle-Beitraege.txt`, text)
   }
 
-  // Was fließt in die ERZEUGTEN Produkte (Buch, Pflegeexzerpt, Stammbaum,
-  // Lebensposter)? Gastbeiträge (Gastbeiträge zum Lebenswerk, is_guest) bleiben
-  // vorerst draußen: Eine Autobiographie in der Ich-Form darf der Person keine
-  // fremden Sätze in den Mund legen. Ihr Einbau als abgesetzte „Stimmen-Kästen"
-  // am Kapitelende folgt mit der Buchsynthese; bis dahin sieht der Manager sie
-  // in der Beitragsliste, die Erzeugung ignoriert sie.
-  // Die Beitragsliste, Downloads einzelner Transkripte und die Transkript-Prüfung
-  // arbeiten bewusst weiter mit `contributions` (also inklusive Gästen).
+  // ── Kuratierung der Gastbeiträge ──────────────────────────────────
+  // Jeder Gastbeitrag hat einen Status: 'pending' (neu, wartet), 'approved'
+  // (vom Manager freigegeben) oder 'rejected'. Nicht-Gast-Beiträge haben
+  // keinen Status und sind immer dabei.
+  const guestApproved = c => c.is_guest !== true || c.guest_status === 'approved'
+  const guestPendingCount = contributions.filter(c => c.is_guest && (c.guest_status || 'pending') === 'pending').length
+
+  // TEXT der erzeugten Produkte (Buch, Pflegeexzerpt, Stammbaum, Lebensposter,
+  // Inhaltsprüfung, DOCX/PDF/E-Book): Gastbeiträge bleiben KOMPLETT draußen —
+  // auch freigegebene. Eine Autobiographie in der Ich-Form darf der Person keine
+  // fremden Sätze in den Mund legen; der Einbau als abgesetzte „Stimmen-Kästen"
+  // am Kapitelende ist die Buchsynthese (Paket 5). Dann wird aus diesem Filter
+  // `contributions.filter(guestApproved)`.
+  // Die Beitragsliste, Transkript-Downloads und die Transkript-Prüfung arbeiten
+  // bewusst weiter mit `contributions` (also inklusive Gästen).
   const bookContribs = contributions.filter(c => c.is_guest !== true)
+
+  // FOTOS dagegen wirken sofort: Ein freigegebener Gast bringt seine Bilder ins
+  // Buch, ein offener oder abgelehnter nicht. Deshalb hängen die Uploads am
+  // Beitrag, aus dem sie stammen.
+  const blockedUploadContribs = new Set(contributions.filter(c => !guestApproved(c)).map(c => c.id))
+  const bookUploads = (Array.isArray(selected?.uploaded_images) ? selected.uploaded_images : [])
+    .filter(u => !u.contribution_id || !blockedUploadContribs.has(u.contribution_id))
+
+  // Freigeben / Ablehnen / zurück auf offen.
+  async function setGuestStatus(id, status) {
+    setErr('')
+    try {
+      const updated = await adminSetGuestStatus(token, id, status)
+      setContribs(cs => cs.map(x => x.id === id ? updated : x))
+      if (selectedContrib?.id === id) setSelectedContrib(updated)
+      return true
+    } catch (e) { setErr(e.message); return false }
+  }
 
   // Generatoren werden aus der Kategorie-Konfiguration des aktuell gewählten
   // Buches abgeleitet (Fallback: memorial, solange keins gewählt ist).
@@ -2041,7 +2073,9 @@ function Dashboard() {
             ...(key === 'book_v1' && plan.contribution?.id ? { contribution_id: plan.contribution.id, contributor_name: plan.contribution.contributor_name, relationship: plan.contribution.relationship } : {}),
           },
         }))
-        const uploads = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
+        // Nur freigegebenes Material: Fotos offener/abgelehnter Gastbeiträge
+        // gehören nicht ins Buch (siehe bookUploads).
+        const uploads = bookUploads
         const oldChapters = Array.isArray(selected[gen.field]?.chapters) ? selected[gen.field].chapters : []
         setGenProgress(p => ({ ...p, [key]: 'Wird serverseitig erstellt …' }))
         const { jobId } = await enqueueGeneration(token, selected.id, key, {
@@ -2675,7 +2709,7 @@ Regeln:
       // Referenzfoto JE KAPITEL per KI wählen (Personen-Ähnlichkeit, nur server-
       // seitig aktiv bei AZURE_FLUX_IMG2IMG) – nur für die neu zu erzeugenden
       // Kapitel; Fallback: erstes Hochkant/erstes Foto.
-      const ups = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
+      const ups = bookUploads
       if (ups.length > 0) setImgEditProgress('Referenzfotos werden zugeordnet …')
       const { byChapter: refByChapter, globalPath: refGlobal } = await selectFaceRefs(indices.map(i => newChapters[i]), ups, m.key)
       const errs = []
@@ -3395,7 +3429,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} bookCodes={bookCodes} />
+    <DetailView setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} bookCodes={bookCodes} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
@@ -3405,7 +3439,7 @@ Regeln:
 
   // ── EINZELNER BEITRAG ──
   if (view === 'contribution' && selectedContrib) return (
-    <ContributionView selectedContrib={selectedContrib} selected={selected} setView={setView} dlOne={dlOne} exportContribution={exportContribution} deleteContribution={deleteContribution} logout={logout} deleteMessages={deleteMessages} saveContribMeta={saveContribMeta} saveAnswerText={saveAnswerText} />
+    <ContributionView setGuestStatus={setGuestStatus} selectedContrib={selectedContrib} selected={selected} setView={setView} dlOne={dlOne} exportContribution={exportContribution} deleteContribution={deleteContribution} logout={logout} deleteMessages={deleteMessages} saveContribMeta={saveContribMeta} saveAnswerText={saveAnswerText} />
   )
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──

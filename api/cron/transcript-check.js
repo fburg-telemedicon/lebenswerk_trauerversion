@@ -154,11 +154,20 @@ module.exports = async function handler(req, res) {
   const chain = Math.max(0, parseInt(req.query?.chain || '0', 10))
   const startedAt = Date.now()
   try {
-    const { data: rows, error } = await supabase
+    // guest_status wird MITGELESEN, um abgelehnte Gastbeiträge zu überspringen —
+    // sie landen in keinem Produkt, ihre Transkripte zu prüfen kostet nur Geld.
+    // Die Spalte ist jung; fehlt sie, wird ohne sie gelesen (die Prüfung selbst
+    // darf daran nicht hängen).
+    const BASE_COLS = 'id, memorial_id, contributor_name, messages'
+    let { data: rows, error } = await supabase
       .from('contributions')
-      .select('id, memorial_id, contributor_name, messages')
+      .select(`${BASE_COLS}, guest_status`)
       .is('transcript_checked_at', null)
       .limit(PAGE)
+    if (error && /guest_status/i.test(error.message || '')) {
+      ;({ data: rows, error } = await supabase
+        .from('contributions').select(BASE_COLS).is('transcript_checked_at', null).limit(PAGE))
+    }
     if (error) {
       if (/transcript_|column/i.test(error.message || '')) {
         return res.json({ ok: true, skipped: 'Spalten fehlen (Migration transcript-check.sql ausstehend).' })
@@ -166,7 +175,12 @@ module.exports = async function handler(req, res) {
       throw error
     }
 
-    const pending = (rows || []).filter(c => Array.isArray(c.messages) && c.messages.some(m => m?.role === 'user' && String(m.content || '').trim()))
+    // Abgelehnte behalten transcript_checked_at = null und tauchen in jedem Lauf
+    // erneut in der Seite auf. Das ist bewusst in Kauf genommen: Ein Stempel wäre
+    // gelogen (geprüft wurde nichts) und stünde einer späteren Freigabe im Weg.
+    const pending = (rows || [])
+      .filter(c => c.guest_status !== 'rejected')
+      .filter(c => Array.isArray(c.messages) && c.messages.some(m => m?.role === 'user' && String(m.content || '').trim()))
 
     const memIds = [...new Set(pending.map(c => c.memorial_id))]
     const memName = {}

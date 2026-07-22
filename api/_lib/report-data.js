@@ -124,18 +124,22 @@ async function gatherReport(supabase, opts = {}) {
   }, [])
 
   // ── Beiträge: Zeitstempel 30 Tage (leicht) + Nachrichten nur gestern ─
-  const contribCreated = await safe('contrib(created,30d)', async () => {
-    const { data, error } = await supabase.from('contributions')
-      .select('created_at').gte('created_at', iso(start30))
+  // Abgelehnte Gastbeiträge (Kuratierung des Managers) zählen nirgends mit — sie
+  // fließen in kein Produkt. `guest_status` ist jung: fehlt die Spalte, wird ohne
+  // sie gelesen, damit die Kennzahl nicht auf 0 fällt.
+  const notRejected = r => r.guest_status !== 'rejected'
+  const selectContribs = async (cols, apply) => {
+    let { data, error } = await apply(supabase.from('contributions').select(`${cols}, guest_status`))
+    if (error && /guest_status/i.test(error.message || '')) {
+      ;({ data, error } = await apply(supabase.from('contributions').select(cols)))
+    }
     if (error) throw error
-    return data || []
-  }, [])
-  const contribMsgsYday = await safe('contrib(messages,yday)', async () => {
-    const { data, error } = await supabase.from('contributions')
-      .select('messages').gte('created_at', iso(dayStart)).lt('created_at', iso(dayEnd))
-    if (error) throw error
-    return data || []
-  }, [])
+    return (data || []).filter(notRejected)
+  }
+  const contribCreated = await safe('contrib(created,30d)', () =>
+    selectContribs('created_at', q => q.gte('created_at', iso(start30))), [])
+  const contribMsgsYday = await safe('contrib(messages,yday)', () =>
+    selectContribs('messages', q => q.gte('created_at', iso(dayStart)).lt('created_at', iso(dayEnd))), [])
 
   // ── MTD / Vormonat Kosten ────────────────────────────────────────
   const costMtd = await safe('cost(mtd)', async () => {
@@ -153,7 +157,12 @@ async function gatherReport(supabase, opts = {}) {
 
   // ── Zähler (head:true, keine Datenübertragung) ──────────────────
   const memorialsTotal = await safe('count(memorials)', () => countRows(supabase, s => s.from('memorials').select('*', { count: 'exact', head: true })), memorials.length)
-  const contributionsTotal = await safe('count(contributions)', () => countRows(supabase, s => s.from('contributions').select('*', { count: 'exact', head: true })), 0)
+  const contributionsRaw = await safe('count(contributions)', () => countRows(supabase, s => s.from('contributions').select('*', { count: 'exact', head: true })), 0)
+  // Abgelehnte Gastbeiträge abziehen (siehe oben). Eigener Zähler statt eines
+  // NOT-Filters: `NOT (guest_status = 'rejected')` ist für NULL selbst NULL und
+  // würde alle Nicht-Gast-Beiträge mit herauswerfen.
+  const rejectedGuests = await safe('count(rejectedGuests)', () => countRows(supabase, s => s.from('contributions').select('*', { count: 'exact', head: true }).eq('guest_status', 'rejected')), 0)
+  const contributionsTotal = Math.max(0, contributionsRaw - rejectedGuests)
   const managersTotal = await safe('count(managers)', () => countRows(supabase, s => s.from('app_users').select('*', { count: 'exact', head: true })), 0)
   const newManagers = await safe('count(newManagers)', () => countRows(supabase, s => s.from('app_users').select('*', { count: 'exact', head: true }).gte('created_at', iso(dayStart)).lt('created_at', iso(dayEnd))), 0)
   const imagesTotal = await safe('count(images)', () => countRows(supabase, s => s.from('cost_events').select('*', { count: 'exact', head: true }).eq('kind', 'image')), 0)

@@ -226,8 +226,13 @@ async function ensureLifeworkSchema() {
   // selbst (false/NULL). Ohne diese Markierung wäre ein Gastbeitrag von der
   // Selbsterzählung nicht zu unterscheiden — die Autobiographie würde der Person
   // fremde Sätze in den Mund legen.
+  // `guest_status` ist die Kuratierung des Managers: 'pending' (Voreinstellung
+  // jedes neuen Gastbeitrags) | 'approved' | 'rejected'. NULL bei allen
+  // Nicht-Gast-Beiträgen — die brauchen keine Freigabe.
   await pool().query(`
-    alter table contributions add column if not exists is_guest boolean
+    alter table contributions
+      add column if not exists is_guest     boolean,
+      add column if not exists guest_status text
   `).catch(() => {})
   schemaReady = true
 }
