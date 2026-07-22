@@ -390,6 +390,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [err,        setErr]        = useState('')
   const [hasPlayed,  setHasPlayed]  = useState(false)
   const mediaRecRef  = useRef(null)
+  // Läuft gerade ein Aufnahme-START? (getUserMedia ist asynchron — siehe handleMic)
+  const micStartingRef = useRef(false)
   const chunksRef    = useRef([])
   const endRef       = useRef(null)
 
@@ -568,9 +570,13 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // wenn bereits aufgenommen wird, die Testzeit abgelaufen oder der Tab inaktiv ist.
   function autoListen() {
     if (!handsFreeRef.current || expired || !active) return
+    if (micStartingRef.current) return
     if (mediaRecRef.current && mediaRecRef.current.state === 'recording') return
     setTimeout(() => {
       if (!handsFreeRef.current || expired || !active) return
+      // Auch hier prüfen: Zwischen Timer-Start und Ablauf kann der Nutzer selbst
+      // getippt haben — sonst laufen zwei Aufnahmen auf demselben Ton.
+      if (micStartingRef.current) return
       if (mediaRecRef.current && mediaRecRef.current.state === 'recording') return
       handleMic('self')
     }, 300)
@@ -624,10 +630,17 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
 
   async function handleMic(speaker = 'self') {
     if (micState === 'processing') return
+    // WICHTIG — Wiedereintritts-Sperre. `micState` ist React-State und wird erst
+    // NACH dem await gesetzt; getUserMedia dauert aber 100–300 ms. In diesem Fenster
+    // kam eine zweite Anfrage (Tippen + automatisches Zuhören, oder zweimal
+    // ausgelöstes Vorlese-Ende) durch alle Prüfungen und startete einen ZWEITEN
+    // Recorder auf demselben Ton. Ergebnis: dieselbe Antwort zweimal transkribiert
+    // und zweimal ins Interview geschrieben. Der Ref greift synchron, deshalb hier.
+    if (micStartingRef.current) return
     // Testzeit abgelaufen: keine neue Aufnahme mehr starten.
     if (expired && micState !== 'recording') return
 
-    if (micState === 'recording') {
+    if (micState === 'recording' || mediaRecRef.current?.state === 'recording') {
       mediaRecRef.current?.stop()
       return
     }
@@ -644,6 +657,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     unlockAudio()
 
     setMicNote('')
+    micStartingRef.current = true
     try {
       // WICHTIG (iOS): Für JEDE Aufnahme einen frischen Stream anfordern und danach
       // schließen (siehe onstop). Ein dauerhaft offener, wiederverwendeter Stream
@@ -804,11 +818,20 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       } else {
         setErr(`${t.errMic}: ${msg}`)
       }
+    } finally {
+      micStartingRef.current = false
     }
   }
 
   async function sendAnswer(explicitText, speaker = 'self') {
     const text = (explicitText ?? transcript).trim(); if (!text) return
+    // Zweites Netz gegen doppelte Antworten: Steht dieselbe Antwort bereits als
+    // letzte Nachricht, wurde derselbe Ton zweimal verarbeitet (siehe die
+    // Wiedereintritts-Sperre in handleMic). Wortgleiche Wiederholung direkt
+    // hintereinander kommt beim Erzählen praktisch nicht vor; sie doppelt im Buch
+    // stehen zu haben, wäre der deutlich größere Schaden.
+    const prev = messagesRef.current[messagesRef.current.length - 1]
+    if (prev && prev.role === 'user' && String(prev.content).trim() === text) return
     setTranscript(''); stopSpeaking(); setIsPlaying(false)
     // Antwort landet sofort als Chat-Blase im Verlauf; dort trägt sie dauerhaft
     // die Buttons Löschen/Neu einsprechen (undoFrom/redoFrom). Der Sprecher
