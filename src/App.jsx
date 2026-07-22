@@ -2039,9 +2039,39 @@ function Dashboard() {
     finally { setSavingEdit(false) }
   }
 
+  // Wortmenge, die der Erzähler SELBST beigetragen hat. Gastbeiträge zählen
+  // bewusst nicht mit: Sie füllen die Stimmen-Kästen, nicht die Ich-Erzählung.
+  function selfWordCount() {
+    return contributions
+      .filter(c => !c.is_guest)
+      .reduce((sum, c) => sum + (Array.isArray(c.messages) ? c.messages : [])
+        .filter(m => m?.role === 'user')
+        .reduce((s, m) => s + String(m.content || '').trim().split(/\s+/).filter(Boolean).length, 0), 0)
+  }
+  // Untergrenze, ab der ein Lebenswerk überhaupt Substanz hat. Darunter erfindet
+  // die KI zwangsläufig — sie soll ja Kapitel füllen, hat aber nichts. Beim
+  // Testbuch mit 0 eigenen Wörtern entstand ein komplett erfundenes Leben
+  // (Elternhaus, Beruf, Familie), das die Inhaltsprüfung zu Recht zerriss.
+  const LIFEWORK_MIN_SELF_WORDS = 300
+
   async function generate(key, extraArg, opts = {}) {
     const gen = GENERATORS[key]
     if (!gen || !selected) return
+    // Warnung VOR der Erzeugung: zu wenig eigenes Material. Nur beim Lebenswerk
+    // und nur für die Produkte, die aus dem Selbst-Interview entstehen.
+    if (selected.product_category === 'lifework' && ['book_v1', 'book_v2', 'eulogy'].includes(key)) {
+      const words = selfWordCount()
+      if (words < LIFEWORK_MIN_SELF_WORDS) {
+        const ok = window.confirm(
+          `Der Erzähler hat bisher nur ${words} ${words === 1 ? 'Wort' : 'Wörter'} selbst beigetragen `
+          + `(empfohlen: mindestens ${LIFEWORK_MIN_SELF_WORDS}).\n\n`
+          + 'Daraus lässt sich keine Lebensgeschichte erzählen — die KI würde den größten Teil erfinden '
+          + '(Kindheit, Beruf, Familie), und die Inhaltsprüfung wird das entsprechend beanstanden.\n\n'
+          + 'Gastbeiträge zählen hier nicht mit: Sie erscheinen als Stimmen-Kästen, füllen aber nicht die Ich-Erzählung.\n\n'
+          + 'Trotzdem jetzt erzeugen?')
+        if (!ok) return
+      }
+    }
     if (selected[gen.field] && !opts.skipConfirm && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
     // Sprache des Endprodukts: vom Admin gewählt (opts.lang) oder die einzige
     // angebotene Sprache, sonst Deutsch. Wird den Prompts vorangestellt.

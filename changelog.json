@@ -4,6 +4,7 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Lebenswerk: Vor dem Erzeugen von Buch oder Pflegeexzerpt warnt das Dashboard jetzt, wenn der Erzähler zu wenig selbst beigetragen hat (unter 300 Wörtern). Aus wenigen Sätzen lässt sich keine Lebensgeschichte erzählen — die KI füllt die Kapitel dann zwangsläufig mit Erfundenem. Gastbeiträge zählen dabei nicht mit, sie erscheinen als Stimmen-Kästen und füllen die Ich-Erzählung nicht. Die Erzeugung lässt sich bewusst trotzdem starten.",
         "Gastbeiträge: Die Einordnung („worum es geht\") steht nicht mehr als Text vor dem Interview, sondern wird von der KI zu Beginn des Gesprächs gesprochen — kürzer und im Sprachmodus dort, wo sie ankommt.",
         "Datenschutz-Einwilligung: Beginnt bei einem geteilten Link (Beitragende, Gäste) jemand ein neues Interview, wird die Einwilligung wieder abgefragt. Bisher wurde die des Vorgängers übernommen („liegt bereits vor\") — bei einem geteilten Link erzählt danach aber in aller Regel eine andere Person. Beim Lebenswerk und der Anamnese bleibt es beim bisherigen Verhalten, dort gehört das Buch genau einer Person.",
         "Buchbilder: Liefert die Bild-KI einmal keine Daten zurück (kommt unter Last gelegentlich vor), wird das Kapitelbild jetzt automatisch bis zu dreimal versucht, statt das Kapitel bildlos zu lassen. Nur ein Treffer im Inhaltsfilter wird nicht wiederholt — der bliebe auch beim dritten Versuch bestehen.",
