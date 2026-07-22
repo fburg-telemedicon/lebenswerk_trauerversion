@@ -192,6 +192,7 @@ const EMPTY_CREATE = {
   languages: [DEFAULT_LANGUAGE], note: '',
   pickupAddress: { ...EMPTY_PICKUP },
   catalogId: '', followups: 2,
+  guestEnabled: false,               // Gastbeitraege (nur Lebenswerk): zweiter Link fuer Angehoerige/Freunde
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   ttsVoice: defaultTtsVoice(DEFAULT_CATEGORY),   // deutsche Sprachausgabe-Stimme; je Kategorie in freshCreateForm gesetzt
@@ -1188,6 +1189,8 @@ function Dashboard() {
         proofEnabled: createForm.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
         showOnboarding: createForm.showOnboarding !== false,
+        // Gastbeiträge (nur Lebenswerk; der Server ignoriert das Feld sonst).
+        guestEnabled: createForm.guestEnabled === true,
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,

@@ -565,7 +565,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, guestEnabled } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -684,11 +684,18 @@ module.exports = async function handler(req, res) {
         mic_manual_stop: micManualStop !== false,
         // Darf der Nutzer den Mikrofon-Modus im Interview selbst umschalten? Default AN.
         mic_mode_switch: micModeSwitch !== false,
+        // Gastbeiträge (nur Lebenswerk): schon beim Anlegen aktivierbar, damit der
+        // Manager Buch-Link und Gast-Link in einem Zug bekommt. Der Gast-Code ist ein
+        // EIGENES Geheimnis (der Buch-Code allein öffnet den Endnutzer-Bereich) und
+        // wird deshalb gleich hier erzeugt.
+        ...(category === LIFEWORK && guestEnabled === true
+          ? { guest_enabled: true, guest_code: genCode() }
+          : {}),
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|guest_enabled|guest_code|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
@@ -703,6 +710,8 @@ module.exports = async function handler(req, res) {
         delete insertRow.proof_max
         delete insertRow.proof_used
         delete insertRow.show_onboarding
+        delete insertRow.guest_enabled
+        delete insertRow.guest_code
         delete insertRow.tts_voice
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }

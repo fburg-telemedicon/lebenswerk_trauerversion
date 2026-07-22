@@ -1723,6 +1723,25 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Blendet im Interview einen Umschalter ein. Ist er aktiv, kann eine Begleitperson (z. B. eine Pflegekraft) das Gespräch mitführen – mit eigenem, blauem Mikrofon; die KI tritt so lange zurück. Für die Buchsynthese zählen vor allem die Aussagen des Erzählers selbst.</p>
         </div>
         )}
+        {/* Gastbeiträge schon beim Anlegen: Der Manager bekommt Buch-Link und
+            Gast-Link in einem Zug. Bisher gab es den Schalter erst nach dem
+            Speichern in den Auftragsdaten — wer beim Anlegen danach suchte, fand
+            ihn nicht. Nachträglich umschaltbar bleibt er dort weiterhin. */}
+        {createForm.productCategory === 'lifework' && (
+        <div style={{ marginBottom: 24 }}>
+          <Lbl>Gastbeiträge (weitere Beitragende)</Lbl>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+            <input type="checkbox" checked={createForm.guestEnabled === true} onChange={e => setCreateForm({ ...createForm, guestEnabled: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>Zweiten Link für Angehörige und Freunde erzeugen</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>
+            Angehörige und Freunde erzählen über einen EIGENEN Link ihre Erinnerungen; sie erscheinen im Buch
+            als abgesetzte Stimmen-Kästen am Kapitelende, freigegeben durch Sie. Der Buch-Code selbst darf
+            NICHT weitergegeben werden — er öffnet den Endnutzer-Bereich (Einstellungen, Korrekturabzug,
+            Buchbearbeitung). Link und QR-Code stehen direkt nach dem Anlegen auf der Buch-Seite.
+          </p>
+        </div>
+        )}
         {createForm.productCategory === 'lifework' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Probedruck-Tab (Buchvorschau für den Endnutzer)</Lbl>
