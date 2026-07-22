@@ -4,6 +4,7 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Buchliste: Führte ein Spaltenfilter zu einem leeren Ergebnis, ließ sich das Filtermenü nicht mehr öffnen — man kam nur noch über „Filter zurücksetzen“ oben wieder heraus. Ursache war, dass das aufgeklappte Menü an der Unterkante der (dann sehr flachen) Tabelle abgeschnitten wurde. Zusätzlich steht jetzt ein Hinweis „Kein Buch passt zu den gesetzten Filtern“ mit einem Zurücksetzen-Knopf direkt in der Tabelle.",
         "Foto-Upload: Fotos aus der Handy-Galerie wurden teils abgewiesen, bevor überhaupt etwas hochgeladen wurde. Die Prüfung im Browser war zu streng — Android-Galerien liefern Dateien oft ohne Formatangabe, und neuere Formate wie AVIF fehlten in der Liste. Jetzt wird nur noch abgelehnt, was erkennbar kein Bild ist.",
         "Foto-Upload: Wenn ein Bild wirklich nicht verarbeitet werden kann, steht jetzt der Grund da („Bildformat nicht unterstützt“, „Bild ist zu groß“) statt „Bitte später erneut versuchen“ — ein HEIC-Foto vom iPhone funktioniert auch morgen nicht, der Hinweis war irreführend.",
         "Behoben: Antworten konnten doppelt im Interview landen. Wurde das Mikrofon in dem kurzen Moment, in dem es sich gerade öffnet, ein zweites Mal ausgelöst (Antippen und automatisches Zuhören gleichzeitig), liefen zwei Aufnahmen auf demselben Ton — dieselbe Antwort wurde zweimal erkannt und zweimal gespeichert. Jetzt greift eine Sperre, die sofort wirkt, und eine wortgleiche Antwort direkt hintereinander wird zusätzlich verworfen.",

@@ -1139,7 +1139,14 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
               Seite selbst läuft NICHT über (sonst sitzt das Dashboard nicht mittig).
               Der weiße Hintergrund liegt auf dem Kasten und füllt immer den sichtbaren
               Bereich, sodass beim Scrollen alle Spalten auf Weiß stehen. */}
-          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflowX: 'auto' }}>
+          {/* `overflowX:auto` macht laut CSS-Spezifikation auch die Y-Achse zu
+              „auto" — das Filter-Menü hängt absolut positioniert IM Kasten und wird
+              deshalb an dessen Unterkante abgeschnitten. Solange Zeilen da sind,
+              fällt das nicht auf; filtert man aber auf ein LEERES Ergebnis, ist der
+              Kasten nur noch so hoch wie die Kopfzeile und das Menü verschwindet —
+              der Filter ließ sich dann nicht mehr ändern, nur noch oben komplett
+              zurücksetzen. Ist ein Menü offen, halten wir deshalb Platz frei. */}
+          <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, overflowX: 'auto', minHeight: filterCol ? 400 : undefined }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -1178,6 +1185,18 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                 </tr>
               </thead>
               <tbody>
+                {/* Leeres Filterergebnis: sagen, was los ist, statt eine leere
+                    Tabelle zu zeigen — und den Ausweg gleich anbieten. */}
+                {sortedMemorials.length === 0 && (
+                  <tr>
+                    <td colSpan={sortCols.length + 1} style={{ ...col, textAlign:'center', color:'#78716c', padding:'28px 14px' }}>
+                      {t('Kein Buch passt zu den gesetzten Filtern.', 'No book matches the current filters.')}
+                      <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:12, padding:'5px 10px', marginLeft:10 }}>
+                        {t('Filter zurücksetzen', 'Reset filters')}
+                      </button>
+                    </td>
+                  </tr>
+                )}
                 {sortedMemorials.map(m => {
                   const isHover    = hoveredRow?.id === m.id
                   const mainHover  = isHover && hoveredRow.zone === 'main'
