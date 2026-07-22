@@ -30,7 +30,7 @@ const PLATFORMS = new Set(['android', 'android_pwa', 'ios', 'ios_pwa', 'desktop'
 let schemaReady = false
 async function ensureSchema() {
   if (schemaReady) return
-  await pool.query(`
+  await pool().query(`
     create table if not exists usage_daily (
       day      date    not null,
       kind     text    not null,
@@ -38,7 +38,7 @@ async function ensureSchema() {
       count    integer not null default 0,
       primary key (day, kind, platform)
     )`)
-  await pool.query('create index if not exists usage_daily_day_idx on usage_daily(day desc)')
+  await pool().query('create index if not exists usage_daily_day_idx on usage_daily(day desc)')
   schemaReady = true
 }
 
@@ -55,7 +55,7 @@ module.exports = async function handler(req, res) {
   try {
     await ensureSchema()
     // Tagesgrenze bewusst in Berlin-Zeit, damit die Zahl zum Tagesreport passt.
-    await pool.query(`
+    await pool().query(`
       insert into usage_daily (day, kind, platform, count)
       values ((now() at time zone 'Europe/Berlin')::date, $1, $2, 1)
       on conflict (day, kind, platform) do update set count = usage_daily.count + 1`,
