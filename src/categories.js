@@ -1975,8 +1975,10 @@ export function categoryColor(slug) {
 // mit der Allowlist in api/_lib/ttsvoices.js übereinstimmen. Die Wahl gilt nur für
 // die DEUTSCHE Ausgabe; andere Interviewsprachen nutzen ihre Standardstimme.
 export const TTS_VOICE_OPTIONS = [
-  { value: 'de-DE-Seraphina:DragonHDLatestNeural', label: 'Seraphina – weiblich, HD (natürlichste)' },
-  { value: 'de-DE-Florian:DragonHDLatestNeural',   label: 'Florian – männlich, HD (natürlichste)' },
+  { value: 'de-DE-Mia:MAI-Voice-2',   label: 'Mia – weiblich, neueste Generation (Standard)' },
+  { value: 'de-DE-Klaus:MAI-Voice-2', label: 'Klaus – männlich, neueste Generation' },
+  { value: 'de-DE-Seraphina:DragonHDLatestNeural', label: 'Seraphina – weiblich, HD' },
+  { value: 'de-DE-Florian:DragonHDLatestNeural',   label: 'Florian – männlich, HD' },
   { value: 'de-DE-KatjaNeural',     label: 'Katja – weiblich, Standard' },
   { value: 'de-DE-ConradNeural',    label: 'Conrad – männlich, Standard' },
   { value: 'de-DE-LouisaNeural',    label: 'Louisa – weiblich, weich' },
@@ -1988,8 +1990,8 @@ export const TTS_VOICE_OPTIONS = [
 // Default je Kategorie: Anamnese (Reha + KVSW) → männlich (HD), sonst → weiblich (HD).
 export function defaultTtsVoice(category) {
   return isAnamnesis(category)
-    ? 'de-DE-Florian:DragonHDLatestNeural'
-    : 'de-DE-Seraphina:DragonHDLatestNeural'
+    ? 'de-DE-Klaus:MAI-Voice-2'
+    : 'de-DE-Mia:MAI-Voice-2'
 }
 
 export function getCategory(slug) {

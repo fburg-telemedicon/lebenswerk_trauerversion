@@ -38,7 +38,15 @@ const PRICING = {
   // STT läuft über „Fast Transcription" = $0.36 / Stunde Audio → $0.006 / Minute
   // (NICHT der alte Standard-Tarif $1/h; wir nutzen ausdrücklich Fast Transcription).
   'azure-stt':        { perMinute: 0.006 },  // Fast Transcription, $0.36 / Std.
-  'azure-tts-neural': { perMChars: 16.0 },   // Prebuilt Neural-TTS ~$16 / 1M Zeichen
+  // Preise aus der Azure-Retail-Preis-API, Region westeurope (abgefragt 2026-07-22):
+  //   Meter „S1 Neural Text To Speech Characters"  = $15 / 1M Zeichen
+  //   Meter „Neural HD Text to Speech Characters"  = $22 / 1M Zeichen
+  // HD/„Dragon" UND die MAI-Stimmen laufen über den HD-Meter (VoiceType NeuralHD).
+  // Bis 2026-07-22 wurde ALLES als 'azure-tts-neural' zu $16 verbucht — seit der
+  // Umstellung auf HD-Stimmen also rund 38 % zu niedrig. Ab jetzt getrennt; die
+  // bereits verbuchten cost_events bleiben bewusst unverändert (keine Rückrechnung).
+  'azure-tts-neural': { perMChars: 15.0 },
+  'azure-tts-hd':     { perMChars: 22.0 },
 
   // Hinweis: gpt-image-1 / DALL-E (OpenAI) wurden am 2026-06-21 als Bildmodul
   // entfernt – einziges Bildmodell ist jetzt FLUX.2 [pro]. Bereits verbuchte

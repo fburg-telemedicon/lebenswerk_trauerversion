@@ -12,7 +12,7 @@ const { createClient } = require('./_lib/store')
 const { costTTS, recordCost, enforceBudget } = require('./_lib/cost')
 const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
-const { ALLOWED_TTS_VOICES, voiceGender, MULTILINGUAL_VOICE, VOICE_FEMALE_HD } = require('./_lib/ttsvoices')
+const { ALLOWED_TTS_VOICES, voiceGender, MULTILINGUAL_VOICE, VOICE_FEMALE_HD, MAI_SECONDARY_LANGS, isMaiVoice } = require('./_lib/ttsvoices')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -85,6 +85,13 @@ function pickVoiceAndLocale(language, requestedVoice) {
     return { voice: v, locale: 'de-DE' }
   }
   const g = voiceGender(requestedVoice)
+  // MAI-Stimmen können einige Sprachen selbst (en/es/it/fr/ro/tr/ru) — dann bleibt
+  // dieselbe Stimme über die Sprachgrenze hinweg, was schöner ist als ein Wechsel.
+  // Für pl/eu/he/ar/uk/de-CH können sie es NICHT; dort greift wie bisher die
+  // Multilingual-Stimme bzw. die Standardstimme der Sprache.
+  if (isMaiVoice(requestedVoice) && MAI_SECONDARY_LANGS.has(code) && ALLOWED_TTS_VOICES.has(requestedVoice)) {
+    return { voice: requestedVoice, locale: SPEECH_LOCALE[code] || 'en-US' }
+  }
   if (MULTILINGUAL_LANGS.has(code) && g) {
     return { voice: MULTILINGUAL_VOICE[g], locale: SPEECH_LOCALE[code] || 'en-US' }
   }
@@ -92,12 +99,21 @@ function pickVoiceAndLocale(language, requestedVoice) {
   return { voice: std, locale: SPEECH_LOCALE[code] || std.slice(0, 5) || 'de-DE' }
 }
 
+// Preisklasse der tatsächlich benutzten Stimme — entscheidet den Kosten-Schlüssel
+// in cost.js. HD („Dragon") und die MAI-Stimmen laufen bei Azure über den teureren
+// Meter „Neural HD" ($22 statt $15 je 1M Zeichen); beide sind am Doppelpunkt im
+// Namen erkennbar (de-DE-Mia:MAI-Voice-2, de-DE-Seraphina:DragonHDLatestNeural).
+function ttsModelKey(voice) {
+  return /:(?:DragonHD|MAI-Voice)/i.test(String(voice || '')) ? 'azure-tts-hd' : 'azure-tts-neural'
+}
+
 // ── Azure AI Speech (Neural TTS) ──────────────────────────────────
 async function synth(region, key, voice, locale, text) {
   const rate = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
-  // Mehrsprachige Stimmen brauchen die Zielsprache explizit (<lang>), sonst könnten
-  // sie den Text in der Grundsprache (Deutsch) aussprechen.
-  const inner = voice.includes('Multilingual')
+  // Spricht eine Stimme eine ANDERE Sprache als ihre eigene (mehrsprachige Stimmen,
+  // aber auch MAI-Stimmen in ihren Zweitsprachen), muss die Zielsprache explizit
+  // ausgezeichnet werden — sonst wird der Text mit deutscher Aussprache gelesen.
+  const inner = (voice.includes('Multilingual') || voice.slice(0, 5).toLowerCase() !== String(locale).slice(0, 5).toLowerCase())
     ? `<lang xml:lang='${locale}'><prosody rate='${rate}'>${xmlEscape(text)}</prosody></lang>`
     : `<prosody rate='${rate}'>${xmlEscape(text)}</prosody>`
   const ssml = `<speak version='1.0' xml:lang='${locale}'><voice name='${voice}'>${inner}</voice></speak>`
@@ -124,16 +140,17 @@ async function speakAzure(text, language, requestedVoice) {
   if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
   const { voice, locale } = pickVoiceAndLocale(language, requestedVoice)
   try {
-    return { buffer: await synth(region, key, voice, locale, text), model: 'azure-tts-neural' }
+    return { buffer: await synth(region, key, voice, locale, text), model: ttsModelKey(voice) }
   } catch (e) {
     // Sicherheitsnetz: Scheitert eine mehrsprachige Stimme an einer Sprache/Locale,
     // NICHT die Vorlesefunktion abwürgen — auf die dedizierte Standardstimme der
     // Sprache ausweichen (kein Multilingual mehr).
     const code = String(language || 'de')
     const fallback = TTS_VOICES[code] || TTS_VOICES[code.slice(0, 2)] || TTS_VOICES.de
-    if (voice.includes('Multilingual') && fallback !== voice) {
+    // Auch eine MAI-Stimme kann an einer Zweitsprache scheitern → gleiches Netz.
+    if ((voice.includes('Multilingual') || isMaiVoice(voice)) && fallback !== voice) {
       const loc = SPEECH_LOCALE[code] || fallback.slice(0, 5) || 'de-DE'
-      return { buffer: await synth(region, key, fallback, loc, text), model: 'azure-tts-neural' }
+      return { buffer: await synth(region, key, fallback, loc, text), model: ttsModelKey(fallback) }
     }
     throw e
   }
