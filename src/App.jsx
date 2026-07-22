@@ -817,6 +817,32 @@ function Dashboard() {
     finally { setLoading(false) }
   }
 
+  // Aus einem Support-Ticket (dort steht nur der Buch-Code) direkt in die
+  // Buch-Detailseite springen. Steht das Buch nicht in der geladenen Liste
+  // (veraltet oder in dieser Sitzung noch nie geladen), wird die Liste einmal
+  // frisch geholt. Bleibt es dann verschwunden, war es fremd oder gelöscht —
+  // dafür eine klare Meldung statt einer leeren Detailseite.
+  async function openMemorialByCode(code) {
+    const c = String(code || '').toUpperCase().trim()
+    if (!c) return
+    const find = list => (list || []).find(m => String(m.id).toUpperCase() === c)
+    let m = find(memorials)
+    if (!m) {
+      setLoading(true); setErr('')
+      try {
+        const res = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.status === 401) { logout(); return }
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.error)
+        setMemorials(d)
+        m = find(d)
+      } catch (e) { setErr(e.message); return }
+      finally { setLoading(false) }
+    }
+    if (!m) { setErr(`Zum Code ${c} gibt es kein (für Sie sichtbares) Buch mehr.`); return }
+    await openMemorial(m)
+  }
+
   // Admin-Bearbeitungs-Lock für Lebenswerke: Beim Öffnen der Detailansicht holt der
   // Admin den Lock (blockt den Endnutzer). Scheitert das (409), bearbeitet der
   // Endnutzer gerade → Admin-Ansicht wird read-only. Freigabe beim Verlassen.
@@ -3425,7 +3451,7 @@ Regeln:
 
   // ── SUPPORT-ANFRAGEN (nur Admin) ──
   if (view === 'support') return (
-    <SupportView supportData={supportData} loading={supportLoading} err={err} setView={setView} logout={logout} toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport} generateSupportAssist={generateSupportAssist} saveSupportDraft={saveSupportDraft} sendSupportReply={sendSupportReply} />
+    <SupportView supportData={supportData} loading={supportLoading} err={err} setView={setView} logout={logout} openMemorialByCode={openMemorialByCode} toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport} generateSupportAssist={generateSupportAssist} saveSupportDraft={saveSupportDraft} sendSupportReply={sendSupportReply} />
   )
 
   // ── FRAGENKATALOGE (nur Admin) ──

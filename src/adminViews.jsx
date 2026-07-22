@@ -3534,12 +3534,12 @@ export function QMView({ qmData, loading, err, setView, logout, toggleFeedbackDo
 // ── Support-Tickets (nur Admin) ──
 // Eingegangene In-App-Support-Anfragen: Nachricht, Antwort-Adresse (direkt
 // beantwortbar), Diagnose-Kontext; als erledigt markier- und löschbar.
-export function SupportView({ supportData, loading, err, setView, logout, toggleSupportHandled, deleteSupport, generateSupportAssist, saveSupportDraft, sendSupportReply }) {
+export function SupportView({ supportData, loading, err, setView, logout, openMemorialByCode, toggleSupportHandled, deleteSupport, generateSupportAssist, saveSupportDraft, sendSupportReply }) {
   const t = useAdminT()
   const rows = Array.isArray(supportData) ? supportData : []
   const openCount = rows.filter(r => !r.handled).length
   const fmt = ts => { try { return new Date(ts).toLocaleString('de-DE', { dateStyle:'medium', timeStyle:'short' }) } catch { return ts } }
-  const CTX_LABEL = { role:'Rolle', code:'Buch-Code', category:'Kategorie', view:'Ansicht', lang:'Sprache', lastError:'Letzte Meldung', browser:'Browser', bundle:'App-Version', time:'Zeitpunkt' }
+  const CTX_LABEL = { role:'Rolle', code:'Buch-Code', category:'Kategorie', view:'Ansicht', lang:'Sprache', lastError:'Letzte Meldung', device:'Gerät', micPerm:'Mikrofon-Freigabe', browser:'Browser', bundle:'App-Version', time:'Zeitpunkt' }
   return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3568,7 +3568,7 @@ export function SupportView({ supportData, loading, err, setView, logout, toggle
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {rows.map(r => (
-              <SupportTicket key={r.id} r={r} t={t} fmt={fmt} CTX_LABEL={CTX_LABEL}
+              <SupportTicket key={r.id} r={r} t={t} fmt={fmt} CTX_LABEL={CTX_LABEL} openMemorialByCode={openMemorialByCode}
                 toggleSupportHandled={toggleSupportHandled} deleteSupport={deleteSupport}
                 generateSupportAssist={generateSupportAssist} saveSupportDraft={saveSupportDraft} sendSupportReply={sendSupportReply} />
             ))}
@@ -3582,7 +3582,7 @@ export function SupportView({ supportData, loading, err, setView, logout, toggle
 // Eine Support-Ticket-Karte mit KI-Antwortvorschlag (editierbar), optionalem
 // Reparatur-Prompt und – falls eine E-Mail-Adresse hinterlegt ist – Direktversand
 // der Antwort aus dem Dashboard (Absender/BCC = support@).
-function SupportTicket({ r, t, fmt, CTX_LABEL, toggleSupportHandled, deleteSupport, generateSupportAssist, saveSupportDraft, sendSupportReply }) {
+function SupportTicket({ r, t, fmt, CTX_LABEL, openMemorialByCode, toggleSupportHandled, deleteSupport, generateSupportAssist, saveSupportDraft, sendSupportReply }) {
   const [draft, setDraft] = useState(r.reply_draft || '')
   const [busy, setBusy] = useState('')     // '', 'gen', 'send', 'save'
   const [msg, setMsg] = useState('')
@@ -3619,7 +3619,17 @@ function SupportTicket({ r, t, fmt, CTX_LABEL, toggleSupportHandled, deleteSuppo
             <a href={`tel:${String(r.reply_phone).replace(/[^\d+]/g, '')}`} style={{ fontSize:13, marginLeft:8, color:'#1d4ed8' }}>📞 {r.reply_phone}</a>
           )}
           <div style={{ ...S.muted, fontSize:12, marginTop:2 }}>
-            <span style={{ fontFamily:'monospace', color:'#57534e' }}>#{r.id}</span>{' · '}{fmt(r.created_at)}{r.memorial_id ? ` · ${t('Buch', 'Book')} ${r.memorial_id}` : ''}
+            <span style={{ fontFamily:'monospace', color:'#57534e' }}>#{r.id}</span>{' · '}{fmt(r.created_at)}
+            {/* Buch-Code führt direkt in die Detailseite — im Support zählt jede
+                Sekunde, in der man nicht in der Buchliste sucht. */}
+            {r.memorial_id && (<>
+              {' · '}{t('Buch', 'Book')}{' '}
+              {openMemorialByCode ? (
+                <button className="ghost" onClick={() => openMemorialByCode(r.memorial_id)}
+                  title={t('Buch-Detailseite öffnen', 'Open book detail page')}
+                  style={{ fontFamily:'monospace', fontSize:12, color:'#1d4ed8', textDecoration:'underline', padding:0, background:'none', border:'none', cursor:'pointer' }}>{r.memorial_id}</button>
+              ) : <span style={{ fontFamily:'monospace' }}>{r.memorial_id}</span>}
+            </>)}
             {r.preferred_channel === 'phone' && ` · ${t('am liebsten telefonisch', 'prefers phone')}`}
             {r.preferred_channel === 'email' && ` · ${t('am liebsten per E-Mail', 'prefers email')}`}
             {r.reply_sent_at && <span style={{ marginLeft:8, color:'#0369a1', fontWeight:600 }}>{t('beantwortet', 'answered')} {fmt(r.reply_sent_at)}</span>}
@@ -3646,7 +3656,11 @@ function SupportTicket({ r, t, fmt, CTX_LABEL, toggleSupportHandled, deleteSuppo
           <div style={{ marginTop:6 }}>
             {ctxRows.map(([k, v]) => (
               <div key={k} style={{ fontSize:12, color:'#57534e', lineHeight:1.55, wordBreak:'break-word' }}>
-                <span style={{ color:'#a8a29e' }}>{CTX_LABEL[k] || k}:</span> {String(v)}
+                <span style={{ color:'#a8a29e' }}>{CTX_LABEL[k] || k}:</span>{' '}
+                {k === 'code' && openMemorialByCode
+                  ? <button className="ghost" onClick={() => openMemorialByCode(v)}
+                      style={{ fontFamily:'monospace', fontSize:12, color:'#1d4ed8', textDecoration:'underline', padding:0, background:'none', border:'none', cursor:'pointer' }}>{String(v)}</button>
+                  : String(v)}
               </div>
             ))}
           </div>

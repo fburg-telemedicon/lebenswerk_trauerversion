@@ -40,6 +40,27 @@ const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Aut
 const MIC_PAUSE_MS          = 2500    // Freisprech: Sprechpause nach Sprache → Auto-Stopp+Senden
 const MIC_NOSPEECH_MS       = 15000   // Freisprech: gar keine Sprache → Runde beenden
 
+// ── Mikrofon-Freigabe gleich beim Start anfragen ─────────────────────────────
+// Eine Web-App kann die Systemeinstellungen NICHT selbst öffnen (das können nur
+// native Apps) — sie kann aber den Berechtigungsdialog auslösen. Deshalb fragen
+// wir das Mikrofon direkt beim Start des Interviews an, innerhalb der Nutzer-
+// Geste, statt erst beim ersten Antippen des Mikrofons. So entscheidet der Nutzer
+// einmal am Anfang, und ein „Blockiert" fällt sofort auf statt mitten im Gespräch.
+// Der Stream wird sofort wieder geschlossen.
+// iOS bleibt bewusst außen vor: Dort verstellt ein Mikrofon-Stream die Audio-
+// Ausgabe (Hörmuschel statt Lautsprecher) und die erste vorgelesene Frage wäre
+// kaum hörbar. Safari fragt ohnehin beim ersten Antippen zuverlässig.
+function prewarmMic() {
+  try {
+    const ua = navigator.userAgent || ''
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return
+    if (!navigator.mediaDevices?.getUserMedia) return
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(st => st.getTracks().forEach(tr => tr.stop()))
+      .catch(() => { /* abgelehnt → der Hinweis samt Anleitung erscheint im Interview */ })
+  } catch { /* egal */ }
+}
+
 // ── Schallwellen-Animation ────────────────────────────────────────
 // Liest den Live-Pegel des Aufnahme-Streams (Web Audio AnalyserNode) und
 // zeichnet symmetrische, animierte Balken auf ein Canvas. Reagiert in Echtzeit
@@ -932,7 +953,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         <Err msg={err} />
         {err && (
           <div style={{ marginTop:-4, marginBottom:12, textAlign:'center' }}>
-            <button onClick={() => openSupport({ role: (memorial?.product_category === 'lifework' && !memorial?.guest) ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, suggestedName: contribForm?.name })}
+            <button onClick={() => openSupport({ role: (memorial?.product_category === 'lifework' && !memorial?.guest) ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, micPerm, suggestedName: contribForm?.name })}
               className="secondary" style={{ fontSize:12.5, padding:'6px 14px' }}>
               ✉ {t.supportButton || 'Support kontaktieren'}
             </button>
@@ -3064,6 +3085,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
 
   function startInterview() {
     unlockAudio()
+    prewarmMic()   // Berechtigungsdialog gleich hier, nicht erst am ersten Mikrofon-Tap
     // Lebenswerk: Was der Manager bei der Anlage NICHT gesetzt hat (Name,
     // Geschlecht, Anredeform), gibt der Endnutzer hier ein — es gehört ans BUCH
     // (Titel/Poster/Stammbaum lesen den Namen, das Geschlecht steuert die KI-

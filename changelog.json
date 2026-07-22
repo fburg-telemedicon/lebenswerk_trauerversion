@@ -4,6 +4,9 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Die Mikrofon-Freigabe wird jetzt gleich beim Start des Interviews abgefragt statt erst beim ersten Antippen des Mikrofons — man entscheidet einmal am Anfang, und eine Blockade fällt sofort auf statt mitten im Gespräch. (Auf dem iPhone bewusst weiterhin beim ersten Antippen: dort würde ein früher Mikrofonzugriff die Tonausgabe auf die leise Hörmuschel umleiten.)",
+        "Support-Tickets: Der Buch-Code ist jetzt ein Link direkt auf die Buch-Detailseite.",
+        "Support-Tickets zeigen jetzt „Gerät“ im Klartext — Betriebssystem, Browser und ob die App vom Startbildschirm im Vollbild läuft — dazu den Stand der Mikrofon-Freigabe. Damit ist beim Lesen sofort klar, welche Anleitung gilt. Außerdem wird die letzte Fehlermeldung nicht mehr nach 300 Zeichen mitten im Satz abgeschnitten.",
         "Neu im Menü: „Ton- und Mikrofontest“. Ein Testton prüft Lautstärke und Stummschalter, danach nimmt man ein paar Sekunden auf, sieht den Pegel live und hört sich sofort selbst. Erkennt die App keinen Ton, sagt sie das ausdrücklich. Die Testaufnahme bleibt auf dem Gerät — sie wird weder gesendet noch gespeichert.",
         "Mikrofon blockiert: Die Anleitung passt jetzt zum Gerät. Läuft die App vom Startbildschirm (Vollbild ohne Adressleiste), führt sie über die Android- bzw. iPhone-Einstellungen zur App-Berechtigung; im Browser über das Symbol neben der Web-Adresse. Bisher wurde immer auf ein Schloss-Symbol in der Adressleiste verwiesen, das es im Vollbildmodus gar nicht gibt.",
         "Menü: Die Datenschutzerklärung trägt statt des Schlosses ein §-Zeichen — das Schloss wurde mit dem Berechtigungs-Symbol des Browsers (Mikrofonfreigabe) verwechselt.",

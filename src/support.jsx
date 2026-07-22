@@ -110,11 +110,49 @@ function bundleMarker() {
   } catch { return '' }
 }
 
+// Gerät in Klartext: Betriebssystem, Browser und – entscheidend für Mikrofon-
+// Probleme – ob die App vom Startbildschirm im Vollbild läuft (dann gibt es keine
+// Adressleiste und die Freigabe geht nur über die Systemeinstellungen).
+// Der volle User-Agent bleibt zusätzlich erhalten; diese Zeile ist die lesbare
+// Zusammenfassung, damit im Ticket sofort „iOS oder Android?" beantwortet ist.
+function deviceSummary() {
+  try {
+    const ua = navigator.userAgent || ''
+    let os = 'unbekannt'
+    let m
+    if ((m = ua.match(/Android\s+([\d.]+)/)))            os = `Android ${m[1]}`
+    else if (/iPhone|iPad|iPod/.test(ua))                os = `iOS${(m = ua.match(/OS (\d+[_\d]*)/)) ? ' ' + m[1].replace(/_/g, '.') : ''}${/iPad/.test(ua) ? ' (iPad)' : ' (iPhone)'}`
+    else if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) os = 'iPadOS'
+    else if (/Windows NT/.test(ua))                      os = 'Windows'
+    else if (/Mac OS X/.test(ua))                        os = 'macOS'
+    else if (/Linux/.test(ua))                           os = 'Linux'
+
+    let br = 'unbekannt'
+    if (/FBAN|FBAV|Instagram|Line\/|WhatsApp/.test(ua))  br = 'In-App-Browser (Facebook/Instagram/WhatsApp)'
+    else if (/EdgA?\//.test(ua))                         br = 'Edge'
+    else if (/SamsungBrowser/.test(ua))                  br = 'Samsung Internet'
+    else if (/FxiOS|Firefox/.test(ua))                   br = 'Firefox'
+    else if (/CriOS/.test(ua))                           br = 'Chrome (iOS)'
+    else if (/Chrome\//.test(ua))                        br = 'Chrome'
+    else if (/Safari/.test(ua))                          br = 'Safari'
+
+    let mode = 'Browser (mit Adressleiste)'
+    if (window.matchMedia?.('(display-mode: standalone)')?.matches
+        || window.matchMedia?.('(display-mode: fullscreen)')?.matches
+        || window.navigator.standalone === true) {
+      mode = 'installierte App vom Startbildschirm (Vollbild, KEINE Adressleiste)'
+    }
+    return `${os} · ${br} · ${mode}`
+  } catch { return '' }
+}
+
 // Menschlich lesbare Beschriftungen der Diagnose-Felder.
 const CTX_LABELS = {
   role: 'Rolle', code: 'Buch-Code', category: 'Kategorie', view: 'Ansicht',
-  lang: 'Sprache', lastError: 'Letzte Meldung', browser: 'Browser', bundle: 'App-Version', time: 'Zeitpunkt',
+  lang: 'Sprache', lastError: 'Letzte Meldung', device: 'Gerät', micPerm: 'Mikrofon-Freigabe',
+  browser: 'Browser', bundle: 'App-Version', time: 'Zeitpunkt',
 }
+const MIC_PERM_LABEL = { granted: 'erteilt', denied: 'blockiert', prompt: 'noch nicht entschieden', unknown: 'unbekannt' }
 const ROLE_LABEL = { enduser: 'Endnutzer', contributor: 'Beitragende:r', manager: 'Manager', admin: 'Administrator' }
 
 function buildContext(opts) {
@@ -124,7 +162,11 @@ function buildContext(opts) {
   if (opts.category) ctx.category = opts.category
   if (opts.view) ctx.view = opts.view
   if (opts.lang) ctx.lang = opts.lang
-  if (opts.lastError) ctx.lastError = String(opts.lastError).slice(0, 300)
+  // 1200 statt 300 Zeichen: Fehlermeldungen mit Handlungsanweisung wurden vorher
+  // mitten im Satz abgeschnitten, gerade die wichtigen Hinweise am Ende fehlten.
+  if (opts.lastError) ctx.lastError = String(opts.lastError).slice(0, 1200)
+  const dev = deviceSummary(); if (dev) ctx.device = dev
+  if (opts.micPerm) ctx.micPerm = MIC_PERM_LABEL[opts.micPerm] || String(opts.micPerm)
   try { ctx.browser = navigator.userAgent } catch { /* egal */ }
   const b = bundleMarker(); if (b) ctx.bundle = b
   ctx.time = new Date().toISOString()
