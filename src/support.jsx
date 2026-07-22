@@ -177,6 +177,74 @@ async function modelFromHints() {
   } catch { return {} }
 }
 
+// Modellkürzel in einen Namen übersetzen, den man ohne Nachschlagen versteht.
+// Das Kürzel bleibt in Klammern stehen — man braucht es für die Websuche.
+// Samsung ist die einzige Marke mit durchgängig systematischen Kürzeln; Pixel &
+// Co. schreiben ihren Namen ohnehin aus, Xiaomi/Oppo liefern Zahlensalat, der
+// sich nicht regelbasiert auflösen lässt (der bleibt dann eben roh).
+const SAMSUNG_FLAGSHIP = {
+  // Galaxy S: Basis / Plus / Ultra
+  'G97': { 970:'S10e', 973:'S10', 975:'S10+', 977:'S10 5G' },
+  'G98': { 980:'S20', 981:'S20 5G', 985:'S20+', 986:'S20+ 5G', 988:'S20 Ultra' },
+  'G99': { 991:'S21', 996:'S21+', 998:'S21 Ultra' },
+  'S90': { 901:'S22', 906:'S22+', 908:'S22 Ultra' },
+  'S91': { 911:'S23', 916:'S23+', 918:'S23 Ultra' },
+  'S92': { 921:'S24', 926:'S24+', 928:'S24 Ultra' },
+  'S93': { 931:'S25', 936:'S25+', 938:'S25 Ultra' },
+  'N98': { 980:'Note 20', 981:'Note 20 5G', 985:'Note 20 Ultra', 986:'Note 20 Ultra 5G' },
+}
+function modelLabel(raw) {
+  const code = String(raw || '').trim()
+  if (!code) return ''
+  const sam = code.match(/^SM-([A-Z])(\d{3})/i)
+  if (sam) {
+    const letter = sam[1].toUpperCase(), num = Number(sam[2])
+    const fam = SAMSUNG_FLAGSHIP[`${letter}${String(num).slice(0, 2)}`]
+    const name = fam?.[num]
+    if (name) return `Samsung Galaxy ${name} (${code})`
+    // Mittelklasse A/M: SM-A536 → A53, SM-M336 → M33 (die letzte Ziffer ist die
+    // Generation der Variante, nicht Teil des Namens).
+    if (/^[AM]$/.test(letter)) return `Samsung Galaxy ${letter}${String(num).slice(0, 2)} (${code})`
+    if (letter === 'F') return `Samsung Galaxy Z Fold/Flip (${code})`
+    if (letter === 'X' || letter === 'T') return `Samsung Galaxy Tab (${code})`
+    return `Samsung (${code})`
+  }
+  return code
+}
+
+// iPhone-Modell schätzen: Apple gibt es nirgends preis, aber die Kombination aus
+// CSS-Auflösung und Pixeldichte ist je Baugröße eindeutig. Mehrere Modelle teilen
+// sich eine Baugröße — deshalb steht im Ticket immer eine Auswahl, keine
+// Scheingenauigkeit.
+const IPHONE_SIZES = {
+  '320x568@2': 'iPhone SE (1. Gen.) / 5s',
+  '375x667@2': 'iPhone 6/7/8 oder SE (2./3. Gen.)',
+  '414x736@3': 'iPhone 6/7/8 Plus',
+  '375x812@3': 'iPhone X/XS/11 Pro oder 12/13 mini',
+  '414x896@2': 'iPhone XR / 11',
+  '414x896@3': 'iPhone XS Max / 11 Pro Max',
+  '390x844@3': 'iPhone 12/12 Pro/13/13 Pro/14',
+  '428x926@3': 'iPhone 12/13 Pro Max oder 14 Plus',
+  '393x852@3': 'iPhone 14 Pro/15/15 Pro/16',
+  '430x932@3': 'iPhone 14 Pro Max/15 Plus/15 Pro Max/16 Plus',
+  '402x874@3': 'iPhone 16 Pro',
+  '440x956@3': 'iPhone 16 Pro Max',
+  '744x1133@2': 'iPad mini',
+  '768x1024@2': 'iPad',
+  '820x1180@2': 'iPad Air',
+  '834x1194@2': 'iPad Pro 11″',
+  '1024x1366@2': 'iPad Pro 12,9″',
+}
+function appleGuess() {
+  try {
+    const w = Math.min(window.screen.width, window.screen.height)
+    const h = Math.max(window.screen.width, window.screen.height)
+    const dpr = Math.round(window.devicePixelRatio || 1)
+    const hit = IPHONE_SIZES[`${w}x${h}@${dpr}`]
+    return hit ? `vermutlich ${hit}` : ''
+  } catch { return '' }
+}
+
 // Menschlich lesbare Beschriftungen der Diagnose-Felder.
 const CTX_LABELS = {
   role: 'Rolle', code: 'Buch-Code', category: 'Kategorie', view: 'Ansicht',
@@ -198,8 +266,9 @@ function buildContext(opts) {
   // mitten im Satz abgeschnitten, gerade die wichtigen Hinweise am Ende fehlten.
   if (opts.lastError) ctx.lastError = String(opts.lastError).slice(0, 1200)
   const dev = deviceSummary(); if (dev) ctx.device = dev
-  const mdl = modelFromUA(); if (mdl) ctx.model = mdl
-  // Bildschirmmaß identifiziert iPhones recht gut (dort steht das Modell nirgends).
+  const mdl = modelFromUA(); if (mdl) ctx.model = modelLabel(mdl)
+  // Apple verrät das Modell nie → aus der Baugröße schätzen.
+  if (!ctx.model) { const g = appleGuess(); if (g) ctx.model = g }
   try { ctx.screen = `${window.screen?.width || '?'}×${window.screen?.height || '?'} @${window.devicePixelRatio || 1}x` } catch { /* egal */ }
   if (opts.micPerm) ctx.micPerm = MIC_PERM_LABEL[opts.micPerm] || String(opts.micPerm)
   try { ctx.browser = navigator.userAgent } catch { /* egal */ }
@@ -220,7 +289,7 @@ function SupportModal({ opts, onClose }) {
       if (!live || (!h.model && !h.platformVersion)) return
       setContext(c => ({
         ...c,
-        ...(h.model ? { model: h.model } : {}),
+        ...(h.model ? { model: modelLabel(h.model) } : {}),
         ...(h.platformVersion ? { device: `${h.platformVersion} · ${String(c.device || '').split(' · ').slice(1).join(' · ')}` } : {}),
       }))
     })

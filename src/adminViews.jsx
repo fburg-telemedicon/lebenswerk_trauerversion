@@ -1016,6 +1016,10 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
       ...(auth.admin ? [{ key: 'owner', label: t('Inhaber', 'Owner'), val: m => (m.owner_username || '').toLowerCase(), disp: m => m.owner_username || '—' }] : []),
       { key: 'organizer', label: t('Organisator', 'Organizer'),   val: m => (m.organizer || '').toLowerCase(), disp: m => m.organizer || '—' },
       { key: 'cutoff',    label: t('Erfassung bis', 'Collection until'), val: m => { const d = cutoffDate(m.funeral_date, cutoffDays(m)); return d ? d.getTime() : Infinity }, disp: m => cutoffString(m.funeral_date, cutoffDays(m)) },
+      // Angelegt am: sortiert nach Zeitstempel, gefiltert nach TAG (eine Filterliste
+      // mit Uhrzeiten wäre unbrauchbar); die Uhrzeit steht klein in der Zelle.
+      { key: 'created',   label: t('Erstellt', 'Created'), val: m => m.created_at ? new Date(m.created_at).getTime() : 0,
+        disp: m => m.created_at ? new Date(m.created_at).toLocaleDateString('de-DE') : '—' },
       { key: 'status',    label: t('Status', 'Status'), val: m => bookStatus(m, t).rank, disp: m => bookStatus(m, t).label },
       // Sortiert nach dem letzten Bearbeitungszeitpunkt (last_activity) statt nach
       // Prozent/Antwortzahl – so stehen die zuletzt bearbeiteten Bücher zusammen;
@@ -1201,6 +1205,12 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                       )}
                       <td style={mainCell}                                                onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.organizer}</td>
                       <td style={{ ...mainCell, color:'#78716c' }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{cutoffString(m.funeral_date, cutoffDays(m))}</td>
+                      <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}   onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        {m.created_at ? (<>
+                          <div>{new Date(m.created_at).toLocaleDateString('de-DE')}</div>
+                          <div style={{ fontSize:11, color:'#a8a29e', marginTop:2 }}>{new Date(m.created_at).toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' })} Uhr</div>
+                        </>) : '—'}
+                      </td>
                       <td style={{ ...mainCell }}                                          onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         {(() => { const s = bookStatus(m, t); return (
                           <span style={{ fontSize:12, color:s.color, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:'2px 8px', whiteSpace:'nowrap' }}>{s.label}</span>
@@ -2473,6 +2483,7 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
             {selected.book_variant ? ` · ${t('Buch-Variante', 'Book variant')} ${selected.book_variant}` : ''}
             {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
             {selected.funeral_date ? ` · ${t('Erfassung bis:', 'Collection until:')} ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} ${t('Tage vorher', 'days before')})` : ''}
+            {selected.created_at ? ` · ${t('erstellt am', 'created on')} ${fmtDateTime(selected.created_at)}` : ''}
           </p>
 
           <div style={{ ...S.card, marginBottom: '1.5rem' }}>

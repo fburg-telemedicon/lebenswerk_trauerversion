@@ -4,6 +4,30 @@
 
 const { catLabel, eur, int } = require('./report-labels')
 
+// Plattform-Kürzel der Telemetrie in Klartext (siehe api/metric.js).
+const PLAT_LABEL = {
+  android: 'Android (Browser)', android_pwa: 'Android (installierte App)',
+  ios: 'iPhone/iPad (Browser)', ios_pwa: 'iPhone/iPad (installierte App)',
+  desktop: 'Computer', other: 'sonstige',
+}
+// „Mikrofon blockiert" als Anteil an den begonnenen Interviews. Erst der Anteil
+// ist deutbar — und die Aufschlüsselung zeigt, ob es an der installierten App liegt.
+function micLines(d) {
+  const m = d.micStats
+  if (!m || (!m.last30.starts && !m.last30.blocked)) return null
+  const y = m.yesterday, l = m.last30
+  const pct = v => (v == null ? '–' : `${String(v).replace('.', ',')} %`)
+  const worst = Object.entries(m.byPlatform || {})
+    .filter(([, v]) => v.starts >= 5 && v.sharePct != null)
+    .sort((a, b) => b[1].sharePct - a[1].sharePct)[0]
+  return {
+    yday: `${int(y.blocked)} von ${int(y.starts)} begonnenen Interviews (${pct(y.sharePct)})`,
+    d30: `${int(l.blocked)} von ${int(l.starts)} (${pct(l.sharePct)})`,
+    missing: l.missing,
+    worst: worst ? `${PLAT_LABEL[worst[0]] || worst[0]}: ${pct(worst[1].sharePct)}` : '',
+  }
+}
+
 function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) }
 function deltaHtml(d, money) {
   if (d == null || d === 0) return ''
@@ -24,6 +48,7 @@ function subject(d, note) {
 
 function htmlBody(d, note) {
   const y = d.yesterday
+  const mic = micLines(d)
   const catStr = Object.entries(y.newMemorialsByCat).map(([k, v]) => `${catLabel(k)} ${v}`).join(' · ')
   const kpi = [
     ['📖 Neue Gedenkbücher', int(y.newMemorials) + deltaHtml(d.yesterday.delta.memorials), catStr],
@@ -64,6 +89,12 @@ function htmlBody(d, note) {
     </p>
     <h2 style="font-size:16px;margin:22px 0 6px">⚙️ Systemstatus</h2>
     <ul style="font-size:14px;padding-left:20px;margin:0;list-style:none">${statusItems.join('')}</ul>
+    ${mic ? `<h2 style="font-size:16px;margin:22px 0 6px">🎙️ Mikrofon blockiert</h2>
+    <ul style="font-size:14px;padding-left:20px;margin:0;color:#2b2723">
+      <li style="margin:4px 0">Gestern: <b>${esc(mic.yday)}</b></li>
+      <li style="margin:4px 0">Letzte 30 Tage: ${esc(mic.d30)}${mic.missing ? ` · zusätzlich ${int(mic.missing)}× kein Mikrofon gefunden` : ''}</li>
+      ${mic.worst ? `<li style="margin:4px 0">Höchster Anteil: ${esc(mic.worst)}</li>` : ''}
+    </ul>` : ''}
     <h2 style="font-size:16px;margin:22px 0 6px">🛠️ Gestern umgesetzt</h2>
     <ul style="font-size:14px;padding-left:20px;margin:0">${changelog}</ul>
     <p style="font-size:13px;color:#9a9187;margin:22px 0 8px;border-top:1px solid #eee;padding-top:12px">
@@ -99,6 +130,16 @@ function textBody(d, note) {
   {
     const ov = d.health?.retentionOverdue || 0
     L.push(`  ${ov === 0 ? '[ok]' : '[!]'} Überfällige DSGVO-Löschungen: ${ov === 0 ? 'keine' : ov}`)
+  }
+  {
+    const mic = micLines(d)
+    if (mic) {
+      L.push('')
+      L.push('Mikrofon blockiert:')
+      L.push(`  Gestern: ${mic.yday}`)
+      L.push(`  Letzte 30 Tage: ${mic.d30}${mic.missing ? ` (zusätzlich ${int(mic.missing)}x kein Mikrofon gefunden)` : ''}`)
+      if (mic.worst) L.push(`  Höchster Anteil: ${mic.worst}`)
+    }
   }
   L.push('')
   L.push('Gestern umgesetzt:')

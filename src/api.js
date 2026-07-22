@@ -276,6 +276,42 @@ export async function redeemUnlockCode(memorialCode, code) {
   })
   return parseResponse(res) // { ok, already? }
 }
+// ── Anonymer Tageszähler ──────────────────────────────────────────
+// Zählt technische Ereignisse (v. a. „Mikrofon blockiert") als reines Aggregat —
+// ohne Buch-Code, ohne Kennung, ohne Zeitstempel. Jede Kennzahl wird pro
+// Browser-Sitzung höchstens EINMAL gesendet, sonst zählte ein Nutzer, der
+// zehnmal aufs Mikrofon tippt, wie zehn Betroffene.
+// Fehler werden bewusst verschluckt: Eine Statistik darf nie ein Interview stören.
+function metricPlatform() {
+  try {
+    const ua = navigator.userAgent || ''
+    const pwa = window.matchMedia?.('(display-mode: standalone)')?.matches
+      || window.matchMedia?.('(display-mode: fullscreen)')?.matches
+      || window.navigator.standalone === true
+    if (/Android/.test(ua)) return pwa ? 'android_pwa' : 'android'
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return pwa ? 'ios_pwa' : 'ios'
+    if (/Windows|Mac OS X|Linux|CrOS/.test(ua)) return 'desktop'
+    return 'other'
+  } catch { return 'other' }
+}
+// Entdopplung bewusst NUR im Arbeitsspeicher: Ein Eintrag in localStorage/
+// sessionStorage wäre ein Zugriff auf das Endgerät (§ 25 TDDDG) und damit
+// einwilligungspflichtig — für eine Statistik unangemessen. Die SPA lädt während
+// eines Interviews ohnehin nicht neu, die Entdopplung greift also zuverlässig.
+const metricsSent = new Set()
+export function recordMetric(kind) {
+  if (metricsSent.has(kind)) return
+  metricsSent.add(kind)
+  try {
+    fetch('/api/metric', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, platform: metricPlatform() }),
+      keepalive: true,
+    }).catch(() => {})
+  } catch { /* egal */ }
+}
+
 // ── Support-Anfrage (öffentlich) ──────────────────────────────────
 // Nachricht/Fehlermeldung + Antwort-Adresse + Diagnose-Kontext an den Betreiber.
 // Rückkanal: replyEmail ODER replyPhone genügt (mindestens eines ist Pflicht).

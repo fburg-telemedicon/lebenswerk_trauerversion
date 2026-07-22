@@ -4,6 +4,10 @@
     {
       "date": "2026-07-22",
       "items": [
+        "Neue Kennzahl im Tagesreport: „Mikrofon blockiert“ — wie viele der begonnenen Interviews am Mikrofon scheitern, als Anteil und aufgeschlüsselt nach Plattform (Android/iPhone, Browser oder installierte App). Damit ist die Dunkelziffer messbar statt geschätzt: Wer das Mikrofon nicht zum Laufen bringt, schreibt meist keinen Support, sondern hört auf.",
+        "Der Zähler ist bewusst ein reines Tagesaggregat: kein Buch-Code, keine Kennung, keine IP, keine Uhrzeit, keine Einzelzeile — und nichts wird auf dem Gerät gespeichert. Es ist damit keine Verarbeitung personenbezogener Daten.",
+        "Buchliste im Dashboard: neue Spalte „Erstellt“ mit Datum und Uhrzeit (sortierbar, nach Tag filterbar); auf der Buch-Detailseite steht das Anlagedatum jetzt in der Kopfzeile.",
+        "Support-Tickets nennen das Modell jetzt im Klartext, z. B. „Samsung Galaxy S21 (SM-G991B)“ statt nur des Kürzels. Beim iPhone, wo Apple das Modell nie herausgibt, wird es aus der Bildschirmgröße geschätzt („vermutlich iPhone 12/13/14“).",
         "Ton- und Mikrofontest: Solange der Test offen ist, pausiert das Interview vollständig — es liest nichts vor, hört nicht automatisch zu, und eine laufende Aufnahme wird sauber beendet (das Gesagte geht nicht verloren). Vorher liefen Interview und Test gleichzeitig und stritten um dasselbe Mikrofon. Beim Schließen läuft das Interview normal weiter und wiederholt die letzte Frage.",
         "Support-Tickets zeigen jetzt das Gerätemodell (z. B. „SM-G991B“) — Chrome verschweigt es seit Version 110 im Browserkennzeichen, die App fragt es deshalb zusätzlich über die Client Hints ab. Auf dem iPhone gibt Apple das Modell grundsätzlich nicht heraus; dort steht ersatzweise das Bildschirmmaß.",
         "Die Mikrofon-Freigabe wird jetzt gleich beim Start des Interviews abgefragt statt erst beim ersten Antippen des Mikrofons — man entscheidet einmal am Anfang, und eine Blockade fällt sofort auf statt mitten im Gespräch. (Auf dem iPhone bewusst weiterhin beim ersten Antippen: dort würde ein früher Mikrofonzugriff die Tonausgabe auf die leise Hörmuschel umleiten.)",

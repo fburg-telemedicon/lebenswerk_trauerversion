@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef, useContext } from 'react'
-import { askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink } from './api.js'
+import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
@@ -426,14 +426,19 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   useEffect(() => {
     if (!navigator.permissions?.query) return
     let live = true, permStatus = null
+    // Anonymer Tageszähler: Ein blockiertes Mikrofon fällt hier auf, OHNE dass der
+    // Nutzer je getippt hat — genau diese stillen Fälle sind die Dunkelziffer.
+    const note = state => { if (state === 'denied') recordMetric('mic_blocked') }
     navigator.permissions.query({ name: 'microphone' }).then(s => {
       if (!live) return
       permStatus = s
-      setMicPerm(s.state)
-      s.onchange = () => { if (live) setMicPerm(s.state) }
+      setMicPerm(s.state); note(s.state)
+      s.onchange = () => { if (live) { setMicPerm(s.state); note(s.state) } }
     }).catch(() => {})
     return () => { live = false; if (permStatus) permStatus.onchange = null }
   }, [])
+  // Bezugsgröße: begonnene Interviews. Ohne sie ist „x-mal blockiert" nicht deutbar.
+  useEffect(() => { recordMetric('interview_start') }, [])
 
   // Nach einer neuen Frage möglichst OBEN bleiben (Mikrofon/Bedienung sichtbar),
   // statt ans Ende des Verlaufs zu scrollen.
@@ -727,6 +732,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
 
       recStartedAt = Date.now()
       rec.start()
+      recordMetric('mic_ok')   // anonymer Tageszähler (Gegenstück zu mic_blocked)
       setMicStream(stream)
       setMicState('recording')
       setHandsFreeIdle(false) // Dialog läuft wieder → Idle-Mikrofon/Hinweis ausblenden
@@ -747,10 +753,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         // Die eigentliche Schritt-für-Schritt-Anleitung steht geräteabhängig in
         // MicBlockedBox (wird direkt darunter eingeblendet, micPerm='denied').
         setMicPerm('denied')
+        recordMetric('mic_blocked')
         setErr(en
           ? 'Microphone access is blocked — even if you just allowed it. Please follow the steps below.'
           : 'Der Mikrofon-Zugriff ist blockiert — auch wenn Sie eben zugestimmt haben. Bitte folgen Sie den Schritten unten.')
       } else if (noMic) {
+        recordMetric('mic_missing')
         setErr(en ? 'No microphone found. Please check that a microphone is available and enabled.' : 'Kein Mikrofon gefunden. Bitte prüfen Sie, ob ein Mikrofon vorhanden und aktiviert ist.')
       } else if (inUse) {
         setErr(en ? 'The microphone is in use by another app or browser tab. Please close it and try again.' : 'Das Mikrofon wird von einer anderen App oder einem anderen Browser-Tab verwendet. Bitte schließen Sie diese und versuchen Sie es erneut.')

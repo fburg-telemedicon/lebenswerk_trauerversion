@@ -257,6 +257,46 @@ async function gatherReport(supabase, opts = {}) {
     if (!m.purge_info?.purged_at && due + DAY_MS < nowMs) retentionOverdue++
   }
 
+  // ── Mikrofon-Telemetrie (anonyme Tageszähler aus usage_daily) ────
+  // Interessant ist nicht die absolute Zahl, sondern der ANTEIL blockierter
+  // Mikrofone an den begonnenen Interviews — und ob er auf einer Plattform
+  // (installierte App!) auffällig höher liegt. Tabelle jung → Fallback 0.
+  const micRows = await safe('usage_daily(30d)', async () => {
+    const { data, error } = await supabase.from('usage_daily')
+      .select('day, kind, platform, count').gte('day', days[0])
+    if (error) throw error
+    return data || []
+  }, [])
+  const micSum = (rows, kind) => rows.filter(r => r.kind === kind).reduce((s, r) => s + Number(r.count || 0), 0)
+  const dayStr = r => String(r.day).slice(0, 10)
+  const micYday = micRows.filter(r => dayStr(r) === dateStr)
+  const micByPlatform = {}
+  for (const r of micRows) {
+    if (r.kind !== 'mic_blocked' && r.kind !== 'interview_start') continue
+    const p = micByPlatform[r.platform] || (micByPlatform[r.platform] = { starts: 0, blocked: 0 })
+    if (r.kind === 'interview_start') p.starts += Number(r.count || 0)
+    else p.blocked += Number(r.count || 0)
+  }
+  const share = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null)
+  const micStats = {
+    yesterday: {
+      starts: micSum(micYday, 'interview_start'),
+      ok: micSum(micYday, 'mic_ok'),
+      blocked: micSum(micYday, 'mic_blocked'),
+      missing: micSum(micYday, 'mic_missing'),
+    },
+    last30: {
+      starts: micSum(micRows, 'interview_start'),
+      blocked: micSum(micRows, 'mic_blocked'),
+      missing: micSum(micRows, 'mic_missing'),
+    },
+    byPlatform: Object.fromEntries(Object.entries(micByPlatform)
+      .map(([k, v]) => [k, { ...v, sharePct: share(v.blocked, v.starts) }])
+      .sort((a, b) => b[1].starts - a[1].starts)),
+  }
+  micStats.yesterday.sharePct = share(micStats.yesterday.blocked, micStats.yesterday.starts)
+  micStats.last30.sharePct = share(micStats.last30.blocked, micStats.last30.starts)
+
   // ── Systemstatus: geplante Jobs ─────────────────────────────────
   // Erwartete Jobs + max. Alter, ab dem "überfällig". Purge läuft täglich (GitHub
   // Action 03:00 UTC), der Report täglich (Vercel-Cron). 26 h Toleranz.
@@ -319,6 +359,7 @@ async function gatherReport(supabase, opts = {}) {
     series: { days, contributionsPerDay, costPerDay: costPerDay.map(round2), memorialsPerDay, memByCat30 },
     distributions: { langDist, catDist },
     retention: { next7: retention7, next30: retention30, overdue: retentionOverdue },
+    micStats,
     health,
     changelog: changelogForDate(dateStr),
   }

@@ -249,6 +249,23 @@ create table if not exists job_heartbeats (
 );
 
 -- ----------------------------------------------------------------------------
+-- usage_daily – anonyme Tageszähler (Technik-Telemetrie, KEINE Personendaten)
+-- ----------------------------------------------------------------------------
+-- Bewusst NUR ein Aggregat: je Tag/Ereignis/Plattform ein Zähler, der hochgezählt
+-- wird. Es gibt keine Einzelzeile, keinen Buch-Code, keine IP, keinen Zeitstempel
+-- unterhalb des Tages — damit ist ein Rückschluss auf eine Person nicht möglich,
+-- auch nicht theoretisch. Zweck: messen, wie häufig das Mikrofon blockiert ist
+-- (mic_blocked) im Verhältnis zu den begonnenen Interviews (interview_start).
+create table if not exists usage_daily (
+  day      date    not null,
+  kind     text    not null,
+  platform text    not null default 'other',
+  count    integer not null default 0,
+  primary key (day, kind, platform)
+);
+create index if not exists usage_daily_day_idx on usage_daily(day desc);
+
+-- ----------------------------------------------------------------------------
 -- memorial_contrib_stats() – Beitrags-/Antwortzahlen je Buch fürs Dashboard
 -- ----------------------------------------------------------------------------
 create or replace function memorial_contrib_stats()
