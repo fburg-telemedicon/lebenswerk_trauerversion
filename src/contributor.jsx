@@ -1324,7 +1324,19 @@ function ContributorPhotoUpload({ code, contribId, t }) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (!/^image\//.test(file.type) && !/\.(hei[cf]|jpe?g|png|webp)$/i.test(file.name)) { setErr(t.uploadError); return }
+    // Diese Prüfung war zu streng und hat echte Fotos abgewiesen: Android-Galerien
+    // (Google Fotos, Samsung) liefern Dateien oft OHNE Typ oder als
+    // application/octet-stream, teils auch mit Namen ohne Endung — und neuere
+    // Formate wie AVIF standen gar nicht in der Liste. Angezeigt wurde dann nur
+    // „Upload fehlgeschlagen", obwohl nie etwas hochgeladen wurde.
+    // Jetzt umgekehrt: Nur ablehnen, was ERKENNBAR kein Bild ist (Video, PDF …).
+    // Alles andere wird versucht; scheitert es wirklich, meldet das der Server.
+    const type = String(file.type || '')
+    const clearlyNotImage = type && !/^image\//.test(type) && !/^application\/octet-stream$/.test(type)
+    if (clearlyNotImage) {
+      setErr(`${t.uploadError} (${type})`)
+      return
+    }
     setErr('')
     try { setStaged({ dataUrl: await fileToDownscaledDataURL(file), caption:'', description:'' }) }
     catch (e2) { setErr(e2.message) }

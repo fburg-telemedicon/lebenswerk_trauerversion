@@ -50,6 +50,16 @@ module.exports = async function handler(req, res) {
     return res.json({ image: safe })
   } catch (e) {
     console.error('/api/upload:', e)
+    // Die Bildprüfung (storeUpload) weiß genau, WARUM sie ablehnt — „Bildformat
+    // nicht unterstützt", „Bild ist zu groß (max. 15 MB)" … Das dem Nutzer
+    // vorzuenthalten und pauschal „fehlgeschlagen, später erneut versuchen" zu
+    // zeigen, schickt ihn ins Leere: Ein HEIC-Foto wird auch morgen nicht gehen.
+    // Bekannte Prüf-Fehler deshalb als 400 mit Klartext durchreichen; alles andere
+    // bleibt ein echter Serverfehler.
+    const msg = String(e?.message || '')
+    if (/^(Kein Bild|Bilddaten|Bild ist zu groß|Bildformat|Bild konnte nicht)/i.test(msg)) {
+      return res.status(400).json({ error: msg })
+    }
     res.status(500).json({ error: 'Der Upload ist fehlgeschlagen. Bitte später erneut versuchen.' })
   }
 }
