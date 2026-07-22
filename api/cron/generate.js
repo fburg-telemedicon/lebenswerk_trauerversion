@@ -207,6 +207,22 @@ async function processBook(job, deadline) {
   const steps = Array.isArray(p.chapterSteps) ? p.chapterSteps : []
   const result = job.result && typeof job.result === 'object' ? job.result : {}
   if (!Array.isArray(result.chapters)) result.chapters = []
+  // Gaststimmen (Stimmen-Kästen am Kapitelende, Gastbeiträge zum Lebenswerk).
+  // Die KI liefert sie im Kapitel-JSON; hier werden sie auf die drei erwarteten
+  // Felder eingedampft und gedeckelt, damit kein Modell-Ausrutscher ungeprüft
+  // ins Buch (und in jeden Export) wandert. Ohne Stimmen bleibt das Feld weg —
+  // Bücher ohne Gastbeiträge sehen exakt aus wie bisher.
+  const normalizeVoices = (v) => {
+    const list = (Array.isArray(v) ? v : [])
+      .map(x => ({
+        name: String(x?.name || '').trim().slice(0, 120),
+        relationship: String(x?.relationship || '').trim().slice(0, 120),
+        text: String(x?.text || '').trim().slice(0, 1200),
+      }))
+      .filter(x => x.text)
+      .slice(0, 2)
+    return list.length ? { voices: list } : {}
+  }
   if (!Array.isArray(result.errors)) result.errors = []
   // Initial ist progress.phase 'queued' → als Kapitelphase behandeln. Nur ein
   // ausdrückliches 'images' (Wiederaufnahme nach den Kapiteln) überspringt sie.
@@ -232,7 +248,7 @@ async function processBook(job, deadline) {
       }
       const extra = meta.contribution_id ? { contribution_id: meta.contribution_id, contributor_name: meta.contributor_name, relationship: meta.relationship } : {}
       result.chapters.push(ch
-        ? { number: ch.number || meta.number, heading: ch.heading || meta.heading || `Kapitel ${meta.number}`, body: ch.body || '', image_prompt: ch.image_prompt || '', ...extra }
+        ? { number: ch.number || meta.number, heading: ch.heading || meta.heading || `Kapitel ${meta.number}`, body: ch.body || '', image_prompt: ch.image_prompt || '', ...normalizeVoices(ch.voices), ...extra }
         : { number: meta.number, heading: meta.heading || `Kapitel ${meta.number}`, body: '', image_prompt: '', generate_error: 'Kapitel konnte nicht erzeugt werden', ...extra })
       await genjobs.saveProgress(job.id, { progress: { phase: 'chapters', cursor: result.chapters.length, total: steps.length, message: `Kapitel ${result.chapters.length}/${steps.length}` }, result })
     }

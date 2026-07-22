@@ -38,6 +38,48 @@ function companionNote(contributions) {
   return `\n\nBEGLEITETER MODUS: Manche Antworten sind mit „[Begleitperson]" markiert — sie stammen NICHT vom Erzähler selbst, sondern von einer begleitenden Person (z. B. einer Pflegekraft), die das Gespräch unterstützt hat. Maßgeblich für das Buch ist, was der ERZÄHLER selbst gesagt hat. Verwende „[Begleitperson]"-Beiträge NUR, wenn sie zusätzliche, konkrete Fakten ÜBER den Erzähler beisteuern; ihre bloßen Fragen, Impulse oder Bestätigungen gehören NICHT ins Buch und dürfen NICHT als Aussagen des Erzählers ausgegeben werden.`
 }
 
+// ── Gastbeiträge zum Lebenswerk ───────────────────────────────────
+// Ein Gastbeitrag ist ein EIGENES Interview mit einer anderen Person ÜBER den
+// Erzähler. Er darf niemals in die Ich-Erzählung einfließen — dort spricht der
+// Mensch selbst, und ihm fremde Sätze in den Mund zu legen wäre das Gegenteil
+// einer Autobiographie. Verwendet wird er ausschließlich als abgesetzter
+// „Stimmen-Kasten" am Kapitelende. Deshalb trennen die Prompt-Builder die
+// beiden Quellen strikt, statt eine gemischte Liste zu verarbeiten.
+//
+// Alle anderen Kategorien kennen keine Gastbeiträge; dort ist is_guest nie
+// gesetzt und selfOnly() liefert schlicht die unveränderte Liste.
+export const isGuestContribution = c => c?.is_guest === true
+
+// Die Stimmen-Kästen EINES Kapitels, bereinigt. Eine Stimme ohne Text ist keine;
+// alte Bücher (vor den Gastbeiträgen) haben das Feld gar nicht. Alle Render-
+// Stellen — Bildschirm, Korrekturabzug, DOCX, Druck-PDF, E-Book — gehen durch
+// diesen Filter, damit sie sich nicht auseinanderentwickeln.
+export function chapterVoices(ch) {
+  return (Array.isArray(ch?.voices) ? ch.voices : []).filter(v => String(v?.text || '').trim())
+}
+export const selfOnly = list => (list || []).filter(c => !isGuestContribution(c))
+export const guestOnly = list => (list || []).filter(isGuestContribution)
+
+// Der Gast-Stoff als eigener Prompt-Abschnitt. Ohne Gastbeiträge bleibt alles
+// leer — die Prompts der übrigen Bücher ändern sich dadurch um kein Zeichen.
+function guestVoiceParts(contributions, memorial) {
+  const guests = guestOnly(contributions)
+  if (!guests.length) return { schema: '', rules: '', material: '' }
+  const who = memorial?.name || 'die Hauptperson'
+  return {
+    schema: `,\n  "voices": [ { "name": "Name der erzählenden Person", "relationship": "Beziehung zu ${who}", "text": "1–3 Sätze aus ihrer Sicht" } ]`,
+    rules: `
+- "voices": Stimmen anderer Menschen zu DIESEM Kapitel — abgesetzte Kästen am Kapitelende, KEIN Teil des Fließtextes. Strikte Regeln:
+  • Quelle sind AUSSCHLIESSLICH die unten stehenden GASTBEITRÄGE. Aus dem Interview von ${who} darf hier NICHTS stehen.
+  • Umgekehrt gilt genauso: Aus den Gastbeiträgen darf NICHTS in "body" gelangen — weder als Erinnerung noch als Fakt noch umformuliert. "body" speist sich allein aus dem Interview von ${who}.
+  • Wähle nur Stimmen, die thematisch WIRKLICH in dieses Kapitel gehören. Passt keine, gib "voices": [] zurück — das ist der Normalfall und völlig in Ordnung.
+  • Höchstens 2 Stimmen pro Kapitel, und JEDE Stimme höchstens einmal im ganzen Buch (die Gliederung oben zeigt dir die übrigen Kapitel).
+  • "text": 1–3 Sätze, dicht am Wortlaut der erzählenden Person, in DEREN Ich-Form („Ich erinnere mich, wie sie …"). Über ${who} wird darin in der dritten Person gesprochen. Nichts hinzuerfinden, nichts glattbügeln.
+  • "name"/"relationship": exakt so, wie sie über dem jeweiligen Gastbeitrag stehen.`,
+    material: `\n\nGASTBEITRÄGE (NUR für "voices" — NICHT für "body"):\n\n${blocks(guests)}`,
+  }
+}
+
 // ── Buchumfang an die beigetragene Textmenge koppeln ──────────────
 // Ziel: Bei vielen/ausführlichen Beiträgen soll ein "ganzes Buch" entstehen
 // (mehr Kapitel und längere Kapitel), bei wenigen/kurzen Beiträgen bleibt es
@@ -798,7 +840,13 @@ ${interviewScopeRule(name)}
 // längere Kapitel (~2000 Wörter) als bei den Beitrags-Büchern.
 const LIFEWORK_CHAPTER_WORDS = 2000
 
-function lifeworkV2Outline(memorial, contributions) {
+function lifeworkV2Outline(memorial, allContributions) {
+  // Das Kapitelgerüst entsteht AUSSCHLIESSLICH aus dem Selbst-Interview. Mit
+  // Gastbeiträgen im Gerüst entstünden Kapitel über Lebensabschnitte, zu denen
+  // der Erzähler selbst nichts gesagt hat — und genau die könnte der Kapitel-
+  // schreiber dann nicht füllen. Auch der Umfang (v2Scale) zählt nur die
+  // eigenen Wörter; Gastwörter dürfen das Buch nicht aufblähen.
+  const contributions = selfOnly(allContributions)
   const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
   const span = v2ChapterSpan(sc)
   return `Du bist ein erfahrener Biograph. Aus dem folgenden Interview, das ${memorial.name} über das eigene Leben gegeben hat, planst du eine Autobiographie.
@@ -826,7 +874,11 @@ Regeln:
 ${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
 }
 
-function lifeworkV2Chapter(memorial, contributions, plan, outline) {
+function lifeworkV2Chapter(memorial, allContributions, plan, outline) {
+  // Zwei streng getrennte Quellen: das Selbst-Interview trägt den Fließtext,
+  // freigegebene Gastbeiträge liefern die Stimmen-Kästen am Kapitelende.
+  const contributions = selfOnly(allContributions)
+  const voices = guestVoiceParts(allContributions, memorial)
   const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
   return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel der Autobiographie von ${memorial.name}.${outlineBlock(outline, plan.number)}
 
@@ -839,18 +891,18 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
   "number": ${plan.number},
   "heading": ${JSON.stringify(plan.heading || '')},
   "body": "Fließtext …",
-  "image_prompt": "English image description; the person in a scene from this chapter, set in the correct historical period"
+  "image_prompt": "English image description; the person in a scene from this chapter, set in the correct historical period"${voices.schema}
 }
 
 Regeln:
 - ${NO_FILLER_RULE}
 - "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
-- Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"
+- Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"${voices.rules}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 
-${companionNote(contributions)}\n\nInterview:\n\n${blocks(contributions)}`
+${companionNote(contributions)}\n\nInterview mit ${memorial.name} (Quelle für "body"):\n\n${blocks(contributions)}${voices.material}`
 }
 
 // ── Pflegeexzerpt (Nebenprodukt des Lebenswerks) ──────────────────
@@ -888,7 +940,11 @@ const LIFEWORK_CARE_SECTIONS = [
     brief: 'Werte, Glaube, Haltung zu Selbstständigkeit, Scham und Hilfe; was der Person Würde bedeutet und worauf sie in der Pflege Wert legt. Ca. 70–110 Wörter.' },
 ]
 
-function lifeworkCareSection(memorial, contributions, section, styleInstruction) {
+function lifeworkCareSection(memorial, allContributions, section, styleInstruction) {
+  // Das Pflegeexzerpt geht in die Pflegeakte und muss belastbar sein. Es speist
+  // sich deshalb allein aus dem, was der Mensch SELBST gesagt hat — Fremdaussagen
+  // Dritter gehören dort nicht ungeprüft hinein (Nebenprodukte: Paket 6).
+  const contributions = selfOnly(allContributions)
   const styleBlock = styleInstruction
     ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n`
     : ''

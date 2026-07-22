@@ -11,7 +11,7 @@ import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buil
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -1526,6 +1526,7 @@ function PModal({ children, onClose }) {
 }
 function BookRead({ book, imgUrl }) {
   if (!book) return null
+  const voicesLabel = uiText(book.language).voicesHeading
   return (
     <article style={{ fontFamily:'Georgia, serif', color:'#1c1917' }}>
       <h1 style={{ fontSize:26, fontWeight:700, textAlign:'center', margin:'10px 0 4px' }}>{book.title}</h1>
@@ -1536,6 +1537,20 @@ function BookRead({ book, imgUrl }) {
           <div style={{ textAlign:'center', fontSize:12, color:'#a8a29e', letterSpacing:1 }}>KAPITEL {c.number}</div>
           <h2 style={{ fontSize:21, fontWeight:700, textAlign:'center', margin:'4px 0 14px' }}>{c.heading}</h2>
           {String(c.body||'').split('\n\n').map((p,k)=>p.trim() && <p key={k} style={{ fontSize:16, lineHeight:1.75, textAlign:'justify', margin:'0 0 12px' }}>{p.trim()}</p>)}
+          {/* Stimmen von Gästen. Der Korrekturabzug ist die Stelle, an der der
+              Erzähler SELBST sieht, was andere über ihn beigetragen haben — das
+              Sicherheitsnetz der Kuratierung durch den Manager. */}
+          {chapterVoices(c).length > 0 && (
+            <div style={{ marginTop:18 }}>
+              <div style={{ fontSize:11, letterSpacing:1, textTransform:'uppercase', color:'#a8a29e', marginBottom:8 }}>{voicesLabel}</div>
+              {chapterVoices(c).map((v, vi) => (
+                <blockquote key={vi} style={{ margin:'0 0 10px', padding:'10px 14px', background:'#fafaf9', borderLeft:'3px solid #d6d3d1', borderRadius:'0 8px 8px 0' }}>
+                  <p style={{ fontSize:15, lineHeight:1.7, fontStyle:'italic', margin:0 }}>„{v.text}"</p>
+                  <p style={{ fontSize:12.5, color:'#78716c', margin:'6px 0 0' }}>— {[v.name, v.relationship].filter(Boolean).join(', ')}</p>
+                </blockquote>
+              ))}
+            </div>
+          )}
         </section>
       ))}
     </article>
@@ -1938,6 +1953,12 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
     for (const c of (b?.chapters || [])) {
       if (c?.heading) parts.push(String(c.heading))
       if (c?.body) parts.push(String(c.body))
+      // Gaststimmen mitlesen — wer sich das Buch vorlesen lässt, soll nicht
+      // ausgerechnet die Stellen verpassen, die andere beigetragen haben.
+      for (const v of chapterVoices(c)) {
+        const by = [v.name, v.relationship].filter(Boolean).join(', ')
+        parts.push(by ? `${v.text} — ${by}` : String(v.text))
+      }
     }
     const chunks = []
     for (const raw of parts) {
@@ -1981,6 +2002,9 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
 
   const du = String(memorial?.intake?.address || 'Sie').trim().toLowerCase() === 'du'
   const P = proofT(lang, du)
+  // Überschrift der Stimmen-Kästen (Gastbeiträge). Sie gehört zum BUCH, nicht
+  // zur Oberfläche — deshalb aus uiText in der Buchsprache, wie im Export.
+  const voicesLabel = uiText(book?.language || lang).voicesHeading
   const isPrint = !!book?.print
   const zwRemaining = Math.max(0, proofMax - proofUsed)
   const imgTotalMax = proofMax + 1
@@ -2298,6 +2322,26 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
             )}
             <input value={c.heading || ''} onFocus={setActive('heading', i)} onChange={e => setChapter(i, { heading: e.target.value })} placeholder={P.headingPh} style={{ fontWeight: 700, marginBottom: 8 }} />
             <AutoGrowTextarea onFocus={setActive('body', i)} value={c.body || ''} onChange={e => setChapter(i, { body: e.target.value })} style={{ width: '100%', minHeight: 120, fontSize: 15, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+            {/* Was andere über diesen Abschnitt erzählt haben. Der Erzähler darf
+                das kürzen oder ganz entfernen — es ist SEIN Buch, auch wenn die
+                Freigabe der Gastbeiträge beim Manager liegt. */}
+            {chapterVoices(c).length > 0 && (
+              <div style={{ marginTop: 12, paddingLeft: 12, borderLeft: '3px solid #e7e5e4' }}>
+                <div style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#a8a29e', marginBottom: 8 }}>{voicesLabel}</div>
+                {chapterVoices(c).map((v, vi) => (
+                  <div key={vi} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12.5, color: '#78716c' }}>{[v.name, v.relationship].filter(Boolean).join(', ')}</span>
+                      <button className="ghost" onClick={() => setChapter(i, { voices: chapterVoices(c).filter((_, k) => k !== vi) })}
+                        style={{ fontSize: 12, color: '#dc2626', padding: '2px 8px' }}>🗑</button>
+                    </div>
+                    <AutoGrowTextarea value={v.text || ''}
+                      onChange={e => setChapter(i, { voices: chapterVoices(c).map((x, k) => k === vi ? { ...x, text: e.target.value } : x) })}
+                      style={{ width: '100%', minHeight: 60, fontSize: 14, lineHeight: 1.6, fontStyle: 'italic', fontFamily: 'Georgia, serif', padding: 10, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )
       })}

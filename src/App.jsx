@@ -1596,15 +1596,15 @@ function Dashboard() {
   const guestApproved = c => c.is_guest !== true || c.guest_status === 'approved'
   const guestPendingCount = contributions.filter(c => c.is_guest && (c.guest_status || 'pending') === 'pending').length
 
-  // TEXT der erzeugten Produkte (Buch, Pflegeexzerpt, Stammbaum, Lebensposter,
-  // Inhaltsprüfung, DOCX/PDF/E-Book): Gastbeiträge bleiben KOMPLETT draußen —
-  // auch freigegebene. Eine Autobiographie in der Ich-Form darf der Person keine
-  // fremden Sätze in den Mund legen; der Einbau als abgesetzte „Stimmen-Kästen"
-  // am Kapitelende ist die Buchsynthese (Paket 5). Dann wird aus diesem Filter
-  // `contributions.filter(guestApproved)`.
+  // Material der erzeugten Produkte: alles außer offenen und abgelehnten
+  // Gastbeiträgen. Was mit einem freigegebenen Gastbeitrag geschieht, entscheiden
+  // die Prompt-Builder in categories.js, NICHT dieser Filter: Der Fließtext
+  // bleibt reine Ich-Erzählung (selfOnly), Gaststimmen erscheinen nur als
+  // abgesetzte Kästen am Kapitelende. Pflegeexzerpt, Stammbaum und Poster lesen
+  // ebenfalls nur die Selbsterzählung.
   // Die Beitragsliste, Transkript-Downloads und die Transkript-Prüfung arbeiten
-  // bewusst weiter mit `contributions` (also inklusive Gästen).
-  const bookContribs = contributions.filter(c => c.is_guest !== true)
+  // bewusst weiter mit `contributions` (also inklusive aller Gäste).
+  const bookContribs = contributions.filter(guestApproved)
 
   // FOTOS dagegen wirken sofort: Ein freigegebener Gast bringt seine Bilder ins
   // Buch, ein offener oder abgelehnter nicht. Deshalb hängen die Uploads am

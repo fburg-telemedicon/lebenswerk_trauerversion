@@ -2,9 +2,9 @@
 // Aus App.jsx ausgelagerte, ZUSTANDSLOSE Export-/Download-Helfer (TXT/DOCX/PDF).
 // Reine Modul-Funktionen ohne React-State/Hooks - 1:1 aus App.jsx verschoben.
 
-import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType } from 'docx'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType, BorderStyle } from 'docx'
 import jsPDF from 'jspdf'
-import { getCategory } from './categories.js'
+import { getCategory, chapterVoices } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
 import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
 import { prepareEbookCoverPage, drawEbookCoverPage } from './coverExport.js'
@@ -255,6 +255,23 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
         children: [new TextRun({ text: chRel ? `${chName} – ${chRel}` : chName, font: BF, size: 24, italics: true, color: '78716c' })] })] : []),
       ...String(ch.body || '').split('\n\n').map(r => r.trim()).filter(Boolean).map(chunk =>
         new Paragraph({ alignment: AlignmentType.JUSTIFIED, bidirectional: rtl, spacing: { after: 200 }, children: [new TextRun({ text: chunk, font: BF, size: 24 })] })),
+      // Stimmen-Kästen: was ANDERE über diesen Lebensabschnitt erzählen. Bewusst
+      // abgesetzt (eingerückt, kursiv, mit Rahmen links) — sie stehen neben der
+      // Ich-Erzählung, nicht in ihr.
+      ...chapterVoices(ch).flatMap((v, vi) => [
+        ...(vi === 0 ? [new Paragraph({ spacing: { before: 300, after: 120 },
+          children: [new TextRun({ text: bt.voicesHeading, font: HF, size: 22, bold: true, color: '78716c' })] })] : []),
+        new Paragraph({
+          bidirectional: rtl, indent: { left: 340 }, spacing: { after: 60 },
+          border: { left: { style: BorderStyle.SINGLE, size: 12, space: 10, color: 'd6d3d1' } },
+          children: [new TextRun({ text: String(v.text).trim(), font: BF, size: 22, italics: true, color: '44403c' })],
+        }),
+        new Paragraph({
+          bidirectional: rtl, indent: { left: 340 }, spacing: { after: 200 },
+          border: { left: { style: BorderStyle.SINGLE, size: 12, space: 10, color: 'd6d3d1' } },
+          children: [new TextRun({ text: `— ${[v.name, v.relationship].filter(Boolean).join(', ')}`, font: BF, size: 20, color: '78716c' })],
+        }),
+      ]),
     ]
     sections.push(docxSection(content, SectionType.EVEN_PAGE))
   }
@@ -376,7 +393,10 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
   // über den Rand) und falsche Glyphen. Enthält der Buchtext solche Zeichen, laden
   // wir lazy einen eingebetteten Unicode-Serif (DejaVu) und nutzen ihn durchgängig.
   const allText = [book.title, book.subtitle,
-    ...((book.chapters || []).flatMap(c => [c?.heading, c?.body])),
+    // Die Gaststimmen gehören mit in die Zeichenprüfung — sonst wählt ein Buch,
+    // dessen Sonderzeichen NUR in einem Stimmen-Kasten vorkommen, den falschen
+    // Font und setzt dort Platzhalter.
+    ...((book.chapters || []).flatMap(c => [c?.heading, c?.body, ...chapterVoices(c).flatMap(v => [v.text, v.name, v.relationship])])),
     ...((contributors || []).flatMap(c => [c?.contributor_name, c?.relationship]))].join(' ')
   // Latin Extended-A/B (u. a. polnische Sonderzeichen) -> jsPDF-Standardfonts
   // koennen sie nicht. Deutsch (Umlaute/ss) und Typo-Zeichen sind in WinAnsi.
@@ -500,6 +520,21 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
     newPage(); y = MT
     for (const para of String(ch.body || '').split('\n\n').map(s => s.trim()).filter(Boolean)) {
       flow(para, { size: 12, gapAfter: 0.6, justify: true })
+    }
+    // Stimmen-Kästen ans Kapitelende: was ANDERE über diesen Lebensabschnitt
+    // erzählen. Kein gezeichneter Rahmen — er würde über einen Seitenumbruch
+    // hinweg zerreißen. Einrückung, Kursive und die Zuschreibung setzen den
+    // Block deutlich genug von der Ich-Erzählung ab.
+    const voices = chapterVoices(ch)
+    if (voices.length) {
+      if (y > PDF_PAGE_H - MB - 30) { newPage(); y = MT }   // nicht als Waise ans Seitenende
+      y += 4
+      flow(bt.voicesHeading, { size: 11, style: 'bold', color: [120, 113, 108], gapAfter: 0.4 })
+      for (const v of voices) {
+        flow(`„${String(v.text).trim()}"`, { size: 11, style: 'italic', color: [68, 64, 60], indent: 10, gapAfter: 0.2 })
+        const by = [v.name, v.relationship].filter(Boolean).join(', ')
+        if (by) flow(`— ${by}`, { size: 10, color: [120, 113, 108], indent: 10, gapAfter: 0.7 })
+      }
     }
   }
 

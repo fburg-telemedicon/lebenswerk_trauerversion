@@ -60,6 +60,17 @@ function sanitizeBook(book) {
     ...(c?.image_path ? { image_path: clip(c.image_path, 200) } : {}),
     ...(Array.isArray(c?.image_history) ? { image_history: c.image_history.filter(p => typeof p === 'string').slice(0, 20).map(p => p.slice(0, 200)) } : {}),
     ...(Number.isFinite(c?.image_regen_used) ? { image_regen_used: Math.max(0, Math.min(50, c.image_regen_used)) } : {}),
+    // Stimmen-Kästen (Gastbeiträge zum Lebenswerk). MUSS hier durchgereicht
+    // werden: Diese Funktion baut das Kapitel neu auf, alles Ungenannte geht
+    // beim Speichern verloren. Der Endnutzer darf sie kürzen oder löschen —
+    // aber nicht neu erfinden, deshalb dieselbe Deckelung wie beim Erzeugen.
+    ...(Array.isArray(c?.voices) && c.voices.length ? {
+      voices: c.voices.slice(0, 2).map(v => ({
+        name: clip(v?.name, 120),
+        relationship: clip(v?.relationship, 120),
+        text: clip(v?.text, 1200),
+      })).filter(v => v.text.trim()),
+    } : {}),
   })) : []
   if (!chapters.length) return null
   return {

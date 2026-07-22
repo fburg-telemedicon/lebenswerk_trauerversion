@@ -6,7 +6,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
@@ -2104,6 +2104,28 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                     <input value={ch.heading || ''} onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, heading: e.target.value } : c) }))} style={{ marginBottom:8 }} />
                     <Lbl>{t('Text', 'Text')}</Lbl>
                     <textarea value={ch.body || ''} onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, body: e.target.value } : c) }))} rows={Math.max(6, String(ch.body || '').split('\n').length + 2)} style={{ width:'100%', fontFamily:'inherit', fontSize:14, lineHeight:1.6, resize:'vertical' }} />
+                    {/* Gaststimmen dieses Kapitels: bearbeitbar und einzeln
+                        entfernbar. Die Freigabe eines Gastbeitrags gilt für den
+                        ganzen Beitrag — hier entscheidet der Manager, ob genau
+                        DIESE Stelle so im Buch stehen soll. */}
+                    {chapterVoices(ch).length > 0 && (
+                      <div style={{ marginTop:12, paddingLeft:12, borderLeft:'3px solid #e7e5e4' }}>
+                        <Lbl>{bt.voicesHeading}</Lbl>
+                        {chapterVoices(ch).map((v, vi) => (
+                          <div key={vi} style={{ marginBottom:10 }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:4 }}>
+                              <span style={{ fontSize:12.5, color:'#78716c' }}>{[v.name, v.relationship].filter(Boolean).join(', ')}</span>
+                              <button className="ghost" title={t('Diese Stimme aus dem Kapitel entfernen', 'Remove this voice from the chapter')}
+                                onClick={() => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, voices: chapterVoices(c).filter((_, k) => k !== vi) } : c) }))}
+                                style={{ fontSize:12, color:'#dc2626', padding:'2px 8px' }}>🗑</button>
+                            </div>
+                            <textarea value={v.text || ''} rows={3}
+                              onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, voices: chapterVoices(c).map((x, k) => k === vi ? { ...x, text: e.target.value } : x) } : c) }))}
+                              style={{ width:'100%', fontFamily:'inherit', fontSize:13.5, lineHeight:1.6, fontStyle:'italic', resize:'vertical' }} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </>
@@ -2185,6 +2207,20 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 <div style={{ fontSize:17, lineHeight:1.9, ...bodyFont }}>
                   {String(ch.body || '').split('\n\n').filter(Boolean).map((p, j) => <p key={j} style={{ marginBottom:'1.4rem' }}>{highlightParagraph(p, reviewMarks)}</p>)}
                 </div>
+                {/* Stimmen-Kästen (Gastbeiträge zum Lebenswerk): was ANDERE über
+                    diesen Lebensabschnitt erzählen — abgesetzt neben der
+                    Ich-Erzählung, nicht in sie hineingewebt. */}
+                {chapterVoices(ch).length > 0 && (
+                  <div style={{ marginTop:'2rem' }}>
+                    <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', marginBottom:10 }}>{bt.voicesHeading}</p>
+                    {chapterVoices(ch).map((v, vi) => (
+                      <blockquote key={vi} style={{ margin:'0 0 14px', padding:'12px 16px', background:'#fafaf9', borderLeft:'3px solid #d6d3d1', borderRadius:'0 8px 8px 0' }}>
+                        <p style={{ fontSize:16, lineHeight:1.75, fontStyle:'italic', color:'#44403c', ...bodyFont, margin:0 }}>„{v.text}"</p>
+                        <p style={{ fontSize:13, color:'#78716c', margin:'8px 0 0' }}>— {[v.name, v.relationship].filter(Boolean).join(', ')}</p>
+                      </blockquote>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {/* Mitwirkenden-Liste: NICHT beim Lebenswerk (dort erzählt nur der
@@ -2508,10 +2544,12 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                 Interview, das die Selbsterzählung ergänzt. Jeder Gastbeitrag erscheint unten in der
                 Beitragsliste und wartet dort auf <b>Ihre Freigabe</b>; ohne sie wirkt er nirgends.
               </p>
-              <p style={{ fontSize:12.5, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:8, padding:'8px 10px', margin:'10px 0 0' }}>
-                ⚠ Der <b>Text</b> freigegebener Gastbeiträge fließt noch nicht ins Buch — die Autobiographie
-                entsteht weiterhin allein aus dem Selbst-Interview. Freigegebene Gast-<b>Fotos</b> stehen dagegen
-                sofort zur Verfügung.
+              <p style={{ fontSize:12.5, color:'#3f6212', lineHeight:1.6, margin:'10px 0 0' }}>
+                Im Buch erscheinen freigegebene Gastbeiträge als abgesetzte <b>Stimmen-Kästen</b> am Kapitelende
+                („{'Was andere erzählen'}"), mit Name und Beziehung. Die Autobiographie selbst bleibt reine
+                Ich-Erzählung — Gastbeiträge werden nicht in sie hineingewebt. Beim nächsten Erzeugen des Buchs
+                sucht die KI je Kapitel die passenden Stimmen aus; im Bearbeiten-Modus lassen sie sich einzeln
+                kürzen oder entfernen.
               </p>
             </div>
           )}
@@ -2609,7 +2647,8 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                   </div>
                   <p style={{ ...S.muted, fontSize:13, margin:0 }}>
                     Bitte durchsehen und freigeben oder ablehnen. Solange ein Gastbeitrag offen ist, bleibt er
-                    samt seiner Fotos aus dem Buch heraus.
+                    samt seiner Fotos aus dem Buch heraus. Freigegebene erscheinen beim nächsten Erzeugen als
+                    Stimmen-Kästen am Kapitelende.
                   </p>
                 </div>
               )}

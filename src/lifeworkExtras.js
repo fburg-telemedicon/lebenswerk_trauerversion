@@ -14,12 +14,17 @@
 // Maße in mm, Ursprung oben links (wie coverExport.js).
 
 import { jsPDF } from 'jspdf'
+import { selfOnly } from './categories.js'
 
 // ════════════════════════════════════════════════════════════════
 // 1) STAMMBAUM
 // ════════════════════════════════════════════════════════════════
 
-export function treeSystem(memorial, contributions) {
+export function treeSystem(memorial, allContributions) {
+  // Stammbaum und Poster lesen nur die SELBSTerzählung. Gastbeiträge sind
+  // Fremdaussagen; sie in eine Familienstruktur oder auf ein Lebensposter zu
+  // übernehmen, ist eine eigene Abwägung (Nebenprodukte: Paket 6).
+  const contributions = selfOnly(allContributions)
   const lines = contributions.flatMap(c => (c.messages || []).map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`))
   return `Du bist Genealoge. Du liest das folgende autobiographische Interview mit ${memorial.name} und extrahierst daraus die FAMILIE als Datenstruktur für einen Stammbaum.
 
@@ -481,7 +486,8 @@ export const POSTER_STYLES = [
 export const DEFAULT_POSTER_STYLE = 'storybook'
 export const getPosterStyle = k => POSTER_STYLES.find(s => s.key === k) || POSTER_STYLES[0]
 
-export function posterSystem(memorial, contributions) {
+export function posterSystem(memorial, allContributions) {
+  const contributions = selfOnly(allContributions)   // siehe treeSystem
   const lines = contributions.flatMap(c => (c.messages || []).map(m => m.role === 'assistant' ? `F: ${m.content}` : `A: ${m.content}`))
   return `Du bist Kurator und Informationsdesigner. Aus dem folgenden autobiographischen Interview mit ${memorial.name} entwickelst du ein LEBENSPOSTER (DIN A2 quer): eine illustrierte Landkarte dieses Lebens. Ein Pfad führt durch die Lebensabschnitte; an ihm liegen einzelne Stationen, jede mit einer kleinen Illustration und wenigen Worten.
 

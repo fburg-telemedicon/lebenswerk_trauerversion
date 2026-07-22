@@ -118,6 +118,12 @@ export function extractReviewText(value) {
     const head = ch?.heading ? `: ${ch.heading}` : ''
     parts.push(`[Kapitel ${num}${head}]`)
     if (ch?.body) parts.push(ch.body)
+    // Gaststimmen (Stimmen-Kaesten) gehoeren mitgeprueft: Sie stehen im
+    // fertigen Buch und sind Aussagen ueber einen lebenden Menschen — gerade
+    // dort muessen Faktentreue und Datenschutz gelten.
+    for (const v of (Array.isArray(ch?.voices) ? ch.voices : [])) {
+      if (v?.text) parts.push(`[Stimme${v.name ? ' ' + v.name : ''}] ${v.text}`)
+    }
   })
   return parts.join('\n\n')
 }

@@ -164,6 +164,7 @@ ${url}
   // Buch-Überschriften
   chapterLabel: 'Kapitel',
   contributorsHeading: 'An diesem Buch haben mitgewirkt:',
+  voicesHeading: 'Was andere erzählen',
   aiDisclaimerTitle: 'Hinweis zur Entstehung dieses Buches',
   aiDisclaimer: 'Dieses Buch wurde auf Grundlage von Interviews mit nahestehenden Personen mithilfe von künstlicher Intelligenz erstellt. Es gibt persönliche Erinnerungen und Schilderungen der Beitragenden wieder. Ihre inhaltliche Richtigkeit, Vollständigkeit und Aktualität können wir nicht überprüfen; eine Haftung hierfür ist – soweit gesetzlich zulässig – ausgeschlossen.',
   // Foto-Upload (am Ende des Interviews)
@@ -300,6 +301,7 @@ ${url}
   langPickTitle: 'W jakim języku chcesz kontynuować?',
   chapterLabel: 'Rozdział',
   contributorsHeading: 'W tej księdze wzięli udział:',
+  voicesHeading: 'Co mówią inni',
   aiDisclaimerTitle: 'Informacja o powstaniu tej księgi',
   aiDisclaimer: 'Ta księga powstała z pomocą sztucznej inteligencji, na podstawie rozmów z osobami bliskimi. Oddaje osobiste wspomnienia i relacje osób, które wzięły udział. Nie możemy zweryfikować ich poprawności, kompletności ani aktualności; odpowiedzialność za nie jest – w zakresie dozwolonym przez prawo – wyłączona.',
   // Przesyłanie zdjęć (na końcu wywiadu)
@@ -437,6 +439,7 @@ ${url}
   langPickTitle: 'Which language would you like to continue in?',
   chapterLabel: 'Chapter',
   contributorsHeading: 'Contributors to this book:',
+  voicesHeading: 'What others remember',
   aiDisclaimerTitle: 'About the creation of this book',
   aiDisclaimer: 'This book was created with the help of artificial intelligence, based on interviews with people close to the person. It reflects the personal memories and accounts of the contributors. We cannot verify their accuracy, completeness or timeliness; liability for these is excluded to the extent permitted by law.',
   // Photo upload (at the end of the interview)
