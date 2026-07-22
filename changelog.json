@@ -2,6 +2,14 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-22",
+      "items": [
+        "E-Book-Umschlag: Titel und Untertitel werden jetzt mit allen Sonderzeichen gesetzt (z. B. polnisch ś, ż, ł, ć, ą, ę). Bisher standen dort Falschzeichen.",
+        "E-Book-Umschlag: Der Titel bleibt zuverlässig innerhalb der Seite. Er wurde bisher an der falschen Stelle umgebrochen und lief nach rechts über den Rand hinaus; sehr lange Wörter werden zusätzlich automatisch etwas kleiner gesetzt.",
+        "E-Book: keine leeren Seiten mehr. Die Leerseiten vor Kapitelanfängen sind Drucklogik (damit ein Kapitel im gebundenen Buch rechts beginnt) und entfallen im E-Book – der Kapiteltext folgt dort direkt auf das Kapitelbild. Die Druckversion bleibt unverändert."
+      ]
+    },
+    {
       "date": "2026-07-21",
       "items": [
         "Anamnesebogen (Anamnese und Anamnese KVSW): Der Bogen beginnt jetzt mit einer kurzen Zusammenfassung im Fließtext (3–6 Sätze) vor dem ersten Abschnitt – Anlass bzw. Aufnahmegrund, führende Beschwerden, wesentliche Vorerkrankungen, Dauermedikation und Allergien, häusliche Situation und das wichtigste Anliegen. Eine genannte rote Flagge steht im ersten Satz. Die Detail-Abschnitte darunter bleiben unverändert vollständig.",
