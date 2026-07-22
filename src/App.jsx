@@ -200,7 +200,7 @@ const EMPTY_CREATE = {
   companionMode: false,              // begleiteter Co-Interview-Modus (nur Lebenswerk)
   gamification: true,                // spürbar motivierender Interview-Modus (nur Anamnese; Default AN)
   handsFree: true,                   // Mikro öffnet automatisch (alle Produkte, Default AN)
-  micManualStop: false,              // Mischform: Auto-Öffnen, aber manuell beenden (nur wirksam bei handsFree; Default AUS = Sprechpausen-Erkennung)
+  micManualStop: true,               // Mischform = STANDARD: Mikro öffnet automatisch, der Erzähler beendet selbst per Tippen (kein Stopp durch Sprechpause — man darf beliebig lange überlegen)
   micModeSwitch: true,               // Nutzer darf den Mikrofon-Modus im Interview selbst umschalten (Default AN)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)

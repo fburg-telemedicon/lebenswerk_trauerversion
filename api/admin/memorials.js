@@ -676,8 +676,12 @@ module.exports = async function handler(req, res) {
         // Freisprech-Modus (Mikro öffnet automatisch) — alle Produkte. Default AN.
         hands_free: handsFree !== false,
         // Mischform: Mikro öffnet automatisch, aber der Nutzer beendet selbst
-        // (keine Sprechpausen-Erkennung). Nur wirksam, wenn hands_free an. Default AUS.
-        mic_manual_stop: micManualStop === true,
+        // (keine Sprechpausen-Erkennung). Nur wirksam, wenn hands_free an.
+        // Seit 2026-07-22 der STANDARD für neue Bücher — die Sprechpausen-Erkennung
+        // schnitt Erzählenden das Wort ab, sobald sie einen Moment nachdachten.
+        // Bestehende Bücher behalten ihre Einstellung (NULL wird weiter als „auto"
+        // gelesen), damit sich mitten im Interview nichts unter den Füßen ändert.
+        mic_manual_stop: micManualStop !== false,
         // Darf der Nutzer den Mikrofon-Modus im Interview selbst umschalten? Default AN.
         mic_mode_switch: micModeSwitch !== false,
       }

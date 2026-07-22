@@ -3398,6 +3398,19 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
           <p style={{ ...S.muted, marginBottom:'1.5rem' }}>
             {ct.introNoun} <strong>{memorial?.name}</strong>
           </p>
+          {/* Gäste kommen über einen weitergeleiteten Link und wissen oft nicht,
+              worum es geht. Drei Sätze vorweg — vor allem der dritte: Ihre Worte
+              werden der erzählenden Person NICHT in den Mund gelegt. */}
+          {isGuest && ct.about1 && (
+            <div style={{ ...S.card, background:'#f5f9f5', borderColor:'#cfe3cf', marginBottom:'1.5rem', padding:'14px 16px' }}>
+              <div style={{ fontSize:14.5, fontWeight:700, marginBottom:8, color:'#1c1917' }}>{ct.aboutTitle}</div>
+              <ul style={{ margin:0, paddingLeft:18, fontSize:14, lineHeight:1.6, color:'#44403c' }}>
+                {[ct.about1, ct.about2, ct.about3].filter(Boolean).map((s, i) => (
+                  <li key={i} style={{ marginBottom:6 }}>{String(s).replace(/\{name\}/g, memorial?.name || '')}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {askName && (
           <div style={{ marginBottom:14 }}><Lbl>{isSelf ? t.yourNameSelf : t.yourName}</Lbl><input value={contribForm.name} onChange={e=>setContribForm({...contribForm,name:e.target.value})} placeholder={t.fullName} /></div>
           )}

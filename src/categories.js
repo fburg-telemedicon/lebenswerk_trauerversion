@@ -1839,6 +1839,13 @@ export const CATEGORIES = {
       relationshipHint: 'Aus Ihrer Sicht: Wer sind Sie für {name}? Tragen Sie Ihre eigene Rolle ein – z. B. „Tochter" oder „Freund" (im Sinne von „ich bin die Tochter / der Freund von {name}").',
       consentNoun: 'Lebenswerks',
       interviewButton: '🎙 Sprach-Interview beginnen →',
+      // Kurze Einordnung für Gäste. Viele öffnen den Link ohne zu wissen, worum es
+      // geht — und ohne den entscheidenden Punkt: Sie erzählen ÜBER einen anderen
+      // Menschen, und ihre Worte werden diesem nicht in den Mund gelegt.
+      aboutTitle: 'Worum es geht',
+      about1: '{name} lässt gerade die eigene Lebensgeschichte als Buch aufschreiben.',
+      about2: 'Sie sind als Wegbegleiterin oder Wegbegleiter eingeladen: Die KI stellt Ihnen ein paar Fragen ÜBER {name}. Erzählen Sie einfach frei — so, wie Sie es einer guten Freundin erzählen würden.',
+      about3: 'Ihre Erinnerungen erscheinen im Buch als eigener Beitrag mit Ihrem Namen, nicht als Worte von {name}. Etwa 10 Minuten; Sie können jederzeit pausieren.',
     },
     interviewSystem: lifeworkInterview,
     guestInterviewSystem: lifeworkGuestInterview,
