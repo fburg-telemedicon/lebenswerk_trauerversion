@@ -26,6 +26,13 @@ function de(du) {
     noAnswers: du
       ? 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworte zuerst ein paar Fragen.'
       : 'Es sind noch keine Interview-Antworten vorhanden. Bitte beantworten Sie zuerst ein paar Fragen.',
+    // Zu wenig eigenes Material. Aus ein paar Sätzen kann die KI keine
+    // Lebensgeschichte erzählen — sie würde Kindheit, Beruf und Familie erfinden.
+    // Lieber hier bremsen, als eine der wenigen Vorschauen für ein erfundenes
+    // Leben zu verbrauchen.
+    tooFewWords: (n, min) => du
+      ? `Bisher hast du erst ${n} ${n === 1 ? 'Wort' : 'Wörter'} erzählt (empfohlen: mindestens ${min}). Daraus kann noch kein Buch entstehen — die KI müsste den größten Teil erfinden. Erzähl bitte noch ein wenig weiter, dann geht es hier los.`
+      : `Bisher haben Sie erst ${n} ${n === 1 ? 'Wort' : 'Wörter'} erzählt (empfohlen: mindestens ${min}). Daraus kann noch kein Buch entstehen — die KI müsste den größten Teil erfinden. Erzählen Sie bitte noch ein wenig weiter, dann geht es hier los.`,
     // Auswahl
     chooseTitle: 'Was möchten ' + (du ? 'du' : 'Sie') + '?',
     zwCardTitle: '📖 Zwischenstand',
@@ -93,6 +100,7 @@ function en() {
     cancel: 'Cancel',
     lockedByOther: 'The book is currently being edited elsewhere.',
     noAnswers: 'There are no interview answers yet. Please answer a few questions first.',
+    tooFewWords: (n, min) => `So far you have told us only ${n} ${n === 1 ? 'word' : 'words'} (recommended: at least ${min}). That is not enough for a book yet — the AI would have to invent most of it. Please tell us a little more, then we can start here.`,
     chooseTitle: 'What would you like to do?',
     zwCardTitle: '📖 Draft',
     zwCardText: 'A first text version from your answers so far — just to review. You can keep telling your story afterwards.',

@@ -35,6 +35,11 @@ const sessionFromURL = (new URLSearchParams(window.location.search).get('session
 // Frage automatisch (und ist sichtbar), aber der Nutzer beendet SELBST per Tippen —
 // KEIN Pausen-/No-Speech-Auto-Stopp, damit man beliebig lange überlegen kann. Nur
 // die Höchstdauer (MIC_MAX_MS) greift als Sicherheitsnetz.
+// Mindestmenge eigener Wörter, ab der aus einem Lebenswerk-Interview ein Buch
+// entstehen kann. Darunter füllt die KI die Kapitel zwangsläufig mit Erfundenem.
+// MUSS mit LIFEWORK_MIN_SELF_WORDS in src/App.jsx übereinstimmen (Manager-Seite).
+const MIN_SELF_WORDS = 300
+
 const MIC_SILENCE_THRESHOLD = 0.025   // RMS (0..1) unterhalb dessen es als „still" gilt
 const MIC_MAX_MS            = 180000   // 3 min Höchstdauer je Aufnahme → Auto-Stopp
 const MIC_PAUSE_MS          = 2500    // Freisprech: Sprechpause nach Sprache → Auto-Stopp+Senden
@@ -2467,6 +2472,16 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
     if (!c || !Array.isArray(c.messages) || !c.messages.some(m => m.role === 'user')) {
       throw new Error(P.noAnswers)
     }
+    // Nicht nur „gibt es Antworten?", sondern „reicht das Erzählte?". Mit einer
+    // Handvoll Sätze entsteht sonst ein Buch, das die KI zum größten Teil erfindet
+    // — und der Endnutzer verbraucht dafür eine seiner wenigen Vorschauen.
+    // Dieselbe Schwelle wie im Dashboard (LIFEWORK_MIN_SELF_WORDS).
+    const words = c.messages
+      .filter(m => m?.role === 'user')
+      .reduce((s, m) => s + String(m.content || '').trim().split(/\s+/).filter(Boolean).length, 0)
+    if (words < MIN_SELF_WORDS && P.tooFewWords) {
+      throw new Error(P.tooFewWords(words, MIN_SELF_WORDS))
+    }
     return c
   }
 
@@ -2475,8 +2490,10 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
     setConfirmZw(false); setErr(''); setBusy(true); setPct(0); setProgress(P.preparing); cancelRef.current = false
     try {
       await ensureLock()
-      const cons = await consumeProof(code, token); setProofUsed(cons.used); setProofMax(cons.max)
+      // ERST prüfen, DANN eine Vorschau verbrauchen. Sonst kostet ein zu dünnes
+      // Interview einen der wenigen Probedrucke, ohne dass etwas entsteht.
       const c = await loadContribution()
+      const cons = await consumeProof(code, token); setProofUsed(cons.used); setProofMax(cons.max)
       const nb = await generateProofBook({ memorial, contributions: [c], lang, cancelRef, onProgress: p => { setPct(p.pct); setProgress(p.text) } })
       await saveEnduserBook(code, token, lockRef.current, nb)
       applyBook(nb)
