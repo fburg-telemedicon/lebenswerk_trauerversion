@@ -211,7 +211,8 @@ async function ensureLifeworkSchema() {
       add column if not exists mic_manual_stop boolean,
       add column if not exists mic_mode_switch boolean,
       add column if not exists guest_enabled boolean,
-      add column if not exists guest_code varchar(16)
+      add column if not exists guest_code varchar(16),
+      add column if not exists realtime_enabled boolean
   `)
   // Gastbeiträge: Der Gast-Link ist ein EIGENES Geheimnis, nicht der Buch-Code —
   // beim Lebenswerk ist der Buch-Code die einzige Berechtigung des Endnutzers

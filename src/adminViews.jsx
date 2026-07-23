@@ -1702,6 +1702,11 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: an. Im ☰-Menü erscheint dann der Punkt „Mikrofon-Modus", über den der Nutzer selbst zwischen den drei Modi wechseln kann.', 'Default: on. The ☰ menu then shows a “Microphone mode” item so the user can switch between the three modes themselves.')}</p>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
+            <input type="checkbox" checked={createForm.realtimeEnabled === true} onChange={e => setCreateForm({ ...createForm, realtimeEnabled: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>{t('Echtes Sprachgespräch (Live) als zusätzlichen Modus anbieten', 'Offer real-time voice conversation (live) as an additional mode')}</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: aus. Fließendes, unterbrechbares Sprach-zu-Sprach-Gespräch statt Aufnehmen–Warten. Nur für unterstützte Sprachen wirksam (nicht Baskisch/Schweizerdeutsch); dort und bei Verbindungsproblemen greifen automatisch die Mikrofon-Modi. Erst nach DSGVO-Freigabe für Kunden nutzen.', 'Default: off. Fluid, interruptible speech-to-speech conversation instead of record–wait. Only effective for supported languages (not Basque/Swiss German); there and on connection issues the microphone modes take over automatically. Enable for customers only after data-protection clearance.')}</p>
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -3302,6 +3307,11 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                     <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: an (Menüpunkt „Mikrofon-Modus"). Greift beim nächsten (Neu-)Start des Interviews.', 'Default: on (“Microphone mode” menu item). Applies at the next (re)start of the interview.')}</p>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
+                    <input type="checkbox" checked={od.realtimeEnabled === true} onChange={e => setOd({ realtimeEnabled: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>{t('Echtes Sprachgespräch (Live) als zusätzlichen Modus anbieten', 'Offer real-time voice conversation (live) as an additional mode')}</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: aus. Fließendes, unterbrechbares Gespräch statt Aufnehmen–Warten. Nur für unterstützte Sprachen (nicht Baskisch/Schweizerdeutsch); sonst automatisch die Mikrofon-Modi. Erst nach DSGVO-Freigabe für Kunden nutzen.', 'Default: off. Fluid, interruptible conversation instead of record–wait. Only for supported languages (not Basque/Swiss German); otherwise the microphone modes apply automatically. Enable for customers only after data-protection clearance.')}</p>
                 </div>
                 {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>

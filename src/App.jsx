@@ -203,6 +203,7 @@ const EMPTY_CREATE = {
   handsFree: true,                   // Mikro öffnet automatisch (alle Produkte, Default AN)
   micManualStop: true,               // Mischform = STANDARD: Mikro öffnet automatisch, der Erzähler beendet selbst per Tippen (kein Stopp durch Sprechpause — man darf beliebig lange überlegen)
   micModeSwitch: true,               // Nutzer darf den Mikrofon-Modus im Interview selbst umschalten (Default AN)
+  realtimeEnabled: false,            // echtes Sprachgespräch (Realtime/Voice Live) als zusätzlicher Modus (Default AUS, DSGVO-Freigabe nötig)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
@@ -910,6 +911,7 @@ function Dashboard() {
       timerOn: (m.interview_timer_seconds || 0) > 0,
       timerMinutes: (m.interview_timer_seconds || 0) > 0 ? Math.round(m.interview_timer_seconds / 60) : 5,
       companionMode: m.companion_mode === true,
+      realtimeEnabled: m.realtime_enabled === true,
       gamification: m.gamification !== false,
       handsFree: m.hands_free !== false,
       micManualStop: m.mic_manual_stop === true,
@@ -968,6 +970,7 @@ function Dashboard() {
         productCategory: selected.product_category,   // erlaubt serverseitig die kategoriegenaue Normalisierung des Textstils/der Stimme
         interviewTimerSeconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: d.companionMode === true,
+        realtimeEnabled: d.realtimeEnabled === true,
         gamification: d.gamification !== false,
         handsFree: d.handsFree !== false,
         micManualStop: d.micManualStop === true,
@@ -1006,6 +1009,7 @@ function Dashboard() {
         tts_voice: d.ttsVoice || defaultTtsVoice(selected.product_category),
         interview_timer_seconds: d.timerOn ? (parseInt(d.timerMinutes, 10) || 5) * 60 : 0,
         companion_mode: d.companionMode === true,
+        realtime_enabled: d.realtimeEnabled === true,
         gamification: d.gamification !== false,
         hands_free: d.handsFree !== false,
         mic_manual_stop: d.micManualStop === true,
@@ -1182,6 +1186,7 @@ function Dashboard() {
         ttsVoice: createForm.ttsVoice || defaultTtsVoice(createForm.productCategory),
         interviewTimerSeconds: createForm.timerOn ? (parseInt(createForm.timerMinutes, 10) || 5) * 60 : 0,
         companionMode: createForm.companionMode === true,
+        realtimeEnabled: createForm.realtimeEnabled === true,
         gamification: createForm.gamification !== false,
         handsFree: createForm.handsFree !== false,
         micManualStop: createForm.micManualStop === true,

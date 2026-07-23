@@ -53,6 +53,28 @@ const PRICING = {
   // cost_events behalten ihre gespeicherten EUR-Werte (Anzeige liest cost_eur,
   // nicht PRICING), daher ist das Entfernen der alten Keys unkritisch.
 
+  // Azure Voice Live API (Realtime / echtes Sprachgespräch) – Pro-Tier mit
+  // `gpt-realtime`. Abrechnung ist TOKEN-basiert (NICHT pro Minute), mit
+  // GETRENNTEN Raten für Text- und Audio-Tokens. Die Voice-Live-Session meldet in
+  // ihren `response.done`/usage-Events die verbrauchten Tokens; daraus rechnet
+  // costRealtime() die Kosten (siehe unten). Preise in USD pro 1.000.000 Tokens.
+  //
+  // Quelle (Microsoft-Learn/Azure-Preisliste, recherchiert 2026-07-23, Region East
+  // US — SWEDEN CENTRAL kann abweichen): Text-Input $4,40, Text-Input cached
+  // $1,375, Text-Output $17,60, Audio-Input $17,00.
+  // ⚠️ AUDIO-OUTPUT ist in der Azure-Doku nicht sauber ausgewiesen und ist der
+  // GRÖSSTE Kostenblock. Der hier gesetzte Wert ($34,00) ist eine SCHÄTZUNG nach
+  // dem OpenAI-Realtime-Verhältnis (Audio-Output ≈ 2× Audio-Input). VOR der
+  // Kundenfreischaltung gegen die echte Sweden-Central-Preisliste prüfen und
+  // korrigieren (Key = env AZURE_VOICELIVE_MODEL, Default 'gpt-realtime').
+  'gpt-realtime': {
+    textInPerMTokens:        4.4,
+    textInCachedPerMTokens:  1.375,
+    textOutPerMTokens:       17.6,
+    audioInPerMTokens:       17.0,
+    audioOutPerMTokens:      34.0,  // ⚠️ SCHÄTZUNG – gegen Preisliste prüfen
+  },
+
   // Azure Foundry – FLUX.2 [pro] (Black Forest Labs). Gestaffelt pro Megapixel:
   // erste MP $0,03, jede weitere MP $0,015; Auflösung wird pro Bild auf die nächste
   // MP AUFGERUNDET (Stand Juli 2026). 1536×1024 = 1,57 MP → aufgerundet 2 MP →
@@ -82,6 +104,23 @@ function costSTT(model, seconds) {
 function costImage(model, n = 1) {
   const p = PRICING[model]; if (!p) return 0
   return n * p.perImage
+}
+
+// Kosten einer Voice-Live-/Realtime-Session aus den von der Session gemeldeten
+// Token-Zahlen. `usage` ist das kumulierte Nutzungsobjekt (Summe über alle
+// response.done-Events), mit getrennten Text-/Audio-Tokens für Input und Output:
+//   { textIn, textInCached, textOut, audioIn, audioOut }  (jeweils Token-Zahl)
+// Fehlende Felder zählen als 0. Cached-Text wird zum günstigeren Tarif berechnet
+// und NICHT zusätzlich als normaler Text-Input.
+function costRealtime(model, usage = {}) {
+  const p = PRICING[model]; if (!p) return 0
+  const textInCached = usage.textInCached || 0
+  const textIn       = Math.max(0, (usage.textIn || 0) - textInCached)
+  return textIn        / 1e6 * (p.textInPerMTokens       || 0)
+       + textInCached  / 1e6 * (p.textInCachedPerMTokens || 0)
+       + (usage.textOut  || 0) / 1e6 * (p.textOutPerMTokens  || 0)
+       + (usage.audioIn  || 0) / 1e6 * (p.audioInPerMTokens  || 0)
+       + (usage.audioOut || 0) / 1e6 * (p.audioOutPerMTokens || 0)
 }
 
 async function recordCost(event) {
@@ -136,6 +175,6 @@ async function enforceBudget(res, memorialId) {
 module.exports = {
   USD_TO_EUR, PRICING,
   BUDGET_CAP_EUR, BUDGET_MESSAGE,
-  costLLM, costTTS, costSTT, costImage,
+  costLLM, costTTS, costSTT, costImage, costRealtime,
   recordCost, memorialCostEur, budgetExceeded, enforceBudget,
 }

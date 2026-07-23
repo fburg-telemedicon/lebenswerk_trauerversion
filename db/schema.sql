@@ -92,7 +92,10 @@ create table if not exists memorials (
   -- Bewusst NICHT der Buch-Code — der ist beim Lebenswerk die einzige
   -- Berechtigung des Endnutzers (Einstellungen, Korrekturabzug, Buchbearbeitung).
   guest_enabled    boolean,
-  guest_code       varchar(16)
+  guest_code       varchar(16),
+  -- Echtes Sprachgespraech (Realtime/Voice Live) als zusaetzlicher Interview-Modus.
+  -- Default AUS; nur nach DSGVO-Freigabe + fuer abgedeckte Sprachen wirksam.
+  realtime_enabled boolean
 );
 create index if not exists memorials_owner_user_idx on memorials(owner_user);
 -- Der Gast-Code wird wie ein Zugangscode nachgeschlagen und muss eindeutig sein;
