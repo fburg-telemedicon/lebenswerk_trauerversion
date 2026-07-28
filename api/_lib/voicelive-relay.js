@@ -31,8 +31,13 @@ const RELAY_PATH = '/api/voicelive-relay'
 // die bisherigen Einzel-Requests. Deshalb harte Obergrenzen, unabhängig davon,
 // ob der Browser sich ordentlich abmeldet.
 // Ein Lebenswerk-Interview kann lange dauern; 60 Minuten waren zu knapp und
-// hätten mitten im Erzählen abgeschnitten. Die Grenze bleibt trotzdem: Eine
-// offene Sitzung kostet, solange sie steht — auch wenn niemand mehr davor sitzt.
+// hätten mitten im Erzählen abgeschnitten.
+//
+// Die Grenze ist KEIN Kostenschutz — das war eine falsche Annahme: Gemessen
+// kostet reiner Leerlauf fast nichts (62 s Stille = 21 Audio-Tokens, hochgerechnet
+// rund 0,08 €/Stunde). Abgerechnet wird gesprochene Sprache und der Textkontext
+// je Runde, nicht die offene Verbindung. Die Grenze ist eine Notbremse gegen
+// Verbindungen, die niemand mehr schließt (Serverressourcen, hängende Sockets).
 const MAX_SESSION_MS = 120 * 60 * 1000  // 2 Stunden je Sitzung
 const IDLE_TIMEOUT_MS = 3 * 60 * 1000   // 3 Minuten ohne Nachricht vom Browser
 
