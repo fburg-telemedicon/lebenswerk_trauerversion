@@ -1358,7 +1358,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           </div>
         )}
         {/* 6. NOCHMAL VORLESEN (+ Fragetext, wenn Transkript an) */}
-        {latestQ && (
+        {/* Diese Karte hat nur zwei mögliche Inhalte: den Fragetext (nur bei
+            eingeblendetem Transkript) und den Vorlese-Knopf. Im Live-Gespräch ist
+            der Knopf ausgeblendet — ohne Transkript bliebe also eine leere Hülle
+            stehen. Deshalb die Karte dann gar nicht erst zeichnen. */}
+        {latestQ && (showTx || !liveOn) && (
           <div style={{ ...S.card, marginTop: 12, background: '#fafaf9', borderColor: '#d6d3d1', textAlign: showTx ? 'left' : 'center' }}>
             {showTx && <>
               <Lbl>{t.questionLabel}</Lbl>

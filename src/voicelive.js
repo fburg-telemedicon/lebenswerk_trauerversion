@@ -108,10 +108,16 @@ function fromBase64(b64) {
 // hintereinander geplant (Web Audio), damit keine Knackser entstehen; bei
 // Barge-in wird die gesamte geplante Kette verworfen.
 class Player {
-  constructor(ctx) {
+  // `onChange(speaking)` meldet JEDEN Wechsel zwischen „gibt Ton aus" und „still".
+  // Nötig, weil das Ende der Wiedergabe sonst unbemerkt bliebe: Die Antwort ist
+  // serverseitig längst fertig (`response.done`), während im Browser noch
+  // Sekunden an Audio in der Warteschlange stehen. Ohne diese Meldung blieb die
+  // Anzeige auf „Ich spreche" stehen, bis zufällig ein anderes Ereignis kam.
+  constructor(ctx, onChange) {
     this.ctx = ctx
     this.at = 0
     this.sources = []
+    this.onChange = onChange
   }
   push(pcm16) {
     const frames = pcm16.length
@@ -126,13 +132,20 @@ class Player {
     if (this.at < now) this.at = now + 0.05   // kleiner Vorlauf gegen Aussetzer
     src.start(this.at)
     this.at += buf.duration
+    const wasSilent = this.sources.length === 0
     this.sources.push(src)
-    src.onended = () => { this.sources = this.sources.filter(s => s !== src) }
+    if (wasSilent) this.onChange?.(true)
+    src.onended = () => {
+      this.sources = this.sources.filter(s => s !== src)
+      if (this.sources.length === 0) this.onChange?.(false)
+    }
   }
   stop() {
-    for (const s of this.sources) { try { s.stop() } catch {} }
+    const wasSpeaking = this.sources.length > 0
+    for (const s of this.sources) { try { s.onended = null; s.stop() } catch {} }
     this.sources = []
     this.at = 0
+    if (wasSpeaking) this.onChange?.(false)
   }
   get speaking() { return this.sources.length > 0 }
 }
@@ -240,7 +253,10 @@ export async function startVoiceLive({
       onAudioBlocked?.(true)
     }
     console.info(`Voice Live: AudioContext ${ctx.state}, ${ctx.sampleRate} Hz`)
-    player = new Player(ctx)
+    // Die Wiedergabe ist die EINZIGE Quelle für „spricht gerade". Vorher setzten
+    // mehrere Ereignisse den Zustand nebeneinander (Audio-Block, response.done),
+    // ohne dass eines das tatsächliche ENDE der Ausgabe kannte.
+    player = new Player(ctx, speaking => { if (!stopped) onState?.({ listening: true, speaking }) })
     const workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }))
     await ctx.audioWorklet.addModule(workletUrl)
     URL.revokeObjectURL(workletUrl)
@@ -326,8 +342,7 @@ export async function startVoiceLive({
       // Die Person hat zu sprechen begonnen → laufende Antwort sofort abbrechen
       // (Barge-in). Ohne das redete die KI über sie hinweg weiter.
       case 'input_audio_buffer.speech_started':
-        player.stop()
-        onState?.({ listening: true, speaking: false })
+        player.stop()   // meldet den Wechsel selbst (siehe Player.onChange)
         break
 
       case 'response.audio.delta':
@@ -342,7 +357,6 @@ export async function startVoiceLive({
             stats.lastError = 'Wiedergabe: ' + (e?.message || e)
             console.error('Voice Live: Wiedergabe fehlgeschlagen', e)
           }
-          onState?.({ listening: true, speaking: true })
         }
         break
 
@@ -400,7 +414,8 @@ export async function startVoiceLive({
         break
 
       case 'response.done':
-        onState?.({ listening: true, speaking: player.speaking })
+        // KEINE Zustandsmeldung hier: Die Antwort ist serverseitig fertig, im
+        // Browser läuft die Ausgabe aber oft noch — das meldet der Player.
         // Hat die Runde NUR das Werkzeug aufgerufen und nichts gesagt, wartet die
         // Person sonst auf eine Frage, die nie kommt: Dann eine Antwortrunde
         // nachziehen. Wurde gesprochen, wäre ein zweiter Anstoß eine doppelte
