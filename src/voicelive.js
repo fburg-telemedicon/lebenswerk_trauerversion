@@ -159,6 +159,10 @@ export async function startVoiceLive({
   let aiPartial = ''
   let removeUnlock = null
   let kicked = false
+  // Zähler für die Diagnose-Anzeige. Ein stummes Gespräch hat mehrere mögliche
+  // Ursachen (Ton gesperrt, nichts kommt an, nichts wird eingeplant); diese
+  // Zahlen unterscheiden sie, statt raten zu lassen.
+  const stats = { sent: 0, deltas: 0, played: 0, state: '?', rate: 0, lastError: '' }
 
   // Erste Frage anstoßen — aber ERST, wenn der Ton auch wirklich hörbar ist.
   // Sonst spricht die KI in einen stummgeschalteten Browser hinein und die
@@ -310,8 +314,15 @@ export async function startVoiceLive({
 
       case 'response.audio.delta':
         if (evt.delta) {
-          const bytes = fromBase64(evt.delta)
-          player.push(new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2))
+          stats.deltas++
+          try {
+            const bytes = fromBase64(evt.delta)
+            player.push(new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1))
+            stats.played++
+          } catch (e) {
+            stats.lastError = 'Wiedergabe: ' + (e?.message || e)
+            console.error('Voice Live: Wiedergabe fehlgeschlagen', e)
+          }
           onState?.({ listening: true, speaking: true })
         }
         break
@@ -355,6 +366,7 @@ export async function startVoiceLive({
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     const pcm = floatToPcm16(resample(e.data))
     if (!pcm.length) return
+    stats.sent++
     ws.send(JSON.stringify({
       type: 'input_audio_buffer.append',
       audio: toBase64(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)),
@@ -370,6 +382,25 @@ export async function startVoiceLive({
       const ok = ctx?.state === 'running'
       if (ok) { removeUnlock?.(); onAudioBlocked?.(false); kickoff() }
       return ok
+    },
+    // Momentaufnahme für die Diagnose-Anzeige.
+    stats() { return { ...stats, state: ctx?.state || '?', rate: ctx?.sampleRate || 0 } },
+    // Kurzer Testton über GENAU DEN AudioContext, der auch die KI-Stimme
+    // ausgibt. Hört man ihn, liegt es nicht an der Wiedergabe, sondern daran,
+    // dass keine Audiodaten ankommen — und umgekehrt. Das trennt die beiden
+    // Ursachen in zwei Sekunden, statt sie zu erraten.
+    async testTone() {
+      try {
+        await ctx?.resume()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.frequency.value = 440
+        gain.gain.value = 0.15
+        osc.connect(gain).connect(ctx.destination)
+        const t = ctx.currentTime
+        osc.start(t); osc.stop(t + 0.4)
+        return ctx.state
+      } catch (e) { return 'Fehler: ' + (e?.message || e) }
     },
     stop() { cleanup() },
   }

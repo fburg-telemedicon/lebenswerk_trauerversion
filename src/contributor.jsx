@@ -501,10 +501,20 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [liveNote,   setLiveNote]   = useState('')
   const [liveStream, setLiveStream] = useState(null)     // für die Schallwellen-Animation
   const [liveMuted,  setLiveMuted]  = useState(false)    // Browser hat den Ton bis zur nächsten Geste gesperrt
+  // Diagnose-Zahlen der laufenden Sitzung (Beta). Sekündlich abgeholt, damit ein
+  // stummes Gespräch nicht wieder auf Vermutungen hinausläuft.
+  const [liveStats, setLiveStats] = useState(null)
+  const [toneRes,   setToneRes]   = useState('')
   const liveRef = useRef(null)
   const liveOn = liveMode && !liveFailed
   // Modus gewechselt → einen früheren Fehlschlag vergessen (neuer Versuch erlaubt).
   useEffect(() => { setLiveFailed(false); setLiveNote('') }, [effMode])
+
+  useEffect(() => {
+    if (!liveOn) { setLiveStats(null); return }
+    const id = setInterval(() => setLiveStats(liveRef.current?.stats?.() || null), 1000)
+    return () => clearInterval(id)
+  }, [liveOn])
 
   useEffect(() => {
     if (!liveOn || !active || expired) return
@@ -1183,6 +1193,23 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 ? 'Live conversation: take as much time to think as you like — nothing is cut off.'
                 : 'Live-Gespräch: Denken Sie so lange nach, wie Sie möchten — es wird nichts abgeschnitten.'}
             </div>
+            {/* Beta-Diagnose. Solange der Modus nur intern freigeschaltet ist,
+                ist eine sichtbare Messung mehr wert als eine schöne Oberfläche:
+                „hört man nichts" hat mehrere Ursachen, die diese Zahlen trennen.
+                Kann raus, sobald die Strecke bestätigt läuft. */}
+            {liveStats && (
+              <div style={{ marginTop:14, paddingTop:10, borderTop:'1px dashed #e7e5e4', fontSize:11.5, lineHeight:1.6, color:'#a8a29e', fontFamily:'ui-monospace, monospace' }}>
+                <div>Ton: {liveStats.state} · {liveStats.rate} Hz</div>
+                <div>gesendet {liveStats.sent} · empfangen {liveStats.deltas} · abgespielt {liveStats.played}</div>
+                {liveStats.lastError && <div style={{ color:'#b91c1c' }}>{liveStats.lastError}</div>}
+                <button
+                  onClick={async e => { e.stopPropagation(); setToneRes(await liveRef.current?.testTone?.() || 'keine Sitzung') }}
+                  style={{ marginTop:8, fontSize:12, padding:'6px 12px' }}>
+                  🔔 Testton abspielen
+                </button>
+                {toneRes && <div style={{ marginTop:4 }}>Testton ausgelöst (Ton: {toneRes}) — gehört?</div>}
+              </div>
+            )}
           </div>
         )}
         {liveNote && (
