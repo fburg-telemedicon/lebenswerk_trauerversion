@@ -12,7 +12,9 @@
         "Die technische Grundlage dafuer steht jetzt: eine eigene Sprach-Ressource in der EU-Region Schweden. In einem Testlauf hat die Strecke einwandfrei funktioniert — Frage der KI, Spracherkennung eines gesprochenen Satzes, Antwort in natuerlicher Stimme, und die Kosten wurden korrekt auf das Buch gebucht.",
         "Nach dem ersten eigenen Test drei Korrekturen am Live-Gespraech: Gesprochenes wurde nicht erkannt, weil das Mikrofon-Signal je nach Browser mit einer anderen Taktrate aufgenommen wird als der Dienst erwartet — es wird jetzt umgerechnet. Ausserdem fehlte die gewohnte Audio-Kurve, an der man sieht, dass das Mikrofon etwas aufnimmt; sie ist zurueck. Und der Knopf \"nochmal vorlesen\" wird im Live-Gespraech ausgeblendet, weil dort ohnehin gesprochen wird.",
         "Live-Gespraech: Der Fehler, warum man nichts hoerte und das Interview stehenblieb, ist gefunden und behoben. Die Sprachdaten kamen zwar vom Server an, wurden vom Browser aber in einem Format uebergeben, das er nicht lesen konnte — und still verworfen. Jetzt kommen Stimme und erkannte Antworten an.",
-        "Beim Wiedereinstieg in ein begonnenes Interview gab es bisher nur die Moeglichkeit fortzusetzen. Neben \"Fortsetzen\" steht jetzt auch \"Neu beginnen\" (mit Rueckfrage) — bisherige Antworten bleiben dabei gespeichert. In allen 13 Sprachen."
+        "Beim Wiedereinstieg in ein begonnenes Interview gab es bisher nur die Moeglichkeit fortzusetzen. Neben \"Fortsetzen\" steht jetzt auch \"Neu beginnen\" (mit Rueckfrage) — bisherige Antworten bleiben dabei gespeichert. In allen 13 Sprachen.",
+        "Live-Gespraech: Vor jeder Frage war eine fremde Stimme mit unverstaendlichem Gemurmel zu hoeren. Ursache war eine unsichtbare technische Positionsangabe im Text, die im Live-Modus versehentlich mitgesprochen wurde. Sie wird jetzt nicht mehr in den Text geschrieben.",
+        "Damit die Fortschrittsanzeige (\"Frage 3 von 10\") im Live-Gespraech trotzdem weiterzaehlt, meldet die KI ihre Stelle im Fragebogen jetzt auf einem eigenen, nicht hoerbaren Weg. Gespraech und Anzeige funktionieren damit beide."
       ]
     },
     {
