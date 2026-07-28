@@ -190,7 +190,7 @@ const ECHO_THRESHOLD = 0.7   // bewusst hoch: lieber ein Echo durchlassen als ei
 //                                schaltet auf die Mikrofon-Modi zurück
 export async function startVoiceLive({
   memorialCode, contributionId, language, instructions, history = [], voice,
-  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream, onAudioBlocked, onPosition,
+  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream, onAudioBlocked, onPosition, onHalfDuplex,
 }) {
   const messages = []
   let ws = null, ctx = null, stream = null, node = null, srcNode = null
@@ -208,6 +208,47 @@ export async function startVoiceLive({
   // Echo zurückkommt, bevor die Antwort fertig ist.
   let lastAiText = ''
   let lastSpokeAt = 0
+
+  // ── Erkennung: Hört das Mikrofon die KI mit? ────────────────────
+  // „Ist das ein Bluetooth-Lautsprecher?" lässt sich im Browser nicht
+  // beantworten (Safari zählt Ausgabegeräte nicht auf, outputLatency ist
+  // unzuverlässig). Die eigentlich wichtige Frage ist ohnehin eine andere:
+  // Hört das Mikrofon die Ausgabe? Das gilt für Bluetooth, Laptop-Lautsprecher
+  // und Freisprecheinrichtungen gleichermaßen — und lässt sich messen.
+  //
+  // Verfahren: Pegel WÄHREND die KI spricht gegen den Pegel in der Stille
+  // DANACH. Liegt der erste deutlich höher, hört das Mikrofon die Ausgabe mit.
+  //
+  // Schutz vor Fehlalarm: Unterbricht die Person die KI, steigt der Pegel
+  // ebenfalls. Deshalb (a) zählt eine Äußerung NICHT, wenn währenddessen echte
+  // Sprache erkannt wurde, und (b) muss das Muster in mehreren Äußerungen
+  // hintereinander auftreten. Ein einzelnes Dazwischenreden nimmt also niemandem
+  // die Unterbrechungsmöglichkeit weg.
+  const ECHO_LEVEL_FACTOR = 3.5   // Pegel beim Sprechen der KI ggü. Ruhepegel
+  const ECHO_ROUNDS       = 3     // so viele Äußerungen in Folge
+  let halfDuplex   = false        // aktiv: Mikro schweigt, solange die KI spricht
+  let spkSum = 0, spkN = 0        // Pegel während der KI-Ausgabe
+  let ambSum = 0, ambN = 0        // Ruhepegel danach
+  let ambUntil = 0                // Messfenster für den Ruhepegel
+  let sawSpeechWhileSpeaking = false
+  let echoRounds = 0
+
+  // Bewertet die eben beendete KI-Äußerung (aufgerufen, wenn die Wiedergabe endet).
+  function bewerteEcho() {
+    const genug = spkN > 20 && ambN > 20
+    if (genug && !sawSpeechWhileSpeaking) {
+      const spk = Math.sqrt(spkSum / spkN), amb = Math.sqrt(ambSum / ambN)
+      if (amb > 0 && spk > amb * ECHO_LEVEL_FACTOR) echoRounds++
+      else echoRounds = 0
+      if (!halfDuplex && echoRounds >= ECHO_ROUNDS) {
+        halfDuplex = true
+        console.info('Voice Live: Mikrofon hört die Ausgabe mit — schalte auf Wechselsprechen um.')
+        onHalfDuplex?.(true)
+      }
+    }
+    spkSum = 0; spkN = 0; ambSum = 0; ambN = 0
+    sawSpeechWhileSpeaking = false
+  }
   // Buchführung je Antwortrunde für die Fortschrittsmeldung (siehe unten):
   // Hat die Runde gesprochen? Und wurde ein Werkzeugaufruf beantwortet?
   let respHadAudio = false
@@ -290,7 +331,12 @@ export async function startVoiceLive({
     // Die Wiedergabe ist die EINZIGE Quelle für „spricht gerade". Vorher setzten
     // mehrere Ereignisse den Zustand nebeneinander (Audio-Block, response.done),
     // ohne dass eines das tatsächliche ENDE der Ausgabe kannte.
-    player = new Player(ctx, speaking => { if (!stopped) onState?.({ listening: true, speaking }) })
+    player = new Player(ctx, speaking => {
+      if (stopped) return
+      onState?.({ listening: true, speaking })
+      // Ende der Ausgabe: Ruhepegel im folgenden Fenster messen, dann bewerten.
+      if (!speaking) { ambUntil = Date.now() + 1200; setTimeout(bewerteEcho, 1400) }
+    })
     const workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }))
     await ctx.audioWorklet.addModule(workletUrl)
     URL.revokeObjectURL(workletUrl)
@@ -376,6 +422,9 @@ export async function startVoiceLive({
       // Die Person hat zu sprechen begonnen → laufende Antwort sofort abbrechen
       // (Barge-in). Ohne das redete die KI über sie hinweg weiter.
       case 'input_audio_buffer.speech_started':
+        // Echte Sprache während der KI-Ausgabe: Dann war der erhöhte Pegel ein
+        // Mensch, kein Echo — diese Äußerung fällt aus der Bewertung.
+        if (player?.speaking) sawSpeechWhileSpeaking = true
         player.stop()   // meldet den Wechsel selbst (siehe Player.onChange)
         break
 
@@ -492,6 +541,18 @@ export async function startVoiceLive({
   }
   node.port.onmessage = (e) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    // Pegel messen (mittlere Leistung des Blocks) — Grundlage der Erkennung oben.
+    let energie = 0
+    for (let i = 0; i < e.data.length; i++) energie += e.data[i] * e.data[i]
+    energie /= (e.data.length || 1)
+    if (player?.speaking) { spkSum += energie; spkN++ }
+    else if (Date.now() < ambUntil) { ambSum += energie; ambN++ }
+
+    // Hört das Mikrofon die Ausgabe mit, wird währenddessen nichts gesendet —
+    // sonst befragt sich das Interview selbst. Erst nach mehrfach bestätigter
+    // Messung aktiv (siehe bewerteEcho).
+    if (halfDuplex && player?.speaking) return
 
     const pcm = floatToPcm16(resample(e.data))
     if (!pcm.length) return

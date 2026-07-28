@@ -70,19 +70,13 @@ function liveFallbackNote(lang, reason) {
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
 
-// Diagnose-Anzeige des Live-Gesprächs (Zähler + Testton). Standard AUS — sie ist
-// ein Werkzeug für die Fehlersuche, kein Bestandteil der Oberfläche. Einschalten
-// mit `?livedebug=1`; die Wahl bleibt für dieses Gerät gemerkt, `?livedebug=0`
-// schaltet sie wieder ab. Bewusst über die Adresse statt über ein Menü: Wer sie
-// braucht, weiß davon — Erzählende sollen sie nie sehen.
-const liveDebug = (() => {
-  try {
-    const p = new URLSearchParams(window.location.search).get('livedebug')
-    if (p === '1') localStorage.setItem('lw_livedebug', '1')
-    if (p === '0') localStorage.removeItem('lw_livedebug')
-    return localStorage.getItem('lw_livedebug') === '1'
-  } catch { return false }   // privater Modus: dann eben aus
-})()
+// Hinweis: Die frühere Diagnose-Anzeige (Zähler + Testton) im Live-Kasten ist
+// entfernt. Die Messwerte gibt es weiterhin über `session.stats()` und
+// `session.testTone()` in src/voicelive.js — erreichbar aus der Browser-Konsole
+// über `window.__lwLive`, falls wieder einmal ein stummes Gespräch zu klären ist.
+// Ein früher gesetztes `lw_livedebug` wird beim Start entfernt, damit niemand
+// die alte Anzeige behält.
+try { localStorage.removeItem('lw_livedebug') } catch { /* privater Modus */ }
 
 // ── Mikrofon-Auto-Stopp (drei Modi, per Buch im Expertenmodus) ────────────────
 // TIPP-MODUS (hands_free=false): NUR Höchstdauer (MIC_MAX_MS); bewusst KEIN Stille-
@@ -545,16 +539,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [liveNote,   setLiveNote]   = useState('')
   const [liveStream, setLiveStream] = useState(null)     // für die Schallwellen-Animation
   const [liveMuted,  setLiveMuted]  = useState(false)    // Browser hat den Ton bis zur nächsten Geste gesperrt
-  // Diagnose-Zahlen der laufenden Sitzung. NICHT für Endnutzer sichtbar, sondern
-  // nur mit `?livedebug=1` in der Adresse (einmal gesetzt, bleibt es für dieses
-  // Gerät gemerkt; `?livedebug=0` schaltet es wieder ab).
-  //
-  // Bewusst behalten statt gelöscht: Ein stummes Live-Gespräch hat mehrere
-  // mögliche Ursachen, und diese drei Zahlen plus der Testton haben sie beim
-  // ersten Mal in EINEM Schritt getrennt — nachdem mehrere Vermutungen daneben
-  // lagen. Beim nächsten Mal soll das Messinstrument ohne Deploy da sein.
-  const [liveStats, setLiveStats] = useState(null)
-  const [toneRes,   setToneRes]   = useState('')
+  // Hat die App erkannt, dass das Mikrofon die Ausgabe mithört (Lautsprecher)?
+  // Dann schweigt das Mikrofon, solange die KI spricht — Unterbrechen geht dann
+  // nicht mehr, und die Beschriftung darf das nicht weiter behaupten.
+  const [liveHalfDuplex, setLiveHalfDuplex] = useState(false)
   const liveRef = useRef(null)
   // Zuletzt per Werkzeug gemeldete Katalog-Position, die noch keiner Frage
   // zugeordnet werden konnte (Meldung kam vor der Sprachantwort).
@@ -562,12 +550,6 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const liveOn = liveMode && !liveFailed
   // Modus gewechselt → einen früheren Fehlschlag vergessen (neuer Versuch erlaubt).
   useEffect(() => { setLiveFailed(false); setLiveNote('') }, [effMode])
-
-  useEffect(() => {
-    if (!liveOn || !liveDebug) { setLiveStats(null); return }
-    const id = setInterval(() => setLiveStats(liveRef.current?.stats?.() || null), 1000)
-    return () => clearInterval(id)
-  }, [liveOn])
 
   useEffect(() => {
     if (!liveOn || !active || expired) return
@@ -605,6 +587,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         onReady:  () => { if (!cancelled) { setLiveStatus('listening'); setLiveNote('') } },
         onStream: s  => { if (!cancelled) setLiveStream(s) },
         onAudioBlocked: b => { if (!cancelled) setLiveMuted(b === true) },
+        onHalfDuplex:   b => { if (!cancelled) setLiveHalfDuplex(b === true) },
         onState:  s  => { if (!cancelled) setLiveStatus(s.speaking ? 'speaking' : 'listening') },
         // Jede fertige Äußerung landet in derselben messages-Struktur wie im
         // Mikrofon-Modus und wird sofort persistiert — Buchgenerierung, Exporte
@@ -642,7 +625,13 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         onFallback: reason => stopWith(liveFallbackNote(lang, reason)),
       })
       if (cancelled) { session?.stop?.(); return }
-      if (session) liveRef.current = session
+      if (session) {
+        liveRef.current = session
+        // Messwerte aus der Konsole erreichbar lassen (stats(), testTone()) —
+        // sie haben die Fehlersuche beim stummen Gespräch entschieden. Keine
+        // sichtbare Oberfläche, nur ein Griff für den Notfall.
+        try { window.__lwLive = session } catch { /* egal */ }
+      }
     })()
     return () => { cancelled = true; try { liveRef.current?.stop?.() } catch {} ; liveRef.current = null; setLiveStatus('off'); setLiveStream(null); setLiveMuted(false) }
   }, [liveOn, active, expired]) // eslint-disable-line
@@ -1282,29 +1271,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             )}
             <div style={{ fontSize:13.5, fontWeight:600, color: liveStatus === 'speaking' ? '#4f46e5' : '#dc2626', marginBottom:4 }}>
               {String(lang || '').startsWith('en')
-                ? (liveStatus === 'connecting' ? 'Connecting …' : liveStatus === 'speaking' ? 'Speaking — feel free to interrupt' : 'Listening — just talk')
-                : (liveStatus === 'connecting' ? 'Verbindung wird aufgebaut …' : liveStatus === 'speaking' ? 'Ich spreche — Sie dürfen mich jederzeit unterbrechen' : 'Ich höre zu — sprechen Sie einfach')}
+                ? (liveStatus === 'connecting' ? 'Connecting …' : liveStatus === 'speaking' ? (liveHalfDuplex ? 'Speaking — one moment' : 'Speaking — feel free to interrupt') : 'Listening — just talk')
+                : (liveStatus === 'connecting' ? 'Verbindung wird aufgebaut …' : liveStatus === 'speaking' ? (liveHalfDuplex ? 'Ich spreche — einen Moment' : 'Ich spreche — Sie dürfen mich jederzeit unterbrechen') : 'Ich höre zu — sprechen Sie einfach')}
             </div>
             <div style={{ maxWidth:340, margin:'0 auto', fontSize:12.5, lineHeight:1.5, color:'#78716c' }}>
               {String(lang || '').startsWith('en')
                 ? 'Live conversation: take as much time to think as you like — nothing is cut off.'
                 : 'Live-Gespräch: Denken Sie so lange nach, wie Sie möchten — es wird nichts abgeschnitten.'}
             </div>
-            {/* Diagnose — nur mit `?livedebug=1` (siehe liveDebug oben). */}
-            {liveDebug && liveStats && (
-              <div style={{ marginTop:14, paddingTop:10, borderTop:'1px dashed #e7e5e4', fontSize:11.5, lineHeight:1.6, color:'#a8a29e', fontFamily:'ui-monospace, monospace' }}>
-                <div>Ton: {liveStats.state} · {liveStats.rate} Hz</div>
-                <div>gesendet {liveStats.sent} · empfangen {liveStats.deltas} · abgespielt {liveStats.played}</div>
-                <div>verworfene Echos: {liveStats.echoes ?? 0}</div>
-                {liveStats.lastError && <div style={{ color:'#b91c1c' }}>{liveStats.lastError}</div>}
-                <button
-                  onClick={async e => { e.stopPropagation(); setToneRes(await liveRef.current?.testTone?.() || 'keine Sitzung') }}
-                  style={{ marginTop:8, fontSize:12, padding:'6px 12px' }}>
-                  🔔 Testton abspielen
-                </button>
-                {toneRes && <div style={{ marginTop:4 }}>Testton ausgelöst (Ton: {toneRes}) — gehört?</div>}
-              </div>
-            )}
           </div>
         )}
         {liveNote && (
