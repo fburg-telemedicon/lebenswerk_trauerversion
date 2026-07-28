@@ -18,6 +18,7 @@ const { enforceBudget } = require('./_lib/cost')
 const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { isVoiceLiveConfigured, signTicket, TICKET_TTL_MS } = require('./_lib/voicelive')
+const { ALLOWED_TTS_VOICES } = require('./_lib/ttsvoices')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -49,7 +50,7 @@ module.exports = async function handler(req, res) {
       return res.status(409).json(UNAVAILABLE)
     }
 
-    const { memorialCode, contributionId, language } = req.body || {}
+    const { memorialCode, contributionId, language, voice: wantVoice } = req.body || {}
     const code = String(memorialCode || '').toUpperCase().trim()
     if (!code) return res.status(400).json({ error: 'memorialCode fehlt.' })
 
@@ -75,6 +76,17 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!realtimeOn) return res.status(409).json(UNAVAILABLE)
+
+    // Stimme: Der Beitragenden-Flow wählt sie mit `interviewTtsVoice` (Regel dort:
+    // nach Geschlecht) und schickt sie mit. Ohne das sprach dasselbe Buch im
+    // Live-Modus mit einer ANDEREN Stimme als im Mikrofon-Modus — beim Wechsel
+    // zwischen den Modi hörte man abwechselnd Mann und Frau.
+    //
+    // Die Wahl kommt aus dem Browser, deshalb gegen die Allowlist prüfen (wie in
+    // api/speak.js); alles Unbekannte fällt auf die am Buch hinterlegte Stimme
+    // zurück. So kann niemand über den offenen Endpunkt eine beliebige (etwa
+    // teure Custom-)Stimme anfordern.
+    if (typeof wantVoice === 'string' && ALLOWED_TTS_VOICES.has(wantVoice)) voice = wantVoice
 
     const lang = String(language || 'de')
     const locale = REALTIME_LOCALES[lang]

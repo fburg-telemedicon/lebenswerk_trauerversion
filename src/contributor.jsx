@@ -594,6 +594,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       const session = await startVoiceLive({
         memorialCode: memorial?.id,
         language: lang,
+        // Exakt dieselbe Stimmenwahl wie im Mikrofon-Modus (siehe playText),
+        // sonst spricht dasselbe Buch je nach Modus mit einer anderen Stimme.
+        voice: interviewTtsVoice(memorial, contribForm),
         instructions: sys,
         // Mit Markern übergeben: Das Modell braucht sie, um seine Stelle im
         // Fragebogen zu kennen (genau wie im Mikrofon-Modus, siehe withPosMarkers).
@@ -766,7 +769,15 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     }, 300)
   }
 
-  function playText(text) {
+  function playText(raw) {
+    // Positionsmarker NIE vorlesen. Normalerweise sind sie beim Speichern schon
+    // entfernt (toAssistantMsg) — aber Nachrichten aus früheren Ständen können
+    // sie noch im Text tragen, und die werden hier wörtlich vorgelesen. Genau so
+    // tauchte „[[K1.4]]" als gesprochenes Kauderwelsch wieder auf, nachdem der
+    // Fehler an der Entstehungsstelle längst behoben war. Deshalb zusätzlich
+    // hier filtern: Wer vorliest, muss dafür sorgen, dass nichts Technisches
+    // hörbar wird.
+    const text = splitQuestionPos(raw).text || String(raw ?? '')
     stopSpeaking()
     // Spricht die KI (auch beim Zurückübernehmen nach dem Begleitmodus), ist die
     // aktive Person wieder der Erzähler → Schallwelle/Untertitel zurück auf ROT.

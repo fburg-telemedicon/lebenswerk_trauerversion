@@ -162,7 +162,7 @@ class Player {
 //   onFallback(reason)           Modus nicht möglich/abgebrochen → Aufrufer
 //                                schaltet auf die Mikrofon-Modi zurück
 export async function startVoiceLive({
-  memorialCode, contributionId, language, instructions, history = [],
+  memorialCode, contributionId, language, instructions, history = [], voice,
   onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream, onAudioBlocked, onPosition,
 }) {
   const messages = []
@@ -219,7 +219,9 @@ export async function startVoiceLive({
     const r = await fetch('/api/voicelive-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memorialCode, contributionId, language }),
+      // `voice` mitschicken, damit das Live-Gespräch DIESELBE Stimme benutzt wie
+      // der Mikrofon-Modus (sonst wechselt sie beim Moduswechsel).
+      body: JSON.stringify({ memorialCode, contributionId, language, voice }),
     })
     if (!r.ok) { onFallback?.(r.status === 402 ? 'budget' : 'unavailable'); return null }
     ticketData = await r.json()
