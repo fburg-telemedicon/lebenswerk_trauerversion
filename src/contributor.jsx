@@ -500,6 +500,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [liveStatus, setLiveStatus] = useState('off')   // off | connecting | listening | speaking
   const [liveNote,   setLiveNote]   = useState('')
   const [liveStream, setLiveStream] = useState(null)     // für die Schallwellen-Animation
+  const [liveMuted,  setLiveMuted]  = useState(false)    // Browser hat den Ton bis zur nächsten Geste gesperrt
   const liveRef = useRef(null)
   const liveOn = liveMode && !liveFailed
   // Modus gewechselt → einen früheren Fehlschlag vergessen (neuer Versuch erlaubt).
@@ -516,7 +517,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       const stopWith = (note) => {
         if (cancelled) return
         liveRef.current = null
-        setLiveStatus('off'); setLiveNote(note); setLiveStream(null); setLiveFailed(true)
+        setLiveStatus('off'); setLiveNote(note); setLiveStream(null); setLiveMuted(false); setLiveFailed(true)
         // Beim Start wird `loadFirst()` im Live-Modus bewusst übersprungen (die
         // Verbindung stellt die erste Frage selbst). Scheitert sie, stünde das
         // Interview ohne jede Frage da — deshalb hier nachholen.
@@ -529,6 +530,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         history: messagesRef.current,
         onReady:  () => { if (!cancelled) { setLiveStatus('listening'); setLiveNote('') } },
         onStream: s  => { if (!cancelled) setLiveStream(s) },
+        onAudioBlocked: b => { if (!cancelled) setLiveMuted(b === true) },
         onState:  s  => { if (!cancelled) setLiveStatus(s.speaking ? 'speaking' : 'listening') },
         // Jede fertige Äußerung landet in derselben messages-Struktur wie im
         // Mikrofon-Modus und wird sofort persistiert — Buchgenerierung, Exporte
@@ -546,7 +548,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       if (cancelled) { session?.stop?.(); return }
       if (session) liveRef.current = session
     })()
-    return () => { cancelled = true; try { liveRef.current?.stop?.() } catch {} ; liveRef.current = null; setLiveStatus('off'); setLiveStream(null) }
+    return () => { cancelled = true; try { liveRef.current?.stop?.() } catch {} ; liveRef.current = null; setLiveStatus('off'); setLiveStream(null); setLiveMuted(false) }
   }, [liveOn, active, expired]) // eslint-disable-line
   useEffect(() => {
     if (!navigator.permissions?.query) return
@@ -1149,7 +1151,17 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         {/* LIVE-GESPRÄCH: kein Mikrofon-Knopf, kein Antippen — nur der Zustand der
             laufenden Verbindung und ein Weg zurück zum gewohnten Modus. */}
         {liveOn && !expired && (
-          <div style={{ ...S.card, textAlign:'center', padding:'1.1rem 1rem' }}>
+          <div onClick={() => { if (liveMuted) liveRef.current?.resume?.() }}
+            style={{ ...S.card, textAlign:'center', padding:'1.1rem 1rem', cursor: liveMuted ? 'pointer' : 'default' }}>
+            {/* Der Browser lässt Ton erst nach einer Berührung zu. Ohne diesen
+                Hinweis bliebe das Gespräch für die Person unerklärlich stumm. */}
+            {liveMuted && (
+              <div style={{ margin:'0 auto 12px', maxWidth:340, padding:'10px 12px', borderRadius:10, background:'#fef3c7', border:'1px solid #fbbf24', fontSize:13, lineHeight:1.5, color:'#78350f' }}>
+                {String(lang || '').startsWith('en')
+                  ? '🔇 Your browser is still blocking sound. Tap here once to start the conversation.'
+                  : '🔇 Ihr Browser blockiert den Ton noch. Tippen Sie einmal hierhin, um das Gespräch zu starten.'}
+              </div>
+            )}
             <div aria-hidden="true" style={{ width:72, height:72, margin:'0 auto 12px', borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28,
               background: liveStatus === 'speaking' ? '#eef2ff' : '#fee2e2',
               border: `2px solid ${liveStatus === 'speaking' ? '#6366f1' : '#dc2626'}`,

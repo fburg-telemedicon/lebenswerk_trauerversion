@@ -150,16 +150,32 @@ class Player {
 //                                schaltet auf die Mikrofon-Modi zurück
 export async function startVoiceLive({
   memorialCode, contributionId, language, instructions, history = [],
-  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream,
+  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream, onAudioBlocked,
 }) {
   const messages = []
   let ws = null, ctx = null, stream = null, node = null, srcNode = null
   let player = null
   let stopped = false
   let aiPartial = ''
+  let removeUnlock = null
+  let kicked = false
+
+  // Erste Frage anstoßen — aber ERST, wenn der Ton auch wirklich hörbar ist.
+  // Sonst spricht die KI in einen stummgeschalteten Browser hinein und die
+  // Eröffnungsfrage ist unwiederbringlich verpufft. Wird an zwei Stellen
+  // aufgerufen: wenn die Sitzung steht, und nach dem Freischalten des Tons.
+  // (Funktionsdeklaration, weil sie schon im Audio-Aufbau referenziert wird.)
+  function kickoff() {
+    if (kicked || stopped) return
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    if (ctx?.state !== 'running') return
+    kicked = true
+    ws.send(JSON.stringify({ type: 'response.create' }))
+  }
 
   const cleanup = () => {
     stopped = true
+    try { removeUnlock?.() } catch {}
     try { node?.disconnect() } catch {}
     try { srcNode?.disconnect() } catch {}
     try { stream?.getTracks().forEach(t => t.stop()) } catch {}
@@ -198,7 +214,24 @@ export async function startVoiceLive({
     })
     const AC = window.AudioContext || window.webkitAudioContext
     ctx = new AC({ sampleRate: SAMPLE_RATE })
-    if (ctx.state === 'suspended') await ctx.resume()
+    try { await ctx.resume() } catch { /* siehe unten */ }
+    // Ein AudioContext, der NICHT während einer Nutzer-Geste entsteht, startet in
+    // vielen Browsern „suspended" — und ein späteres resume() greift ohne Geste
+    // nicht. Hier ist das der Normalfall: Die Sitzung wird aus einem Effekt heraus
+    // aufgebaut, die Geste (Auswahl im Menü) ist da längst vorbei. Folge wäre ein
+    // stummes Gespräch: kein Ton heraus UND kein Audio hinein (der Worklet läuft
+    // ebenfalls nicht). Deshalb: einmalig auf die nächste Berührung warten.
+    if (ctx.state !== 'running') {
+      const evs = ['pointerdown', 'touchend', 'keydown']
+      const unlock = async () => {
+        try { await ctx.resume() } catch {}
+        if (ctx.state === 'running') { removeUnlock?.(); onAudioBlocked?.(false); kickoff() }
+      }
+      removeUnlock = () => { evs.forEach(e => document.removeEventListener(e, unlock, true)); removeUnlock = null }
+      evs.forEach(e => document.addEventListener(e, unlock, true))
+      onAudioBlocked?.(true)
+    }
+    console.info(`Voice Live: AudioContext ${ctx.state}, ${ctx.sampleRate} Hz`)
     player = new Player(ctx)
     const workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }))
     await ctx.audioWorklet.addModule(workletUrl)
@@ -256,8 +289,9 @@ export async function startVoiceLive({
           }))
         }
         // Anstoß: Die KI stellt die nächste Frage, ohne dass die Person erst
-        // sprechen muss (sonst warten beide Seiten aufeinander).
-        ws.send(JSON.stringify({ type: 'response.create' }))
+        // sprechen muss (sonst warten beide Seiten aufeinander). Passiert nur,
+        // wenn der Ton nicht noch vom Browser gesperrt ist — siehe kickoff().
+        kickoff()
         onReady?.()
         onState?.({ listening: true, speaking: false })
         break
@@ -329,6 +363,14 @@ export async function startVoiceLive({
 
   return {
     messages,
+    // Damit die Oberfläche den Ton aus einer echten Klick-Geste heraus
+    // freischalten kann (siehe „suspended" oben).
+    async resume() {
+      try { await ctx?.resume() } catch {}
+      const ok = ctx?.state === 'running'
+      if (ok) { removeUnlock?.(); onAudioBlocked?.(false); kickoff() }
+      return ok
+    },
     stop() { cleanup() },
   }
 }
