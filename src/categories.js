@@ -321,12 +321,41 @@ export function posToMarker(pos) {
 
 // Die Regel-Bullets für den Katalog-Modus (ersetzen die freien „Themenfeld"-
 // Bullets). Werden zwischen die übrigen Interview-Regeln eingefügt.
-function catalogRules(cb, name) {
-  return `- FORTSCHRITTS-MARKER (Pflicht): Beginne JEDE deiner Nachrichten mit einem Marker in doppelten eckigen Klammern, der angibt, wo du im Katalog stehst. Die Nummern sind exakt die aus dem FRAGENKATALOG unten:
+// Die Marker-Pflicht als eigene Konstante — sie wird an zwei Stellen gebraucht:
+// hier beim Bauen des Prompts und in `withoutMarkerRule()` beim Entfernen fürs
+// Live-Sprachgespräch. Als gemeinsame Konstante können beide nicht auseinander-
+// laufen (eine Textänderung hier würde sonst das Entfernen still wirkungslos
+// machen — und der Marker wäre wieder hörbar).
+const CATALOG_MARKER_RULE = `- FORTSCHRITTS-MARKER (Pflicht): Beginne JEDE deiner Nachrichten mit einem Marker in doppelten eckigen Klammern, der angibt, wo du im Katalog stehst. Die Nummern sind exakt die aus dem FRAGENKATALOG unten:
   • Katalogfrage: [[K<Kapitel>.<Frage>]] — z. B. [[K2.3]] für die 3. Frage in Kapitel 2.
   • Vertiefende Nachfrage: [[K<Kapitel>.<Frage>.<Nr>]] — z. B. [[K2.3.1]] für deine 1. Nachfrage zu Frage 3 in Kapitel 2, [[K2.3.2]] für die 2. Nachfrage usw.
   • Abschluss, wenn alle Fragen aller Kapitel durch sind: [[ENDE]]
-  Der Marker steht IMMER ganz vorn, gefolgt von einem Leerzeichen und deinem Gesprächstext. Erwähne ihn NIE im Text und sprich ihn nicht aus — er wird technisch ausgewertet und dem Gegenüber nie gezeigt.
+  Der Marker steht IMMER ganz vorn, gefolgt von einem Leerzeichen und deinem Gesprächstext. Erwähne ihn NIE im Text und sprich ihn nicht aus — er wird technisch ausgewertet und dem Gegenüber nie gezeigt.`
+
+// Ersatz fürs LIVE-Sprachgespräch: Dort geht die Ausgabe des Modells unverändert
+// in die Sprachausgabe — ein Marker wird also mitgesprochen (gemessen: aus
+// „[[K2.1]] Welche Bedeutung …" wurde hörbar „D.E. Demia Instekcode zum Punkt 1
+// …"). Eine bloße Zusatzregel „gib keine Marker aus" reicht NICHT: Sie
+// widerspricht der Pflicht oben, und das Modell folgt der Pflicht. Deshalb wird
+// die Pflicht ersetzt statt überstimmt.
+const CATALOG_NO_MARKER_RULE = `- Gib KEINE Fortschritts-Marker und keine eckigen Klammern aus. Deine Antwort wird unverändert laut vorgelesen; technische Kennzeichen wären hörbar. Merke dir deine Stelle im Katalog anhand des bisherigen Gesprächsverlaufs.`
+
+// Entfernt die Marker-Pflicht aus einem fertig gebauten Interview-Prompt.
+// Findet sie sich nicht (Text geändert, andere Kategorie ohne Katalog), bleibt
+// der Prompt unverändert — dann gibt es entweder keinen Katalog oder es ist ein
+// Hinweis darauf, dass CATALOG_MARKER_RULE angepasst wurde.
+export function withoutMarkerRule(prompt) {
+  const s = String(prompt || '')
+  return s.includes(CATALOG_MARKER_RULE) ? s.replace(CATALOG_MARKER_RULE, CATALOG_NO_MARKER_RULE) : s
+}
+
+// True, wenn der Prompt die Marker-Pflicht (noch) enthält — für Selbsttests.
+export function hasMarkerRule(prompt) {
+  return String(prompt || '').includes(CATALOG_MARKER_RULE)
+}
+
+function catalogRules(cb, name) {
+  return `${CATALOG_MARKER_RULE}
 - Du folgst einem festen FRAGENKATALOG. Arbeite die Kapitel und Fragen GENAU in dieser Reihenfolge ab (Kapitel für Kapitel, Frage für Frage).
 - Formuliere jede Katalogfrage natürlich und warm ins Gespräch eingebettet – nicht wörtlich ablesen, aber die Intention der Frage treffen.
 - Stelle zu jeder Antwort HÖCHSTENS ${cb.x} vertiefende Nachfragen (einzeln, eine pro Nachricht), um konkrete Geschichten und Details herauszukitzeln. Danach gehst du zur nächsten Katalogfrage.

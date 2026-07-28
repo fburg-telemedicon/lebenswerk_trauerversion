@@ -11,7 +11,7 @@ import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buil
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, isAnamnesis as isAnamnesisCategory } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -543,7 +543,12 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     ;(async () => {
       // Exakt derselbe Interview-Prompt wie im Mikrofon-Modus (siehe askInitial/
       // sendAnswer) — der Live-Modus ist ein anderer TRANSPORT, keine andere Rolle.
-      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang) + LIVE_SPEECH_RULE
+      // Marker-PFLICHT herausnehmen statt sie zu überstimmen: Eine angehängte
+      // Gegenregel verliert gegen die Pflicht weiter oben im Prompt (gemessen —
+      // das Modell setzte den Marker trotzdem, und er wurde vorgelesen).
+      const sys = withoutMarkerRule(
+        interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
+      ) + langDirective(lang) + LIVE_SPEECH_RULE
       const stopWith = (note) => {
         if (cancelled) return
         liveRef.current = null
