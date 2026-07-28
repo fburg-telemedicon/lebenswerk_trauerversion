@@ -30,7 +30,10 @@ const RELAY_PATH = '/api/voicelive-relay'
 // Notbremsen. Eine offene Live-Sitzung kostet, solange sie steht — anders als
 // die bisherigen Einzel-Requests. Deshalb harte Obergrenzen, unabhängig davon,
 // ob der Browser sich ordentlich abmeldet.
-const MAX_SESSION_MS = 60 * 60 * 1000   // 60 Minuten je Sitzung
+// Ein Lebenswerk-Interview kann lange dauern; 60 Minuten waren zu knapp und
+// hätten mitten im Erzählen abgeschnitten. Die Grenze bleibt trotzdem: Eine
+// offene Sitzung kostet, solange sie steht — auch wenn niemand mehr davor sitzt.
+const MAX_SESSION_MS = 120 * 60 * 1000  // 2 Stunden je Sitzung
 const IDLE_TIMEOUT_MS = 3 * 60 * 1000   // 3 Minuten ohne Nachricht vom Browser
 
 function closeBoth(client, upstream, code, reason) {

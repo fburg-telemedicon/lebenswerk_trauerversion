@@ -218,20 +218,39 @@ function buildSessionUpdate({ instructions, language, voice }) {
         model: 'azure-speech',
         ...(language ? { language } : {}),
       },
-      // Semantische Sprechpausen-Erkennung: Sie unterscheidet Denkpause von
-      // Satzende — genau der Punkt, an dem der bisherige Mikrofon-Modus
-      // Erzählenden ins Wort fiel. `interrupt_response` erlaubt Barge-in.
+      // Semantische Sprechpausen-Erkennung. Die Werte sind für ERZÄHLENDE
+      // ausgelegt, nicht für kurze Auskunftsdialoge — jemand, der aus seinem
+      // Leben erzählt, macht mitten im Satz Pausen und darf dabei nicht
+      // unterbrochen werden. Alle Angaben aus der Voice-Live-Doku:
+      //   threshold          0.0–1.0, Default 0.5. HÖHER = es braucht mehr
+      //                      Sicherheit, dass wirklich jemand spricht (weniger
+      //                      Fehl-Unterbrechungen). Vorher stand hier 0.3 —
+      //                      zu empfindlich.
+      //   prefix_padding_ms  Default für diesen Typ 420. Vorher 200 — damit
+      //                      wurde der Anfang der Antwort abgeschnitten.
+      //   silence_duration_ms Default 500. Das ist eine halbe Sekunde Stille bis
+      //                      „Satz zu Ende" — beim Erzählen viel zu wenig,
+      //                      genau die gemeldeten Unterbrechungen. Jetzt 1600.
+      //   remove_filler_words „ähm/hm" lösen keine Unterbrechung mehr aus.
+      //                      Braucht `languages`; der multilinguale Typ deckt
+      //                      u. a. Deutsch ab (der einfache primär Englisch).
       turn_detection: {
-        type: 'azure_semantic_vad',
-        threshold: 0.3,
-        prefix_padding_ms: 200,
-        silence_duration_ms: 500,
-        remove_filler_words: false,
-        end_of_utterance_detection: { model: 'semantic_detection_v1', threshold: 0.01, timeout: 4 },
+        type: 'azure_semantic_vad_multilingual',
+        threshold: 0.5,
+        prefix_padding_ms: 420,
+        silence_duration_ms: 1600,
+        remove_filler_words: true,
+        ...(language ? { languages: [String(language).slice(0, 2)] } : {}),
+        interrupt_response: true,   // Dazwischenreden bleibt ausdrücklich möglich
       },
       // Ausgabe über die am Buch hinterlegte Azure-Stimme, damit das
       // Live-Gespräch genauso klingt wie die bisherige Vorlesefunktion.
-      ...(voice ? { voice: { type: 'azure-standard', name: voice } } : {}),
+      // `temperature` steuert laut Doku die Schwankungsbreite in Betonung und
+      // Sprechmelodie (nur HD-/MAI-Stimmen). Bewusst unter dem Beispielwert 0.8:
+      // Die Stimme wirkte im Test überdreht — hier geht es um Lebensgeschichten,
+      // nicht um eine Produktvorführung. `rate` etwas unter 1.0 nimmt zusätzlich
+      // Tempo heraus.
+      ...(voice ? { voice: { type: 'azure-standard', name: voice, temperature: 0.6, rate: '0.95' } } : {}),
       input_audio_noise_reduction: { type: 'azure_deep_noise_suppression' },
       input_audio_echo_cancellation: { type: 'server_echo_cancellation' },
       // Fortschrittsmeldung per Werkzeug statt im gesprochenen Text (s. o.).
