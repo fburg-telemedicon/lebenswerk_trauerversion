@@ -447,6 +447,26 @@ export async function startVoiceLive({
   }
   node.port.onmessage = (e) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    // KEIN Mikrofonsignal senden, solange die KI spricht.
+    //
+    // Ohne diese Sperre hört sich die KI über den Lautsprecher selbst zu:
+    // Nachgewiesen im Transkript — ihre eigene Frage („…mit beruflichen
+    // Herausforderungen oder Rückschlägen umgegangen") kam als Nutzer-Antwort
+    // zurück („Bist du mit beruflichen Kindern besonders?"), woraufhin sie
+    // erklärte, sie dürfe keine Fragen beantworten. Zusätzlich gingen kurze
+    // echte Antworten („ja bitte") in diesem Selbstgespräch unter.
+    //
+    // Die serverseitige Echo-Unterdrückung (server_echo_cancellation) und die
+    // des Browsers reichen am Lautsprecher nicht aus — mit Kopfhörern gäbe es
+    // das Problem nicht, aber darauf kann man sich nicht verlassen.
+    //
+    // PREIS: Dazwischenreden ist währenddessen nicht möglich; die KI lässt sich
+    // nicht mehr mitten im Satz unterbrechen. Bewusst in Kauf genommen — ein
+    // Interview, das sich selbst befragt, ist deutlich schädlicher als eine
+    // verlorene Unterbrechungsmöglichkeit.
+    if (player?.speaking) return
+
     const pcm = floatToPcm16(resample(e.data))
     if (!pcm.length) return
     stats.sent++
