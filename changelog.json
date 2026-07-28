@@ -15,7 +15,9 @@
         "Beim Wiedereinstieg in ein begonnenes Interview gab es bisher nur die Moeglichkeit fortzusetzen. Neben \"Fortsetzen\" steht jetzt auch \"Neu beginnen\" (mit Rueckfrage) — bisherige Antworten bleiben dabei gespeichert. In allen 13 Sprachen.",
         "Live-Gespraech: Vor jeder Frage war eine fremde Stimme mit unverstaendlichem Gemurmel zu hoeren. Ursache war eine unsichtbare technische Positionsangabe im Text, die im Live-Modus versehentlich mitgesprochen wurde. Sie wird jetzt nicht mehr in den Text geschrieben.",
         "Damit die Fortschrittsanzeige (\"Frage 3 von 10\") im Live-Gespraech trotzdem weiterzaehlt, meldet die KI ihre Stelle im Fragebogen jetzt auf einem eigenen, nicht hoerbaren Weg. Gespraech und Anzeige funktionieren damit beide.",
-        "Das Live-Sprachgespraech laeuft: saubere Stimme, Frage kommt direkt, Fortschritt zaehlt mit. Hinweis fuers Testen: Nach einem Update dauert es rund zweieinhalb Minuten, bis die neue Fassung ausgeliefert wird — ein Neuladen davor zeigt noch den alten Stand."
+        "Das Live-Sprachgespraech laeuft: saubere Stimme, Frage kommt direkt, Fortschritt zaehlt mit. Hinweis fuers Testen: Nach einem Update dauert es rund zweieinhalb Minuten, bis die neue Fassung ausgeliefert wird — ein Neuladen davor zeigt noch den alten Stand.",
+        "Live-Gespraech nachgeschaerft: Die Interviewerin klingt jetzt ruhiger und zurueckhaltender, Rueckmeldung und naechste Frage laufen nicht mehr ineinander. Vor allem wird niemand mehr mitten in einer laengeren Antwort unterbrochen — die Erkennung wartet jetzt deutlich laenger auf ein echtes Satzende. Die Gespraechsdauer wurde von einer auf zwei Stunden angehoben.",
+        "Ausserdem korrigiert: Beim Anlegen eines Buchs ueber die Schnittstelle wurden still sieben Vertiefungsfragen je Thema gesetzt statt der vorgesehenen zwei."
       ]
     },
     {
