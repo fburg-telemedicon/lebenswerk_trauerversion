@@ -2,6 +2,15 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-07-28",
+      "items": [
+        "Neu (Beta): Live-Sprachgespräch als vierter Mikrofon-Modus. Statt der bisherigen Kette — aufnehmen, erkennen lassen, antworten, vorlesen — steht eine durchgehende Sprachverbindung: Die erzählende Person spricht einfach los, darf so lange nachdenken, wie sie möchte, ohne dass die Aufnahme abbricht, und kann die KI jederzeit unterbrechen. Kein Antippen mehr.",
+        "Das Live-Gespräch ist bewusst doppelt freiwillig: Der Manager schaltet es je Buch frei (Standard: aus), und die erzählende Person wählt es selbst im Menüpunkt „Mikrofon-Modus\". Klappt es nicht — Sprache nicht abgedeckt, Verbindung gestört, Mikrofon nicht freigegeben —, läuft das Interview still im gewohnten Modus weiter. Es kann also nichts blockieren.",
+        "Datenschutz: Die Sprachverbindung läuft nicht direkt vom Browser zu Microsoft, sondern über unseren eigenen Server. So bleibt der Zugangsschlüssel bei uns und die Verarbeitung fest in der EU (Region Schweden) — der von Microsoft für Browser empfohlene Weg hätte weltweit geroutet.",
+        "Die höheren Kosten des Live-Modus werden vollständig mitgezählt und laufen wie gewohnt gegen die Kosten-Obergrenze des jeweiligen Buchs; ist sie erreicht, endet das Gespräch."
+      ]
+    },
+    {
       "date": "2026-07-22",
       "items": [
         "Behoben: Ein Lebenswerk ohne Namen ließ sich anlegen, danach aber nicht mehr speichern — jede spätere Änderung scheiterte an „Name darf nicht leer sein“. Beim Anlegen ist der Name dort ausdrücklich optional (der Erzähler trägt ihn beim ersten Start selbst nach); die Prüfung beim Speichern kannte diese Ausnahme nur für die Anamnese.",
