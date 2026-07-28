@@ -1009,7 +1009,13 @@ function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
 // vierte Radio-Option: die drei bestehenden Modi bleiben in jedem Fall verfügbar
 // (Rückfall bei nicht abgedeckter Sprache, Verbindungsfehler oder fehlender
 // AZURE_VOICELIVE_*-Konfiguration). Der Modus kostet spürbar mehr als STT→LLM→TTS.
-function RealtimeToggle({ on, set, t }) {
+//
+// NUR FÜR DEN SUPERADMIN sichtbar, solange die Datenschutz-Grundlage fehlt
+// (eigene Sweden-Central-Ressource, DSFA/Verfahrensverzeichnis). Ein Manager soll
+// den Modus nicht versehentlich freischalten können. Das Ausblenden ist nur die
+// halbe Miete — verriegelt ist es serverseitig in api/admin/memorials.js.
+function RealtimeToggle({ on, set, t, isAdmin }) {
+  if (!isAdmin) return null
   return (
     <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #e7e5e4' }}>
       <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
@@ -1418,7 +1424,7 @@ function CatalogPeek({ catalogs, category, catalogId }) {
   )
 }
 
-export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logout, setView, setCreateForm, handleCreate }) {
+export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs, logout, setView, setCreateForm, handleCreate }) {
     const { lang: adminLang } = useAdminLang()
     const cat = getCategory(createForm.productCategory)
     const ci  = cat.intake
@@ -1722,7 +1728,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: an. Im ☰-Menü erscheint dann der Punkt „Mikrofon-Modus", über den der Nutzer selbst zwischen den drei Modi wechseln kann.', 'Default: on. The ☰ menu then shows a “Microphone mode” item so the user can switch between the three modes themselves.')}</p>
-          <RealtimeToggle on={createForm.realtimeEnabled === true} set={v => setCreateForm({ ...createForm, realtimeEnabled: v })} t={t} />
+          <RealtimeToggle isAdmin={auth?.admin === true} on={createForm.realtimeEnabled === true} set={v => setCreateForm({ ...createForm, realtimeEnabled: v })} t={t} />
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -2471,7 +2477,7 @@ function GuestActions({ c, setGuestStatus }) {
   )
 }
 
-export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3323,7 +3329,7 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                     <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: an (Menüpunkt „Mikrofon-Modus"). Greift beim nächsten (Neu-)Start des Interviews.', 'Default: on (“Microphone mode” menu item). Applies at the next (re)start of the interview.')}</p>
-                  <RealtimeToggle on={od.realtimeEnabled === true} set={v => setOd({ realtimeEnabled: v })} t={t} />
+                  <RealtimeToggle isAdmin={auth?.admin === true} on={od.realtimeEnabled === true} set={v => setOd({ realtimeEnabled: v })} t={t} />
                 </div>
                 {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>

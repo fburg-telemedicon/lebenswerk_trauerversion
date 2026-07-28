@@ -685,9 +685,13 @@ module.exports = async function handler(req, res) {
         // Darf der Nutzer den Mikrofon-Modus im Interview selbst umschalten? Default AN.
         mic_mode_switch: micModeSwitch !== false,
         // Live-Sprachgespräch (Azure Voice Live) als zusätzlicher Mikrofon-Modus.
-        // Default AUS — Feature-Flag: die Strecke braucht eine eigene Sweden-Central-
-        // Ressource (AZURE_VOICELIVE_*) und kostet spürbar mehr als STT→LLM→TTS.
-        realtime_enabled: realtimeEnabled === true,
+        // Default AUS und **nur vom Superadmin setzbar** (req.auth.admin): Die
+        // Strecke ist datenschutzseitig noch nicht freigegeben (eigene
+        // Sweden-Central-Ressource, DSFA/Verfahrensverzeichnis stehen aus) und
+        // kostet ein Vielfaches von STT→LLM→TTS. Ein Manager darf sie deshalb
+        // nicht für sein Buch einschalten können — hier serverseitig verriegelt,
+        // nicht bloß im Dashboard ausgeblendet.
+        realtime_enabled: req.auth?.admin === true && realtimeEnabled === true,
         // Gastbeiträge (nur Lebenswerk): schon beim Anlegen aktivierbar, damit der
         // Manager Buch-Link und Gast-Link in einem Zug bekommt. Der Gast-Code ist ein
         // EIGENES Geheimnis (der Buch-Code allein öffnet den Endnutzer-Bereich) und
@@ -917,7 +921,10 @@ module.exports = async function handler(req, res) {
         if ('handsFree' in meta)     update.hands_free = meta.handsFree !== false
         if ('micManualStop' in meta) update.mic_manual_stop = meta.micManualStop === true
         if ('micModeSwitch' in meta) update.mic_mode_switch = meta.micModeSwitch !== false
-        if ('realtimeEnabled' in meta) update.realtime_enabled = meta.realtimeEnabled === true
+        // Nur der Superadmin (siehe Anlage oben). Bei allen anderen wird das Feld
+        // stillschweigend ignoriert — ein Manager kann das Live-Gespräch weder
+        // ein- noch ausschalten.
+        if ('realtimeEnabled' in meta && req.auth?.admin === true) update.realtime_enabled = meta.realtimeEnabled === true
         if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
         // Gastbeiträge (nur Lebenswerk): Der Gast-Link ist ein EIGENES Geheimnis.
         // Der Code wird beim ERSTEN Einschalten erzeugt und danach behalten —
