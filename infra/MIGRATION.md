@@ -80,6 +80,12 @@ und für `DEMO_BOOK_URL` der volle PDF-Blob-Link.
 export AZURE_OPENAI_ENDPOINT=... AZURE_OPENAI_KEY=... AZURE_OPENAI_DEPLOYMENT=gpt-4.1
 export AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=westeurope
 export AZURE_FLUX_ENDPOINT=... AZURE_FLUX_KEY=...
+# Live-Sprachgespräch (optional). EIGENE Ressource in Sweden Central – Voice Live
+# gibt es in der EU nur dort. Angelegt am 2026-07-28 als `lebenswerk-voicelive`:
+#   az cognitiveservices account create -n lebenswerk-voicelive -g lebenswerk-rg \
+#     -l swedencentral --kind AIServices --sku S0 --custom-domain lebenswerk-voicelive
+export AZURE_VOICELIVE_ENDPOINT=https://lebenswerk-voicelive.services.ai.azure.com
+export AZURE_VOICELIVE_KEY=...   # az cognitiveservices account keys list -n lebenswerk-voicelive -g lebenswerk-rg --query key1 -o tsv
 export ADMIN_USERNAME=... ADMIN_PASSWORD=... ADMIN_TOKEN_SECRET=...
 export CRON_SECRET=... USD_TO_EUR=0.92 RETENTION_DAYS=90
 export PUBLIC_BASE_URL="https://lebensgeschichten.ai"
