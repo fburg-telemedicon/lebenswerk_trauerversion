@@ -19,6 +19,23 @@ import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
 import { S, PartnerBanner, Dots, Err, Lbl, FooterVisibilityCtx } from './ui.jsx'
 import { useSupport } from './support.jsx'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
+import { startVoiceLive } from './voicelive.js'
+
+// Warum das Live-Gespräch nicht (mehr) läuft — als ruhiger Satz, nie als Fehler:
+// die Person erzählt einfach im gewohnten Mikrofon-Modus weiter.
+function liveFallbackNote(lang, reason) {
+  const en = String(lang || '').startsWith('en')
+  if (reason === 'mic_denied') {
+    return en ? 'Without microphone access the live conversation cannot start — you can still type or use the microphone button.'
+              : 'Ohne Mikrofon-Freigabe kann das Live-Gespräch nicht starten — Tippen und der Mikrofon-Knopf funktionieren weiterhin.'
+  }
+  if (reason === 'budget') {
+    return en ? 'The live conversation is not available for this book at the moment.'
+              : 'Das Live-Gespräch steht für dieses Buch gerade nicht zur Verfügung.'
+  }
+  return en ? 'The live conversation ended. You can carry on as usual with the microphone.'
+            : 'Das Live-Gespräch wurde beendet. Sie können wie gewohnt mit dem Mikrofon weitererzählen.'
+}
 
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
@@ -350,9 +367,13 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // Buch-Standard aus hands_free/mic_manual_stop; darf der Nutzer wechseln (mic_mode_switch),
   // überschreibt seine Wahl (`micMode`) den Standard. `handsFree` = „Mikro öffnet automatisch"
   // (auto ODER hybrid); `micManualStop` = hybrid. Im Co-Interview bleibt es manuell.
+  //  • Live-Gespräch  : live  → durchgehende Sprachverbindung (Azure Voice Live),
+  //    nur wenn der Manager sie für dieses Buch freigeschaltet hat. NIE Standard:
+  //    `bookMode` kann nie 'live' werden, es braucht immer die Wahl der Person.
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
-  const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid') ? micMode : bookMode
-  const handsFree = effMode !== 'manual' && !companionOn
+  const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid' || micMode === 'live') ? micMode : bookMode
+  const liveMode = effMode === 'live' && memorial?.realtime_enabled === true && !companionOn
+  const handsFree = !liveMode && effMode !== 'manual' && !companionOn
   const micManualStop = handsFree && effMode === 'hybrid'
   // Aktuelle Modus-Werte zusätzlich in Refs spiegeln, damit asynchrone Stellen
   // (autoListen nach der Frage, der Silence-Timer der laufenden Aufnahme) IMMER den
@@ -469,6 +490,58 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // ein, damit der Nutzer das Gespräch antippen und fortsetzen kann. Sobald wieder
   // aufgenommen wird, wird es automatisch ausgeblendet.
   const [handsFreeIdle, setHandsFreeIdle] = useState(false)
+
+  // ── Live-Sprachgespräch (4. Modus) ───────────────────────────────
+  // Eine durchgehende Sprachverbindung statt der Kette Aufnehmen → Erkennen →
+  // Antworten → Vorlesen. Scheitert sie (Sprache nicht abgedeckt, Verbindung,
+  // Mikrofon verweigert, Server nicht konfiguriert), fällt der Modus still auf
+  // die bewährten Mikrofon-Modi zurück — ein Interview darf daran nie hängen.
+  const [liveFailed, setLiveFailed] = useState(false)
+  const [liveStatus, setLiveStatus] = useState('off')   // off | connecting | listening | speaking
+  const [liveNote,   setLiveNote]   = useState('')
+  const liveRef = useRef(null)
+  const liveOn = liveMode && !liveFailed
+  // Modus gewechselt → einen früheren Fehlschlag vergessen (neuer Versuch erlaubt).
+  useEffect(() => { setLiveFailed(false); setLiveNote('') }, [effMode])
+
+  useEffect(() => {
+    if (!liveOn || !active || expired) return
+    let cancelled = false
+    setLiveStatus('connecting')
+    ;(async () => {
+      // Exakt derselbe Interview-Prompt wie im Mikrofon-Modus (siehe askInitial/
+      // sendAnswer) — der Live-Modus ist ein anderer TRANSPORT, keine andere Rolle.
+      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+      const stopWith = (note) => {
+        if (cancelled) return
+        liveRef.current = null
+        setLiveStatus('off'); setLiveNote(note); setLiveFailed(true)
+      }
+      const session = await startVoiceLive({
+        memorialCode: memorial?.id,
+        language: lang,
+        instructions: sys,
+        history: messagesRef.current,
+        onReady:  () => { if (!cancelled) { setLiveStatus('listening'); setLiveNote('') } },
+        onState:  s  => { if (!cancelled) setLiveStatus(s.speaking ? 'speaking' : 'listening') },
+        // Jede fertige Äußerung landet in derselben messages-Struktur wie im
+        // Mikrofon-Modus und wird sofort persistiert — Buchgenerierung, Exporte
+        // und der Wiederaufnahme-Link bleiben dadurch unverändert.
+        onUserText: text => {
+          const m = [...messagesRef.current, { role: 'user', content: text, speaker: 'self' }]
+          applyMessages(m); setRound(r => r + 1); onSave?.(m)
+        },
+        onAiText: text => {
+          const m = [...messagesRef.current, { role: 'assistant', content: text }]
+          applyMessages(m); onSave?.(m)
+        },
+        onFallback: reason => stopWith(liveFallbackNote(lang, reason)),
+      })
+      if (cancelled) { session?.stop?.(); return }
+      if (session) liveRef.current = session
+    })()
+    return () => { cancelled = true; try { liveRef.current?.stop?.() } catch {} ; liveRef.current = null; setLiveStatus('off') }
+  }, [liveOn, active, expired]) // eslint-disable-line
   useEffect(() => {
     if (!navigator.permissions?.query) return
     let live = true, permStatus = null
@@ -494,7 +567,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [messages])
-  useEffect(() => { if (messages.length === 0) loadFirst() }, [])
+  // Erste Frage holen — im Live-Gespräch NICHT: dort stellt sie die offene
+  // Verbindung selbst (sonst stünde die Frage doppelt im Transkript).
+  useEffect(() => { if (messages.length === 0 && !liveOn) loadFirst() }, []) // eslint-disable-line
 
   // Auto-Start: neue Frage sofort vorlesen
   useEffect(() => {
@@ -502,6 +577,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     if (last?.role === 'assistant' && !aiLoading) {
       // Nach abgelaufener Testzeit keine Sprachausgabe mehr.
       if (expired) return
+      // Im Live-Gespräch spricht die Verbindung selbst — die Frage zusätzlich per
+      // TTS vorzulesen hieße, sie doppelt zu hören.
+      if (liveOn) return
       // Nicht vorlesen, wenn der Interview-Tab gerade nicht sichtbar ist.
       if (!active) return
       // Nach Löschen/Neu einsprechen die (wiederhergestellte) Frage nicht erneut
@@ -518,7 +596,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const wasActiveRef = useRef(active)
   useEffect(() => {
     if (active && !wasActiveRef.current) {
-      if (!companionOn && !expired) {
+      if (!companionOn && !expired && !liveOn) {
         const last = [...messagesRef.current].reverse().find(m => m.role === 'assistant')
         if (last) playText(last.content)
       }
@@ -1062,7 +1140,32 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         {/* 4. MIKROFON — im Freisprech-Modus KEIN Button/Idle-Text: die App hört
             nach jeder Frage automatisch zu. Die Karte erscheint dann nur beim
             Aufnehmen/Verarbeiten, bei blockiertem Mikro oder im Begleit-Modus. */}
-        {!aiLoading && latestQ && (!handsFree || micManualStop || micState !== 'idle' || handsFreeIdle || micPerm === 'denied' || memorial?.companion_mode === true) && (
+        {/* LIVE-GESPRÄCH: kein Mikrofon-Knopf, kein Antippen — nur der Zustand der
+            laufenden Verbindung und ein Weg zurück zum gewohnten Modus. */}
+        {liveOn && !expired && (
+          <div style={{ ...S.card, textAlign:'center', padding:'1.1rem 1rem' }}>
+            <div aria-hidden="true" style={{ width:72, height:72, margin:'0 auto 12px', borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28,
+              background: liveStatus === 'speaking' ? '#eef2ff' : '#fee2e2',
+              border: `2px solid ${liveStatus === 'speaking' ? '#6366f1' : '#dc2626'}`,
+              animation: liveStatus === 'connecting' ? 'none' : 'lw-mic 1.8s ease-in-out infinite' }}>
+              {liveStatus === 'connecting' ? '⏳' : liveStatus === 'speaking' ? '🔊' : '🎙'}
+            </div>
+            <div style={{ fontSize:13.5, fontWeight:600, color: liveStatus === 'speaking' ? '#4f46e5' : '#dc2626', marginBottom:4 }}>
+              {String(lang || '').startsWith('en')
+                ? (liveStatus === 'connecting' ? 'Connecting …' : liveStatus === 'speaking' ? 'Speaking — feel free to interrupt' : 'Listening — just talk')
+                : (liveStatus === 'connecting' ? 'Verbindung wird aufgebaut …' : liveStatus === 'speaking' ? 'Ich spreche — Sie dürfen mich jederzeit unterbrechen' : 'Ich höre zu — sprechen Sie einfach')}
+            </div>
+            <div style={{ maxWidth:340, margin:'0 auto', fontSize:12.5, lineHeight:1.5, color:'#78716c' }}>
+              {String(lang || '').startsWith('en')
+                ? 'Live conversation: take as much time to think as you like — nothing is cut off.'
+                : 'Live-Gespräch: Denken Sie so lange nach, wie Sie möchten — es wird nichts abgeschnitten.'}
+            </div>
+          </div>
+        )}
+        {liveNote && (
+          <div style={{ ...S.card, padding:'.85rem 1rem', fontSize:13, lineHeight:1.55, color:'#78716c' }}>{liveNote}</div>
+        )}
+        {!liveOn && !aiLoading && latestQ && (!handsFree || micManualStop || micState !== 'idle' || handsFreeIdle || micPerm === 'denied' || memorial?.companion_mode === true) && (
           <div style={{ ...S.card, textAlign: 'center', padding: '1rem 1rem' }}>
             {companionOn ? (
               // Begleiteter Modus: zwei Mikrofone. Immer nur EINS aktiv — während
@@ -1811,8 +1914,14 @@ function SoundMicTest({ lang, onClose }) {
 function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
   const en = String(lang || '').startsWith('en')
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
-  const cur = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid') ? micMode : bookMode
+  const cur = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid' || micMode === 'live') ? micMode : bookMode
   const opts = [
+    // Vierter Modus, nur wenn der Manager ihn für dieses Buch freigeschaltet hat
+    // (realtime_enabled) — nie Standard, immer die bewusste Wahl der Person.
+    ...(memorial?.realtime_enabled === true ? [{ key:'live',
+      title: en ? 'Live conversation (beta)' : 'Live-Gespräch (Beta)',
+      sub: en ? 'One continuous conversation: talk freely, pause to think, and interrupt whenever you like — no tapping at all.'
+              : 'Ein durchgehendes Gespräch: frei sprechen, in Ruhe nachdenken und jederzeit dazwischenreden — ganz ohne Antippen.' }] : []),
     { key:'auto',   title: en ? 'Conduct conversation automatically' : 'Gespräch selbständig führen',
       sub: en ? 'The microphone opens after each question; a short pause sends your answer. No tapping.' : 'Das Mikrofon öffnet nach jeder Frage; eine kurze Sprechpause sendet Ihre Antwort. Kein Antippen.' },
     { key:'hybrid', title: en ? 'Opens automatically, you stop it' : 'Automatisch öffnen, selbst beenden',
@@ -3770,7 +3879,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               onPause={cur === 'interview' ? handlePause : null}
               onSupport={() => openSupportHere({ view: 'interview' })}
               onSwitchInterview={switchInterview}
-              onMicMode={(memorial?.mic_mode_switch !== false && !companionOn) ? () => setMicModeOpen(true) : null}
+              onMicMode={((memorial?.mic_mode_switch !== false || memorial?.realtime_enabled === true) && !companionOn) ? () => setMicModeOpen(true) : null}
               micModeLabel={String(L || '').startsWith('en') ? 'Microphone mode' : 'Mikrofon-Modus'}
               onSoundTest={() => setSoundTest(true)} />
             {soundTest && <SoundMicTest lang={L} onClose={() => setSoundTest(false)} />}

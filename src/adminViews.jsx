@@ -1004,6 +1004,26 @@ function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
   )
 }
 
+// Live-Sprachgespräch (Azure Voice Live) als VIERTER Aufnahme-Modus — Feature-Flag,
+// Standard AUS. Bewusst als eigener Schalter neben dem 3-Wege-Radio und nicht als
+// vierte Radio-Option: die drei bestehenden Modi bleiben in jedem Fall verfügbar
+// (Rückfall bei nicht abgedeckter Sprache, Verbindungsfehler oder fehlender
+// AZURE_VOICELIVE_*-Konfiguration). Der Modus kostet spürbar mehr als STT→LLM→TTS.
+function RealtimeToggle({ on, set, t }) {
+  return (
+    <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #e7e5e4' }}>
+      <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+        <input type="checkbox" checked={on === true} onChange={e => set(e.target.checked)} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+        <span style={{ fontSize:14 }}>{t('🗣 Live-Sprachgespräch zusätzlich anbieten (Beta)', '🗣 Additionally offer live voice conversation (beta)')}</span>
+      </label>
+      <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28, lineHeight:1.45 }}>
+        {t('Standard: aus. Die Person spricht dann in einem durchgehenden Gespräch mit der KI — ohne Mikrofon-Antippen, mit Denkpausen, und sie kann die KI unterbrechen. Ist die Strecke nicht verfügbar (Sprache nicht abgedeckt, Verbindung gestört, Server nicht konfiguriert), laufen automatisch die oben gewählten Mikrofon-Modi weiter. Achtung: deutlich höhere Kosten je Interviewminute.',
+           'Default: off. The person then talks with the AI in one continuous conversation — no tapping the microphone, thinking pauses allowed, and they can interrupt the AI. If it is unavailable (language not covered, connection issues, server not configured), the microphone modes selected above are used instead. Note: markedly higher cost per interview minute.')}
+      </p>
+    </div>
+  )
+}
+
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
     const t = useAdminT()
     const openSupport = useSupport()
@@ -1702,6 +1722,7 @@ export function CreateView({ createForm, busy, err, allowedSlugs, catalogs, logo
             <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: an. Im ☰-Menü erscheint dann der Punkt „Mikrofon-Modus", über den der Nutzer selbst zwischen den drei Modi wechseln kann.', 'Default: on. The ☰ menu then shows a “Microphone mode” item so the user can switch between the three modes themselves.')}</p>
+          <RealtimeToggle on={createForm.realtimeEnabled === true} set={v => setCreateForm({ ...createForm, realtimeEnabled: v })} t={t} />
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -3302,6 +3323,7 @@ export function DetailView({ setGuestStatus, guestPendingCount = 0, selected, ca
                     <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: an (Menüpunkt „Mikrofon-Modus"). Greift beim nächsten (Neu-)Start des Interviews.', 'Default: on (“Microphone mode” menu item). Applies at the next (re)start of the interview.')}</p>
+                  <RealtimeToggle on={od.realtimeEnabled === true} set={v => setOd({ realtimeEnabled: v })} t={t} />
                 </div>
                 {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>

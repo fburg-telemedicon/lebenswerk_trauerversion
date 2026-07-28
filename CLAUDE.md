@@ -30,6 +30,7 @@ Set on the Container App (via `infra/deploy.sh`) and in a local `.env` for `node
 | `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | **Required — sole TTS + STT (EU), no fallback.** Azure AI Speech (Neural TTS in `speak.js`, Fast Transcription in `transcribe.js`); region e.g. `westeurope`. Optional: `AZURE_SPEECH_TTS_VOICE` (default `de-DE-KatjaNeural`), `AZURE_SPEECH_TTS_RATE` (default `+6%`), `AZURE_SPEECH_ENDPOINT`. |
 | `AZURE_FLUX_ENDPOINT` / `AZURE_FLUX_KEY` | **Required for image generation** — FLUX.2 [pro] via Microsoft Foundry is the **only** image module. Foundry resource endpoint + key. Optional: `AZURE_FLUX_MODEL` (default `FLUX.2-pro`), `AZURE_FLUX_MODEL_PATH` (default `flux-2-pro`), `AZURE_FLUX_API_VERSION` (default `preview`). |
 | `AZURE_FLUX_IMG2IMG` | **Optional feature flag — image-to-image (person likeness).** If truthy, `generate-image.js` attaches an uploaded reference photo (base64) so generated people resemble the real photo, placed in the chapter's era. On error it automatically retries text-to-image. `AZURE_FLUX_IMG2IMG_FIELD` (default `input_image`) names the request body field. Only reference photos whose upload consent covers AI processing are ever passed (gated client-side). |
+| `AZURE_VOICELIVE_ENDPOINT` / `AZURE_VOICELIVE_KEY` | **Optional — live voice conversation (Azure AI Speech „Voice Live"), the 4th microphone mode.** Needs its **own resource in Sweden Central** — the only Voice Live region in the EU (`westeurope` is *not* supported). Unset ⇒ the relay is not attached and the mode never appears (contributors keep the existing mic modes). Optional: `AZURE_VOICELIVE_CHAT_MODEL` (default `gpt-4.1` — **must be a DataZone-EU or regional deployment, never `Global`**, otherwise Azure processes worldwide), `AZURE_VOICELIVE_API_VERSION` (default `2026-04-10`). |
 | `DEMO_BOOK_URL` | Full blob URL of the demo book PDF; `server.js` redirects `/demobuch` there. |
 | `VITE_PUBLIC_ASSET_BASE` | **Build time.** Blob storage base URL (`https://<acct>.blob.core.windows.net`), baked into the SPA by Vite (intro video). Passed as a Docker `--build-arg` by the deploy workflow. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` | Admin login. **No defaults** — if any is unset, every login is refused (503). `ADMIN_TOKEN_SECRET` is a long random string used to HMAC-sign session tokens. |
@@ -84,6 +85,14 @@ Two namespaces:
 
 - **Public** (`/api/ask`, `/api/contributions`, `/api/memorial`, `/api/speak`, `/api/transcribe`, `/api/upload`, `/api/feedback`, `/api/pdf`, …) — no auth, called from the contributor flow, rate-limited, and gated on a valid existing `code` so they cannot be abused as an anonymous AI proxy (`api/_lib/access.js`).
 - **Admin** (`/api/admin/*`) — `checkAuth(req, res)` verifies an `Authorization: Bearer <token>` (HMAC-SHA256-signed payload with a 12 h expiry). The frontend treats 401 as an expired session and logs out.
+
+### Live voice conversation (Voice Live) — the only WebSocket route
+
+`server.js` creates an `http.Server` and attaches a **WebSocket relay** at `/api/voicelive-relay` (`api/_lib/voicelive-relay.js`) — the one endpoint that is *not* a file under `api/`, because it is an upgrade handler, not an HTTP handler. It is only attached when `AZURE_VOICELIVE_*` and `ADMIN_TOKEN_SECRET` are set.
+
+Never let the browser talk to Azure Voice Live directly: a browser WebSocket cannot send an `Authorization` header (Microsoft's samples put the resource key in the query string), and the browser-recommended **WebRTC path routes globally** — both break the EU-only requirement. The relay keeps the key server-side, pins the session to Sweden Central, builds the whole `session.update` itself (the client may only supply the interview prompt, exactly like `system` on `/api/ask`) and filters client→upstream messages against an allowlist. Flow: `POST /api/voicelive-token` (checks code, `realtime_enabled`, budget, language) → signed short-lived ticket → `wss://…/api/voicelive-relay?ticket=…`. Usage from each `response.done` is billed via `costRealtime` (`kind='realtime'`).
+
+The mode is **opt-in twice**: `memorials.realtime_enabled` (manager, default off) *and* the contributor picking it in the ☰ microphone-mode chooser. Any failure falls back silently to the existing mic modes — `src/voicelive.js` calls `onFallback` and `contributor.jsx` keeps going. It produces the same `contributions.messages` structure, so nothing downstream changes.
 
 ### Crons
 

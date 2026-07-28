@@ -118,5 +118,24 @@ if (fs.existsSync(DIST)) {
   console.warn('dist/ fehlt – SPA wird nicht ausgeliefert (nur API).')
 }
 
+// ---------------------------------------------------------------------------
+// HTTP-Server + WebSocket-Relay fürs Live-Sprachgespräch
+// ---------------------------------------------------------------------------
+// Der Relay braucht den rohen HTTP-Server (Upgrade-Ereignis), deshalb hier
+// http.createServer(app) statt app.listen(). Ohne konfigurierte Voice-Live-
+// Ressource wird er nicht angehängt — der Beitragenden-Flow merkt davon nichts
+// und bleibt bei den bisherigen Mikrofon-Modi.
+const http = require('http')
+const server = http.createServer(app)
+
+const { isVoiceLiveConfigured } = require('./api/_lib/voicelive')
+if (isVoiceLiveConfigured() && process.env.ADMIN_TOKEN_SECRET) {
+  const { attachVoiceLiveRelay, RELAY_PATH } = require('./api/_lib/voicelive-relay')
+  attachVoiceLiveRelay(server)
+  console.log(`Live-Sprachgespräch: Relay aktiv auf ${RELAY_PATH}`)
+} else {
+  console.log('Live-Sprachgespräch: nicht konfiguriert (AZURE_VOICELIVE_* fehlt) – Relay aus.')
+}
+
 const PORT = Number(process.env.PORT || 8080)
-app.listen(PORT, () => console.log(`Lebenswerk-Server läuft auf :${PORT}`))
+server.listen(PORT, () => console.log(`Lebenswerk-Server läuft auf :${PORT}`))

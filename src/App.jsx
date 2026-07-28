@@ -203,6 +203,7 @@ const EMPTY_CREATE = {
   handsFree: true,                   // Mikro öffnet automatisch (alle Produkte, Default AN)
   micManualStop: true,               // Mischform = STANDARD: Mikro öffnet automatisch, der Erzähler beendet selbst per Tippen (kein Stopp durch Sprechpause — man darf beliebig lange überlegen)
   micModeSwitch: true,               // Nutzer darf den Mikrofon-Modus im Interview selbst umschalten (Default AN)
+  realtimeEnabled: false,            // Live-Sprachgespräch (Azure Voice Live) als 4. Mikrofon-Modus — Feature-Flag, Default AUS
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
@@ -914,6 +915,7 @@ function Dashboard() {
       handsFree: m.hands_free !== false,
       micManualStop: m.mic_manual_stop === true,
       micModeSwitch: m.mic_mode_switch !== false,
+      realtimeEnabled: m.realtime_enabled === true,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       guestEnabled: m.guest_enabled === true,
@@ -972,6 +974,7 @@ function Dashboard() {
         handsFree: d.handsFree !== false,
         micManualStop: d.micManualStop === true,
         micModeSwitch: d.micModeSwitch !== false,
+        realtimeEnabled: d.realtimeEnabled === true,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
@@ -1010,6 +1013,7 @@ function Dashboard() {
         hands_free: d.handsFree !== false,
         mic_manual_stop: d.micManualStop === true,
         mic_mode_switch: d.micModeSwitch !== false,
+        realtime_enabled: d.realtimeEnabled === true,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
@@ -1186,6 +1190,7 @@ function Dashboard() {
         handsFree: createForm.handsFree !== false,
         micManualStop: createForm.micManualStop === true,
         micModeSwitch: createForm.micModeSwitch !== false,
+        realtimeEnabled: createForm.realtimeEnabled === true,
         proofEnabled: createForm.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
         showOnboarding: createForm.showOnboarding !== false,

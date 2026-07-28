@@ -29,7 +29,7 @@ const SIGNED_URL_TTL = 3600 // 1 h
 const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, book_v2, eulogy_text, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, product_category, owner_user, intake, languages, note, pickup_address, content_reports, purge_info, catalog_id, followups, uploaded_images, created_at, image_style, book_layout'
 // family_tree/life_poster: die Nebenprodukte des Lebenswerks. Fehlen die Spalten
 // (Migration noch nicht gelaufen), fällt der GET auf SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, guest_enabled, guest_code`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -565,7 +565,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, guestEnabled } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, realtimeEnabled, guestEnabled } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -684,6 +684,10 @@ module.exports = async function handler(req, res) {
         mic_manual_stop: micManualStop !== false,
         // Darf der Nutzer den Mikrofon-Modus im Interview selbst umschalten? Default AN.
         mic_mode_switch: micModeSwitch !== false,
+        // Live-Sprachgespräch (Azure Voice Live) als zusätzlicher Mikrofon-Modus.
+        // Default AUS — Feature-Flag: die Strecke braucht eine eigene Sweden-Central-
+        // Ressource (AZURE_VOICELIVE_*) und kostet spürbar mehr als STT→LLM→TTS.
+        realtime_enabled: realtimeEnabled === true,
         // Gastbeiträge (nur Lebenswerk): schon beim Anlegen aktivierbar, damit der
         // Manager Buch-Link und Gast-Link in einem Zug bekommt. Der Gast-Code ist ein
         // EIGENES Geheimnis (der Buch-Code allein öffnet den Endnutzer-Bereich) und
@@ -695,7 +699,7 @@ module.exports = async function handler(req, res) {
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|guest_enabled|guest_code|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|realtime_enabled|guest_enabled|guest_code|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
@@ -705,6 +709,7 @@ module.exports = async function handler(req, res) {
         delete insertRow.hands_free
         delete insertRow.mic_manual_stop
         delete insertRow.mic_mode_switch
+        delete insertRow.realtime_enabled
         delete insertRow.show_contributors
         delete insertRow.proof_enabled
         delete insertRow.proof_max
@@ -912,6 +917,7 @@ module.exports = async function handler(req, res) {
         if ('handsFree' in meta)     update.hands_free = meta.handsFree !== false
         if ('micManualStop' in meta) update.mic_manual_stop = meta.micManualStop === true
         if ('micModeSwitch' in meta) update.mic_mode_switch = meta.micModeSwitch !== false
+        if ('realtimeEnabled' in meta) update.realtime_enabled = meta.realtimeEnabled === true
         if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
         // Gastbeiträge (nur Lebenswerk): Der Gast-Link ist ein EIGENES Geheimnis.
         // Der Code wird beim ERSTEN Einschalten erzeugt und danach behalten —
@@ -937,7 +943,7 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|guest_enabled|guest_code|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|realtime_enabled|guest_enabled|guest_code|column/i.test(error.message || '')) {
           delete update.guest_enabled
           delete update.guest_code
           delete update.image_style
@@ -949,6 +955,7 @@ module.exports = async function handler(req, res) {
           delete update.hands_free
           delete update.mic_manual_stop
           delete update.mic_mode_switch
+          delete update.realtime_enabled
           delete update.show_contributors
           delete update.proof_enabled
           delete update.proof_max
