@@ -21,6 +21,26 @@ import { useSupport } from './support.jsx'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { startVoiceLive } from './voicelive.js'
 
+// Zusatzregel NUR fürs Live-Gespräch. Dort geht die Ausgabe des Modells ohne
+// Zwischenschritt in die Sprachausgabe — es wird also WÖRTLICH vorgelesen, was
+// das Modell schreibt. Im Mikrofon-Modus entfernt `toAssistantMsg` vorher den
+// Positionsmarker und `stripForSpeech` (api/speak.js) die Emojis; beides gibt es
+// hier nicht. Ohne diese Regel las die Stimme „[[K2.1]]" mit und verhaspelte
+// sich hörbar daran („D.E. Demia Instekcode zum Punkt 1 …").
+//
+// Preis dieser Regel: Ohne Marker kann die Katalog-Position während des
+// Live-Gesprächs nicht mitgezählt werden („Frage 3 von 10" bleibt stehen).
+// Sauber lösen ließe sich das später über Function-Calling — dann meldet das
+// Modell seine Position über einen Werkzeugaufruf statt im gesprochenen Text.
+const LIVE_SPEECH_RULE = `
+
+WICHTIG — GESPROCHENES GESPRÄCH: Deine Antwort wird unverändert und sofort laut vorgelesen.
+Gib deshalb AUSSCHLIESSLICH den Wortlaut aus, den die Person hören soll:
+- KEINE Positionsmarker und keine eckigen Klammern (also niemals [[K1.2]] oder [[ENDE]]).
+- KEINE Emojis, Sternchen, Aufzählungszeichen, Überschriften oder sonstige Formatierung.
+- Keine Meta-Hinweise über dich selbst oder das Format.
+Sprich in ganzen, natürlich klingenden Sätzen, wie im persönlichen Gespräch.`
+
 // Warum das Live-Gespräch nicht (mehr) läuft — als ruhiger Satz, nie als Fehler:
 // die Person erzählt einfach im gewohnten Mikrofon-Modus weiter.
 function liveFallbackNote(lang, reason) {
@@ -523,7 +543,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     ;(async () => {
       // Exakt derselbe Interview-Prompt wie im Mikrofon-Modus (siehe askInitial/
       // sendAnswer) — der Live-Modus ist ein anderer TRANSPORT, keine andere Rolle.
-      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang)
+      const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender) + langDirective(lang) + LIVE_SPEECH_RULE
       const stopWith = (note) => {
         if (cancelled) return
         liveRef.current = null
@@ -537,7 +557,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         memorialCode: memorial?.id,
         language: lang,
         instructions: sys,
-        history: messagesRef.current,
+        // Mit Markern übergeben: Das Modell braucht sie, um seine Stelle im
+        // Fragebogen zu kennen (genau wie im Mikrofon-Modus, siehe withPosMarkers).
+        // Ausgeben soll es sie trotzdem nicht — dafür sorgt LIVE_SPEECH_RULE.
+        history: withPosMarkers(messagesRef.current),
         onReady:  () => { if (!cancelled) { setLiveStatus('listening'); setLiveNote('') } },
         onStream: s  => { if (!cancelled) setLiveStream(s) },
         onAudioBlocked: b => { if (!cancelled) setLiveMuted(b === true) },
@@ -550,7 +573,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           applyMessages(m); setRound(r => r + 1); onSave?.(m)
         },
         onAiText: text => {
-          const m = [...messagesRef.current, { role: 'assistant', content: text }]
+          // Durch dieselbe Aufbereitung wie im Mikrofon-Modus: Hält sich das
+          // Modell trotz LIVE_SPEECH_RULE nicht an die Vorgabe, landet der Marker
+          // wenigstens nicht im gespeicherten Text (und damit nicht im Buch) —
+          // seine Positionsangabe bleibt als `pos` erhalten.
+          const m = [...messagesRef.current, toAssistantMsg(text)]
           applyMessages(m); onSave?.(m)
         },
         onFallback: reason => stopWith(liveFallbackNote(lang, reason)),
