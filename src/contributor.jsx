@@ -1258,6 +1258,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             <div aria-hidden="true" style={{ width:72, height:72, margin:'0 auto 12px', borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28,
               background: liveStatus === 'speaking' ? '#eef2ff' : '#fee2e2',
               border: `2px solid ${liveStatus === 'speaking' ? '#6366f1' : '#dc2626'}`,
+              // Pulsierender Ring in derselben Farbe wie Rand und Fläche —
+              // Indigo, während die KI spricht, sonst Rot fürs Zuhören.
+              '--lw-mic-rgb': liveStatus === 'speaking' ? '99,102,241' : '239,68,68',
               animation: liveStatus === 'connecting' ? 'none' : 'lw-mic 1.8s ease-in-out infinite' }}>
               {liveStatus === 'connecting' ? '⏳' : liveStatus === 'speaking' ? '🔊' : '🎙'}
             </div>
@@ -2145,13 +2148,13 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
             )}
             {onPause && (<>
               <div style={sep} />
-              <button onClick={() => { setOpen(false); onPause() }} style={{ ...row, color:'#78716c' }}>
+              <button onClick={() => { setOpen(false); onPause() }} style={row}>
                 <span style={{ fontSize:19 }}>⏸️</span><span>{t.pauseEnd || 'Später fortsetzen oder beenden'}</span>
               </button>
             </>)}
             {onSupport && (<>
               <div style={sep} />
-              <button onClick={() => { setOpen(false); onSupport() }} style={{ ...row, color:'#78716c' }}>
+              <button onClick={() => { setOpen(false); onSupport() }} style={row}>
                 <span style={{ fontSize:19 }}>✉️</span><span>{t.supportButton || 'Support kontaktieren'}</span>
               </button>
             </>)}
@@ -2159,7 +2162,7 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
                 um den gemerkten Code zu verwerfen (z. B. auf einem geteilten Gerät). */}
             {onSwitchInterview && (<>
               <div style={sep} />
-              <button onClick={() => { setOpen(false); onSwitchInterview() }} style={{ ...row, color:'#78716c' }}>
+              <button onClick={() => { setOpen(false); onSwitchInterview() }} style={row}>
                 <span style={{ fontSize:19 }}>🔄</span><span>{t.switchInterview || 'Anderes Interview / das bin nicht ich'}</span>
               </button>
             </>)}

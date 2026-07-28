@@ -3840,7 +3840,10 @@ export default function App() {
       <style>{`
         @keyframes lw-dot { 0%,100%{opacity:.3} 50%{opacity:1} }
         @keyframes lw-spin { to{transform:rotate(360deg)} }
-        @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
+        /* Ringfarbe über --lw-mic-rgb steuerbar (Standard Rot = Aufnahme). Das
+           Live-Gespräch setzt sie auf Indigo, wenn die KI spricht — sonst pulste
+           ein roter Ring um ein blaues Mikrofon. */
+        @keyframes lw-mic  { 0%,100%{box-shadow:0 0 0 0 rgba(var(--lw-mic-rgb,239,68,68),.3)} 50%{box-shadow:0 0 0 14px rgba(var(--lw-mic-rgb,239,68,68),0)} }
       `}</style>
       <SupportProvider>
         <FooterVisibilityCtx.Provider value={setHideFooter}>
