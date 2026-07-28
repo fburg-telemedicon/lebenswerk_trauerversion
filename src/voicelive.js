@@ -48,6 +48,36 @@ class MicTap extends AudioWorkletProcessor {
 registerProcessor('mic-tap', MicTap)
 `
 
+// Auf 24 kHz umrechnen, FALLS der Browser den gewünschten AudioContext-Takt nicht
+// übernommen hat. `new AudioContext({sampleRate})` ist ein WUNSCH — manche Browser
+// (und iOS) liefern trotzdem den Gerätetakt, meist 48 kHz. Schickt man solche
+// Blöcke ungerechnet als „pcm16 @ 24 kHz" hoch, hört der Dienst doppelt so schnell
+// gesprochenen Kauderwelsch und erkennt schlicht nichts. Lineare Interpolation
+// genügt für Sprache; `carry` hält den letzten Wert über die Blockgrenze, sonst
+// knackt es alle 100 ms.
+function makeResampler(fromRate, toRate) {
+  if (!fromRate || fromRate === toRate) return f => f
+  const ratio = fromRate / toRate
+  let pos = 0
+  let carry = 0
+  return (input) => {
+    const out = new Float32Array(Math.max(0, Math.floor((input.length - pos) / ratio) + 1))
+    let n = 0
+    while (pos < input.length && n < out.length) {
+      const i = Math.floor(pos)
+      const frac = pos - i
+      const a = i === 0 ? carry : input[i - 1]
+      const b = input[i]
+      out[n++] = a + (b - a) * frac
+      pos += ratio
+    }
+    carry = input[input.length - 1] || 0
+    pos -= input.length
+    if (pos < 0) pos = 0
+    return n === out.length ? out : out.subarray(0, n)
+  }
+}
+
 function floatToPcm16(float32) {
   const out = new Int16Array(float32.length)
   for (let i = 0; i < float32.length; i++) {
@@ -120,7 +150,7 @@ class Player {
 //                                schaltet auf die Mikrofon-Modi zurück
 export async function startVoiceLive({
   memorialCode, contributionId, language, instructions, history = [],
-  onReady, onUserText, onAiText, onAiPartial, onState, onFallback,
+  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream,
 }) {
   const messages = []
   let ws = null, ctx = null, stream = null, node = null, srcNode = null
@@ -181,6 +211,10 @@ export async function startVoiceLive({
     const mute = ctx.createGain()
     mute.gain.value = 0
     node.connect(mute).connect(ctx.destination)
+    // Der aufrufende Flow zeigt daraus die Schallwellen-Animation — die einzige
+    // Rückmeldung, an der eine erzählende Person sieht, dass ihr Mikrofon
+    // überhaupt etwas aufnimmt.
+    onStream?.(stream)
   } catch (e) {
     // Mikrofon verweigert / kein AudioWorklet (sehr alte Browser) → Rückfall.
     cleanup()
@@ -279,12 +313,17 @@ export async function startVoiceLive({
 
   // 4) Mikrofon-Blöcke hochschicken. Die Sprechpausen-/Satzende-Erkennung macht
   //    der Dienst (semantische VAD) — der Client sendet einfach durchgehend.
+  const resample = makeResampler(ctx.sampleRate, SAMPLE_RATE)
+  if (ctx.sampleRate !== SAMPLE_RATE) {
+    console.warn(`Voice Live: AudioContext läuft mit ${ctx.sampleRate} Hz statt ${SAMPLE_RATE} Hz — es wird umgerechnet.`)
+  }
   node.port.onmessage = (e) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    const pcm = floatToPcm16(e.data)
+    const pcm = floatToPcm16(resample(e.data))
+    if (!pcm.length) return
     ws.send(JSON.stringify({
       type: 'input_audio_buffer.append',
-      audio: toBase64(new Uint8Array(pcm.buffer)),
+      audio: toBase64(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)),
     }))
   }
 

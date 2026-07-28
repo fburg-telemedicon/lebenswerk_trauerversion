@@ -499,6 +499,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [liveFailed, setLiveFailed] = useState(false)
   const [liveStatus, setLiveStatus] = useState('off')   // off | connecting | listening | speaking
   const [liveNote,   setLiveNote]   = useState('')
+  const [liveStream, setLiveStream] = useState(null)     // für die Schallwellen-Animation
   const liveRef = useRef(null)
   const liveOn = liveMode && !liveFailed
   // Modus gewechselt → einen früheren Fehlschlag vergessen (neuer Versuch erlaubt).
@@ -515,7 +516,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       const stopWith = (note) => {
         if (cancelled) return
         liveRef.current = null
-        setLiveStatus('off'); setLiveNote(note); setLiveFailed(true)
+        setLiveStatus('off'); setLiveNote(note); setLiveStream(null); setLiveFailed(true)
+        // Beim Start wird `loadFirst()` im Live-Modus bewusst übersprungen (die
+        // Verbindung stellt die erste Frage selbst). Scheitert sie, stünde das
+        // Interview ohne jede Frage da — deshalb hier nachholen.
+        if (messagesRef.current.length === 0) loadFirst()
       }
       const session = await startVoiceLive({
         memorialCode: memorial?.id,
@@ -523,6 +528,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         instructions: sys,
         history: messagesRef.current,
         onReady:  () => { if (!cancelled) { setLiveStatus('listening'); setLiveNote('') } },
+        onStream: s  => { if (!cancelled) setLiveStream(s) },
         onState:  s  => { if (!cancelled) setLiveStatus(s.speaking ? 'speaking' : 'listening') },
         // Jede fertige Äußerung landet in derselben messages-Struktur wie im
         // Mikrofon-Modus und wird sofort persistiert — Buchgenerierung, Exporte
@@ -540,7 +546,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       if (cancelled) { session?.stop?.(); return }
       if (session) liveRef.current = session
     })()
-    return () => { cancelled = true; try { liveRef.current?.stop?.() } catch {} ; liveRef.current = null; setLiveStatus('off') }
+    return () => { cancelled = true; try { liveRef.current?.stop?.() } catch {} ; liveRef.current = null; setLiveStatus('off'); setLiveStream(null) }
   }, [liveOn, active, expired]) // eslint-disable-line
   useEffect(() => {
     if (!navigator.permissions?.query) return
@@ -1150,6 +1156,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               animation: liveStatus === 'connecting' ? 'none' : 'lw-mic 1.8s ease-in-out infinite' }}>
               {liveStatus === 'connecting' ? '⏳' : liveStatus === 'speaking' ? '🔊' : '🎙'}
             </div>
+            {liveStream && liveStatus !== 'connecting' && (
+              <div style={{ maxWidth:320, margin:'0 auto 10px' }}>
+                <Waveform stream={liveStream} color={liveStatus === 'speaking' ? '#6366f1' : '#dc2626'} />
+              </div>
+            )}
             <div style={{ fontSize:13.5, fontWeight:600, color: liveStatus === 'speaking' ? '#4f46e5' : '#dc2626', marginBottom:4 }}>
               {String(lang || '').startsWith('en')
                 ? (liveStatus === 'connecting' ? 'Connecting …' : liveStatus === 'speaking' ? 'Speaking — feel free to interrupt' : 'Listening — just talk')
@@ -1244,11 +1255,16 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               <Lbl>{t.questionLabel}</Lbl>
               <p style={{ fontSize: 17, lineHeight: 1.75, fontStyle: 'italic', margin: '0 0 0.75rem', color: '#292524' }}>{latestQ}</p>
             </>}
-            <button onClick={handleSpeak} disabled={ttsLoading || aiLoading || expired} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: expired ? 0.5 : 1 }}>
-              {ttsLoading
-                ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
-                : isPlaying ? t.stop : hasPlayed ? t.readAgain : t.listen}
-            </button>
+            {/* Im Live-Gespräch spricht die Verbindung selbst — ein zweiter
+                Vorlese-Knopf würde dieselbe Frage über den alten TTS-Weg noch
+                einmal erzeugen: langsam, doppelt zu hören und zusätzlich kostenpflichtig. */}
+            {!liveOn && (
+              <button onClick={handleSpeak} disabled={ttsLoading || aiLoading || expired} style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, opacity: expired ? 0.5 : 1 }}>
+                {ttsLoading
+                  ? <><span style={{ width:14,height:14,border:'2px solid currentColor',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'lw-spin .8s linear infinite' }} /> {t.loadingShort}</>
+                  : isPlaying ? t.stop : hasPlayed ? t.readAgain : t.listen}
+              </button>
+            )}
           </div>
         )}
         {/* 5. NÄCHSTE FRAGE */}
