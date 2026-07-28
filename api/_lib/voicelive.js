@@ -187,17 +187,29 @@ function verifyTicket(ticket) {
 // Gespräch, die Fortschrittsanzeige bekommt trotzdem ihre Zahlen.
 //
 // Steht bewusst serverseitig: Der Browser darf die Sitzung nicht umkonfigurieren.
+// NUR beim Wechsel auf eine neue Katalogfrage, NICHT bei jeder Äußerung.
+//
+// Gemessen: Das Modell beantwortet einen Werkzeugaufruf mit einer REINEN
+// Aufruf-Runde, ohne zu sprechen — die gesprochene Frage braucht dann eine
+// zweite Runde. Bei jeder Frage aufgerufen kostete das doppelte Wartezeit und
+// doppelten Textkontext (der Hauptkostentreiber). Die Anweisung „zusätzlich
+// zur Antwort, niemals statt ihr" hat daran nichts geändert — gegen ein Modell
+// anzuprompten ist unzuverlässig.
+//
+// Deshalb die bewusste Abwägung (Nutzerentscheidung): Die Anzeige wird gröber
+// (sie bleibt während der Nachfragen auf der zuletzt gemeldeten Katalogfrage
+// stehen), dafür bleibt das Gespräch flüssig. `nachfrage` ist ganz entfallen —
+// es wäre hier immer 0 und nur eine weitere Gelegenheit für Fehlmeldungen.
 const POSITION_TOOL = {
   type: 'function',
   name: 'position_melden',
-  description: 'Meldet, an welcher Stelle des Fragenkatalogs du gerade bist. Rufe dies bei JEDER Frage auf, die du stellst — zusätzlich zu deiner gesprochenen Antwort, niemals statt ihr.',
+  description: 'Meldet den Wechsel zu einer neuen Katalogfrage. NUR aufrufen, wenn du eine neue Frage AUS DEM FRAGENKATALOG beginnst — NICHT bei vertiefenden Nachfragen und nicht bei sonstigen Wortmeldungen.',
   parameters: {
     type: 'object',
     properties: {
-      kapitel:   { type: 'integer', description: 'Nummer des Kapitels aus dem FRAGENKATALOG (1-basiert).' },
-      frage:     { type: 'integer', description: 'Nummer der Frage innerhalb dieses Kapitels (1-basiert).' },
-      nachfrage: { type: 'integer', description: '0 für die Katalogfrage selbst, sonst die laufende Nummer deiner vertiefenden Nachfrage.' },
-      fertig:    { type: 'boolean', description: 'true, wenn alle Fragen aller Kapitel beantwortet sind und das Gespräch endet.' },
+      kapitel: { type: 'integer', description: 'Nummer des Kapitels aus dem FRAGENKATALOG (1-basiert).' },
+      frage:   { type: 'integer', description: 'Nummer der Frage innerhalb dieses Kapitels (1-basiert).' },
+      fertig:  { type: 'boolean', description: 'true, wenn alle Fragen aller Kapitel beantwortet sind und das Gespräch endet.' },
     },
     required: ['kapitel', 'frage'],
   },

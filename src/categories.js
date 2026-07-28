@@ -338,9 +338,10 @@ const CATALOG_MARKER_RULE = `- FORTSCHRITTS-MARKER (Pflicht): Beginne JEDE deine
 // …"). Eine bloße Zusatzregel „gib keine Marker aus" reicht NICHT: Sie
 // widerspricht der Pflicht oben, und das Modell folgt der Pflicht. Deshalb wird
 // die Pflicht ersetzt statt überstimmt.
-const CATALOG_NO_MARKER_RULE = `- FORTSCHRITT MELDEN (Pflicht): Gib KEINE Marker und keine eckigen Klammern im Text aus — deine Antwort wird unverändert laut vorgelesen, technische Kennzeichen wären hörbar. Melde deine Stelle im Katalog stattdessen über das Werkzeug \`position_melden\`: Rufe es bei JEDER Frage auf, die du stellst — zusätzlich zu deiner gesprochenen Antwort, niemals statt ihr.
+const CATALOG_NO_MARKER_RULE = `- FORTSCHRITT MELDEN: Gib KEINE Marker und keine eckigen Klammern im Text aus — deine Antwort wird unverändert laut vorgelesen, technische Kennzeichen wären hörbar. Melde deine Stelle im Katalog stattdessen über das Werkzeug \`position_melden\`, und zwar SPARSAM:
+  • Rufe es NUR auf, wenn du eine NEUE Frage aus dem FRAGENKATALOG beginnst.
+  • Bei vertiefenden Nachfragen und allen sonstigen Wortmeldungen NICHT aufrufen — dort einfach normal weitersprechen.
   • \`kapitel\` und \`frage\` sind die Nummern aus dem FRAGENKATALOG unten (jeweils ab 1).
-  • \`nachfrage\`: 0 für die Katalogfrage selbst, sonst die laufende Nummer deiner vertiefenden Nachfrage.
   • \`fertig\`: true, sobald alle Fragen aller Kapitel beantwortet sind.`
 
 // Entfernt die Marker-Pflicht aus einem fertig gebauten Interview-Prompt.

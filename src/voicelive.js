@@ -387,9 +387,13 @@ export async function startVoiceLive({
         let pos = null
         try {
           const a = JSON.parse(evt.arguments || '{}')
+          // `followup` bleibt 0: Gemeldet wird nur der Wechsel auf eine neue
+          // Katalogfrage (siehe POSITION_TOOL). Während der Nachfragen bekommt
+          // keine Nachricht eine Position — die Anzeige bleibt dann auf der
+          // zuletzt gemeldeten Frage stehen, was genau so gewollt ist.
           pos = a.fertig === true
             ? { done: true }
-            : { chapter: Number(a.kapitel) || 0, question: Number(a.frage) || 0, followup: Number(a.nachfrage) || 0 }
+            : { chapter: Number(a.kapitel) || 0, question: Number(a.frage) || 0, followup: 0 }
           if (!pos.done && (!pos.chapter || !pos.question)) pos = null
         } catch (e) {
           stats.lastError = 'Positionsmeldung unlesbar'
