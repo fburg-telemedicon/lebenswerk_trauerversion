@@ -177,6 +177,32 @@ function verifyTicket(ticket) {
 // Wird AUSSCHLIESSLICH vom Relay gebaut. `instructions` ist das einzige Stück,
 // das vom Browser kommt (der Interview-Prompt aus src/categories.js — genau wie
 // das `system`-Feld von /api/ask).
+// Werkzeug, über das das Modell seine Stelle im Fragenkatalog meldet.
+//
+// Im Mikrofon-Modus steht die Position als Marker („[[K2.3]] …") vorne im Text
+// und wird vor dem Vorlesen entfernt. Im Live-Gespräch geht der Text UNVERÄNDERT
+// in die Sprachausgabe — der Marker wurde also mitgesprochen und klang wie
+// Kauderwelsch. Statt die Position im gesprochenen Text zu transportieren,
+// meldet das Modell sie hier über einen Werkzeugaufruf: hörbar bleibt nur das
+// Gespräch, die Fortschrittsanzeige bekommt trotzdem ihre Zahlen.
+//
+// Steht bewusst serverseitig: Der Browser darf die Sitzung nicht umkonfigurieren.
+const POSITION_TOOL = {
+  type: 'function',
+  name: 'position_melden',
+  description: 'Meldet, an welcher Stelle des Fragenkatalogs du gerade bist. Rufe dies bei JEDER Frage auf, die du stellst — zusätzlich zu deiner gesprochenen Antwort, niemals statt ihr.',
+  parameters: {
+    type: 'object',
+    properties: {
+      kapitel:   { type: 'integer', description: 'Nummer des Kapitels aus dem FRAGENKATALOG (1-basiert).' },
+      frage:     { type: 'integer', description: 'Nummer der Frage innerhalb dieses Kapitels (1-basiert).' },
+      nachfrage: { type: 'integer', description: '0 für die Katalogfrage selbst, sonst die laufende Nummer deiner vertiefenden Nachfrage.' },
+      fertig:    { type: 'boolean', description: 'true, wenn alle Fragen aller Kapitel beantwortet sind und das Gespräch endet.' },
+    },
+    required: ['kapitel', 'frage'],
+  },
+}
+
 function buildSessionUpdate({ instructions, language, voice }) {
   const text = String(instructions || '').slice(0, MAX_INSTRUCTIONS)
   return {
@@ -208,6 +234,9 @@ function buildSessionUpdate({ instructions, language, voice }) {
       ...(voice ? { voice: { type: 'azure-standard', name: voice } } : {}),
       input_audio_noise_reduction: { type: 'azure_deep_noise_suppression' },
       input_audio_echo_cancellation: { type: 'server_echo_cancellation' },
+      // Fortschrittsmeldung per Werkzeug statt im gesprochenen Text (s. o.).
+      tools: [POSITION_TOOL],
+      tool_choice: 'auto',
     },
   }
 }
@@ -216,5 +245,5 @@ module.exports = {
   TICKET_TTL_MS, MAX_INSTRUCTIONS, CLIENT_ALLOWED_TYPES,
   voiceLiveConfig, isVoiceLiveConfigured, voiceLiveUrl,
   tierForModel, sumUsage, totalTokens,
-  signTicket, verifyTicket, buildSessionUpdate,
+  signTicket, verifyTicket, buildSessionUpdate, POSITION_TOOL,
 }

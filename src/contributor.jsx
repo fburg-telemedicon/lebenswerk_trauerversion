@@ -526,6 +526,9 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [liveStats, setLiveStats] = useState(null)
   const [toneRes,   setToneRes]   = useState('')
   const liveRef = useRef(null)
+  // Zuletzt per Werkzeug gemeldete Katalog-Position, die noch keiner Frage
+  // zugeordnet werden konnte (Meldung kam vor der Sprachantwort).
+  const livePosRef = useRef(null)
   const liveOn = liveMode && !liveFailed
   // Modus gewechselt → einen früheren Fehlschlag vergessen (neuer Versuch erlaubt).
   useEffect(() => { setLiveFailed(false); setLiveNote('') }, [effMode])
@@ -579,11 +582,29 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         },
         onAiText: text => {
           // Durch dieselbe Aufbereitung wie im Mikrofon-Modus: Hält sich das
-          // Modell trotz LIVE_SPEECH_RULE nicht an die Vorgabe, landet der Marker
-          // wenigstens nicht im gespeicherten Text (und damit nicht im Buch) —
-          // seine Positionsangabe bleibt als `pos` erhalten.
-          const m = [...messagesRef.current, toAssistantMsg(text)]
+          // Modell nicht an die Vorgabe, landet der Marker wenigstens nicht im
+          // gespeicherten Text (und damit nicht im Buch) — seine Positionsangabe
+          // bleibt als `pos` erhalten.
+          const msg = toAssistantMsg(text)
+          // Position kam per Werkzeugaufruf VOR der Sprachantwort → jetzt anhängen.
+          if (!msg.pos && livePosRef.current) { msg.pos = livePosRef.current; livePosRef.current = null }
+          const m = [...messagesRef.current, msg]
           applyMessages(m); onSave?.(m)
+        },
+        // Die Reihenfolge von Werkzeugaufruf und gesprochener Antwort ist nicht
+        // garantiert. Kam die Meldung NACH der Antwort, wird sie hier an die
+        // zuletzt gespeicherte Frage nachgetragen; sonst wartet sie in der Ref
+        // auf die nächste (siehe onAiText).
+        onPosition: pos => {
+          if (cancelled) return
+          const msgs = messagesRef.current
+          const last = msgs[msgs.length - 1]
+          if (last && last.role === 'assistant' && !last.pos) {
+            const m = [...msgs.slice(0, -1), { ...last, pos }]
+            applyMessages(m); onSave?.(m)
+          } else {
+            livePosRef.current = pos
+          }
         },
         onFallback: reason => stopWith(liveFallbackNote(lang, reason)),
       })

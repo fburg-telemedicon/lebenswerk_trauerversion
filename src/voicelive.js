@@ -150,7 +150,7 @@ class Player {
 //                                schaltet auf die Mikrofon-Modi zurück
 export async function startVoiceLive({
   memorialCode, contributionId, language, instructions, history = [],
-  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream, onAudioBlocked,
+  onReady, onUserText, onAiText, onAiPartial, onState, onFallback, onStream, onAudioBlocked, onPosition,
 }) {
   const messages = []
   let ws = null, ctx = null, stream = null, node = null, srcNode = null
@@ -163,6 +163,10 @@ export async function startVoiceLive({
   // Ursachen (Ton gesperrt, nichts kommt an, nichts wird eingeplant); diese
   // Zahlen unterscheiden sie, statt raten zu lassen.
   const stats = { sent: 0, deltas: 0, played: 0, state: '?', rate: 0, lastError: '' }
+  // Buchführung je Antwortrunde für die Fortschrittsmeldung (siehe unten):
+  // Hat die Runde gesprochen? Und wurde ein Werkzeugaufruf beantwortet?
+  let respHadAudio = false
+  let respAnsweredCall = false
 
   // Erste Frage anstoßen — aber ERST, wenn der Ton auch wirklich hörbar ist.
   // Sonst spricht die KI in einen stummgeschalteten Browser hinein und die
@@ -329,6 +333,7 @@ export async function startVoiceLive({
       case 'response.audio.delta':
         if (evt.delta) {
           stats.deltas++
+          respHadAudio = true
           try {
             const bytes = fromBase64(evt.delta)
             player.push(new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1))
@@ -359,8 +364,51 @@ export async function startVoiceLive({
         if (text) { messages.push({ role: 'assistant', content: text }); onAiText?.(text) }
         break
       }
+      // ── Fortschrittsmeldung per Werkzeugaufruf ──
+      // Das Modell meldet seine Katalog-Position hierüber statt im gesprochenen
+      // Text (der Marker wurde sonst mitgesprochen). Zwei Fälle sind zu
+      // unterscheiden, siehe `response.done` unten.
+      case 'response.function_call_arguments.done': {
+        if (evt.name !== 'position_melden') break
+        let pos = null
+        try {
+          const a = JSON.parse(evt.arguments || '{}')
+          pos = a.fertig === true
+            ? { done: true }
+            : { chapter: Number(a.kapitel) || 0, question: Number(a.frage) || 0, followup: Number(a.nachfrage) || 0 }
+          if (!pos.done && (!pos.chapter || !pos.question)) pos = null
+        } catch (e) {
+          stats.lastError = 'Positionsmeldung unlesbar'
+          console.error('Voice Live: position_melden nicht lesbar', evt.arguments, e)
+        }
+        if (pos) onPosition?.(pos)
+        // Ergebnis zurückmelden — ohne Antwort bleibt der Werkzeugaufruf in der
+        // Sitzung offen und das Modell wartet.
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: { type: 'function_call_output', call_id: evt.call_id, output: '{"ok":true}' },
+          }))
+          respAnsweredCall = true
+        }
+        break
+      }
+
+      case 'response.created':
+        respHadAudio = false
+        respAnsweredCall = false
+        break
+
       case 'response.done':
         onState?.({ listening: true, speaking: player.speaking })
+        // Hat die Runde NUR das Werkzeug aufgerufen und nichts gesagt, wartet die
+        // Person sonst auf eine Frage, die nie kommt: Dann eine Antwortrunde
+        // nachziehen. Wurde gesprochen, wäre ein zweiter Anstoß eine doppelte
+        // Frage — deshalb die Unterscheidung.
+        if (respAnsweredCall && !respHadAudio && ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'response.create' }))
+        }
+        respAnsweredCall = false
         break
       case 'error':
         console.error('Voice Live error:', evt.error)
