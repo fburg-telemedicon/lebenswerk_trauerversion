@@ -83,12 +83,20 @@ function handleConnection(client, ticket) {
     headers: { 'api-key': cfg.key, 'User-Agent': 'lebensgeschichten' },
   })
 
-  // `relay.ready` erst melden, wenn die Sitzung nach oben WIRKLICH steht UND
-  // konfiguriert ist. Sonst schickt der Browser sein bisheriges Gespräch los,
-  // bevor `started` gesetzt ist — und der Filter unten würfe es weg.
+  // `relay.ready` erst melden, wenn die Sitzung nach oben WIRKLICH steht und
+  // Azure die Konfiguration BESTÄTIGT hat (`session.updated`).
+  //
+  // Das Warten auf die Bestätigung ist nicht Feinschliff, sondern nötig: Meldet
+  // man schon beim Verbindungsaufbau „bereit", stößt der Browser die erste Frage
+  // an, bevor Stimme und Interview-Anweisungen übernommen sind. Dann antwortet
+  // die Sitzung mit der VOREINGESTELLTEN Stimme und ohne Auftrag — hörbar als
+  // fremde Stimme, die Unsinn redet, bevor die eigentliche Frage kommt. Zwei
+  // gleichzeitig laufende Antworten überlagern sich zusätzlich im Wiedergabe-
+  // Puffer des Browsers und klingen dann nach Störgeräusch.
   let announced = false
+  let configured = false
   const maybeReady = () => {
-    if (announced || !started || upstream.readyState !== WebSocket.OPEN) return
+    if (announced || !started || !configured || upstream.readyState !== WebSocket.OPEN) return
     announced = true
     tell(client, 'ready')
   }
@@ -117,6 +125,23 @@ function handleConnection(client, ticket) {
 
     let evt
     try { evt = JSON.parse(raw.toString()) } catch { return }
+
+    // Azure hat die Sitzungskonfiguration übernommen → jetzt darf der Browser los.
+    if (evt?.type === 'session.updated') { configured = true; maybeReady(); return }
+    // Fehler von Azure IMMER protokollieren. Beim ersten Abbruch einer Sitzung
+    // stand in den Logs nichts — die Ereignisse wurden nur durchgereicht. Ohne
+    // diese Zeile lässt sich ein abgebrochenes Gespräch nicht nachvollziehen.
+    if (evt?.type === 'error') {
+      console.error('voicelive relay: Azure-Fehler:', JSON.stringify(evt.error || {}).slice(0, 400))
+      // Wird die Konfiguration abgelehnt, NICHT stumm weiterlaufen lassen: sonst
+      // spräche die Sitzung mit falscher Stimme und ohne Interview-Auftrag.
+      if (!configured) {
+        tell(client, 'error', { reason: 'session_config' })
+        shutdown('session_config')
+      }
+      return
+    }
+
     if (evt?.type !== 'response.done') return
 
     // ── Kosten je Gesprächsrunde verbuchen ──
@@ -151,7 +176,10 @@ function handleConnection(client, ticket) {
     tell(client, 'error', { reason: 'upstream' })
     shutdown('upstream_error')
   })
-  upstream.on('close', () => {
+  upstream.on('close', (code, reason) => {
+    // Grund mitprotokollieren — „Das Live-Gespräch wurde beendet" ohne jede Spur
+    // im Log war beim ersten Abbruch nicht nachvollziehbar.
+    console.warn(`voicelive relay: Azure-Verbindung geschlossen (Code ${code})${reason ? ' – ' + String(reason).slice(0, 200) : ''}`)
     tell(client, 'closed', { reason: 'upstream' })
     shutdown('upstream_closed')
   })
