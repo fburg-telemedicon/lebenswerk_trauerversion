@@ -268,9 +268,18 @@ async function signUploadedImages(memorials) {
 }
 
 // Katalog-Nachfragezahl (x) säubern: ganze Zahl 0..30, Default 7.
+// Vertiefende Nachfragen je Katalogfrage. Der Rückfallwert gilt NUR, wenn das
+// Feld fehlt oder unbrauchbar ist.
+//
+// Er stand bis 2026-07-28 auf 7 — dem Wert von vor der Umstellung. Die
+// Anlage-Maske schickt seither 2 mit (App.jsx, Commit 19c12ec: bei einem ganzen
+// Leben halten sieben Nachfragen die erzählende Person an einer Station fest),
+// der Server fiel aber weiter auf 7 zurück. Wer ein Buch über die Schnittstelle
+// ohne dieses Feld anlegte, bekam still sieben Nachfragen statt zwei — genau so
+// ist es dem Realtime-Testbuch passiert. Jetzt sind beide Seiten gleich.
 function sanitizeFollowups(v) {
   const n = parseInt(v, 10)
-  if (!Number.isFinite(n) || n < 0) return 7
+  if (!Number.isFinite(n) || n < 0) return 2
   return Math.min(n, 30)
 }
 
