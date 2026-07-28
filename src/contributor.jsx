@@ -3168,6 +3168,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // der Nutzer EINMAL „Fortsetzen" tippt — diese Geste schaltet die Tonausgabe frei,
   // damit die erste Frage in der installierten App / auf iOS wirklich hörbar spielt.
   const [resumeGate, setResumeGate]           = useState(null)
+  const [restartAsk, setRestartAsk]           = useState(false)   // Rückfrage vor dem Neubeginn
   const [paused, setPaused]                   = useState(false)
   const [copied, setCopied]                   = useState('')
   const [saveErr, setSaveErr]                 = useState('')
@@ -3591,6 +3592,36 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
           <button onClick={() => { unlockAudio(); const l = resumeGate; setResumeGate(null); resumeSession(l) }} style={{ fontSize: 15, padding: '13px 30px' }}>
             {t.resumeContinue || '↻ Fortsetzen'}
           </button>
+          {/* Zweite, echte Möglichkeit. Bisher stand hier nur „Fortsetzen" — eine
+              Frage mit genau einer Antwort. Der Knopf oben MUSS bleiben (er ist die
+              Nutzer-Geste, die die Tonausgabe freischaltet), also kommt die
+              Alternative daneben. Bewusst zurückhaltend gestaltet und mit
+              Rückfrage: Beim Selbst-Interview ist ein Neuanfang eine große
+              Entscheidung. Gelöscht wird nichts — `startFresh` beginnt einen neuen
+              Beitrag, der bisherige bleibt gespeichert. */}
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid #e7e5e4' }}>
+            {restartAsk ? (
+              <>
+                <p style={{ fontSize: 13, color: '#78716c', margin: '0 0 10px', lineHeight: 1.55 }}>
+                  {t.resumeRestartHint || 'Das Interview startet von vorn. Ihre bisherigen Antworten bleiben gespeichert.'}
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button onClick={() => { unlockAudio(); setResumeGate(null); setRestartAsk(false); startFresh() }}
+                    style={{ fontSize: 13.5, padding: '10px 18px' }}>
+                    {t.resumeRestart || 'Neu beginnen'}
+                  </button>
+                  <button className="ghost" onClick={() => setRestartAsk(false)} style={{ fontSize: 13.5, padding: '10px 18px', color: '#78716c' }}>
+                    {t.resumeRestartCancel || 'Abbrechen'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button className="ghost" onClick={() => setRestartAsk(true)}
+                style={{ fontSize: 13, color: '#78716c', textDecoration: 'underline' }}>
+                {t.resumeRestart || 'Neu beginnen'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     )
