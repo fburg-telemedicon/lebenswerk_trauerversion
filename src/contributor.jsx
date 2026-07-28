@@ -60,6 +60,20 @@ function liveFallbackNote(lang, reason) {
 // aus der URL: fortzusetzende Interview-Session (nur im Beitragenden-Flow relevant)
 const sessionFromURL = (new URLSearchParams(window.location.search).get('session') || '').trim()
 
+// Diagnose-Anzeige des Live-Gesprächs (Zähler + Testton). Standard AUS — sie ist
+// ein Werkzeug für die Fehlersuche, kein Bestandteil der Oberfläche. Einschalten
+// mit `?livedebug=1`; die Wahl bleibt für dieses Gerät gemerkt, `?livedebug=0`
+// schaltet sie wieder ab. Bewusst über die Adresse statt über ein Menü: Wer sie
+// braucht, weiß davon — Erzählende sollen sie nie sehen.
+const liveDebug = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search).get('livedebug')
+    if (p === '1') localStorage.setItem('lw_livedebug', '1')
+    if (p === '0') localStorage.removeItem('lw_livedebug')
+    return localStorage.getItem('lw_livedebug') === '1'
+  } catch { return false }   // privater Modus: dann eben aus
+})()
+
 // ── Mikrofon-Auto-Stopp (drei Modi, per Buch im Expertenmodus) ────────────────
 // TIPP-MODUS (hands_free=false): NUR Höchstdauer (MIC_MAX_MS); bewusst KEIN Stille-
 // Stopp — man darf beliebig lange nachdenken. Der Pegel dient nur dazu, eine
@@ -521,8 +535,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   const [liveNote,   setLiveNote]   = useState('')
   const [liveStream, setLiveStream] = useState(null)     // für die Schallwellen-Animation
   const [liveMuted,  setLiveMuted]  = useState(false)    // Browser hat den Ton bis zur nächsten Geste gesperrt
-  // Diagnose-Zahlen der laufenden Sitzung (Beta). Sekündlich abgeholt, damit ein
-  // stummes Gespräch nicht wieder auf Vermutungen hinausläuft.
+  // Diagnose-Zahlen der laufenden Sitzung. NICHT für Endnutzer sichtbar, sondern
+  // nur mit `?livedebug=1` in der Adresse (einmal gesetzt, bleibt es für dieses
+  // Gerät gemerkt; `?livedebug=0` schaltet es wieder ab).
+  //
+  // Bewusst behalten statt gelöscht: Ein stummes Live-Gespräch hat mehrere
+  // mögliche Ursachen, und diese drei Zahlen plus der Testton haben sie beim
+  // ersten Mal in EINEM Schritt getrennt — nachdem mehrere Vermutungen daneben
+  // lagen. Beim nächsten Mal soll das Messinstrument ohne Deploy da sein.
   const [liveStats, setLiveStats] = useState(null)
   const [toneRes,   setToneRes]   = useState('')
   const liveRef = useRef(null)
@@ -534,7 +554,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   useEffect(() => { setLiveFailed(false); setLiveNote('') }, [effMode])
 
   useEffect(() => {
-    if (!liveOn) { setLiveStats(null); return }
+    if (!liveOn || !liveDebug) { setLiveStats(null); return }
     const id = setInterval(() => setLiveStats(liveRef.current?.stats?.() || null), 1000)
     return () => clearInterval(id)
   }, [liveOn])
@@ -1246,11 +1266,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 ? 'Live conversation: take as much time to think as you like — nothing is cut off.'
                 : 'Live-Gespräch: Denken Sie so lange nach, wie Sie möchten — es wird nichts abgeschnitten.'}
             </div>
-            {/* Beta-Diagnose. Solange der Modus nur intern freigeschaltet ist,
-                ist eine sichtbare Messung mehr wert als eine schöne Oberfläche:
-                „hört man nichts" hat mehrere Ursachen, die diese Zahlen trennen.
-                Kann raus, sobald die Strecke bestätigt läuft. */}
-            {liveStats && (
+            {/* Diagnose — nur mit `?livedebug=1` (siehe liveDebug oben). */}
+            {liveDebug && liveStats && (
               <div style={{ marginTop:14, paddingTop:10, borderTop:'1px dashed #e7e5e4', fontSize:11.5, lineHeight:1.6, color:'#a8a29e', fontFamily:'ui-monospace, monospace' }}>
                 <div>Ton: {liveStats.state} · {liveStats.rate} Hz</div>
                 <div>gesendet {liveStats.sent} · empfangen {liveStats.deltas} · abgespielt {liveStats.played}</div>
