@@ -14,7 +14,8 @@
         "Live-Gespraech: Der Fehler, warum man nichts hoerte und das Interview stehenblieb, ist gefunden und behoben. Die Sprachdaten kamen zwar vom Server an, wurden vom Browser aber in einem Format uebergeben, das er nicht lesen konnte — und still verworfen. Jetzt kommen Stimme und erkannte Antworten an.",
         "Beim Wiedereinstieg in ein begonnenes Interview gab es bisher nur die Moeglichkeit fortzusetzen. Neben \"Fortsetzen\" steht jetzt auch \"Neu beginnen\" (mit Rueckfrage) — bisherige Antworten bleiben dabei gespeichert. In allen 13 Sprachen.",
         "Live-Gespraech: Vor jeder Frage war eine fremde Stimme mit unverstaendlichem Gemurmel zu hoeren. Ursache war eine unsichtbare technische Positionsangabe im Text, die im Live-Modus versehentlich mitgesprochen wurde. Sie wird jetzt nicht mehr in den Text geschrieben.",
-        "Damit die Fortschrittsanzeige (\"Frage 3 von 10\") im Live-Gespraech trotzdem weiterzaehlt, meldet die KI ihre Stelle im Fragebogen jetzt auf einem eigenen, nicht hoerbaren Weg. Gespraech und Anzeige funktionieren damit beide."
+        "Damit die Fortschrittsanzeige (\"Frage 3 von 10\") im Live-Gespraech trotzdem weiterzaehlt, meldet die KI ihre Stelle im Fragebogen jetzt auf einem eigenen, nicht hoerbaren Weg. Gespraech und Anzeige funktionieren damit beide.",
+        "Das Live-Sprachgespraech laeuft: saubere Stimme, Frage kommt direkt, Fortschritt zaehlt mit. Hinweis fuers Testen: Nach einem Update dauert es rund zweieinhalb Minuten, bis die neue Fassung ausgeliefert wird — ein Neuladen davor zeigt noch den alten Stand."
       ]
     },
     {
