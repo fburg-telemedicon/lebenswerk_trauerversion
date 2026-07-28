@@ -101,9 +101,19 @@ function handleConnection(client, ticket) {
   })
 
   upstream.on('message', async (raw) => {
-    // Events unverändert an den Browser durchreichen (er braucht u. a. die
-    // Audio-Deltas und die Transkript-Events).
-    if (client.readyState === WebSocket.OPEN) client.send(raw)
+    // Events an den Browser durchreichen (er braucht u. a. die Audio-Deltas und
+    // die Transkript-Events).
+    //
+    // ALS TEXT, nicht als Buffer! Die `ws`-Bibliothek liefert auch Text-Frames als
+    // Buffer aus; gibt man den unverändert weiter, sendet sie ihn als BINÄR-Frame.
+    // Im Browser kommt dann ein Blob an — `JSON.parse` scheitert daran, und der
+    // Client verwarf jedes einzelne Azure-Ereignis stillschweigend. Sichtbar war
+    // das als „empfangen 0" bei laufendem Upload: Die selbst erzeugten
+    // `relay.*`-Meldungen kamen an (die gehen als String raus), alles von Azure
+    // nicht. Das Protokoll ist JSON-Text — also auch so weiterreichen.
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(typeof raw === 'string' ? raw : raw.toString('utf8'))
+    }
 
     let evt
     try { evt = JSON.parse(raw.toString()) } catch { return }

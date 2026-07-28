@@ -272,9 +272,23 @@ export async function startVoiceLive({
   ws.onerror = () => fail('connection')
   ws.onclose = () => { if (!stopped) fail('closed') }
 
+  // Falls doch einmal ein Binär-Frame ankommt: als ArrayBuffer statt als Blob,
+  // damit er synchron gelesen werden kann (ein Blob wäre nur asynchron lesbar und
+  // würde die Reihenfolge der Audio-Blöcke durcheinanderbringen).
+  ws.binaryType = 'arraybuffer'
+
   ws.onmessage = (ev) => {
     let evt
-    try { evt = JSON.parse(ev.data) } catch { return }
+    try {
+      const text = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data)
+      evt = JSON.parse(text)
+    } catch (e) {
+      // NICHT stillschweigend verwerfen — genau das hat verborgen, dass alle
+      // Azure-Ereignisse als Blob ankamen und weggeworfen wurden.
+      stats.lastError = 'Unlesbares Ereignis (' + (typeof ev.data) + ')'
+      console.error('Voice Live: Ereignis nicht lesbar', typeof ev.data, e)
+      return
+    }
     switch (evt.type) {
       case 'relay.ready': {
         // Bisheriges Gespräch in die Sitzung übernehmen, damit ein Wechsel mitten
