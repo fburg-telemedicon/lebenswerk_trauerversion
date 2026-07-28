@@ -17,7 +17,9 @@
         "Damit die Fortschrittsanzeige (\"Frage 3 von 10\") im Live-Gespraech trotzdem weiterzaehlt, meldet die KI ihre Stelle im Fragebogen jetzt auf einem eigenen, nicht hoerbaren Weg. Gespraech und Anzeige funktionieren damit beide.",
         "Das Live-Sprachgespraech laeuft: saubere Stimme, Frage kommt direkt, Fortschritt zaehlt mit. Hinweis fuers Testen: Nach einem Update dauert es rund zweieinhalb Minuten, bis die neue Fassung ausgeliefert wird — ein Neuladen davor zeigt noch den alten Stand.",
         "Live-Gespraech nachgeschaerft: Die Interviewerin klingt jetzt ruhiger und zurueckhaltender, Rueckmeldung und naechste Frage laufen nicht mehr ineinander. Vor allem wird niemand mehr mitten in einer laengeren Antwort unterbrochen — die Erkennung wartet jetzt deutlich laenger auf ein echtes Satzende. Die Gespraechsdauer wurde von einer auf zwei Stunden angehoben.",
-        "Ausserdem korrigiert: Beim Anlegen eines Buchs ueber die Schnittstelle wurden still sieben Vertiefungsfragen je Thema gesetzt statt der vorgesehenen zwei."
+        "Ausserdem korrigiert: Beim Anlegen eines Buchs ueber die Schnittstelle wurden still sieben Vertiefungsfragen je Thema gesetzt statt der vorgesehenen zwei.",
+        "Live-Gespraech: Wird der Ton ueber einen Lautsprecher ausgegeben, konnte die KI sich selbst hoeren — ihre eigene Frage kam verstuemmelt als Antwort der erzaehlenden Person zurueck, woraufhin sie irritiert reagierte. Die App erkennt das jetzt selbst und laesst das Mikrofon waehrend ihrer eigenen Antwort ruhen. Wer Kopfhoerer nutzt, kann weiterhin jederzeit dazwischenreden.",
+        "Ausserdem: Beide Modi sprechen jetzt mit derselben Stimme (vorher wechselte sie zwischen Live-Gespraech und Mikrofon-Modus), technische Kennzeichen werden nie mehr vorgelesen, und im Menue heben sich wichtige Punkte wieder von den rechtlichen Links ab."
       ]
     },
     {
