@@ -1282,8 +1282,8 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             )}
             <div style={{ fontSize:13.5, fontWeight:600, color: liveStatus === 'speaking' ? '#4f46e5' : '#dc2626', marginBottom:4 }}>
               {String(lang || '').startsWith('en')
-                ? (liveStatus === 'connecting' ? 'Connecting …' : liveStatus === 'speaking' ? 'Speaking — one moment' : 'Listening — just talk')
-                : (liveStatus === 'connecting' ? 'Verbindung wird aufgebaut …' : liveStatus === 'speaking' ? 'Ich spreche — einen Moment' : 'Ich höre zu — sprechen Sie einfach')}
+                ? (liveStatus === 'connecting' ? 'Connecting …' : liveStatus === 'speaking' ? 'Speaking — feel free to interrupt' : 'Listening — just talk')
+                : (liveStatus === 'connecting' ? 'Verbindung wird aufgebaut …' : liveStatus === 'speaking' ? 'Ich spreche — Sie dürfen mich jederzeit unterbrechen' : 'Ich höre zu — sprechen Sie einfach')}
             </div>
             <div style={{ maxWidth:340, margin:'0 auto', fontSize:12.5, lineHeight:1.5, color:'#78716c' }}>
               {String(lang || '').startsWith('en')
@@ -1295,6 +1295,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               <div style={{ marginTop:14, paddingTop:10, borderTop:'1px dashed #e7e5e4', fontSize:11.5, lineHeight:1.6, color:'#a8a29e', fontFamily:'ui-monospace, monospace' }}>
                 <div>Ton: {liveStats.state} · {liveStats.rate} Hz</div>
                 <div>gesendet {liveStats.sent} · empfangen {liveStats.deltas} · abgespielt {liveStats.played}</div>
+                <div>verworfene Echos: {liveStats.echoes ?? 0}</div>
                 {liveStats.lastError && <div style={{ color:'#b91c1c' }}>{liveStats.lastError}</div>}
                 <button
                   onClick={async e => { e.stopPropagation(); setToneRes(await liveRef.current?.testTone?.() || 'keine Sitzung') }}

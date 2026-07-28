@@ -150,6 +150,33 @@ class Player {
   get speaking() { return this.sources.length > 0 }
 }
 
+// ── Echo-Erkennung ────────────────────────────────────────────────
+// Hört das Mikrofon die KI mit (Lautsprecher, vor allem über Bluetooth: dessen
+// 100–300 ms Verzögerung bringt jede akustische Echokompensation aus dem Tritt),
+// kommt die eigene Frage als vermeintliche NUTZER-Antwort zurück. Nachgewiesen:
+// aus „…mit beruflichen Herausforderungen oder Rückschlägen umgegangen" wurde
+// „Bist du mit beruflichen Kindern besonders?" — die KI hielt das für eine Frage
+// und erklärte, sie dürfe keine beantworten.
+//
+// Entscheidend ist die REIHENFOLGE, nicht bloß die Wortmenge: Ein Echo gibt die
+// Wörter in derselben Abfolge wieder, eine echte Antwort greift einzelne Wörter
+// neu auf („Ja, mit Rückschlägen bin ich gut umgegangen" wäre bei reinem
+// Mengenvergleich fälschlich ein Echo). Deshalb längste gemeinsame Teilfolge.
+function echoScore(userText, aiText) {
+  const norm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/).filter(w => w.length > 3)
+  const u = norm(userText), a = norm(aiText)
+  if (u.length < 4 || !a.length) return 0   // kurze Antworten („ja bitte") nie verwerfen
+  const dp = Array.from({ length: u.length + 1 }, () => new Array(a.length + 1).fill(0))
+  for (let i = 1; i <= u.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      dp[i][j] = u[i - 1] === a[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1])
+    }
+  }
+  return dp[u.length][a.length] / u.length
+}
+const ECHO_THRESHOLD = 0.7   // bewusst hoch: lieber ein Echo durchlassen als eine echte Antwort verwerfen
+
 // ── Sitzung ───────────────────────────────────────────────────────
 // startVoiceLive({...}) → { stop(), messages }
 //
@@ -175,7 +202,12 @@ export async function startVoiceLive({
   // Zähler für die Diagnose-Anzeige. Ein stummes Gespräch hat mehrere mögliche
   // Ursachen (Ton gesperrt, nichts kommt an, nichts wird eingeplant); diese
   // Zahlen unterscheiden sie, statt raten zu lassen.
-  const stats = { sent: 0, deltas: 0, played: 0, state: '?', rate: 0, lastError: '' }
+  const stats = { sent: 0, deltas: 0, played: 0, echoes: 0, state: '?', rate: 0, lastError: '' }
+  // Was die KI zuletzt gesagt hat und wann — Vergleichsmaterial für die
+  // Echo-Erkennung. Wird schon WÄHREND des Sprechens fortgeschrieben, weil ein
+  // Echo zurückkommt, bevor die Antwort fertig ist.
+  let lastAiText = ''
+  let lastSpokeAt = 0
   // Buchführung je Antwortrunde für die Fortschrittsmeldung (siehe unten):
   // Hat die Runde gesprochen? Und wurde ein Werkzeugaufruf beantwortet?
   let respHadAudio = false
@@ -351,6 +383,7 @@ export async function startVoiceLive({
         if (evt.delta) {
           stats.deltas++
           respHadAudio = true
+          lastSpokeAt = Date.now()
           try {
             const bytes = fromBase64(evt.delta)
             player.push(new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1))
@@ -365,13 +398,25 @@ export async function startVoiceLive({
       // Fertiges Transkript einer Nutzer-Äußerung.
       case 'conversation.item.input_audio_transcription.completed': {
         const text = (evt.transcript || '').trim()
-        if (text) { messages.push({ role: 'user', content: text }); onUserText?.(text) }
+        if (!text) break
+        // Echo verwerfen — aber nur, wenn die KI gerade spricht oder eben
+        // gesprochen hat. Später darf dieselbe Formulierung eine echte Antwort
+        // sein (Menschen greifen die Worte der Frage auf).
+        const frisch = player?.speaking || (Date.now() - lastSpokeAt) < 4000
+        if (frisch && echoScore(text, lastAiText) >= ECHO_THRESHOLD) {
+          stats.echoes++
+          console.info('Voice Live: Echo verworfen —', text.slice(0, 60))
+          break
+        }
+        messages.push({ role: 'user', content: text })
+        onUserText?.(text)
         break
       }
 
       // Laufender bzw. fertiger Text der KI-Antwort.
       case 'response.audio_transcript.delta':
         aiPartial += evt.delta || ''
+        lastAiText = aiPartial          // laufend, damit die Echo-Prüfung sofort greift
         onAiPartial?.(aiPartial)
         break
       case 'response.audio_transcript.done': {
@@ -447,25 +492,6 @@ export async function startVoiceLive({
   }
   node.port.onmessage = (e) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-
-    // KEIN Mikrofonsignal senden, solange die KI spricht.
-    //
-    // Ohne diese Sperre hört sich die KI über den Lautsprecher selbst zu:
-    // Nachgewiesen im Transkript — ihre eigene Frage („…mit beruflichen
-    // Herausforderungen oder Rückschlägen umgegangen") kam als Nutzer-Antwort
-    // zurück („Bist du mit beruflichen Kindern besonders?"), woraufhin sie
-    // erklärte, sie dürfe keine Fragen beantworten. Zusätzlich gingen kurze
-    // echte Antworten („ja bitte") in diesem Selbstgespräch unter.
-    //
-    // Die serverseitige Echo-Unterdrückung (server_echo_cancellation) und die
-    // des Browsers reichen am Lautsprecher nicht aus — mit Kopfhörern gäbe es
-    // das Problem nicht, aber darauf kann man sich nicht verlassen.
-    //
-    // PREIS: Dazwischenreden ist währenddessen nicht möglich; die KI lässt sich
-    // nicht mehr mitten im Satz unterbrechen. Bewusst in Kauf genommen — ein
-    // Interview, das sich selbst befragt, ist deutlich schädlicher als eine
-    // verlorene Unterbrechungsmöglichkeit.
-    if (player?.speaking) return
 
     const pcm = floatToPcm16(resample(e.data))
     if (!pcm.length) return
