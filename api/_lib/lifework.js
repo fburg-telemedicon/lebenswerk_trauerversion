@@ -214,6 +214,36 @@ async function ensureLifeworkSchema() {
       add column if not exists guest_enabled boolean,
       add column if not exists guest_code varchar(16)
   `)
+  // Fortlaufende Projektnummer: eine kurze, sprechbare Kennung fürs Dashboard und
+  // für Rückfragen („Projekt 42"). Der Buch-Code taugt dafür nicht — er ist ein
+  // Geheimnis (Einladungslink) und darf nicht beiläufig herumgereicht werden.
+  // Vergeben wird global aufsteigend über eine Sequenz (Default der Spalte), damit
+  // eine Nummer für immer zu genau einem Projekt gehört, auch nach Löschungen.
+  await pool().query(`alter table memorials add column if not exists project_no integer`)
+  await pool().query(`create sequence if not exists memorials_project_no_seq owned by memorials.project_no`).catch(() => {})
+  await pool().query(`alter table memorials alter column project_no set default nextval('memorials_project_no_seq')`).catch(() => {})
+  // Bestand einmalig in Anlage-Reihenfolge nachnummerieren.
+  await pool().query(`
+    with n as (
+      select id, row_number() over (order by created_at, id) as rn
+        from memorials where project_no is null
+    )
+    update memorials m
+       set project_no = n.rn + coalesce((select max(project_no) from memorials), 0)
+      from n where m.id = n.id
+  `).catch(() => {})
+  // Sequenz hinter den höchsten vergebenen Wert setzen (setval verlangt >= 1;
+  // bei leerer Tabelle bleibt sie unangetastet und startet bei 1).
+  await pool().query(`
+    select setval('memorials_project_no_seq',
+                  greatest(coalesce((select max(project_no) from memorials), 0), 1),
+                  (select count(*) > 0 from memorials where project_no is not null))
+  `).catch(() => {})
+  await pool().query(`
+    create unique index if not exists memorials_project_no_uidx
+      on memorials (project_no) where project_no is not null
+  `).catch(() => {})
+
   // Gastbeiträge: Der Gast-Link ist ein EIGENES Geheimnis, nicht der Buch-Code —
   // beim Lebenswerk ist der Buch-Code die einzige Berechtigung des Endnutzers
   // (Einstellungen, Korrekturabzug, Buchbearbeitung). Der Gast-Code wird beim

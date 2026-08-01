@@ -92,9 +92,19 @@ create table if not exists memorials (
   -- Bewusst NICHT der Buch-Code — der ist beim Lebenswerk die einzige
   -- Berechtigung des Endnutzers (Einstellungen, Korrekturabzug, Buchbearbeitung).
   guest_enabled    boolean,
-  guest_code       varchar(16)
+  guest_code       varchar(16),
+  -- Fortlaufende Projektnummer fuers Dashboard und fuer Rueckfragen ("Projekt 42").
+  -- Global aufsteigend aus einer Sequenz; eine Nummer gehoert dauerhaft zu genau
+  -- einem Projekt (nach Loeschungen entstehen Luecken, das ist gewollt).
+  project_no       integer
 );
 create index if not exists memorials_owner_user_idx on memorials(owner_user);
+-- Nummernvergabe als eigene Sequenz (nicht als IDENTITY), damit Neuinstallation und
+-- der Nachzieher zur Laufzeit (api/_lib/lifework.js) exakt gleich aussehen.
+create sequence if not exists memorials_project_no_seq owned by memorials.project_no;
+alter table memorials alter column project_no set default nextval('memorials_project_no_seq');
+create unique index if not exists memorials_project_no_uidx
+  on memorials (project_no) where project_no is not null;
 -- Der Gast-Code wird wie ein Zugangscode nachgeschlagen und muss eindeutig sein;
 -- Buecher ohne Gastlink (NULL) bleiben ausserhalb des Teilindex.
 create unique index if not exists memorials_guest_code_uidx

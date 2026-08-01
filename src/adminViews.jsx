@@ -1036,6 +1036,12 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
     //  val  = Sortierwert,  disp = angezeigter/filterbarer Wert (String)
     const sortCols = [
+      // Fortlaufende Projektnummer (Serverseite: memorials.project_no). Kurz und
+      // vorlesbar — anders als der Buch-Code, der ein Geheimnis ist. Nicht
+      // filterbar (eine Auswahlliste aller Nummern hätte keinen Nutzen).
+      { key: 'projectNo', label: t('Nr.', 'No.'), noFilter: true,
+        val: m => Number.isFinite(m.project_no) ? m.project_no : Infinity,
+        disp: m => m.project_no != null ? String(m.project_no) : '—' },
       { key: 'name',      label: t('Name', 'Name'),          val: m => displayBookName(m).toLowerCase(), disp: m => displayBookName(m) || '—' },
       { key: 'email',     label: t('E-Mail', 'Email'),        val: m => (m.enduser_email || m.intake?.contact_email || '').toLowerCase(), disp: m => m.enduser_email || m.intake?.contact_email || '—' },
       ...(showCategoryColumn ? [{ key: 'category', label: t('Kategorie', 'Category'), val: m => getCategory(m.product_category).label.toLowerCase(), disp: m => getCategory(m.product_category).label }] : []),
@@ -1181,6 +1187,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                       <span onClick={() => toggleSort(c.key)} title={t('Spalte sortieren', 'Sort column')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {c.label}{sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
                       </span>
+                      {!c.noFilter && (
                       <span onClick={(e) => { e.stopPropagation(); setFilterCol(k => k === c.key ? null : c.key) }}
                             title={t('Spalte filtern', 'Filter column')}
                             style={{ marginLeft: 6, cursor: 'pointer', display: 'inline-flex', verticalAlign: 'middle' }}>
@@ -1188,7 +1195,8 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                           <path d="M3 4h18v2.2l-7 7v6.3l-4-2.2v-4.1l-7-7z" fill={filterActive(c.key) ? '#1d4ed8' : '#a8a29e'} />
                         </svg>
                       </span>
-                      {filterCol === c.key && (
+                      )}
+                      {filterCol === c.key && !c.noFilter && (
                         <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, marginTop: 4, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.14)', padding: 6, minWidth: 240, maxWidth: 360, maxHeight: 320, overflowY: 'auto', textAlign: 'left', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
                           <label style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', padding: '4px 6px', fontSize: 13, fontWeight: 600, color: '#1c1917', cursor: 'pointer' }}>
                             <input type="checkbox" checked={allChecked(c.key)}
@@ -1235,6 +1243,7 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                   const leaveRow   = () => setHoveredRow(null)
                   return (
                     <tr key={m.id}>
+                      <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' }} onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.project_no != null ? m.project_no : '—'}</td>
                       <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{displayBookName(m) || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}</td>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}   onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.enduser_email || m.intake?.contact_email || '—'}</td>
                       {showCategoryColumn && (
@@ -2512,7 +2521,15 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
         <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button className="ghost" onClick={() => setView('list')} style={{ fontSize: 14, color: '#78716c' }}>{t('← Zurück', '← Back')}</button>
-            <div>
+            <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
+              {/* Projektnummer (fortlaufend, aus memorials.project_no) — kurz genug
+                  zum Vorlesen bei Rückfragen; der Buch-Code bleibt geheim. */}
+              {selected.project_no != null && (
+                <span title={t('Projektnummer', 'Project number')}
+                      style={{ fontSize:13, fontWeight:600, color:'#78716c', background:'#f5f5f4', border:'1px solid #e7e5e4', borderRadius:6, padding:'2px 8px', fontVariantNumeric:'tabular-nums' }}>
+                  {t('Nr.', 'No.')} {selected.project_no}
+                </span>
+              )}
               <span style={{ fontWeight: 700, fontSize: 16 }}>{displayBookName(selected) || t('Name folgt', 'Name to follow')}</span>
             </div>
           </div>
