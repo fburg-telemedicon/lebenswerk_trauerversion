@@ -5,11 +5,28 @@
 import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
-import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
+import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
+
+// QR-Code, im Browser erzeugt (siehe qrCodeDataUrl in shared.js). Bis das Bild
+// fertig ist, steht an seiner Stelle ein leerer Platzhalter gleicher Größe —
+// sonst springt das Layout. Schlägt die Erzeugung fehl, bleibt der Kasten leer;
+// der Link daneben genügt zum Weitergeben.
+function QrImage({ text, size = 240, alt = 'QR-Code' }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    let live = true
+    setSrc('')
+    qrCodeDataUrl(text, size).then(d => { if (live) setSrc(d) }).catch(() => {})
+    return () => { live = false }
+  }, [text, size])
+  return src
+    ? <img src={src} alt={alt} width={size} height={size} style={{ borderRadius: 8, background: '#fff' }} />
+    : <div style={{ width: size, height: size, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4' }} />
+}
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { getBookLayout } from './bookLayouts.js'
 import { dedupeContributors } from './bookExport.js'
@@ -540,13 +557,7 @@ export function CreatedView({ createdCode, copied, token, logout, copyInvite, co
               {copied === createdCode ? t('✓ Kopiert', '✓ Copied') : t('📋 Link kopieren', '📋 Copy link')}
             </button>
             <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
-              <img
-                src={qrCodeUrl(inviteUrl, 240)}
-                alt={`QR-Code für ${inviteUrl}`}
-                width={240}
-                height={240}
-                style={{ borderRadius:8, background:'#fff' }}
-              />
+              <QrImage text={inviteUrl} size={240} alt={`QR-Code für ${inviteUrl}`} />
               <button className="secondary" onClick={() => copyQR(createdCode)} style={{ fontSize: 13 }}>
                 {copied === `qr-${createdCode}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
               </button>
@@ -2627,13 +2638,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
               </button>
             </div>
             <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
-              <img
-                src={qrCodeUrl(inviteUrl, 220)}
-                alt={`QR-Code für ${inviteUrl}`}
-                width={220}
-                height={220}
-                style={{ borderRadius:8, background:'#fff' }}
-              />
+              <QrImage text={inviteUrl} size={220} alt={`QR-Code für ${inviteUrl}`} />
               <button className="secondary" onClick={() => copyQR(selected.id)} style={{ fontSize: 13 }}>
                 {copied === `qr-${selected.id}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
               </button>
@@ -2659,13 +2664,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 </button>
               </div>
               <div style={{ marginTop:16, display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
-                <img
-                  src={qrCodeUrl(`${window.location.origin}/?code=${selected.guest_code}`, 220)}
-                  alt={`QR-Code für den Gast-Link`}
-                  width={220}
-                  height={220}
-                  style={{ borderRadius:8, background:'#fff' }}
-                />
+                <QrImage text={`${window.location.origin}/?code=${selected.guest_code}`} size={220} alt={`QR-Code für den Gast-Link`} />
                 <button className="secondary" onClick={() => copyQR(selected.guest_code)} style={{ fontSize: 13 }}>
                   {copied === `qr-${selected.guest_code}` ? t('✓ QR kopiert', '✓ QR copied') : t('📋 QR-Code kopieren', '📋 Copy QR code')}
                 </button>

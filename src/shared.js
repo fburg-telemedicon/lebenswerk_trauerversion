@@ -178,6 +178,18 @@ export function passwordError(p) {
   return null
 }
 
-export function qrCodeUrl(text, size = 240) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`
+// QR-Codes entstehen IM BROWSER. Vorher lief das über api.qrserver.com — dabei
+// ging die vollständige Einladungs-URL samt Buch-Code an einen fremden Server,
+// und beim Lebenswerk IST dieser Code die gesamte Berechtigung des Endnutzers.
+// Die Muster-Bibliothek wird erst beim ersten QR geladen (eigener Chunk), damit
+// der Beitragenden-Flow davon nichts mitträgt.
+let qrLib = null
+export async function qrCodeDataUrl(text, size = 240) {
+  if (!qrLib) qrLib = (await import('qrcode')).default || (await import('qrcode'))
+  return qrLib.toDataURL(String(text || ''), {
+    width: size,
+    margin: 2,
+    errorCorrectionLevel: 'M',
+    color: { dark: '#1c1917ff', light: '#ffffffff' },
+  })
 }

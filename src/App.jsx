@@ -59,7 +59,7 @@ import { SupportProvider, useSupport } from './support.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, partnerLogoSrc, col, th, FooterVisibilityCtx } from './ui.jsx'
 import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
-import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeUrl } from './shared.js'
+import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeDataUrl } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
@@ -1628,7 +1628,8 @@ function Dashboard() {
     const url = `${window.location.origin}/?code=${code}`
     setErr('')
     try {
-      const resp = await fetch(qrCodeUrl(url, 320))
+      // Lokal erzeugte Data-URL statt Abruf bei einem externen QR-Dienst.
+      const resp = await fetch(await qrCodeDataUrl(url, 320))
       const blob = await resp.blob()
       if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
         throw new Error('Bild-Kopieren wird in diesem Browser nicht unterstützt. Stattdessen Rechtsklick → Bild kopieren.')
