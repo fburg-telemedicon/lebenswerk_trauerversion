@@ -11,7 +11,12 @@
         "Neue Suchleiste ueber der Buchliste: durchsucht Nummer, Name, Zugangscode, Organisator, Inhaber, E-Mail, Kategorie und Notiz. Mehrere Suchwoerter werden verknuepft.",
         "Neu einstellbar je Buch: Die erzaehlende Person darf im Menue selbst waehlen, wie ausfuehrlich nachgefragt wird - wenig, ausgewogen (Voreinstellung) oder intensiv. Standardmaessig ausgeschaltet; dann gilt weiter die Vorgabe des Managers.",
         "Wer sich selbst einen Zugang anlegt, wird jetzt in einem zusaetzlichen Schritt gefragt, ob es die einfachste Fassung (nur das Interview, Voreinstellung) oder die volle Ausstattung sein soll. Der Zugang entsteht bereits vorher - wer die Frage wegklickt, verliert nichts.",
-        "Der Superadmin kann ein Buchprojekt jetzt direkt fuer einen Kunden anlegen. Bisher entstanden dabei besitzerlose Buecher, die im Dashboard des Kunden gar nicht auftauchten - man musste sich als dieser Kunde anmelden."
+        "Der Superadmin kann ein Buchprojekt jetzt direkt fuer einen Kunden anlegen. Bisher entstanden dabei besitzerlose Buecher, die im Dashboard des Kunden gar nicht auftauchten - man musste sich als dieser Kunde anmelden.",
+        "Wer nur einen Zugangscode hat, kommt jetzt ohne Link weiter: Auf der Startseite fuehrt \"Ich habe einen Zugangscode\" zu einer Eingabemaske. Codes werden dabei lesbar gruppiert (QVZ-Y2R2-5WF) - Trennstriche darf man tippen oder weglassen.",
+        "Die Domain lebensgeschichten.ai zeigt jetzt eine echte Website mit Vorstellung aller Anlaesse, einem Bereich fuer Partner und Wiederverkaeufer sowie einem Kontaktformular. Alle bisherigen Einladungslinks und QR-Codes funktionieren unveraendert weiter.",
+        "Betreiber ist ab sofort die Lebenswerk.AI GmbH; Impressum, Datenschutzerklaerung und die internen Datenschutzunterlagen sind entsprechend aktualisiert. Die Einwilligungsfassung wurde auf 1.5 gehoben.",
+        "QR-Codes entstehen jetzt im Browser statt bei einem externen Dienst - der Zugangscode verlaesst das Haus nicht mehr.",
+        "Neu als Entwurf: ein Auftragsverarbeitungsvertrag (AVV.md) fuer Partner, die eigene Kunden ueber die Plattform betreuen."
       ]
     },
     {
