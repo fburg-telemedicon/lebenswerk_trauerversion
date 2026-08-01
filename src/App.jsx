@@ -903,7 +903,7 @@ function Dashboard() {
       name: m.name || '',
       organizer: m.organizer || '',
       gender: m.gender || '',
-      bookVariant: m.book_variant === 2 ? 2 : 1,
+      bookVariant: m.book_variant === 2 ? 2 : m.book_variant === 1 ? 1 : null,
       funeralDate: m.funeral_date ? String(m.funeral_date).slice(0, 10) : '',
       cutoffDays: Number.isFinite(parseInt(m.cutoff_days, 10)) ? parseInt(m.cutoff_days, 10) : 7,
       showIntroVideo: m.show_intro_video !== false,
@@ -969,7 +969,7 @@ function Dashboard() {
     try {
       const saved = await adminUpdateMemorialMeta(token, selected.id, {
         name: d.name, organizer: d.organizer, gender: d.gender || null,
-        bookVariant: d.bookVariant, funeralDate: d.funeralDate || null,
+        funeralDate: d.funeralDate || null,
         cutoffDays: d.cutoffDays, showIntroVideo: d.showIntroVideo, showTranscript: d.showTranscript,
         showContributors: d.showContributors, photoUploadTab: d.photoUploadTab,
         intake, languages: d.languages, note: d.note,
@@ -1004,7 +1004,6 @@ function Dashboard() {
         name: d.name.trim(),
         organizer: d.organizer.trim(),
         gender: d.gender || null,
-        book_variant: d.bookVariant === 2 ? 2 : 1,
         funeral_date: d.funeralDate || null,
         cutoff_days: Number.isFinite(parseInt(d.cutoffDays, 10)) && parseInt(d.cutoffDays, 10) >= 0 ? parseInt(d.cutoffDays, 10) : 7,
         show_intro_video: d.showIntroVideo !== false,

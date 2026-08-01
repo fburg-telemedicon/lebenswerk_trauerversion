@@ -11,5 +11,6 @@ export const GENDERS = [
 export const BOOK_VARIANTS = [
   { value: 1, title: 'Variante 1', sub: 'Alle Beiträge werden als separate Buchkapitel veröffentlicht.' },
   { value: 2, title: 'Variante 2', sub: 'Die Biographie wird aus allen Inhalten neu erstellt; einzelne Beiträge sind nicht mehr erkennbar.' },
+  { value: null, title: 'Variante offen lassen', sub: 'Die Entscheidung fällt erst beim Erzeugen des Buchs; beide Fassungen bleiben möglich. Beitragende werden dann darauf hingewiesen, dass ihr Beitrag namentlich erscheinen KÖNNTE.' },
 ]
 export const EMPTY_PICKUP = { name: '', addon: '', street: '', zip: '', city: '', country: 'Deutschland' }

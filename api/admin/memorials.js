@@ -654,7 +654,13 @@ module.exports = async function handler(req, res) {
 
       const code = genCode()
       // Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie).
-      const variant = isLifework ? 2 : ((bookVariant === 2 || bookVariant === '2') ? 2 : 1)
+      // Buch-Variante: 1 = jeder Beitrag ein eigenes Kapitel (namentlich),
+      // 2 = alles zu einem Text verwoben, NULL = bewusst offen gelassen (die
+      // Entscheidung fällt erst beim Erzeugen des Buchs). Die Variante wird NUR
+      // hier gesetzt und ist danach unveränderlich — sie bestimmt, was den
+      // Beitragenden vor dem Interview zugesagt wurde (namentliche Nennung).
+      const rawVariant = String(bookVariant ?? '')
+      const variant = isLifework ? 2 : (rawVariant === '2' ? 2 : rawVariant === '1' ? 1 : null)
       let days = parseInt(cutoffDays, 10)
       if (!Number.isFinite(days) || days < 0) days = 7
       const insertRow = {
@@ -921,7 +927,17 @@ module.exports = async function handler(req, res) {
         if (meta.name != null)       update.name = String(meta.name).trim()
         if (meta.organizer != null)  update.organizer = String(meta.organizer).trim()
         if ('gender' in meta)        update.gender = meta.gender ? String(meta.gender) : null
-        if (meta.bookVariant != null) update.book_variant = (meta.bookVariant === 2 || meta.bookVariant === '2') ? 2 : 1
+        // Die Buch-Variante ist nach der Anlage GESPERRT: Beitragende haben ihre
+        // Einwilligung im Vertrauen auf die damals geltende Variante gegeben
+        // (Variante 1 nennt sie namentlich im Buch). Ein nachträglicher Wechsel
+        // würde diese Zusage rückwirkend ändern.
+        if (meta.bookVariant != null) {
+          const { data: curVar } = await supabase.from('memorials').select('book_variant').eq('id', code).maybeSingle()
+          const wanted = String(meta.bookVariant) === '2' ? 2 : String(meta.bookVariant) === '1' ? 1 : null
+          if ((curVar?.book_variant ?? null) !== wanted) {
+            return res.status(400).json({ error: 'Die Buch-Variante wird bei der Anlage festgelegt und kann danach nicht mehr geändert werden.' })
+          }
+        }
         if ('funeralDate' in meta)   update.funeral_date = meta.funeralDate || null
         if (meta.cutoffDays != null) {
           let days = parseInt(meta.cutoffDays, 10)
@@ -1048,6 +1064,18 @@ module.exports = async function handler(req, res) {
       // ermitteln, damit anschließend die nun verwaisten Storage-Dateien (alte
       // Version − neue Version) gelöscht werden können.
       const isBookField = field === 'book_v1' || field === 'book_v2'
+      // Festgelegte Variante binden: Wer bei der Anlage Variante 2 gewählt hat,
+      // darf kein Buch mit namentlichen Einzelkapiteln erzeugen — und umgekehrt.
+      if (isBookField) {
+        const { data: varRow } = await supabase.from('memorials').select('book_variant, product_category').eq('id', code).maybeSingle()
+        const bv = varRow?.book_variant ?? null
+        if (bv === 2 && field === 'book_v1') {
+          return res.status(400).json({ error: 'Dieses Buch wurde als Variante 2 angelegt — eine Fassung mit namentlichen Einzelkapiteln ist hier nicht vorgesehen.' })
+        }
+        if (bv === 1 && field === 'book_v2') {
+          return res.status(400).json({ error: 'Dieses Buch wurde als Variante 1 angelegt — die verwobene Fassung ist hier nicht vorgesehen.' })
+        }
+      }
       let orphanPaths = []
       if (isBookField) {
         const { data: existing } = await supabase.from('memorials')

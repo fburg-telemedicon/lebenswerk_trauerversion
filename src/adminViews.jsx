@@ -2551,7 +2551,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     const setOdPa = patch => setOrderDraft(o => ({ ...o, pickupAddress: { ...o.pickupAddress, ...patch } }))
     const dash = '—'
     const fmtDateTime = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
-    const orderVariant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+    const orderVariant = BOOK_VARIANTS.find(v => v.value === (selected.book_variant ?? null)) || BOOK_VARIANTS[2]
     // Endnutzer-Kategorien (Lebenswerk, Anamnese): Es gibt dort KEINE Buch-Variante
     // zu wählen — beim Lebenswerk existiert nur Variante 2, die Anamnese hat gar
     // kein Buch. Die Anlage-Maske blendet sie längst aus (`!isEnduser`); auf der
@@ -2861,7 +2861,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
               )
             )}
             {!isEnduserCat && (() => {
-              const variant = BOOK_VARIANTS.find(v => v.value === selected.book_variant) || BOOK_VARIANTS[0]
+              const variant = BOOK_VARIANTS.find(v => v.value === (selected.book_variant ?? null)) || BOOK_VARIANTS[2]
               return (
                 <div style={{ ...S.card, marginBottom:'1rem', background:'#f5f5f4', borderColor:'#e7e5e4' }}>
                   <Lbl>Gewählte Buch-Variante</Lbl>
@@ -2894,8 +2894,10 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
               {[
                 // Lebenswerk kennt nur Variante 2 (eine Autobiographie); die
                 // Anamnese kennt gar kein Buch (nur den Bogen).
-                ...((isLifework || isAnamnesis) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
-                ...(isAnamnesis ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                // Variante bindet: Wurde bei der Anlage Variante 2 gewaehlt, gibt es hier
+                // keine Fassung mit namentlichen Einzelkapiteln — und umgekehrt.
+                ...((isLifework || isAnamnesis || selected.book_variant === 2) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
+                ...((isAnamnesis || selected.book_variant === 1) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
                   ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
                   : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') }]),
                 { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
@@ -3288,17 +3290,22 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     Auswahl anbieten (DB bleibt beim gespeicherten Default). */}
                 {!isEnduserCat && (
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>Buch-Variante *</Lbl>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
-                    {BOOK_VARIANTS.map(v => (
-                      <div key={v.value} onClick={() => setOd({ bookVariant: v.value })}
-                        style={{ ...S.card, cursor:'pointer', padding:'14px 14px',
-                          borderColor: od.bookVariant === v.value ? '#1c1917' : '#e7e5e4', borderWidth: od.bookVariant === v.value ? 2 : 1 }}>
+                  <Lbl>Buch-Variante</Lbl>
+                  {/* NICHT mehr änderbar: Beitragende haben ihre Einwilligung im
+                      Vertrauen auf die bei der Anlage gewählte Variante gegeben
+                      (Variante 1 nennt sie namentlich im Buch). */}
+                  {(() => {
+                    const v = BOOK_VARIANTS.find(x => x.value === (selected.book_variant ?? null)) || BOOK_VARIANTS[2]
+                    return (
+                      <div style={{ ...S.card, padding:'14px 14px', background:'#fafaf9' }}>
                         <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>
                         <div style={{ fontSize:13, color:'#78716c', lineHeight:1.5 }}>{v.sub}</div>
+                        <div style={{ fontSize:12, color:'#a8a29e', marginTop:8 }}>
+                          Bei der Anlage festgelegt und nicht mehr änderbar — die Beitragenden wurden entsprechend informiert.
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })()}
                 </div>
                 )}
                 <button type="button" onClick={() => setOdExpert(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', margin:'4px 0 16px' }}>

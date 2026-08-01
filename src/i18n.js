@@ -114,6 +114,10 @@ const DE = {
   consentSpecialOther: 'Gesundheit oder Religion',
   consentText: (noun, special) =>
     `Ich willige ausdrücklich ein, dass meine Angaben und mein Interview – einschließlich möglicher Angaben zu ${special} (besondere Kategorien personenbezogener Daten nach Art. 9 DSGVO) – zur Erstellung des ${noun} verarbeitet werden. Die Verarbeitung erfolgt durch KI-Dienste, die ausschließlich in der EU laufen (Microsoft Azure); eine Übermittlung in ein Drittland findet nicht statt. Die Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar. Einzelheiten in der `,
+  // Variante 1 macht aus jedem Beitrag ein eigenes Kapitel MIT NAMEN. Wer das
+  // nicht weiß, erzählt womöglich anders, als er es gedruckt sehen möchte.
+  nameNoticeSure: 'Wichtig: Ihr Beitrag erscheint im fertigen Buch als eigenes Kapitel — mit Ihrem Namen darüber. Alle, die das Buch lesen, können ihn also lesen.',
+  nameNoticeMaybe: 'Bitte beachten Sie: Ihr Beitrag könnte im fertigen Buch als eigenes Kapitel mit Ihrem Namen erscheinen. Wie das Buch aufgebaut wird, entscheidet sich später.',
   consentLink: 'Datenschutzerklärung',
   imprintLink: 'Impressum',
   consentAlready: 'Ihre Datenschutz-Einwilligung liegt bereits vor.',
@@ -406,6 +410,8 @@ const EN = {
   consentSpecialOther: 'health or religion',
   consentText: (noun, special) =>
     `I expressly consent to my information and my interview – including possible details about ${special} (special categories of personal data under Art. 9 GDPR) – being processed to create the ${noun}. Processing is carried out using AI services that run exclusively in the EU (Microsoft Azure); no transfer to a third country takes place. Consent is voluntary and can be withdrawn at any time with future effect. Details in the `,
+  nameNoticeSure: 'Important: your contribution will appear in the finished book as its own chapter — with your name above it. Everyone who reads the book can see it.',
+  nameNoticeMaybe: 'Please note: your contribution may appear in the finished book as its own chapter with your name. How the book is composed is decided later.',
   consentLink: 'privacy policy',
   imprintLink: 'Imprint',
   consentAlready: 'Your data-protection consent is already on record.',

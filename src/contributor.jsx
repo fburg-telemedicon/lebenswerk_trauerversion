@@ -3956,6 +3956,16 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                 {/* Rechtstexte liegen nur auf Deutsch vor und sind rechtlich
                     maßgeblich — in jeder Sprache ein kurzer Hinweis darauf. */}
                 {t.legalGermanNote ? <><br /><span style={{ fontSize:12, color:'#78716c' }}>{t.legalGermanNote}</span></> : null}
+                {/* Namentliche Nennung: Bei Variante 1 wird JEDER Beitrag ein eigenes
+                    Kapitel mit dem Namen der erzählenden Person; bei offener Variante
+                    ist das möglich. Das gehört VOR das erste Wort, nicht hinterher —
+                    es ändert, was Menschen erzählen. Variante 2 verwebt alle Beiträge,
+                    dort entfällt der Hinweis. */}
+                {!isSelf && (memorial?.book_variant === 1 || memorial?.book_variant == null) && (
+                  <span style={{ display:'block', marginTop:10, padding:'9px 11px', background:'#fff', border:'1px solid #fde68a', borderRadius:8, fontSize:12.5, lineHeight:1.55, color:'#78350f' }}>
+                    {memorial?.book_variant === 1 ? t.nameNoticeSure : t.nameNoticeMaybe}
+                  </span>
+                )}
               </span>
             </label>
           </div>

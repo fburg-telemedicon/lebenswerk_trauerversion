@@ -237,7 +237,7 @@ module.exports = async function handler(req, res) {
       // wird OHNE sie erneut gelesen, damit der Beitragenden-Flow NIE an einer
       // Migration hängt (analog zum Fallback der Admin-Liste).
       const PUBLIC_FIELDS_BASE =
-        'id, name, gender, birth_year, death_year, organizer, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, text_style, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, intake, created_at'
+        'id, name, gender, birth_year, death_year, organizer, book_variant, product_category, languages, funeral_date, cutoff_days, show_intro_video, show_transcript, photo_upload_tab, owner_user, catalog_id, followups, image_style, book_layout, text_style, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, intake, created_at'
       // show_onboarding + tts_voice sind neu — fehlt eine der Spalten noch, wird OHNE
       // sie erneut gelesen (Beitragenden-Flow darf NIE an einer Migration hängen).
       let { data, error } = await supabase
