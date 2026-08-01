@@ -2407,10 +2407,7 @@ Regeln:
       // dauerhaften (signierten) Download-Link in der Detailansicht anzeigen.
       if (store && blob) {
         setDlBusy(`${key}:pdf-store`)
-        const dataBase64 = await new Promise((res, rej) => {
-          const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Datei-Lesefehler')); r.readAsDataURL(blob)
-        })
-        const out = await storeMemorialPdf(token, selected.id, { variant: key, filename, dataBase64 })
+        const out = await storeMemorialPdf(token, selected.id, { variant: key, filename, blob })
         const entry = { url: out.url, slug: out.stored_pdfs?.[key]?.slug || null, filename, at: new Date().toISOString() }
         setSelected(s => ({ ...s, stored_pdf_urls: { ...(s.stored_pdf_urls || {}), [key]: entry } }))
         setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, stored_pdf_urls: { ...(x.stored_pdf_urls || {}), [key]: entry } } : x))
@@ -2567,10 +2564,7 @@ Regeln:
       if (store && blob) {
         setDlBusy(`${key}:ebook-store`)
         const variant = `ebook_${key}`
-        const dataBase64 = await new Promise((res, rej) => {
-          const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Datei-Lesefehler')); r.readAsDataURL(blob)
-        })
-        const out = await storeMemorialPdf(token, selected.id, { variant, filename, dataBase64 })
+        const out = await storeMemorialPdf(token, selected.id, { variant, filename, blob })
         const entry = { url: out.url, slug: out.stored_pdfs?.[variant]?.slug || null, filename, at: new Date().toISOString() }
         setSelected(s => ({ ...s, stored_pdf_urls: { ...(s.stored_pdf_urls || {}), [variant]: entry } }))
         setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, stored_pdf_urls: { ...(x.stored_pdf_urls || {}), [variant]: entry } } : x))

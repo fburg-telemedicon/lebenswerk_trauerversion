@@ -39,6 +39,7 @@ Set on the Container App (via `infra/deploy.sh`) and in a local `.env` for `node
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`). |
 | `RETENTION_DAYS` | Days after `funeral_date` (else `created_at`) before a memorial is auto-deleted (default `90`). |
 | `JSON_LIMIT` | Body size limit for the Express JSON parser (default `50mb`; base64 audio/images). |
+| `PDF_LIMIT` / `PDF_MAX_MB` | Only for `/api/admin/store-pdf`, which takes the **raw** PDF blob (not base64 JSON) so big print PDFs fit. Raw body limit (default `200mb`) and the handler's own check (default `200`). Keep the two in sync. |
 
 ## Architecture
 

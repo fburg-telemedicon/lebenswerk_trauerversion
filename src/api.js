@@ -78,11 +78,14 @@ export async function claimEnduserStart(code, { name, gender, address } = {}) {
 // Optionale Server-Ablage des im Browser erzeugten Druck-PDFs (Checkbox in der
 // Detailansicht). Legt eine Kopie im Blob-Storage ab und gibt einen signierten
 // Download-Link zurück; beim Löschen des Buchs verschwindet die Kopie automatisch.
-export async function storeMemorialPdf(token, code, { variant, filename, dataBase64 }) {
-  const res = await fetch(`/api/admin/store-pdf?code=${encodeURIComponent(code)}`, {
+// Der Blob geht ROH raus (kein Base64): ein Druck-PDF mit vollen Bildern wiegt
+// leicht 60–100 MB, als Base64-JSON lief es in das Body-Limit des Servers.
+export async function storeMemorialPdf(token, code, { variant, filename, blob }) {
+  const qs = new URLSearchParams({ code, variant, filename: filename || '' })
+  const res = await fetch(`/api/admin/store-pdf?${qs}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ variant, filename, dataBase64 }),
+    headers: { 'Content-Type': 'application/pdf', Authorization: `Bearer ${token}` },
+    body: blob,
   })
   return parseResponse(res) // { ok, variant, url, stored_pdfs }
 }

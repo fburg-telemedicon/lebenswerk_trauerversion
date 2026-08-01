@@ -22,6 +22,15 @@ const express = require('express')
 const app = express()
 app.disable('x-powered-by')
 
+// Druck-PDFs werden NICHT als Base64-JSON hochgeladen: ein Buchblock mit vollen
+// Druck-PNGs liegt schnell bei 60–100 MB, als Base64 nochmal +33 % — das lief in
+// das JSON-Limit unten (413) und war auch im Speicher teuer. Die Ablage nimmt den
+// Blob deshalb roh entgegen (Variante/Dateiname stehen in der Query).
+app.use('/api/admin/store-pdf', express.raw({
+  type: ['application/pdf', 'application/octet-stream'],
+  limit: process.env.PDF_LIMIT || '200mb',
+}))
+
 // Base64-Audio (STT), Bilder (Upload/Referenz) → großzügiges Limit.
 app.use(express.json({ limit: process.env.JSON_LIMIT || '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_LIMIT || '50mb' }))
