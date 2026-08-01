@@ -39,16 +39,15 @@ export function Impressum() {
   return (
     <LegalLayout title="Impressum">
       <p><strong>Angaben gemäß § 5 DDG</strong></p>
-      <p>HealthCare Futurists GmbH<br/>Stadtwaldgürtel 13<br/>50935 Köln<br/>Deutschland</p>
-      <p>Zweigstelle:<br/>Walter-Schneider-Straße 11<br/>06317 Seegebiet Mansfelder Land<br/>Deutschland</p>
+      <p>Lebenswerk.AI GmbH<br/>Walter-Schneider-Straße 10<br/>06317 Seegebiet Mansfelder Land<br/>Deutschland</p>
       <h2 style={LH}>Vertreten durch</h2>
       <p>Geschäftsführer Dr. Tobias D. Gantner</p>
       <h2 style={LH}>Kontakt</h2>
-      <p>E-Mail: info@healthcarefuturists.com<br/>Telefon: +49 151 4129 6999</p>
+      <p>E-Mail: support@lebensgeschichten.ai</p>
       <h2 style={LH}>Registereintrag</h2>
-      <p>Eintragung im Handelsregister.<br/>Registergericht: Amtsgericht Köln<br/>Registernummer: HRB 91294</p>
+      <p>Eintragung im Handelsregister ist beantragt.<br/>Registergericht: folgt<br/>Registernummer: folgt</p>
       <h2 style={LH}>Umsatzsteuer-Identifikationsnummer</h2>
-      <p>USt-IdNr. gemäß § 27a UStG: DE291805257</p>
+      <p>USt-IdNr. gemäß § 27a UStG: folgt</p>
       <h2 style={LH}>Verantwortlich für den Inhalt</h2>
       <p>gemäß § 18 Abs. 2 MStV: Dr. Tobias D. Gantner, Anschrift wie oben.</p>
       <h2 style={LH}>Haftung für die erstellten Bücher und Inhalte</h2>
@@ -66,14 +65,13 @@ export function Impressum() {
 export function Datenschutz() {
   return (
     <LegalLayout title="Datenschutzerklärung">
-      <p style={{ color:'#78716c' }}>Stand: 22. Juni 2026 · Fassung {CONSENT_VERSION}</p>
+      <p style={{ color:'#78716c' }}>Stand: 1. August 2026 · Fassung {CONSENT_VERSION}</p>
 
       <h2 style={LH}>1. Verantwortlicher</h2>
       <p>
         Verantwortlich für die Datenverarbeitung im Sinne der DSGVO ist:<br/>
-        HealthCare Futurists GmbH, Stadtwaldgürtel 13, 50935 Köln, Deutschland<br/>
-        Geschäftsführer: Dr. Tobias D. Gantner<br/>
-        E-Mail: info@healthcarefuturists.com · Telefon: +49 151 4129 6999
+        Lebenswerk.AI GmbH, Walter-Schneider-Straße 10, 06317 Seegebiet Mansfelder Land, Deutschland<br/>
+        E-Mail: support@lebensgeschichten.ai
       </p>
 
       <h2 style={LH}>2. Worum es geht</h2>
@@ -142,12 +140,12 @@ export function Datenschutz() {
         <li>Datenübertragbarkeit (Art. 20) – wir stellen Ihre Daten auf Anfrage als maschinenlesbare Datei bereit,</li>
         <li>Widerspruch (Art. 21) sowie Widerruf einer erteilten Einwilligung (Art. 7 Abs. 3).</li>
       </ul>
-      <p>Zur Ausübung genügt eine Nachricht an info@healthcarefuturists.com.</p>
+      <p>Zur Ausübung genügt eine Nachricht an support@lebensgeschichten.ai.</p>
 
       <h2 style={LH}>8. Widerruf der Einwilligung</h2>
       <p>
         Sie können Ihre Einwilligung jederzeit widerrufen – formlos per E-Mail an
-        info@healthcarefuturists.com. Nach einem Widerruf stellen wir die weitere Verarbeitung ein
+        support@lebensgeschichten.ai. Nach einem Widerruf stellen wir die weitere Verarbeitung ein
         und löschen Ihre Daten, soweit keine gesetzliche Aufbewahrungspflicht entgegensteht.
       </p>
 

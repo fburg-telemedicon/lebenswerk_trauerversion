@@ -72,6 +72,7 @@ const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding eines neuen Benutzers
 const registerFromURL = urlParams.has('register')            // öffentliche Selbstregistrierung (Lebenswerk-Test)
+const codeEntryFromURL = urlParams.has('zugang')             // Eingabemaske für einen Zugangscode (ohne ?code=)
 const langFromURL   = (urlParams.get('lang') || '').trim()   // Login-Fenster in dieser Sprache (aus der Zugangsmail)
 
 // ── Login-Fenster mehrsprachig ────────────────────────────────────
@@ -79,8 +80,12 @@ const langFromURL   = (urlParams.get('lang') || '').trim()   // Login-Fenster in
 // Login-Fenster soll dann in ihrer Sprache erscheinen. Nur die wenigen sichtbaren
 // Strings des Login-Formulars; das Dashboard dahinter bleibt de/en.
 const LOGIN_L10N = {
-  de: { sub: 'Bitte melden Sie sich an.', email: 'E-Mail-Adresse', pw: 'Passwort', signIn: 'Anmelden', signingIn: 'Wird überprüft …', forgot: 'Passwort vergessen?', remember: 'Angemeldet bleiben' },
-  en: { sub: 'Please sign in.', email: 'Email address', pw: 'Password', signIn: 'Sign in', signingIn: 'Signing in …', forgot: 'Forgot password?', remember: 'Stay signed in' },
+  de: { sub: 'Bitte melden Sie sich an.', email: 'E-Mail-Adresse', pw: 'Passwort', signIn: 'Anmelden', signingIn: 'Wird überprüft …', forgot: 'Passwort vergessen?', remember: 'Angemeldet bleiben',
+        codeLink: 'Ich habe einen Zugangscode', codeTitle: 'Zugangscode eingeben', codeSub: 'Den Code finden Sie auf Ihrem Einladungsschreiben — zehn Buchstaben und Ziffern.',
+        codeLbl: 'Zugangscode', codeBtn: 'Weiter zum Interview', codeBack: '← Zurück zur Anmeldung', codeErr: 'Bitte geben Sie den vollständigen Code ein (mindestens 6 Zeichen).' },
+  en: { sub: 'Please sign in.', email: 'Email address', pw: 'Password', signIn: 'Sign in', signingIn: 'Signing in …', forgot: 'Forgot password?', remember: 'Stay signed in',
+        codeLink: 'I have an access code', codeTitle: 'Enter your access code', codeSub: 'You will find the code on your invitation — ten letters and digits.',
+        codeLbl: 'Access code', codeBtn: 'Continue to the interview', codeBack: '← Back to sign in', codeErr: 'Please enter the complete code (at least 6 characters).' },
   pl: { sub: 'Zaloguj się.', email: 'Adres e-mail', pw: 'Hasło', signIn: 'Zaloguj się', signingIn: 'Sprawdzanie …', forgot: 'Nie pamiętasz hasła?' },
   es: { sub: 'Inicie sesión.', email: 'Correo electrónico', pw: 'Contraseña', signIn: 'Iniciar sesión', signingIn: 'Comprobando …', forgot: '¿Olvidó su contraseña?' },
   it: { sub: 'Accedi.', email: 'Indirizzo e-mail', pw: 'Password', signIn: 'Accedi', signingIn: 'Verifica in corso …', forgot: 'Password dimenticata?' },
@@ -492,6 +497,10 @@ function Dashboard() {
   const [remember, setRemember]       = useState(true)  // „Angemeldet bleiben" (Login) — Default an
   // Passwort-Reset am Login (Self-Service)
   const [showReset, setShowReset]     = useState(false)
+  // Zugangscode-Eingabe (Beitragende ohne Konto). ?zugang öffnet sie direkt.
+  const [codeEntry, setCodeEntry]     = useState(codeEntryFromURL)
+  const [codeInput, setCodeInput]     = useState('')
+  const [codeErr, setCodeErr]         = useState('')
   const [resetEmail, setResetEmail]   = useState('')
   const [resetMsg, setResetMsg]       = useState('')
   const [resetBusy, setResetBusy]     = useState(false)
@@ -3380,6 +3389,43 @@ Regeln:
   }
 
   // ── LOGIN ──
+  // ── Zugangscode eingeben ──────────────────────────────────────────────
+  // Ein Beitragender hat keinen Benutzernamen, sondern einen Code aus seiner
+  // Einladung. Der Code wird hier NICHT geprüft — er wird an die normale
+  // ?code=-Adresse angehängt; ab dort greift der bestehende Beitragenden-Flow
+  // samt seiner Fehlermeldung, falls es den Code nicht gibt.
+  if (view === 'login' && codeEntry) {
+    const clean = codeInput.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
+    const go = (e) => {
+      e.preventDefault()
+      if (clean.length < 6) { setCodeErr(LOGIN_T.codeErr || 'Bitte geben Sie den vollständigen Code ein.'); return }
+      window.location.href = `/?code=${clean}`
+    }
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }}>
+        <form onSubmit={go} style={{ width: '100%', maxWidth: 380, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{LOGIN_T.codeTitle || 'Zugangscode eingeben'}</h1>
+          <p style={{ fontSize: 14, color: '#78716c', lineHeight: 1.55, marginBottom: '1.4rem' }}>{LOGIN_T.codeSub || ''}</p>
+          <Err msg={codeErr} />
+          <div style={{ marginBottom: 18 }}>
+            <Lbl>{LOGIN_T.codeLbl || 'Zugangscode'}</Lbl>
+            <input value={codeInput} onChange={e => { setCodeInput(e.target.value); setCodeErr('') }}
+              dir="ltr" autoFocus autoComplete="off" autoCapitalize="characters" spellCheck={false}
+              placeholder="ABCD123456"
+              style={{ textTransform: 'uppercase', letterSpacing: '0.18em', fontSize: 19, fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
+          </div>
+          <button type="submit" disabled={clean.length < 6} style={{ width: '100%', padding: 12, fontSize: 15 }}>
+            {LOGIN_T.codeBtn || 'Weiter'}
+          </button>
+          <button type="button" onClick={() => { setCodeEntry(false); setCodeErr('') }}
+            style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+            {LOGIN_T.codeBack || '← Zurück zur Anmeldung'}
+          </button>
+        </form>
+      </div>
+    )
+  }
+
   if (view === 'login') return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
       {!showReset ? (
@@ -3405,6 +3451,13 @@ Regeln:
         <button type="button" onClick={() => { setShowReset(true); setResetEmail(username); setResetMsg(''); setErr('') }}
           style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
           {LOGIN_T.forgot}
+        </button>
+        {/* Beitragende haben KEIN Konto, sondern einen Zugangscode. Ohne diesen
+            Ausweg landen sie hier in einer Anmeldemaske, an der sie nicht
+            weiterkommen — der häufigste Support-Fall bei gedruckten Einladungen. */}
+        <button type="button" onClick={() => { setCodeEntry(true); setErr('') }}
+          style={{ display: 'block', width: '100%', marginTop: 18, padding: '10px 12px', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, color: '#44403c', fontSize: 14, cursor: 'pointer' }}>
+          {LOGIN_T.codeLink || 'Ich habe einen Zugangscode'}
         </button>
         {!LOGIN_LANG && (
           <p style={{ textAlign: 'center', fontSize: 13, color: '#a8a29e', margin: '18px 0 0', borderTop: '1px solid #f5f5f4', paddingTop: 16 }}>
@@ -3539,7 +3592,7 @@ Regeln:
 // ── Rechtstexte (Impressum / Datenschutz) ─────────────────────────
 // HINWEIS (intern): Der Datenschutztext ist ein fundierter Entwurf, der die
 // tatsächliche Verarbeitung abbildet. Vor produktivem Verlass darauf bitte
-// juristisch prüfen lassen. Verantwortliche: HealthCare Futurists GmbH.
+// juristisch prüfen lassen. Verantwortliche: Lebenswerk.AI GmbH.
 
 
 // ── Haupt-App ─────────────────────────────────────────────────────

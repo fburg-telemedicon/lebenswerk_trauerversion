@@ -18,10 +18,10 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 
 | Feld | Angabe |
 |---|---|
-| Verantwortlicher | **HealthCare Futurists GmbH** |
+| Verantwortlicher | **Lebenswerk.AI GmbH** |
 | Sitz | Köln |
 | Vertretung | Geschäftsführer Dr. Gantner |
-| Kontakt Datenschutz | info@healthcarefuturists.com |
+| Kontakt Datenschutz | support@lebensgeschichten.ai |
 | Datenschutzbeauftragter | _[falls bestellt, hier eintragen — sonst Begründung der Nicht-Bestellung dokumentieren]_ |
 | Zuständige Aufsichtsbehörde | Landesbeauftragte für Datenschutz und Informationsfreiheit NRW (LDI NRW) |
 
@@ -68,7 +68,7 @@ Teilzwecke:
 - **Protokollierung:** Pflicht-Häkchen vor dem Interview; gespeichert als
   `consent_at` + `consent_version` auf `contributions` (Migration `supabase/consent.sql`).
   Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.4**, 2026-06-22).
-- **Widerruf:** jederzeit per E-Mail an info@healthcarefuturists.com; das Team löscht
+- **Widerruf:** jederzeit per E-Mail an support@lebensgeschichten.ai; das Team löscht
   Beitrag/Buch manuell. Dokumentiert in der Datenschutzerklärung (Abschnitt 7+8).
 - **Datenfluss-Landkarte:** siehe Abschnitt 7.
 

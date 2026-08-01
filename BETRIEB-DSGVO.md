@@ -1,7 +1,7 @@
 # Betriebs-Runbook DSGVO (Phase 5)
 
 Praktische Abläufe für den laufenden Betrieb der Gedenkbuch-App.
-Verantwortlicher: **HealthCare Futurists GmbH**, Köln (GF Dr. Gantner).
+Verantwortlicher: **Lebenswerk.AI GmbH**, Köln (GF Dr. Gantner).
 Stand: 2026-06-18. Dieses Dokument ist ein Entwurf und juristisch zu prüfen.
 
 > Zuständige Aufsichtsbehörde (Sitz Köln/NRW): **Landesbeauftragte für

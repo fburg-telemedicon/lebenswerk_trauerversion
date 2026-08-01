@@ -2,7 +2,7 @@
 
 Gedenkbuch-/Lebensgeschichten-App. **Entwurf — durch DSB/Jurist:in zu prüfen und freizugeben.**
 Stand: 2026-07-07. Produktion: lebensgeschichten.ai.
-Verantwortlicher: **HealthCare Futurists GmbH**, Köln (GF Dr. Gantner).
+Verantwortlicher: **Lebenswerk.AI GmbH**, Köln (GF Dr. Gantner).
 
 Baut auf den bestehenden Dokumenten auf und wiederholt deren Inhalte nicht:
 - `VERFAHRENSVERZEICHNIS.md` — Verarbeitungstätigkeiten (Art. 30), Datenkategorien, Datenfluss, Empfänger, Löschfristen.
