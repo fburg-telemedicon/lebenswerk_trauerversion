@@ -152,6 +152,10 @@ if (fs.existsSync(DIST)) {
     for (const [route, file] of [['/kontakt', 'kontakt.html']]) {
       app.get(route, (req, res) => res.sendFile(path.join(SITE, file)))
     }
+    // Kurzadresse für gedruckte Einladungen: „lebensgeschichten.ai/zugang".
+    // Auf Papier ist das die einzige Adresse, die jemand fehlerfrei abtippt —
+    // die vollständige ?code=-Adresse ist zehn Zeichen länger und fehleranfällig.
+    app.get(['/zugang', '/code'], (req, res) => res.redirect(302, '/?zugang'))
     app.use('/site', express.static(SITE))
   }
   app.get(['/app', '/app/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))
