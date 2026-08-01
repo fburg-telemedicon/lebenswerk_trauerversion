@@ -1060,10 +1060,21 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
       ...(auth.admin ? [{ key: 'cost', label: t('Kosten', 'Cost'), val: m => m.cost_total_eur || 0, disp: m => formatEurSum(m.cost_total_eur) }] : []),
     ]
     const colByKey = k => sortCols.find(c => c.key === k) || sortCols[0]
+    // Freitextsuche über die Buchliste. Sucht zusätzlich in Feldern, die keine
+    // eigene Spalte haben — vor allem im BUCH-CODE (häufigster Fall im Support:
+    // jemand nennt seinen Code) und in der Notiz. Mehrere Wörter = UND-Suche,
+    // Reihenfolge egal. Läuft rein im Browser über die ohnehin geladene Liste.
+    const [q, setQ] = useState('')
+    const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const haystack = m => [
+      m.project_no, displayBookName(m), m.id, m.organizer, m.owner_username,
+      m.enduser_email, m.intake?.contact_email, getCategory(m.product_category).label, m.note,
+    ].filter(v => v != null && v !== '').join(' ').toLowerCase()
+    const matchesQuery = m => { if (!terms.length) return true; const h = haystack(m); return terms.every(term => h.includes(term)) }
     const distinctVals = col => [...new Set(memorials.map(col.disp))].sort((a, b) => String(a).localeCompare(String(b), 'de', { numeric: true }))
     // Sichtbarkeit: ein Buch passt, wenn es in JEDER aktiven Filterspalte einen
     // ausgewählten Wert hat. Fehlt der Filtereintrag, ist die Spalte ungefiltert.
-    const visibleMemorials = memorials.filter(m => sortCols.every(c => {
+    const visibleMemorials = memorials.filter(m => matchesQuery(m) && sortCols.every(c => {
       const sel = filters[c.key]
       return !sel || sel.includes(c.disp(m))
     }))
@@ -1148,6 +1159,20 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem', gap:12 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>{t('Alle Bücher', 'All books')}</h2>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            {/* Suche: durchsucht Nr., Name, Buch-Code, Organisator, Inhaber, E-Mail,
+                Kategorie und Notiz. ✕ leert das Feld (auch mit Esc). */}
+            <div style={{ position:'relative' }}>
+              <input
+                type="search" value={q} onChange={e => setQ(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') setQ('') }}
+                placeholder={t('Suchen (Nr., Name, Code, E-Mail …)', 'Search (no., name, code, email …)')}
+                aria-label={t('Bücher durchsuchen', 'Search books')}
+                style={{ fontSize:13, padding:'8px 28px 8px 12px', width:280, maxWidth:'40vw', border:'1px solid #e7e5e4', borderRadius:8, background:'#fff' }} />
+              {q && (
+                <button onClick={() => setQ('')} aria-label={t('Suche leeren', 'Clear search')} title={t('Suche leeren', 'Clear search')}
+                  style={{ position:'absolute', right:4, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', fontSize:16, lineHeight:1, color:'#a8a29e', padding:'2px 6px' }}>×</button>
+              )}
+            </div>
             {Object.keys(filters).length > 0 && (
               <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:13, padding:'8px 12px' }}>{t('Filter zurücksetzen', 'Reset filters')}</button>
             )}
@@ -1224,9 +1249,11 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                 {sortedMemorials.length === 0 && (
                   <tr>
                     <td colSpan={sortCols.length + 1} style={{ ...col, textAlign:'center', color:'#78716c', padding:'28px 14px' }}>
-                      {t('Kein Buch passt zu den gesetzten Filtern.', 'No book matches the current filters.')}
-                      <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:12, padding:'5px 10px', marginLeft:10 }}>
-                        {t('Filter zurücksetzen', 'Reset filters')}
+                      {terms.length
+                        ? t('Kein Buch passt zur Suche.', 'No book matches your search.')
+                        : t('Kein Buch passt zu den gesetzten Filtern.', 'No book matches the current filters.')}
+                      <button className="secondary" onClick={() => { setFilters({}); setQ('') }} style={{ fontSize:12, padding:'5px 10px', marginLeft:10 }}>
+                        {terms.length ? t('Suche und Filter zurücksetzen', 'Reset search and filters') : t('Filter zurücksetzen', 'Reset filters')}
                       </button>
                     </td>
                   </tr>
