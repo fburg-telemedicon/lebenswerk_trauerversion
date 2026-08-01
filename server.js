@@ -156,6 +156,10 @@ if (fs.existsSync(DIST)) {
     // Auf Papier ist das die einzige Adresse, die jemand fehlerfrei abtippt —
     // die vollständige ?code=-Adresse ist zehn Zeichen länger und fehleranfällig.
     app.get(['/zugang', '/code'], (req, res) => res.redirect(302, '/?zugang'))
+    // Bilder der Website. OHNE diese Zeile fallen /img/… in den SPA-Fallback ganz
+    // unten und liefern index.html mit Status 200 — im Browser ein kaputtes Bild,
+    // das keine Fehlermeldung erzeugt. Muss vor dem Fallback stehen.
+    app.use('/img', express.static(path.join(SITE, 'img'), { maxAge: '7d' }))
     app.use('/site', express.static(SITE))
   }
   app.get(['/app', '/app/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))
