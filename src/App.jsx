@@ -903,7 +903,7 @@ function Dashboard() {
       name: m.name || '',
       organizer: m.organizer || '',
       gender: m.gender || '',
-      bookVariant: m.book_variant === 2 ? 2 : m.book_variant === 1 ? 1 : null,
+      bookVariant: normVariant(m.book_variant),
       funeralDate: m.funeral_date ? String(m.funeral_date).slice(0, 10) : '',
       cutoffDays: Number.isFinite(parseInt(m.cutoff_days, 10)) ? parseInt(m.cutoff_days, 10) : 7,
       showIntroVideo: m.show_intro_video !== false,

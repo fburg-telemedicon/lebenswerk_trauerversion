@@ -12,7 +12,7 @@ import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
 import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, detailFollowups, detailLevelOf } from './categories.js'
-import { GENDERS, CONSENT_VERSION } from './constants.js'
+import { GENDERS, CONSENT_VERSION, normVariant } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
 import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
@@ -3961,9 +3961,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                     ist das möglich. Das gehört VOR das erste Wort, nicht hinterher —
                     es ändert, was Menschen erzählen. Variante 2 verwebt alle Beiträge,
                     dort entfällt der Hinweis. */}
-                {!isSelf && (memorial?.book_variant === 1 || memorial?.book_variant == null) && (
+                {!isSelf && normVariant(memorial?.book_variant) !== 2 && (
                   <span style={{ display:'block', marginTop:10, padding:'9px 11px', background:'#fff', border:'1px solid #fde68a', borderRadius:8, fontSize:12.5, lineHeight:1.55, color:'#78350f' }}>
-                    {memorial?.book_variant === 1 ? t.nameNoticeSure : t.nameNoticeMaybe}
+                    {normVariant(memorial?.book_variant) === 1 ? t.nameNoticeSure : t.nameNoticeMaybe}
                   </span>
                 )}
               </span>

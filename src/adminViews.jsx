@@ -8,7 +8,7 @@ import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkEx
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
-import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
+import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 
 // QR-Code, im Browser erzeugt (siehe qrCodeDataUrl in shared.js). Bis das Bild
@@ -2551,7 +2551,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     const setOdPa = patch => setOrderDraft(o => ({ ...o, pickupAddress: { ...o.pickupAddress, ...patch } }))
     const dash = '—'
     const fmtDateTime = s => { try { return new Date(s).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return s } }
-    const orderVariant = BOOK_VARIANTS.find(v => v.value === (selected.book_variant ?? null)) || BOOK_VARIANTS[2]
+    const orderVariant = BOOK_VARIANTS.find(v => v.value === normVariant(selected.book_variant)) || BOOK_VARIANTS[2]
     // Endnutzer-Kategorien (Lebenswerk, Anamnese): Es gibt dort KEINE Buch-Variante
     // zu wählen — beim Lebenswerk existiert nur Variante 2, die Anamnese hat gar
     // kein Buch. Die Anlage-Maske blendet sie längst aus (`!isEnduser`); auf der
@@ -2611,7 +2611,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
           <p style={{ fontSize: 14, color: '#78716c', marginBottom: '1rem' }}>
             {isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt: ' : t('Organisator:', 'Organizer:') + ' '}{selected.organizer || '—'}
             {selected.gender ? ` · ${selected.gender}` : ''}
-            {(!isEnduserCat && selected.book_variant) ? ` · ${t('Buch-Variante', 'Book variant')} ${selected.book_variant}` : ''}
+            {(!isEnduserCat && normVariant(selected.book_variant)) ? ` · ${t('Buch-Variante', 'Book variant')} ${normVariant(selected.book_variant)}` : ''}
             {selected.funeral_date ? ` · ${getCategory(selected.product_category).intake.dateLabel}: ${new Date(selected.funeral_date).toLocaleDateString('de-DE')}` : ''}
             {selected.funeral_date ? ` · ${t('Erfassung bis:', 'Collection until:')} ${cutoffString(selected.funeral_date, cutoffDays(selected))} (${cutoffDays(selected)} ${t('Tage vorher', 'days before')})` : ''}
             {selected.created_at ? ` · ${t('erstellt am', 'created on')} ${fmtDateTime(selected.created_at)}` : ''}
@@ -2861,7 +2861,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
               )
             )}
             {!isEnduserCat && (() => {
-              const variant = BOOK_VARIANTS.find(v => v.value === (selected.book_variant ?? null)) || BOOK_VARIANTS[2]
+              const variant = BOOK_VARIANTS.find(v => v.value === normVariant(selected.book_variant)) || BOOK_VARIANTS[2]
               return (
                 <div style={{ ...S.card, marginBottom:'1rem', background:'#f5f5f4', borderColor:'#e7e5e4' }}>
                   <Lbl>Gewählte Buch-Variante</Lbl>
@@ -2896,8 +2896,8 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 // Anamnese kennt gar kein Buch (nur den Bogen).
                 // Variante bindet: Wurde bei der Anlage Variante 2 gewaehlt, gibt es hier
                 // keine Fassung mit namentlichen Einzelkapiteln — und umgekehrt.
-                ...((isLifework || isAnamnesis || selected.book_variant === 2) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
-                ...((isAnamnesis || selected.book_variant === 1) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                ...((isLifework || isAnamnesis || normVariant(selected.book_variant) === 2) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
+                ...((isAnamnesis || normVariant(selected.book_variant) === 1) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
                   ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
                   : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') }]),
                 { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
@@ -3295,7 +3295,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                       Vertrauen auf die bei der Anlage gewählte Variante gegeben
                       (Variante 1 nennt sie namentlich im Buch). */}
                   {(() => {
-                    const v = BOOK_VARIANTS.find(x => x.value === (selected.book_variant ?? null)) || BOOK_VARIANTS[2]
+                    const v = BOOK_VARIANTS.find(x => x.value === normVariant(selected.book_variant)) || BOOK_VARIANTS[2]
                     return (
                       <div style={{ ...S.card, padding:'14px 14px', background:'#fafaf9' }}>
                         <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{v.title}</div>

@@ -934,7 +934,8 @@ module.exports = async function handler(req, res) {
         if (meta.bookVariant != null) {
           const { data: curVar } = await supabase.from('memorials').select('book_variant').eq('id', code).maybeSingle()
           const wanted = String(meta.bookVariant) === '2' ? 2 : String(meta.bookVariant) === '1' ? 1 : null
-          if ((curVar?.book_variant ?? null) !== wanted) {
+          const istWert = parseInt(curVar?.book_variant, 10)
+          if ((Number.isNaN(istWert) ? null : istWert) !== wanted) {
             return res.status(400).json({ error: 'Die Buch-Variante wird bei der Anlage festgelegt und kann danach nicht mehr geändert werden.' })
           }
         }
@@ -1068,7 +1069,8 @@ module.exports = async function handler(req, res) {
       // darf kein Buch mit namentlichen Einzelkapiteln erzeugen — und umgekehrt.
       if (isBookField) {
         const { data: varRow } = await supabase.from('memorials').select('book_variant, product_category').eq('id', code).maybeSingle()
-        const bv = varRow?.book_variant ?? null
+        // TEXT-Spalte: '1'/'2' kommen als Zeichenkette zurück.
+        const bv = parseInt(varRow?.book_variant, 10)
         if (bv === 2 && field === 'book_v1') {
           return res.status(400).json({ error: 'Dieses Buch wurde als Variante 2 angelegt — eine Fassung mit namentlichen Einzelkapiteln ist hier nicht vorgesehen.' })
         }
