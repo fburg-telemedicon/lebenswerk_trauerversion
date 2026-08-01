@@ -23,7 +23,7 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 | Vertretung | Geschäftsführer Dr. Gantner |
 | Kontakt Datenschutz | support@lebensgeschichten.ai |
 | Datenschutzbeauftragter | _[falls bestellt, hier eintragen — sonst Begründung der Nicht-Bestellung dokumentieren]_ |
-| Zuständige Aufsichtsbehörde | Landesbeauftragte für Datenschutz und Informationsfreiheit NRW (LDI NRW) |
+| Zuständige Aufsichtsbehörde | Landesbeauftragter für den Datenschutz Sachsen-Anhalt, Magdeburg (Unternehmenssitz Seegebiet Mansfelder Land) |
 
 ---
 
@@ -193,5 +193,5 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 - [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
 - [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
 - [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
-- [ ] LDI-NRW-Meldewege in `BETRIEB-DSGVO.md` eintragen.
+- [ ] Meldewege der Aufsichtsbehörde Sachsen-Anhalt in `BETRIEB-DSGVO.md` eintragen (Formular/Kontakt pruefen).
 - [ ] Gesamtes Dokument **juristisch prüfen** lassen.

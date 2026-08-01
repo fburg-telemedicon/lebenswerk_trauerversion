@@ -111,10 +111,12 @@ export function Datenschutz() {
         Zur Verarbeitung setzen wir Dienstleister als Auftragsverarbeiter ein:
       </p>
       <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
-        <li><strong>Microsoft Azure</strong> (Azure OpenAI, Azure AI Speech) – KI-gestützte Interviewführung, Texterstellung, Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU.</li>
-        <li><strong>Black Forest Labs</strong> (FLUX) über Microsoft Azure – KI-gestützte Bilderzeugung; Verarbeitung in der EU.</li>
-        <li><strong>Supabase</strong> – Speicherung von Datenbank- und Bildinhalten; EU (Frankfurt).</li>
-        <li><strong>Vercel</strong> – Betrieb und Auslieferung der Anwendung; Funktionsregion Frankfurt (EU).</li>
+        <li><strong>Microsoft Azure</strong> (Azure OpenAI) – KI-gestützte Interviewführung und Erstellung der Buch- und Redetexte; Verarbeitung in der EU.</li>
+        <li><strong>Microsoft Azure</strong> (Azure AI Speech) – Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU (Region Westeuropa). Für das optionale Live-Sprachgespräch, das nur nach ausdrücklicher Freischaltung zur Verfügung steht, in der Region Schweden.</li>
+        <li><strong>Black Forest Labs</strong> (FLUX) über Microsoft Azure – KI-gestützte Bilderzeugung; Verarbeitung in der EU. Der Modellanbieter selbst erhält keine Daten.</li>
+        <li><strong>Microsoft Azure</strong> (Datenbank und Blob-Speicher) – Speicherung der Beiträge, Bücher, Bilder und hochgeladenen Fotos; EU (Nordeuropa).</li>
+        <li><strong>Microsoft Azure</strong> (Container Apps) – Betrieb und Auslieferung der Anwendung; Verarbeitung in der EU.</li>
+        <li><strong>Microsoft 365</strong> (Graph) – Versand der E-Mails (Zugangs- und Wiederaufnahme-Links, Antworten auf Anfragen); Verarbeitung in der EU.</li>
       </ul>
       <p>
         Sämtliche KI-Verarbeitung (Interviewführung, Texterstellung, Sprachausgabe,
@@ -153,9 +155,9 @@ export function Datenschutz() {
 
       <h2 style={LH}>9. Beschwerderecht</h2>
       <p>
-        Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Für uns
-        zuständig ist die Landesbeauftragte für Datenschutz und Informationsfreiheit
-        Nordrhein-Westfalen (LDI NRW), Postfach 20 04 44, 40102 Düsseldorf.
+        Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Nach dem Sitz
+        unseres Unternehmens ist das der Landesbeauftragte für den Datenschutz Sachsen-Anhalt,
+        Leiterstraße 9, 39104 Magdeburg.
       </p>
     </LegalLayout>
   )

@@ -123,7 +123,7 @@ dokumentiert. Schwerpunkte:
 |---|---|
 | Einbindung Datenschutzbeauftragte/r (Art. 35 Abs. 2) | _[DSB benennen/Stellungnahme einholen — siehe VVT Abschnitt 1]_ |
 | Standpunkt der betroffenen Personen (Art. 35 Abs. 9) | _[soweit angemessen einholen/begründet entfallen lassen]_ |
-| **Vorherige Konsultation der Aufsichtsbehörde (Art. 36)** | Erforderlich nur bei **verbleibend hohem** Risiko trotz Maßnahmen. Nach Abschnitt 4 verbleibt **kein hohes Restrisiko** (höchstes Restrisiko „mittel", R6) → Art. 36 voraussichtlich **nicht** ausgelöst. **Von DSB/Jurist:in bestätigen lassen.** Zuständig wäre LDI NRW. |
+| **Vorherige Konsultation der Aufsichtsbehörde (Art. 36)** | Erforderlich nur bei **verbleibend hohem** Risiko trotz Maßnahmen. Nach Abschnitt 4 verbleibt **kein hohes Restrisiko** (höchstes Restrisiko „mittel", R6) → Art. 36 voraussichtlich **nicht** ausgelöst. **Von DSB/Jurist:in bestätigen lassen.** Zuständig wäre der Landesbeauftragte für den Datenschutz Sachsen-Anhalt. |
 
 ---
 

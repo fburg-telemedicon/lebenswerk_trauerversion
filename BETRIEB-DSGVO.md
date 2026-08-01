@@ -4,8 +4,9 @@ Praktische Abläufe für den laufenden Betrieb der Gedenkbuch-App.
 Verantwortlicher: **Lebenswerk.AI GmbH**, Köln (GF Dr. Gantner).
 Stand: 2026-06-18. Dieses Dokument ist ein Entwurf und juristisch zu prüfen.
 
-> Zuständige Aufsichtsbehörde (Sitz Köln/NRW): **Landesbeauftragte für
-> Datenschutz und Informationsfreiheit Nordrhein-Westfalen (LDI NRW)**.
+> Zuständige Aufsichtsbehörde (Unternehmenssitz Seegebiet Mansfelder Land,
+> Sachsen-Anhalt): **Landesbeauftragter für den Datenschutz Sachsen-Anhalt**,
+> Leiterstraße 9, 39104 Magdeburg.
 > Melde-/Kontaktweg vorab verifizieren und hier eintragen:
 > - Online-Meldeformular: _[eintragen]_
 > - Telefon/E-Mail: _[eintragen]_
