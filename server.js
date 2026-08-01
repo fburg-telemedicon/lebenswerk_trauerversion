@@ -162,10 +162,7 @@ if (fs.existsSync(DIST)) {
     app.use('/img', express.static(path.join(SITE, 'img'), { maxAge: '7d' }))
     app.use('/site', express.static(SITE))
   }
-  // „/dashboard" ist der sprechende Name für dieselbe Anwendung — dorthin zeigt
-  // die Website. „/app" bleibt bestehen: Das PWA-Manifest verweist darauf, und
-  // bereits installierte Apps würden sonst ins Leere starten.
-  app.get(['/app', '/app/*', '/dashboard', '/dashboard/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))
+  app.get(['/app', '/app/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))
   app.use(express.static(DIST))
   app.get('*', (req, res) => res.sendFile(path.join(DIST, 'index.html')))
 } else {
