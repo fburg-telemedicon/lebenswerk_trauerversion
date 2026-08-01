@@ -2,6 +2,18 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-01",
+      "items": [
+        "Druckfertige Buecher lassen sich wieder auf dem Server ablegen. Bei sehr umfangreichen Buechern mit vielen Bildern (ab etwa 50 MB) schlug die Ablage bisher stillschweigend fehl, weil die Datei auf dem Weg zum Server aufgeblaeht wurde. Sie wird jetzt unveraendert uebertragen; die Grenze liegt bei 200 MB.",
+        "Der Buchsatz trennt jetzt Woerter am Zeilenende. Lange deutsche Zusammensetzungen wie \"Arbeitsaufkommen\" passten oft nicht mehr in die Zeile und liessen sie halb leer stehen - im Blocksatz ein sichtbarer Bruch. Gilt fuer alle Buchsprachen mit Trennregeln (Hebraeisch und Arabisch bleiben ohne Trennung). Hinweis: Der Umbruch aendert die Seitenzahl, deshalb sollte das Cover nach einer Neuerzeugung ebenfalls neu erstellt werden.",
+        "Die Erfassungsfrist laeuft jetzt bis 23:59 Uhr des letzten Tages. Vorher stand im Dashboard schon am Morgen des letzten Tages \"Frist beendet\".",
+        "Jedes Buchprojekt hat jetzt eine fortlaufende Nummer. Sie steht als erste Spalte in der Uebersicht und oben auf der Detailseite - praktisch fuer Rueckfragen, ohne den geheimen Zugangscode nennen zu muessen.",
+        "Neue Suchleiste ueber der Buchliste: durchsucht Nummer, Name, Zugangscode, Organisator, Inhaber, E-Mail, Kategorie und Notiz. Mehrere Suchwoerter werden verknuepft.",
+        "Neu einstellbar je Buch: Die erzaehlende Person darf im Menue selbst waehlen, wie ausfuehrlich nachgefragt wird - wenig, ausgewogen (Voreinstellung) oder intensiv. Standardmaessig ausgeschaltet; dann gilt weiter die Vorgabe des Managers.",
+        "Wer sich selbst einen Zugang anlegt, wird jetzt in einem zusaetzlichen Schritt gefragt, ob es die einfachste Fassung (nur das Interview, Voreinstellung) oder die volle Ausstattung sein soll. Der Zugang entsteht bereits vorher - wer die Frage wegklickt, verliert nichts."
+      ]
+    },
+    {
       "date": "2026-07-28",
       "items": [
         "Neu (Beta): Live-Sprachgespräch als vierter Mikrofon-Modus. Statt der bisherigen Kette — aufnehmen, erkennen lassen, antworten, vorlesen — steht eine durchgehende Sprachverbindung: Die erzählende Person spricht einfach los, darf so lange nachdenken, wie sie möchte, ohne dass die Aufnahme abbricht, und kann die KI jederzeit unterbrechen. Kein Antippen mehr.",
