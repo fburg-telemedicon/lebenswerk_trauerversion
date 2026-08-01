@@ -210,6 +210,7 @@ async function ensureLifeworkSchema() {
       add column if not exists hands_free boolean,
       add column if not exists mic_manual_stop boolean,
       add column if not exists mic_mode_switch boolean,
+      add column if not exists detail_choice boolean,
       add column if not exists realtime_enabled boolean,
       add column if not exists guest_enabled boolean,
       add column if not exists guest_code varchar(16)

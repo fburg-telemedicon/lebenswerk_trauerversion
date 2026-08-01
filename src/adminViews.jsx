@@ -1737,6 +1737,11 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
             <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: an. Im ☰-Menü erscheint dann der Punkt „Mikrofon-Modus", über den der Nutzer selbst zwischen den drei Modi wechseln kann.', 'Default: on. The ☰ menu then shows a “Microphone mode” item so the user can switch between the three modes themselves.')}</p>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
+            <input type="checkbox" checked={createForm.detailChoice === true} onChange={e => setCreateForm({ ...createForm, detailChoice: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: aus. Eingeschaltet erscheint im ☰-Menü „Wie ausführlich nachfragen?" mit drei Stufen — wenig (1), ausgewogen (2, Voreinstellung) und intensiv (4 Nachfragen je Thema). Ohne eigene Wahl gilt weiter Ihre Vorgabe oben.', 'Default: off. When on, the ☰ menu shows “Depth of questions” with three levels — few (1), balanced (2, preselected) and in depth (4 follow-ups per topic). Without an explicit choice your setting above still applies.')}</p>
           <RealtimeToggle isAdmin={auth?.admin === true} on={createForm.realtimeEnabled === true} set={v => setCreateForm({ ...createForm, realtimeEnabled: v })} t={t} />
         </div>
         {isAnamnesis && (
@@ -3346,6 +3351,11 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     <span style={{ fontSize:14 }}>{t('Nutzer darf den Mikrofon-Modus im Interview selbst wechseln', 'User may switch the recording mode during the interview')}</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: an (Menüpunkt „Mikrofon-Modus"). Greift beim nächsten (Neu-)Start des Interviews.', 'Default: on (“Microphone mode” menu item). Applies at the next (re)start of the interview.')}</p>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
+                    <input type="checkbox" checked={od.detailChoice === true} onChange={e => setOd({ detailChoice: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: aus. Menüpunkt „Wie ausführlich nachfragen?" mit drei Stufen (wenig / ausgewogen / intensiv). Greift ab der nächsten Frage.', 'Default: off. Menu item “Depth of questions” with three levels (few / balanced / in depth). Applies from the next question on.')}</p>
                   <RealtimeToggle isAdmin={auth?.admin === true} on={od.realtimeEnabled === true} set={v => setOd({ realtimeEnabled: v })} t={t} />
                 </div>
                 {isAnamnesis && (

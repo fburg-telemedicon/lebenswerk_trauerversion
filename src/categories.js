@@ -274,6 +274,44 @@ const THIRD_PARTY_RULE = 'Datenminimierung (Datenschutz): Frage nicht gezielt na
 // Ist dem Buch ein Katalog zugeordnet (memorial.catalog = { name, chapters }),
 // führt die KI das Interview an ihm entlang statt frei zu fragen. x
 // (memorial.followups) ist die Obergrenze an Nachfragen pro Frage.
+// ── Nachfrage-Tiefe (vom Beitragenden wählbar) ────────────────────
+// Hat der Manager `detail_choice` gesetzt, darf der Beitragende im ☰-Menü selbst
+// bestimmen, wie gründlich nachgefragt wird. Die Stufen sind bewusst dieselbe
+// Größe wie die Manager-Vorgabe `followups`: im Katalog-Modus die Obergrenze an
+// Nachfragen je Frage, im freien Interview die Zusatzanweisung unten.
+// „Mittel" (2) entspricht dem bisherigen Standard — wer nichts wählt, merkt nichts.
+export const DETAIL_LEVELS = [
+  { key: 'low',  followups: 1 },
+  { key: 'mid',  followups: 2 },
+  { key: 'high', followups: 4 },
+]
+
+// Stufe → Zahl (unbekannt/leer = mittel).
+export function detailFollowups(key) {
+  return (DETAIL_LEVELS.find(l => l.key === key) || DETAIL_LEVELS[1]).followups
+}
+
+// Zahl → Stufe. Damit trifft die Anzeige im Menü die Manager-Vorgabe, solange der
+// Beitragende noch nichts gewählt hat (Standard `followups` = 2 → „mittel").
+export function detailLevelOf(v) {
+  const n = parseInt(v, 10)
+  if (!Number.isFinite(n)) return 'mid'
+  if (n <= 1) return 'low'
+  if (n >= 4) return 'high'
+  return 'mid'
+}
+
+// Zusatzanweisung fürs FREIE Interview (ohne Fragenkatalog dort, wo `followups`
+// sonst wirkungslos wäre). Nur wenn der Beitragende bewusst gewählt hat
+// (memorial.detail_level) — ohne Wahl bleibt der Prompt exakt wie bisher.
+function detailDirective(memorial) {
+  if (memorial?.catalog) return ''          // im Katalog-Modus regelt schon x die Tiefe
+  const lvl = memorial?.detail_level
+  if (lvl === 'low')  return '\n\nNachfrage-Tiefe: Halte dich mit Nachfragen zurück — höchstens EINE kurze Nachfrage je Thema, dann leite zum nächsten über. Knappheit ist hier ausdrücklich gewünscht.'
+  if (lvl === 'high') return '\n\nNachfrage-Tiefe: Geh in die Tiefe — bis zu VIER vertiefende Nachfragen je Thema (Beispiele, Sinneseindrücke, Gefühle, Wendepunkte), bevor du zum nächsten Thema übergehst.'
+  return ''
+}
+
 function catalogFollowups(v) {
   const n = parseInt(v, 10)
   if (!Number.isFinite(n) || n < 0) return 7
@@ -2052,5 +2090,9 @@ export function getCategory(slug) {
 // Kategorie, zwei völlig verschiedene Rollen.
 export function interviewSystemFor(memorial) {
   const cat = getCategory(memorial?.product_category)
-  return (memorial?.guest && cat.guestInterviewSystem) ? cat.guestInterviewSystem : cat.interviewSystem
+  const build = (memorial?.guest && cat.guestInterviewSystem) ? cat.guestInterviewSystem : cat.interviewSystem
+  // Selbst gewählte Nachfrage-Tiefe an JEDEN Interview-Prompt anhängen — hier
+  // zentral, damit keine der sechs Aufrufstellen im Beitragenden-Flow sie vergisst.
+  const depth = detailDirective(memorial)
+  return depth ? ((...args) => `${build(...args)}${depth}`) : build
 }

@@ -4,14 +4,14 @@
 // wird exportiert (die übrigen sind intern). ACHTUNG: enthält Audio/MediaRecorder —
 // nach Änderungen ein echtes Interview live testen.
 
-import { useState, useEffect, useRef, useContext } from 'react'
+import { useState, useEffect, useRef, useContext, useMemo } from 'react'
 import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, detailFollowups, detailLevelOf } from './categories.js'
 import { GENDERS, CONSENT_VERSION } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -2083,7 +2083,55 @@ function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
   )
 }
 
-function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel, onSoundTest }) {
+// Auswahl-Dialog für die Nachfrage-Tiefe (nur wenn der Manager sie freigegeben
+// hat, memorials.detail_choice). Aufbau bewusst wie MicModeChooser — dieselbe
+// Geste, gleiche Optik. Ohne eigene Wahl ist die Stufe der Manager-Vorgabe
+// markiert (followups; Standard 2 = „mittel").
+function DetailChooser({ lang, memorial, detailLevel, onPick, onClose }) {
+  const en = String(lang || '').startsWith('en')
+  const cur = detailLevel || detailLevelOf(memorial?.followups)
+  const opts = [
+    { key:'low',  icon:'🌱', title: en ? 'Few follow-up questions' : 'Wenig nachfragen',
+      sub: en ? 'Straight to the point: one short follow-up at most, then the next topic.'
+              : 'Zügig durch: höchstens eine kurze Nachfrage, dann geht es zum nächsten Thema.' },
+    { key:'mid',  icon:'🌿', title: en ? 'Balanced (recommended)' : 'Ausgewogen (Empfehlung)',
+      sub: en ? 'A couple of follow-ups per topic — enough detail without dwelling.'
+              : 'Ein paar Nachfragen je Thema — genug Details, ohne lange zu verweilen.' },
+    { key:'high', icon:'🌳', title: en ? 'Ask in depth' : 'Intensiv nachfragen',
+      sub: en ? 'Takes its time: asks for examples, details and feelings before moving on.'
+              : 'Lässt sich Zeit: fragt nach Beispielen, Einzelheiten und Gefühlen, bevor es weitergeht.' },
+  ]
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:70, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:'18px 18px 26px', maxWidth:460, width:'100%', boxShadow:'0 -2px 16px rgba(0,0,0,.2)', maxHeight:'80vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+          <div style={{ fontSize:16, fontWeight:700 }}>{en ? 'Depth of questions' : 'Wie ausführlich nachfragen?'}</div>
+          <button onClick={onClose} aria-label="×" style={{ background:'none', border:'none', fontSize:24, cursor:'pointer', color:'#78716c', lineHeight:1 }}>×</button>
+        </div>
+        <div style={{ fontSize:12.5, color:'#78716c', marginBottom:10, lineHeight:1.5 }}>
+          {en ? 'You can change this at any time — it applies to the next questions.'
+              : 'Sie können das jederzeit ändern — es gilt ab der nächsten Frage.'}
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {opts.map(o => {
+            const on = cur === o.key
+            return (
+              <button key={o.key} onClick={() => onPick(o.key)} style={{ textAlign:'left', display:'flex', alignItems:'flex-start', gap:10, padding:'12px 14px', borderRadius:12, cursor:'pointer', background: on ? '#f0fdf4' : '#fff', border:`${on ? 2 : 1}px solid ${on ? '#16a34a' : '#e7e5e4'}` }}>
+                <span style={{ fontSize:18, marginTop:1 }}>{on ? '✅' : o.icon}</span>
+                <span style={{ minWidth:0 }}>
+                  <span style={{ display:'block', fontSize:14.5, fontWeight:600, color:'#1c1917' }}>{o.title}</span>
+                  <span style={{ display:'block', fontSize:12.5, color:'#78716c', marginTop:2, lineHeight:1.45 }}>{o.sub}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel, onDetail, detailLabel, onSoundTest }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
@@ -2117,6 +2165,12 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
                 <span style={{ fontSize:19 }}>🎙️</span><span>{micModeLabel || 'Mikrofon-Modus'}</span>
               </button>
             </>)}
+            {/* Nachfrage-Tiefe — nur wenn der Manager sie freigegeben hat. */}
+            {onDetail && (
+              <button onClick={() => { setOpen(false); onDetail() }} style={row}>
+                <span style={{ fontSize:19 }}>🌿</span><span>{detailLabel || 'Nachfragen'}</span>
+              </button>
+            )}
             {/* Selbsttest: Testton hören + kurz aufnehmen und anhören. Klärt die zwei
                 häufigsten Störungen (Lautstärke aus / Mikrofon nicht freigegeben),
                 ohne dass jemand am Telefon mitraten muss. */}
@@ -3253,6 +3307,11 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // null = Buch-Standard. In localStorage je Code gemerkt, damit die Wahl bleibt.
   const [micMode, setMicMode]                 = useState(() => { try { return localStorage.getItem('lw_micmode_' + code) || null } catch { return null } })
   const [micModeOpen, setMicModeOpen]         = useState(false)        // Modus-Auswahl-Dialog offen
+  // Selbst gewählte Nachfrage-Tiefe (nur wenn der Manager detail_choice erlaubt).
+  // null = Vorgabe des Managers (followups, Standard 2 = „mittel"). Wie beim
+  // Mikrofon-Modus je Code in localStorage gemerkt.
+  const [detailLevel, setDetailLevel]         = useState(() => { try { return localStorage.getItem('lw_detail_' + code) || null } catch { return null } })
+  const [detailOpen, setDetailOpen]           = useState(false)
   // Ton-/Mikrofontest. Bewusst HIER (nicht im Menü oder im Interview), weil er das
   // Interview stilllegen muss, solange er offen ist — sonst laufen Vorlesen bzw.
   // Aufnahme und Test gleichzeitig.
@@ -3271,6 +3330,16 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     return () => { live = false; if (st) st.onchange = null }
   }, [])
   const chooseMicMode = (mode) => { setMicMode(mode); try { mode ? localStorage.setItem('lw_micmode_' + code, mode) : localStorage.removeItem('lw_micmode_' + code) } catch {} }
+  const chooseDetail  = (lvl)  => { setDetailLevel(lvl); try { lvl ? localStorage.setItem('lw_detail_' + code, lvl) : localStorage.removeItem('lw_detail_' + code) } catch {} }
+  // Das Interview bekommt das Buch mit der gewählten Tiefe: `followups` ist die
+  // Obergrenze an Nachfragen im Katalog-Modus, `detail_level` steuert die
+  // Zusatzanweisung im freien Interview (beides in categories.js). Ohne eigene
+  // Wahl bleibt das Buch unverändert — dann gilt weiter die Vorgabe des Managers.
+  const memorialForInterview = useMemo(() => (
+    (memorial && detailLevel && memorial.detail_choice === true)
+      ? { ...memorial, followups: detailFollowups(detailLevel), detail_level: detailLevel }
+      : memorial
+  ), [memorial, detailLevel])
   const saveQueueRef                          = useRef(Promise.resolve())
   // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
   // EINMAL fallen. Sonst triggert sie ein späterer `setMemorial(...)` erneut — z. B.
@@ -3980,7 +4049,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
           // automatisches Zuhören, laufende Aufnahme wird beendet. Sonst belegt das
           // Interview das Mikrofon und der Test misst nichts.
           <VoiceInterview
-            memorial={memorial}
+            memorial={memorialForInterview}
             contribForm={isSelf ? { ...contribForm, relationship: SELF_REL } : contribForm}
             lang={L}
             onSave={saveProgress}
@@ -4040,12 +4109,19 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               onSwitchInterview={switchInterview}
               onMicMode={((memorial?.mic_mode_switch !== false || memorial?.realtime_enabled === true) && !companionOn) ? () => setMicModeOpen(true) : null}
               micModeLabel={String(L || '').startsWith('en') ? 'Microphone mode' : 'Mikrofon-Modus'}
+              onDetail={memorial?.detail_choice === true ? () => setDetailOpen(true) : null}
+              detailLabel={String(L || '').startsWith('en') ? 'Depth of questions' : 'Wie ausführlich nachfragen?'}
               onSoundTest={() => setSoundTest(true)} />
             {soundTest && <SoundMicTest lang={L} onClose={() => setSoundTest(false)} />}
             {micModeOpen && (
               <MicModeChooser lang={L} memorial={memorial} micMode={micMode}
                 onPick={m => { chooseMicMode(m); setMicModeOpen(false) }}
                 onClose={() => setMicModeOpen(false)} />
+            )}
+            {detailOpen && (
+              <DetailChooser lang={L} memorial={memorial} detailLevel={detailLevel}
+                onPick={l => { chooseDetail(l); setDetailOpen(false) }}
+                onClose={() => setDetailOpen(false)} />
             )}
           </div>
         )
