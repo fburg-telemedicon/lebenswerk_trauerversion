@@ -578,7 +578,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, realtimeEnabled, guestEnabled, detailChoice } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, realtimeEnabled, guestEnabled, detailChoice, ownerUser } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -612,6 +612,23 @@ module.exports = async function handler(req, res) {
           return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse des Endnutzers angeben (oder das Feld leer lassen).' })
         }
       }
+      // Inhaber: Nur der Superadmin darf ein Buch für einen Manager anlegen.
+      // Geprüft wird, dass es den Benutzer gibt, dass er kein Endnutzer-Konto ist
+      // und dass die Kategorie für ihn freigegeben ist — sonst läge das Buch in
+      // einem Dashboard, das es gar nicht anzeigen darf.
+      let ownerId = null
+      if (req.auth.admin && ownerUser) {
+        const { data: owner, error: ownerErr } = await supabase.from('app_users')
+          .select('id, username, is_enduser, allowed_categories').eq('id', String(ownerUser)).maybeSingle()
+        if (ownerErr) throw ownerErr
+        if (!owner || owner.is_enduser) return res.status(400).json({ error: 'Unbekannter Inhaber.' })
+        const cats = Array.isArray(owner.allowed_categories) ? owner.allowed_categories : []
+        if (!cats.includes(category)) {
+          return res.status(400).json({ error: `Für „${owner.username}" ist die Kategorie „${category}" nicht freigegeben.` })
+        }
+        ownerId = owner.id
+      }
+
       // Schema sicherstellen (idempotent, gecacht) — u. a. die text_style-Spalte,
       // die für ALLE Kategorien gebraucht wird, nicht nur fürs Lebenswerk.
       await ensureLifeworkSchema()
@@ -659,7 +676,12 @@ module.exports = async function handler(req, res) {
         show_contributors: isLifework ? false : showContributors !== false,
         photo_upload_tab: isLifework ? true : photoUploadTab === true,
         product_category: category,
-        owner_user: req.auth.admin ? null : (req.auth.uid || null),
+        // Der Superadmin kann ein Buch direkt einem Manager zuordnen (ownerUser) —
+        // sonst entstünde ein besitzerloses Buch, das in dessen Dashboard nie
+        // auftaucht (die Liste filtert auf owner_user = eigene uid). Ohne Angabe
+        // bleibt es wie bisher besitzerlos. Manager selbst bekommen immer sich
+        // selbst als Inhaber; das Feld wird für sie ignoriert.
+        owner_user: req.auth.admin ? (ownerId || null) : (req.auth.uid || null),
         intake: intake && typeof intake === 'object' ? intake : null,
         languages: langs,
         note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
