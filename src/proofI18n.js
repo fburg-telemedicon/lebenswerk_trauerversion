@@ -146,7 +146,62 @@ function en() {
   }
 }
 
+// ── Weitere Sprachen ────────────────────────────────────────────────────────
+// Deutsch (mit Du/Sie) und Englisch stehen oben; die übrigen elf Sprachen liegen
+// als reine Daten in proofI18nLangs.js. Dort sind Platzhalter {r}, {m}, {n}, {min},
+// {i} eingesetzt — die Funktionen unten bauen daraus wieder Funktionen. Fehlt ein
+// Schlüssel, bleibt der deutsche Wert stehen.
+import { PROOF_LANGS } from './proofI18nLangs.js'
+
+// Welche Bausteine sind Funktionen — und in welcher Reihenfolge kommen ihre Werte?
+const ARGS = {
+  remaining: ['r', 'm'],
+  progImg: ['i', 'n'],
+  tooFewWords: ['n', 'min'],
+  zwUsedUp: ['m'],
+  zwConfirmText: ['r', 'm'],
+  chapter: ['n'],
+  imgLeft: ['n'],
+}
+
+// Symbole stehen nicht in den Übersetzungen (sie sind sprachunabhängig) und werden
+// hier wieder vorangestellt — sonst verlören die Knöpfe ihr Bild.
+const SYMBOL = {
+  zwCardTitle: '📖 ', zwCardBtn: '📖 ', endCardTitle: '📕 ', endCardBtn: '📕 ',
+  zwRegen: '↻ ', save: '✓ ', finalizeBtn: '✅ ', imgRegen: '↻ ', imgCreate: '🖼 ',
+  imgBusy: '⏳ ', audioEditBtn: '🎤 ', audioEditStop: '⏹ ', audioEditBusy: '⏳ ', audioBar: '🎤 ',
+}
+
+const setzeEin = (vorlage, namen, werte) =>
+  namen.reduce((s, name, i) => s.split(`{${name}}`).join(String(werte[i] ?? '')), String(vorlage))
+
+function ausUebersetzung(lang, du) {
+  const uebersetzt = PROOF_LANGS[lang]
+  if (!uebersetzt) return null
+  const basis = de(du)
+  const out = { ...basis }
+  for (const key of Object.keys(basis)) {
+    const wert = uebersetzt[key]
+    if (!wert) continue                      // fehlt → deutscher Rückfall
+    const symbol = SYMBOL[key] || ''
+    if (ARGS[key]) {
+      const namen = ARGS[key]
+      // Der Zwischenstand-Hinweis hat einen optionalen Zusatz (has).
+      if (key === 'zwConfirmText') {
+        const zusatz = uebersetzt.zwConfirmReplace || ''
+        out[key] = (r, m, has) => setzeEin(wert, namen, [r, m]) + (has && zusatz ? ' ' + zusatz : '')
+      } else {
+        out[key] = (...werte) => symbol + setzeEin(wert, namen, werte)
+      }
+    } else if (typeof basis[key] !== 'function') {
+      out[key] = symbol + wert
+    }
+  }
+  return out
+}
+
 // lang: 'de'|'en'|… (Fallback de). du: nur im Deutschen relevant (Anredeform).
 export function proofT(lang, du) {
-  return lang === 'en' ? en() : de(du)
+  if (lang === 'en') return en()
+  return ausUebersetzung(lang, du) || de(du)
 }
