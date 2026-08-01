@@ -9,6 +9,7 @@ import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getCont
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
+import { xt } from './uiExtra.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
 import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, detailFollowups, detailLevelOf } from './categories.js'
@@ -1231,9 +1232,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
           <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
             <Dots />
             <p style={{ ...S.muted, fontSize: 13, marginTop: 10 }}>
-              {String(lang || '').startsWith('en')
-                ? 'Preparing the first question — this can take a moment …'
-                : 'Die erste Frage wird vorbereitet — das kann einen kurzen Moment dauern …'}
+              {xt(lang).firstQuestion}
             </p>
           </div>
         )}
@@ -1250,9 +1249,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 Hinweis bliebe das Gespräch für die Person unerklärlich stumm. */}
             {liveMuted && (
               <div style={{ margin:'0 auto 12px', maxWidth:340, padding:'10px 12px', borderRadius:10, background:'#fef3c7', border:'1px solid #fbbf24', fontSize:13, lineHeight:1.5, color:'#78350f' }}>
-                {String(lang || '').startsWith('en')
-                  ? '🔇 Your browser is still blocking sound. Tap here once to start the conversation.'
-                  : '🔇 Ihr Browser blockiert den Ton noch. Tippen Sie einmal hierhin, um das Gespräch zu starten.'}
+                {xt(lang).soundBlocked}
               </div>
             )}
             <div aria-hidden="true" style={{ width:72, height:72, margin:'0 auto 12px', borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:28,
@@ -1275,9 +1272,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
                 : (liveStatus === 'connecting' ? 'Verbindung wird aufgebaut …' : liveStatus === 'speaking' ? (liveHalfDuplex ? 'Ich spreche — einen Moment' : 'Ich spreche — Sie dürfen mich jederzeit unterbrechen') : 'Ich höre zu — sprechen Sie einfach')}
             </div>
             <div style={{ maxWidth:340, margin:'0 auto', fontSize:12.5, lineHeight:1.5, color:'#78716c' }}>
-              {String(lang || '').startsWith('en')
-                ? 'Live conversation: take as much time to think as you like — nothing is cut off.'
-                : 'Live-Gespräch: Denken Sie so lange nach, wie Sie möchten — es wird nichts abgeschnitten.'}
+              {xt(lang).liveThinkHint}
             </div>
           </div>
         )}
@@ -1337,9 +1332,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             {/* Freisprech-Pause: Hinweis zum Weitersprechen (nur bis wieder aufgenommen wird). */}
             {handsFree && handsFreeIdle && micState === 'idle' && micPerm !== 'denied' && (
               <div style={{ maxWidth:340, margin:'2px auto 6px', fontSize:13, lineHeight:1.5, color:'#78716c' }}>
-                {String(lang || '').startsWith('en')
-                  ? 'Recording paused after a break. Tap the microphone to keep talking.'
-                  : 'Aufnahme nach einer Pause gestoppt. Tippen Sie auf das Mikrofon, um weiterzusprechen.'}
+                {xt(lang).micPausedHint}
               </div>
             )}
             {/* Begleitmodus wird direkt am Mikrofon geschaltet (nicht im Menü):
@@ -2176,7 +2169,7 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
                 ohne dass jemand am Telefon mitraten muss. */}
             <button onClick={() => { setOpen(false); onSoundTest?.() }} style={row}>
               <span style={{ fontSize:19 }}>🔊</span>
-              <span>{String(lang || '').startsWith('en') ? 'Sound & microphone test' : 'Ton- und Mikrofontest'}</span>
+              <span>{xt(lang).soundTest}</span>
             </button>
             {onToggleTx && <div style={sep} />}
             {onToggleTx && (
@@ -3963,7 +3956,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                     dort entfällt der Hinweis. */}
                 {!isSelf && normVariant(memorial?.book_variant) !== 2 && (
                   <span style={{ display:'block', marginTop:10, padding:'9px 11px', background:'#fff', border:'1px solid #fde68a', borderRadius:8, fontSize:12.5, lineHeight:1.55, color:'#78350f' }}>
-                    {normVariant(memorial?.book_variant) === 1 ? t.nameNoticeSure : t.nameNoticeMaybe}
+                    {normVariant(memorial?.book_variant) === 1 ? (xt(L).nameNoticeSure || t.nameNoticeSure) : (xt(L).nameNoticeMaybe || t.nameNoticeMaybe)}
                   </span>
                 )}
               </span>
@@ -4041,12 +4034,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                 verwies auf einen Tab, den sie gar nicht sehen. */}
             {isGuest ? (<>
               <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>
-                {String(L || '').startsWith('en') ? 'This book is already finished' : 'Das Buch ist schon fertig'}
+                {xt(L).bookDoneTitle}
               </h2>
               <p style={{ ...S.muted, maxWidth:380, margin:'0 auto' }}>
-                {String(L || '').startsWith('en')
-                  ? 'Thank you for your interest! This book has already been completed, so no further contributions are possible. Please get in touch with the person who sent you the link.'
-                  : 'Vielen Dank für Ihr Interesse! Dieses Buch wurde bereits abgeschlossen, deshalb sind keine weiteren Beiträge mehr möglich. Wenden Sie sich gerne an die Person, die Ihnen den Link geschickt hat.'}
+                {xt(L).bookDoneText}
               </p>
             </>) : (<>
               <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>Interview abgeschlossen</h2>
@@ -4118,9 +4109,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               onSupport={() => openSupportHere({ view: 'interview' })}
               onSwitchInterview={switchInterview}
               onMicMode={((memorial?.mic_mode_switch !== false || memorial?.realtime_enabled === true) && !companionOn) ? () => setMicModeOpen(true) : null}
-              micModeLabel={String(L || '').startsWith('en') ? 'Microphone mode' : 'Mikrofon-Modus'}
+              micModeLabel={xt(L).micModeMenu}
               onDetail={memorial?.detail_choice === true ? () => setDetailOpen(true) : null}
-              detailLabel={String(L || '').startsWith('en') ? 'Depth of questions' : 'Wie ausführlich nachfragen?'}
+              detailLabel={xt(L).detailMenu}
               onSoundTest={() => setSoundTest(true)} />
             {soundTest && <SoundMicTest lang={L} onClose={() => setSoundTest(false)} />}
             {micModeOpen && (
