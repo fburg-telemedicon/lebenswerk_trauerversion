@@ -48,7 +48,7 @@ export function Impressum() {
       <h2 style={LH}>Registereintrag</h2>
       <p>Eintragung im Handelsregister ist beantragt.<br/>Registergericht: folgt<br/>Registernummer: folgt</p>
       <h2 style={LH}>Umsatzsteuer-Identifikationsnummer</h2>
-      <p>USt-IdNr. gemäß § 27a UStG: folgt</p>
+      <p>USt-IdNr. gemäß § 27a UStG: DE291805257</p>
       <h2 style={LH}>Verantwortlich für den Inhalt</h2>
       <p>gemäß § 18 Abs. 2 MStV: Prof. Dr. med. Tobias D. Gantner, Anschrift wie oben.</p>
       <h2 style={LH}>Haftung für die erstellten Bücher und Inhalte</h2>

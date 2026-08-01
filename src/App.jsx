@@ -82,10 +82,10 @@ const langFromURL   = (urlParams.get('lang') || '').trim()   // Login-Fenster in
 const LOGIN_L10N = {
   de: { sub: 'Bitte melden Sie sich an.', email: 'E-Mail-Adresse', pw: 'Passwort', signIn: 'Anmelden', signingIn: 'Wird überprüft …', forgot: 'Passwort vergessen?', remember: 'Angemeldet bleiben',
         codeLink: 'Ich habe einen Zugangscode', codeTitle: 'Zugangscode eingeben', codeSub: 'Den Code finden Sie auf Ihrem Einladungsschreiben — zehn Buchstaben und Ziffern.',
-        codeLbl: 'Zugangscode', codeBtn: 'Weiter zum Interview', codeBack: '← Zurück zur Anmeldung', codeErr: 'Bitte geben Sie den vollständigen Code ein (mindestens 6 Zeichen).' },
+        codeLbl: 'Zugangscode', codeBtn: 'Weiter zum Interview', codeBack: '← Zurück zur Anmeldung', codeBackApp: '← Zurück zur Übersicht', codeErr: 'Bitte geben Sie den vollständigen Code ein (mindestens 6 Zeichen).' },
   en: { sub: 'Please sign in.', email: 'Email address', pw: 'Password', signIn: 'Sign in', signingIn: 'Signing in …', forgot: 'Forgot password?', remember: 'Stay signed in',
         codeLink: 'I have an access code', codeTitle: 'Enter your access code', codeSub: 'You will find the code on your invitation — ten letters and digits.',
-        codeLbl: 'Access code', codeBtn: 'Continue to the interview', codeBack: '← Back to sign in', codeErr: 'Please enter the complete code (at least 6 characters).' },
+        codeLbl: 'Access code', codeBtn: 'Continue to the interview', codeBack: '← Back to sign in', codeBackApp: '← Back to the overview', codeErr: 'Please enter the complete code (at least 6 characters).' },
   pl: { sub: 'Zaloguj się.', email: 'Adres e-mail', pw: 'Hasło', signIn: 'Zaloguj się', signingIn: 'Sprawdzanie …', forgot: 'Nie pamiętasz hasła?' },
   es: { sub: 'Inicie sesión.', email: 'Correo electrónico', pw: 'Contraseña', signIn: 'Iniciar sesión', signingIn: 'Comprobando …', forgot: '¿Olvidó su contraseña?' },
   it: { sub: 'Accedi.', email: 'Indirizzo e-mail', pw: 'Password', signIn: 'Accedi', signingIn: 'Verifica in corso …', forgot: 'Password dimenticata?' },
@@ -3395,7 +3395,12 @@ Regeln:
   // Einladung. Der Code wird hier NICHT geprüft — er wird an die normale
   // ?code=-Adresse angehängt; ab dort greift der bestehende Beitragenden-Flow
   // samt seiner Fehlermeldung, falls es den Code nicht gibt.
-  if (view === 'login' && codeEntry) {
+  // BEWUSST unabhängig von `view` und von einer bestehenden Anmeldung: Wer auf
+  // „Ich habe einen Zugangscode" tippt, will einen Code eingeben — auch wenn im
+  // selben Browser noch eine Manager-Sitzung liegt. Vorher hing das an
+  // `view === 'login'`; sobald eine Sitzung existierte, schaltete der Lade-Effekt
+  // auf 'list' um und man landete stattdessen im Dashboard.
+  if (codeEntry) {
     const clean = stripCode(codeInput)
     const go = (e) => {
       e.preventDefault()
@@ -3418,9 +3423,11 @@ Regeln:
           <button type="submit" disabled={clean.length < 6} style={{ width: '100%', padding: 12, fontSize: 15 }}>
             {LOGIN_T.codeBtn || 'Weiter'}
           </button>
-          <button type="button" onClick={() => { setCodeEntry(false); setCodeErr('') }}
+          {/* Zurück führt dorthin, wo man herkam: angemeldet ins Dashboard,
+              sonst zur Anmeldung. */}
+          <button type="button" onClick={() => { setCodeEntry(false); setCodeErr(''); setCodeInput('') }}
             style={{ display: 'block', margin: '16px auto 0', background: 'none', border: 'none', color: '#78716c', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
-            {LOGIN_T.codeBack || '← Zurück zur Anmeldung'}
+            {token ? (LOGIN_T.codeBackApp || '← Zurück zur Übersicht') : (LOGIN_T.codeBack || '← Zurück zur Anmeldung')}
           </button>
         </form>
       </div>
