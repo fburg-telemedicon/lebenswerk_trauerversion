@@ -3664,7 +3664,9 @@ function InviteFlow({ token }) {
         enduser: Boolean(d.enduser), code: d.code || null,
       }, true)
       // Ohne ?invite neu laden – die Sitzung wird aus dem Speicher gelesen.
-      window.location.href = '/'
+      // Ziel ist /app: „/" traegt seit dem Website-Start die Startseite, dort waere
+      // die frisch angelegte Sitzung unsichtbar.
+      window.location.href = '/app'
     } catch (e) { setErr(e.message); setBusy(false) }
   }
 
@@ -3914,7 +3916,7 @@ function RegisterFlow() {
           {busy ? T.creating : T.submit}
         </button>
         <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', marginTop: 14, marginBottom: 0 }}>
-          {T.loginPre} <a href="/" style={{ color: '#78716c' }}>{T.loginLink}</a>
+          {T.loginPre} <a href="/app" style={{ color: '#78716c' }}>{T.loginLink}</a>
         </p>
       </form>
     </div>

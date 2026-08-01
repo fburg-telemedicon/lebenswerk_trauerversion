@@ -3280,7 +3280,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // einen ?code-Link), bieten wir im ☰-Menü einen Ausweg „Anderes Interview" an:
   // gemerkten Code verwerfen und zurück zur Startseite (wichtig auf geteilten Geräten).
   const switchInterview = fromRemembered
-    ? () => { try { localStorage.removeItem('lw_last_code') } catch { /* ignore */ } window.location.href = '/' }
+    ? () => { try { localStorage.removeItem('lw_last_code') } catch { /* ignore */ } window.location.href = '/zugang' }
     : null
   const [view, setView]                       = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]               = useState(null)
