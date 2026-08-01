@@ -253,6 +253,18 @@ export async function registerLifework({ name, email, lang, consent }) {
   })
   return parseResponse(res)
 }
+// Ausstattung direkt nach der Selbstregistrierung waehlen. Das Buch existiert zu
+// dem Zeitpunkt schon (einfachste Ausstattung); dieser Aufruf reicht die volle
+// Ausstattung nach. Berechtigung ist der frisch erhaltene Buch-Code.
+export async function setRegistrationFeatures(code, level) {
+  const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ featureLevel: level }),
+  })
+  return parseResponse(res) // { ok, level }
+}
+
 export async function adminUpdateUser(token, id, patch) {
   const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',

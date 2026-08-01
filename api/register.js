@@ -75,15 +75,24 @@ module.exports = async function handler(req, res) {
       catalog_id: catalog,
       followups: 7,          // Spalte ist NOT NULL — sinnvoller Default (wie bei der Anlage)
       interview_timer_seconds: TRIAL_TIMER_SECONDS,
+      // Einfachste Ausstattung: nur das Interview. Wer im Schritt danach die
+      // volle Ausstattung wählt, bekommt sie über PATCH /api/memorial
+      // (featureLevel) nachgereicht — bricht er dort ab, bleibt es hierbei.
       companion_mode: false,
+      proof_enabled: false,
+      detail_choice: false,
+      guest_enabled: false,
     }
     let { error } = await supabase.from('memorials').insert(insertRow)
     // Falls einzelne (später ergänzte) Spalten in dieser DB noch fehlen: ohne sie
     // erneut anlegen — eine fehlende Migration darf die Registrierung nicht kippen.
-    if (error && /interview_timer_seconds|companion_mode|show_contributors|catalog_id|followups|column/i.test(error.message || '')) {
+    if (error && /interview_timer_seconds|companion_mode|show_contributors|catalog_id|followups|proof_enabled|detail_choice|guest_enabled|column/i.test(error.message || '')) {
       delete insertRow.interview_timer_seconds
       delete insertRow.companion_mode
       delete insertRow.show_contributors
+      delete insertRow.proof_enabled
+      delete insertRow.detail_choice
+      delete insertRow.guest_enabled
       ;({ error } = await supabase.from('memorials').insert(insertRow))
     }
     if (error) throw error
@@ -123,7 +132,10 @@ module.exports = async function handler(req, res) {
       console.error('/api/register mail:', e)
       email_sent = false
     }
-    return res.json({ ok: true, email_sent })
+    // `code` geht an den registrierenden Browser zurück — nur er kann damit im
+    // nächsten Schritt die Ausstattung wählen (PATCH /api/memorial, featureLevel).
+    // Beim Lebenswerk ist der Code ohnehin die Berechtigung des Endnutzers.
+    return res.json({ ok: true, email_sent, code })
   } catch (e) {
     console.error('/api/register error:', e)
     return res.status(500).json({ error: 'Die Registrierung ist fehlgeschlagen. Bitte später erneut versuchen.' })

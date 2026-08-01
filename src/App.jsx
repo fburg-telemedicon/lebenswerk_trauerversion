@@ -15,7 +15,7 @@ import {
   adminListSupport, adminSetSupportHandled, adminDeleteSupport,
   adminGenerateSupportAssist, adminSaveSupportDraft, adminSendSupportReply,
   getSettings, saveSettings, changeOwnPassword, saveOwnLang,
-  getInvite, redeemInvite, requestPasswordReset, registerLifework,
+  getInvite, redeemInvite, requestPasswordReset, registerLifework, setRegistrationFeatures,
   storeMemorialPdf,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName } from './categories.js'
@@ -3693,6 +3693,15 @@ const REG_L10N = {
     doneBody: (e) => <>Wir haben eine E-Mail an <b style={{ overflowWrap: 'anywhere' }}>{e}</b> geschickt. Öffnen Sie den Link darin, vergeben Sie Ihr Passwort und starten Sie Ihr Lebenswerk.</>,
     doneNote: 'Die Testversion umfasst 5 Minuten Interviewzeit. Falls die E-Mail nicht ankommt, prüfen Sie bitte Ihren Spam-Ordner.',
     doneWarn: 'Hinweis: Der Versand der E-Mail hat gemeldet, dass sie evtl. nicht zugestellt wurde. Bitte wenden Sie sich an support@lebensgeschichten.ai.',
+    featTitle: 'Wie viel möchten Sie ausprobieren?',
+    featIntro: 'Ihr Zugang ist bereits angelegt — die E-Mail ist unterwegs. Sie können jetzt noch wählen, wie viel Ihr Lebenswerk können soll. Beides lässt sich später ändern.',
+    featSimpleTitle: 'Einfach erzählen (Voreinstellung)',
+    featSimpleText: 'Nur das Interview: Sie werden Frage für Frage durch Ihr Leben begleitet — sonst nichts, was ablenkt.',
+    featFullTitle: 'Alles ausprobieren',
+    featFullText: 'Zusätzlich: Zwischenstand und vorläufige Druckversion Ihres Buchs ansehen, Einführungsvideo, Begleitperson-Modus und die selbst einstellbare Nachfrage-Tiefe.',
+    featSkip: 'Überspringen',
+    featBusy: 'Wird übernommen …',
+    featFail: 'Die Auswahl konnte nicht gespeichert werden — Ihr Zugang bleibt in der einfachen Fassung bestehen.',
   },
   en: {
     pick: 'Which language would you like to tell your story in?',
@@ -3707,6 +3716,15 @@ const REG_L10N = {
     doneBody: (e) => <>We have sent an email to <b style={{ overflowWrap: 'anywhere' }}>{e}</b>. Open the link in it, set your password and start your life story.</>,
     doneNote: 'The trial includes 5 minutes of interview time. If the email does not arrive, please check your spam folder.',
     doneWarn: 'Note: email delivery reported that the message may not have been delivered. Please contact support@lebensgeschichten.ai.',
+    featTitle: 'How much would you like to try?',
+    featIntro: 'Your access has already been created — the email is on its way. You can still choose how much your life story should offer. Either can be changed later.',
+    featSimpleTitle: 'Just tell your story (preselected)',
+    featSimpleText: 'The interview only: you are guided through your life question by question — nothing else to distract you.',
+    featFullTitle: 'Try everything',
+    featFullText: 'Additionally: view a draft and a preliminary print version of your book, intro video, companion mode and the adjustable depth of follow-up questions.',
+    featSkip: 'Skip',
+    featBusy: 'Applying …',
+    featFail: 'Your choice could not be saved — your access stays in the simple version.',
   },
 }
 const regT = (lang) => REG_L10N[lang] || REG_L10N.en
@@ -3718,6 +3736,12 @@ function RegisterFlow() {
   const [busy, setBusy]   = useState(false)
   const [err, setErr]     = useState('')
   const [done, setDone]   = useState(null)   // { email_sent }
+  // Zwischenschritt nach dem Anlegen: Ausstattung wählen. Konto und Buch
+  // EXISTIEREN hier bereits (einfachste Ausstattung) — wer den Schritt wegklickt
+  // oder den Tab schließt, behält genau die. Nur „Alles ausprobieren“ schickt
+  // noch einen Aufruf hinterher.
+  const [features, setFeatures] = useState(null)  // { code, email_sent } | null
+  const [featBusy, setFeatBusy] = useState('')
 
   // Der globale Tab-Titel aus index.html ist der Gedenkbuch-Titel; die
   // Selbstregistrierung gehört zum Lebenswerk und trägt dessen Namen.
@@ -3735,12 +3759,50 @@ function RegisterFlow() {
       // Nur E-Mail + Sprache. Name, Anrede und die DSGVO-Einwilligung folgen nach
       // dem Login beim Interview-Start.
       const d = await registerLifework({ email: email.trim(), lang })
-      setDone({ email_sent: d.email_sent !== false })
+      // Ohne Code (älterer Server, gesperrte Adresse) den Ausstattungs-Schritt
+      // überspringen — er wäre ohne Berechtigung ohnehin wirkungslos.
+      if (d.code) { setFeatures({ code: d.code, email_sent: d.email_sent !== false }); setBusy(false) }
+      else setDone({ email_sent: d.email_sent !== false })
     } catch (e) { setErr(e.message); setBusy(false) }
   }
 
   const card = { width: '100%', maxWidth: 440, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }
   const wrap = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }
+
+  // Schritt 3 — Ausstattung. Erscheint NACH dem Anlegen; Abbrechen ist gefahrlos.
+  async function chooseFeatures(level) {
+    if (featBusy) return
+    if (level === 'simple') { setDone({ email_sent: features.email_sent }); return }
+    setFeatBusy(level); setErr('')
+    try { await setRegistrationFeatures(features.code, level) }
+    catch { setErr(T.featFail) }
+    finally { setFeatBusy(''); setDone({ email_sent: features.email_sent }) }
+  }
+
+  if (features && !done) {
+    const optCard = (on) => ({ textAlign: rtl ? 'right' : 'left', width: '100%', display: 'block', padding: '14px 16px', borderRadius: 12, cursor: 'pointer', background: '#fff', border: `${on ? 2 : 1}px solid ${on ? '#16a34a' : '#e7e5e4'}`, marginBottom: 10 })
+    return (
+      <div style={wrap}>
+        <div style={{ ...card, direction: rtl ? 'rtl' : 'ltr', textAlign: rtl ? 'right' : 'left' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{T.featTitle}</h1>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: '#78716c', marginBottom: '1.2rem' }}>{T.featIntro}</p>
+          <Err msg={err} />
+          <button type="button" onClick={() => chooseFeatures('simple')} disabled={!!featBusy} style={optCard(true)}>
+            <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#1c1917' }}>✅ {T.featSimpleTitle}</span>
+            <span style={{ display: 'block', fontSize: 13, color: '#78716c', marginTop: 3, lineHeight: 1.5 }}>{T.featSimpleText}</span>
+          </button>
+          <button type="button" onClick={() => chooseFeatures('full')} disabled={!!featBusy} style={optCard(false)}>
+            <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#1c1917' }}>✨ {T.featFullTitle}</span>
+            <span style={{ display: 'block', fontSize: 13, color: '#78716c', marginTop: 3, lineHeight: 1.5 }}>{T.featFullText}</span>
+          </button>
+          <button type="button" onClick={() => chooseFeatures('simple')} disabled={!!featBusy}
+            style={{ background: 'none', border: 'none', color: '#a8a29e', cursor: 'pointer', padding: 0, marginTop: 6, fontSize: 13 }}>
+            {featBusy ? T.featBusy : T.featSkip}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (done) return (
     <div style={wrap}>

@@ -12,7 +12,7 @@ const { checkAuth } = require('./_lib/auth')
 const { normalizeStyle } = require('./_lib/image-styles')
 const { normalizeLayout } = require('./_lib/book-layouts')
 const { normalizeTextStyle } = require('./_lib/text-styles')
-const { LIFEWORK } = require('./_lib/lifework')
+const { LIFEWORK, ensureLifeworkSchema } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
 const { isEnduserCategory, isAnamnesisCategory } = require('./_lib/categories')
 const { resolvePublicCode } = require('./_lib/access')
@@ -67,6 +67,42 @@ async function handleEnduserPatch(req, res, code) {
   const { error } = await supabase.from('memorials').update(update).eq('id', code)
   if (error) throw error
   return res.json({ ok: true, ...update })
+}
+
+// ── Ausstattung nach der Selbstregistrierung ──────────────────────────────
+// Direkt nach dem Anlegen fragt der Registrierungs-Flow, ob es die einfachste
+// Fassung (nur Interview) oder die volle Ausstattung sein soll. Das Buch EXISTIERT
+// zu dem Zeitpunkt bereits mit der einfachen Ausstattung — bricht jemand hier ab,
+// bleibt genau die bestehen. Deshalb ist das ein eigener, sehr schmaler Pfad:
+//   • nur Lebenswerk und nur besitzerlose Bücher (= Selbstregistrierungen),
+//   • nur in den ersten 7 Tagen nach der Anlage,
+//   • nur die feste Liste unten — keine frei wählbaren Felder,
+//   • Testlimit und Live-Sprachgespräch bleiben unangetastet.
+const FEATURE_SETS = {
+  full:   { proof_enabled: true, proof_max: 3, companion_mode: true, detail_choice: true, show_intro_video: true, photo_upload_tab: true },
+  simple: { proof_enabled: false, companion_mode: false, detail_choice: false, show_intro_video: false, photo_upload_tab: true },
+}
+async function handleFeatureLevel(req, res, code, level) {
+  const set = FEATURE_SETS[String(level || '').trim()]
+  if (!set) return res.status(400).json({ error: 'Unbekannte Ausstattung.' })
+  const { data: m, error: readErr } = await supabase.from('memorials')
+    .select('id, product_category, owner_user, created_at').eq('id', code).maybeSingle()
+  if (readErr) throw readErr
+  if (!m) return res.status(404).json({ error: 'Buch nicht gefunden.' })
+  const fresh = m.created_at && (Date.now() - new Date(m.created_at).getTime()) < 7 * 24 * 3600 * 1000
+  if (m.product_category !== 'lifework' || m.owner_user || !fresh) {
+    return res.status(403).json({ error: 'Kein Zugriff.' })
+  }
+  await ensureLifeworkSchema()
+  let { error } = await supabase.from('memorials').update(set).eq('id', code)
+  // Fehlt eine der später ergänzten Spalten, darf die Wahl nicht scheitern —
+  // das Buch bleibt dann schlicht bei der einfachen Ausstattung.
+  if (error && /detail_choice|proof_enabled|proof_max|companion_mode|column/i.test(error.message || '')) {
+    const reduced = { show_intro_video: set.show_intro_video, photo_upload_tab: set.photo_upload_tab }
+    ;({ error } = await supabase.from('memorials').update(reduced).eq('id', code))
+  }
+  if (error) throw error
+  return res.json({ ok: true, level })
 }
 
 // Der Endnutzer trägt beim Start SEINE Stammdaten nach. Beim Lebenswerk sind
@@ -161,6 +197,10 @@ module.exports = async function handler(req, res) {
       if (req.body && req.body.language !== undefined) {
         if (!(await enforce(req, res, { name: 'memorial-lang', limit: 10, windowSeconds: 600 }))) return
         return await handleLangPin(req, res, code, req.body.language)
+      }
+      if (req.body && req.body.featureLevel !== undefined) {
+        if (!(await enforce(req, res, { name: 'memorial-features', limit: 10, windowSeconds: 600 }))) return
+        return await handleFeatureLevel(req, res, code, req.body.featureLevel)
       }
       if (req.body && req.body.anamneseBogen !== undefined) {
         if (!(await enforce(req, res, { name: 'anamnese-bogen', limit: 30, windowSeconds: 600 }))) return
