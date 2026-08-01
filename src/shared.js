@@ -97,10 +97,18 @@ export function cutoffDays(memorial) {
   return Number.isFinite(n) && n >= 0 ? n : 7
 }
 
+// Letzter Tag der Erfassungsfrist — und zwar bis 23:59:59.999 ORTSZEIT.
+// Wichtig: 'YYYY-MM-DD' wird von new Date() als UTC-Mitternacht gelesen. Verglichen
+// mit Date.now() galt die Frist dadurch schon am Morgen des letzten Tages als
+// abgelaufen (in MESZ ab 02:00 Uhr). Deshalb wird das Datum hier aus seinen Teilen
+// als LOKALES Datum gebaut und auf das Tagesende gesetzt: der letzte Tag zählt ganz.
 export function cutoffDate(funeralDate, days) {
   if (!funeralDate) return null
-  const d = new Date(funeralDate)
+  const m = String(funeralDate).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(funeralDate)
+  if (isNaN(d.getTime())) return null
   d.setDate(d.getDate() - (Number.isFinite(days) ? days : 7))
+  d.setHours(23, 59, 59, 999)
   return d
 }
 
