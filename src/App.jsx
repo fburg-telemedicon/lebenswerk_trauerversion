@@ -59,7 +59,7 @@ import { SupportProvider, useSupport } from './support.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, partnerLogoSrc, col, th, FooterVisibilityCtx } from './ui.jsx'
 import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
-import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeDataUrl } from './shared.js'
+import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeDataUrl, formatCode, stripCode } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
@@ -3396,7 +3396,7 @@ Regeln:
   // ?code=-Adresse angehängt; ab dort greift der bestehende Beitragenden-Flow
   // samt seiner Fehlermeldung, falls es den Code nicht gibt.
   if (view === 'login' && codeEntry) {
-    const clean = codeInput.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
+    const clean = stripCode(codeInput)
     const go = (e) => {
       e.preventDefault()
       if (clean.length < 6) { setCodeErr(LOGIN_T.codeErr || 'Bitte geben Sie den vollständigen Code ein.'); return }
@@ -3410,9 +3410,9 @@ Regeln:
           <Err msg={codeErr} />
           <div style={{ marginBottom: 18 }}>
             <Lbl>{LOGIN_T.codeLbl || 'Zugangscode'}</Lbl>
-            <input value={codeInput} onChange={e => { setCodeInput(e.target.value); setCodeErr('') }}
+            <input value={formatCode(codeInput)} onChange={e => { setCodeInput(stripCode(e.target.value)); setCodeErr('') }}
               dir="ltr" autoFocus autoComplete="off" autoCapitalize="characters" spellCheck={false}
-              placeholder="ABCD123456"
+              placeholder="ABC-D123-456"
               style={{ textTransform: 'uppercase', letterSpacing: '0.18em', fontSize: 19, fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
           </div>
           <button type="submit" disabled={clean.length < 6} style={{ width: '100%', padding: 12, fontSize: 15 }}>

@@ -15,9 +15,9 @@
   .wrap{max-width:640px;margin:0 auto;padding:0 24px}
   header{background:var(--card);border-bottom:1px solid var(--line)}
   .bar{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
-  .brand{font-weight:700;font-size:17px;text-decoration:none}
-  .brand span{color:var(--accent)}
-  .back{color:var(--muted);text-decoration:none;font-size:14.5px}
+  .brand{display:flex;align-items:center;text-decoration:none}
+  .brand img{height:28px;width:auto;display:block}
+    .back{color:var(--muted);text-decoration:none;font-size:14.5px}
   main{padding:52px 0 72px}
   h1{font-size:30px;letter-spacing:-.5px;margin:0 0 10px}
   .lead{color:var(--muted);margin:0 0 30px}
@@ -42,7 +42,7 @@
 
 <header>
   <div class="wrap bar">
-    <a class="brand" href="/">Lebensgeschichten<span>.ai</span></a>
+    <a class="brand" href="/" aria-label="Lebensgeschichten.ai"><img src="/logo-lebensgeschichten.png" alt="Lebensgeschichten.ai" /></a>
     <a class="back" href="/">← Zur Startseite</a>
   </div>
 </header>

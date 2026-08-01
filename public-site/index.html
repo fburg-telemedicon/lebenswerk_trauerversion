@@ -19,15 +19,22 @@
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
   header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
   .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
-  .brand{font-weight:700;font-size:17px;letter-spacing:-.2px;text-decoration:none}
-  .brand span{color:var(--accent)}
-  nav{display:flex;align-items:center;gap:20px;font-size:14.5px}
+  .brand{display:flex;align-items:center;text-decoration:none}
+  .brand img{height:30px;width:auto;display:block}
+    nav{display:flex;align-items:center;gap:20px;font-size:14.5px}
   nav a{color:var(--muted);text-decoration:none}
   nav a:hover{color:var(--ink)}
   .btn{display:inline-block;padding:10px 18px;border-radius:9px;text-decoration:none;font-size:15px;font-weight:600;border:1px solid transparent}
   .btn-primary{background:var(--ink);color:#fff}
   .btn-ghost{background:var(--card);color:var(--ink);border-color:var(--line)}
-  .hero{padding:88px 0 64px}
+  .hero{padding:72px 0 56px}
+  .split{display:grid;gap:44px;grid-template-columns:1.05fr .95fr;align-items:center}
+  .split figure{margin:0}
+  .split img{width:100%;height:auto;border-radius:16px;display:block;box-shadow:0 18px 40px rgba(28,25,23,.12)}
+  .heroimg img{aspect-ratio:3/2;object-fit:cover}
+  .cats .card{background:linear-gradient(180deg,#fff 0%,#fdfdfc 100%)}
+  .cats .card h3{font-size:17px}
+  @media (max-width:820px){ .split{grid-template-columns:1fr;gap:28px} nav a:not(.btn){display:none} }
   h1{font-size:clamp(30px,5vw,50px);line-height:1.12;margin:0 0 20px;letter-spacing:-.9px}
   .lead{font-size:19px;color:#44403c;max-width:660px;margin:0 0 32px}
   .cta{display:flex;flex-wrap:wrap;gap:12px}
@@ -59,11 +66,11 @@
 
 <header>
   <div class="wrap bar">
-    <a class="brand" href="/">Lebensgeschichten<span>.ai</span></a>
+    <a class="brand" href="/" aria-label="Lebensgeschichten.ai"><img src="/logo-lebensgeschichten.png" alt="Lebensgeschichten.ai" /></a>
     <nav>
       <a href="#so">So funktioniert es</a>
       <a href="#produkte">Produkte</a>
-      <a href="#partner">Für Bestatter</a>
+      <a href="#partner">Für Partner</a>
       <a href="#datenschutz-info">Datenschutz</a>
       <a href="/zugang">Zugangscode</a>
       <a class="btn btn-ghost" href="/app">Anmelden</a>
@@ -71,18 +78,20 @@
   </div>
 </header>
 
-<div class="wrap hero">
-  <h1>Ein Leben erzählt sich<br />nicht von selbst.</h1>
-  <p class="lead">
-    Wir stellen die Fragen — Sie erzählen. Aus einem ruhigen Gespräch entsteht ein gedrucktes Buch:
-    die eigene Lebensgeschichte oder ein Gedenkbuch, in dem viele Menschen zu Wort kommen.
-    Gesprochen wird, getippt nicht.
-  </p>
-  <div class="cta">
-    <a class="btn btn-primary" href="/?register=1">Kostenlos ausprobieren</a>
-    <a class="btn btn-ghost" href="/zugang">Ich habe einen Zugangscode</a>
+<div class="wrap hero split">
+  <div>
+    <h1>Ein Leben erzählt sich<br />nicht von selbst.</h1>
+    <p class="lead">
+      Wir stellen die Fragen — Sie erzählen. Aus einem ruhigen Gespräch entsteht ein gedrucktes Buch:
+      ein Gedenkbuch, ein Geburtstagsbuch, ein Buch zum Jubiläum. Gesprochen wird, getippt nicht.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="/?register=1">Kostenlos ausprobieren</a>
+      <a class="btn btn-ghost" href="/zugang">Ich habe einen Zugangscode</a>
+    </div>
+    <p class="hint">Die Testversion umfasst fünf Minuten Interviewzeit. Kein Zahlungsmittel nötig.</p>
   </div>
-  <p class="hint">Die Testversion umfasst fünf Minuten Interviewzeit. Kein Zahlungsmittel nötig.</p>
+  <figure class="heroimg"><img src="/img/buch-uebergabe.jpg" alt="Zwei Männer halten lachend ihr fertiges Buch in den Händen" /></figure>
 </div>
 
 <section id="so">
@@ -114,41 +123,44 @@
 
 <section id="produkte">
   <div class="wrap">
-    <h2>Zwei Wege zu einem Buch</h2>
-    <p class="sub">Beide beginnen mit demselben Gespräch — sie unterscheiden sich darin, wer erzählt.</p>
-    <div class="grid">
-      <div class="card">
-        <h3>Lebenswerk — die eigene Geschichte</h3>
-        <p style="margin-bottom:16px">Eine Person erzählt aus ihrem Leben, geführt von einem Fragebogen mit
-           zwölf Kapiteln. Am Ende steht die eigene Autobiographie.</p>
-        <ul class="check">
-          <li>Interview in Etappen, so viel oder wenig auf einmal, wie es passt</li>
-          <li>Zwischenstand jederzeit als Buchvorschau ansehbar</li>
-          <li>Angehörige können über einen zweiten Link Beiträge beisteuern</li>
-          <li>Stammbaum und Lebensposter als grafische Beigaben</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>Gedenkbuch — viele Stimmen</h3>
-        <p style="margin-bottom:16px">Familie, Freundinnen und Weggefährten erzählen über einen gemeinsamen
-           Link, jede und jeder für sich. Daraus entsteht ein Buch über einen Menschen.</p>
-        <ul class="check">
-          <li>Ein Link oder QR-Code für alle Beitragenden</li>
-          <li>Niemand sieht, was die anderen erzählt haben</li>
-          <li>Zwei Buchfassungen: einzelne Beiträge oder thematisch verwoben</li>
-          <li>Auf Wunsch zusätzlich eine Trauerrede aus denselben Beiträgen</li>
-        </ul>
-      </div>
+    <h2>Für welchen Anlass?</h2>
+    <p class="sub">Immer dasselbe Prinzip — Menschen erzählen, wir machen ein Buch daraus. Der Anlass bestimmt,
+       welche Fragen gestellt werden und in welchem Ton geschrieben wird.</p>
+    <div class="grid cats">
+      <div class="card"><h3>Gedenkbuch</h3><p>Familie, Freunde und Weggefährten erinnern sich gemeinsam an einen Menschen. Auf Wunsch entsteht daraus auch die Trauerrede.</p></div>
+      <div class="card"><h3>Geburtstagsbuch</h3><p>Anekdoten, Glückwünsche und gemeinsame Erlebnisse — das Geschenk zum runden Geburtstag, das nicht im Schrank verschwindet.</p></div>
+      <div class="card"><h3>Hochzeitsjubiläum</h3><p>Wie es anfing, was blieb, was alle beisteuern können: ein Buch zur Silber- oder Goldhochzeit.</p></div>
+      <div class="card"><h3>Abschied &amp; Ruhestand</h3><p>Wenn jemand geht: Kolleginnen und Weggefährten erzählen, was bleibt — statt einer Karte mit zwanzig Unterschriften.</p></div>
+      <div class="card"><h3>Dienstjubiläum</h3><p>Zehn, zwanzig, vierzig Jahre im Haus. Die Geschichten dazu kennen nur die Menschen drumherum.</p></div>
+      <div class="card"><h3>Betriebsjubiläum</h3><p>Die Geschichte eines Unternehmens, erzählt von denen, die sie gemacht haben — Belegschaft, Kundschaft, Wegbegleiter.</p></div>
+      <div class="card"><h3>Willkommensbuch</h3><p>Zur Geburt: Wünsche und Gedanken der Familie, gesammelt für ein Kind, das sie später lesen wird.</p></div>
+      <div class="card"><h3>Mutmachbuch</h3><p>Für einen Menschen in schwerer Zeit: Zuspruch und Erinnerungen derer, die zu ihm halten.</p></div>
     </div>
+  </div>
+</section>
+
+<section id="buch">
+  <div class="wrap split">
+    <div>
+      <h2>Am Ende ein richtiges Buch</h2>
+      <p class="sub" style="margin-bottom:22px">Kein PDF-Anhang, sondern ein gedrucktes Werk mit Kapiteln, Bildern
+         und Umschlag — das man verschenken, vorlesen und ins Regal stellen kann.</p>
+      <ul class="check">
+        <li>Druckfertiges PDF im Buchformat 154 × 216 mm, inklusive Umschlag mit berechneter Rückenstärke</li>
+        <li>Word-Datei zum Weiterbearbeiten und E-Book-Fassung zum Verschicken</li>
+        <li>Bilder zu jedem Kapitel im gewählten Stil — oder Ihre eigenen Fotos als gesetzte Doppelseiten</li>
+        <li>14 Sprachen, von Polnisch und Türkisch bis Arabisch und Hebräisch</li>
+      </ul>
+    </div>
+    <figure><img src="/img/buchseite.jpg" alt="Aufgeschlagene Seite eines fertigen Buchs" loading="lazy" /></figure>
   </div>
 </section>
 
 <section id="partner">
   <div class="wrap">
-    <h2>Für Bestattungshäuser und Institutionen</h2>
+    <h2>Für Partner und Wiederverkäufer</h2>
     <p class="sub">
-      Sie legen Buchprojekte an, geben den Zugang weiter und behalten den Überblick — den Rest
-      übernimmt die Anwendung.
+      Bestattungshäuser, Seniorenresidenzen und Pflegedienste, Kliniken, Fotografinnen und Buchhändler, Vereine und Unternehmen: Sie bieten das Buch unter Ihrem Namen an, legen Projekte an und geben den Zugang weiter — den Rest übernimmt die Anwendung.
     </p>
     <div class="grid">
       <div class="card">
@@ -157,9 +169,8 @@
            Erfassungsfrist. Einladungslink und QR-Code entstehen automatisch.</p>
       </div>
       <div class="card">
-        <h3>Auf Ihr Haus abgestimmt</h3>
-        <p>Ihr Logo im Buch, wählbares Schriftbild und Bildmaterial. Von der schlichten Fassung bis zum
-           vollen Funktionsumfang stellen Sie je Projekt ein, was gebraucht wird.</p>
+        <h3>Unter Ihrem Namen</h3>
+        <p>Ihr Logo im Buch, wählbares Schriftbild und Bildmaterial. Von der schlichten Fassung bis zum vollen Funktionsumfang stellen Sie je Projekt ein, was gebraucht wird. Ihre Kundschaft bleibt Ihre Kundschaft.</p>
       </div>
       <div class="card">
         <h3>14 Sprachen</h3>
@@ -167,7 +178,7 @@
            bis Arabisch und Hebräisch.</p>
       </div>
     </div>
-    <p style="margin-top:28px"><a class="btn btn-ghost" href="/kontakt">Unterlagen anfordern</a></p>
+    <p style="margin-top:28px"><a class="btn btn-ghost" href="/kontakt">Partner werden — Unterlagen anfordern</a></p>
   </div>
 </section>
 

@@ -92,6 +92,19 @@ export function unlockAudio() {
   primeAudio()
 }
 
+
+// Zugangscodes lesbar gruppieren: 10 Zeichen als 3-4-3 (QVZ-Y2R2-5WF). Das ist die
+// Portionsgröße, die man sich beim Abtippen merken kann. Ältere 6-stellige Codes
+// werden als 3-3 gruppiert; alles andere bleibt ungruppiert. Die Trennstriche sind
+// reine Anzeige — beim Einlesen werden sie entfernt.
+export function formatCode(raw) {
+  const c = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (c.length === 10) return `${c.slice(0, 3)}-${c.slice(3, 7)}-${c.slice(7)}`
+  if (c.length === 6) return `${c.slice(0, 3)}-${c.slice(3)}`
+  return c
+}
+export const stripCode = raw => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
+
 export function cutoffDays(memorial) {
   const n = parseInt(memorial?.cutoff_days, 10)
   return Number.isFinite(n) && n >= 0 ? n : 7
