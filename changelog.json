@@ -16,7 +16,13 @@
         "Die Domain lebensgeschichten.ai zeigt jetzt eine echte Website mit Vorstellung aller Anlaesse, einem Bereich fuer Partner und Wiederverkaeufer sowie einem Kontaktformular. Alle bisherigen Einladungslinks und QR-Codes funktionieren unveraendert weiter.",
         "Betreiber ist ab sofort die Lebenswerk.AI GmbH; Impressum, Datenschutzerklaerung und die internen Datenschutzunterlagen sind entsprechend aktualisiert. Die Einwilligungsfassung wurde auf 1.5 gehoben.",
         "QR-Codes entstehen jetzt im Browser statt bei einem externen Dienst - der Zugangscode verlaesst das Haus nicht mehr.",
-        "Neu als Entwurf: ein Auftragsverarbeitungsvertrag (AVV.md) fuer Partner, die eigene Kunden ueber die Plattform betreuen."
+        "Neu als Entwurf: ein Auftragsverarbeitungsvertrag (AVV.md) fuer Partner, die eigene Kunden ueber die Plattform betreuen.",
+        "Die Buch-Variante wird jetzt einmalig beim Anlegen festgelegt: einzelne Beitraege als eigene Kapitel, ein gemeinsam verwobener Text - oder ausdruecklich offen gelassen. Danach ist sie gesperrt, und es laesst sich nur noch die dazu passende Fassung erzeugen.",
+        "Wer zu einem Buch beitraegt, erfaehrt jetzt vor dem ersten Wort, ob sein Beitrag spaeter namentlich im Buch steht; bei offener Variante steht dort die Moeglichkeitsform. So weiss jede und jeder, was mit dem Erzaehlten geschieht.",
+        "Dabei kam ein aelterer Anzeigefehler ans Licht: Im Dashboard stand bei jedem Buch \"Variante 1\", unabhaengig von der tatsaechlichen Wahl. Behoben.",
+        "Die Probedruck-Ansicht (Zwischenstand und vorlaeufige Druckversion) gibt es jetzt in allen 14 Sprachen statt nur auf Deutsch und Englisch.",
+        "Weitere Texte im Interview - Menuepunkte, Hinweise und der Bildschirm \"Das Buch ist schon fertig\" - sprechen ebenfalls alle 14 Sprachen. Uebersetzt wurde mit unserem eigenen Modell in der EU, nicht ueber einen externen Dienst.",
+        "Website: Startseite mit Logo und eigenen Bildern, Vorstellung aller Anlaesse, Bereich fuer Partner und Wiederverkaeufer, Kontaktformular und Partner-Login."
       ]
     },
     {
