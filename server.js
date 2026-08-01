@@ -89,7 +89,9 @@ app.get('/demobuch', (req, res) => {
 app.get('/app.webmanifest', (req, res) => {
   const code = String(req.query.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
   const lw = req.query.lw === '1'
-  const startUrl = code ? `/?code=${code}` : '/'
+  // Ohne Code führt die installierte App in die ANWENDUNG (/app) — „/" trägt seit
+  // dem Website-Start die Startseite und wäre für eine installierte PWA falsch.
+  const startUrl = code ? `/?code=${code}` : '/app'
   const manifest = {
     id: startUrl,
     name: lw ? 'Lebenswerk.ai' : 'Lebensgeschichten.ai',
@@ -120,7 +122,33 @@ app.all('/api/*', (req, res) => res.status(404).json({ error: 'Not found' }))
 // Statisches SPA (dist/) + SPA-Fallback
 // ---------------------------------------------------------------------------
 const DIST = path.join(__dirname, 'dist')
+const SITE = path.join(__dirname, 'public-site')
+
+// ---------------------------------------------------------------------------
+// Website (public-site/) auf „/" — Anwendung bleibt erreichbar
+// ---------------------------------------------------------------------------
+// Die Domain trägt jetzt eine echte Website. Die Anwendung liegt auf DERSELBEN
+// Herkunft (kein eigener Host), weil sonst alles im localStorage verloren ginge:
+// gespeicherte Interview-Sitzungen, gewählter Mikrofon-Modus, installierte PWAs.
+// Zwei Einstiege in die Anwendung:
+//   • „/" MIT einem der bekannten Parameter (?code=, ?zugang, ?register=1, …) —
+//     damit funktionieren alle gedruckten Einladungen, QR-Codes und Mail-Links
+//     unverändert weiter. Diese Regel darf nie entfallen.
+//   • „/app" für Anmeldung und Dashboard.
+const APP_PARAMS = ['code', 'session', 'invite', 'register', 'zugang', 'lang', 'lw', 'guest']
+const wantsApp = req => APP_PARAMS.some(k => req.query[k] !== undefined)
+
 if (fs.existsSync(DIST)) {
+  if (fs.existsSync(SITE)) {
+    // MUSS vor express.static(DIST) stehen — sonst liefert der Static-Handler
+    // schon dist/index.html für „/" aus und die Website wäre nie sichtbar.
+    app.get('/', (req, res, next) => {
+      if (wantsApp(req)) return next()
+      res.sendFile(path.join(SITE, 'index.html'))
+    })
+    app.use('/site', express.static(SITE))
+  }
+  app.get(['/app', '/app/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))
   app.use(express.static(DIST))
   app.get('*', (req, res) => res.sendFile(path.join(DIST, 'index.html')))
 } else {

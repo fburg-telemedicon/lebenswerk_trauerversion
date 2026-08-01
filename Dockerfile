@@ -28,6 +28,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Anwendungscode + gebautes SPA übernehmen.
 COPY api ./api
+# Website auf „/" (server.js liefert sie aus, wenn keine App-Parameter anliegen).
+COPY public-site ./public-site
 COPY scripts ./scripts
 COPY server.js ./server.js
 # changelog.json wird vom Tagesreport gelesen (api/_lib/changelog.js) → muss
