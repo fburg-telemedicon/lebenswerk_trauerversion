@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kontakt — Lebensgeschichten.ai</title>
+<meta name="description" content="Schreiben Sie uns: Fragen zu Lebensgeschichten.ai, zur Zusammenarbeit oder zum Datenschutz." />
+<meta name="robots" content="noindex" />
+<link rel="icon" href="/icons/icon-192.png" />
+<style>
+  :root{--ink:#1c1917;--muted:#78716c;--line:#e7e5e4;--bg:#fafaf9;--card:#fff;--accent:#c1272d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:0 24px}
+  header{background:var(--card);border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
+  .brand{font-weight:700;font-size:17px;text-decoration:none}
+  .brand span{color:var(--accent)}
+  .back{color:var(--muted);text-decoration:none;font-size:14.5px}
+  main{padding:52px 0 72px}
+  h1{font-size:30px;letter-spacing:-.5px;margin:0 0 10px}
+  .lead{color:var(--muted);margin:0 0 30px}
+  label{display:block;font-size:14px;font-weight:600;margin:0 0 6px}
+  input,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;
+                 font:inherit;background:var(--card);color:var(--ink)}
+  textarea{min-height:150px;resize:vertical}
+  .field{margin-bottom:18px}
+  .req{color:var(--accent)}
+  button{width:100%;padding:13px;border:none;border-radius:9px;background:var(--ink);color:#fff;
+         font-size:15px;font-weight:600;cursor:pointer}
+  button[disabled]{opacity:.5;cursor:default}
+  .note{font-size:13px;color:var(--muted);margin:16px 0 0;line-height:1.55}
+  .msg{padding:14px 16px;border-radius:10px;margin-bottom:20px;font-size:15px;line-height:1.55}
+  .ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+  footer{border-top:1px solid var(--line);background:var(--card);padding:28px 0;font-size:14px;color:var(--muted)}
+  footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="/">Lebensgeschichten<span>.ai</span></a>
+    <a class="back" href="/">← Zur Startseite</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1>Schreiben Sie uns</h1>
+  <p class="lead">
+    Ob Frage zum Ablauf, Interesse an einer Zusammenarbeit oder ein Anliegen zum Datenschutz —
+    wir antworten in der Regel innerhalb eines Werktages.
+  </p>
+
+  <div id="msg"></div>
+
+  <form id="f">
+    <div class="field">
+      <label for="name">Ihr Name</label>
+      <input id="name" name="name" autocomplete="name" />
+    </div>
+    <div class="field">
+      <label for="email">E-Mail-Adresse <span class="req">*</span></label>
+      <input id="email" name="email" type="email" autocomplete="email" required placeholder="name@beispiel.de" />
+    </div>
+    <div class="field">
+      <label for="message">Ihre Nachricht <span class="req">*</span></label>
+      <textarea id="message" name="message" required placeholder="Worum geht es?"></textarea>
+    </div>
+    <button type="submit" id="send">Nachricht senden</button>
+    <p class="note">
+      Wir verwenden Ihre Angaben ausschließlich, um Ihre Anfrage zu beantworten, und geben sie nicht weiter.
+      Einzelheiten in der <a href="/app#datenschutz">Datenschutzerklärung</a>.
+    </p>
+  </form>
+</main>
+
+<footer>
+  <div class="wrap">
+    Lebenswerk.AI GmbH · Walter-Schneider-Straße 10 · 06317 Seegebiet Mansfelder Land ·
+    <a href="/app#impressum">Impressum</a> · <a href="/app#datenschutz">Datenschutz</a>
+  </div>
+</footer>
+
+<script>
+  // Nutzt den vorhandenen Support-Endpunkt (POST /api/support): Die Nachricht geht
+  // als E-Mail an den Betreiber UND wird in der Datenbank abgelegt, damit nichts
+  // verloren geht, wenn der Mailversand hakt. Der Endpunkt ist rate-limited.
+  var form = document.getElementById('f')
+  var btn = document.getElementById('send')
+  var box = document.getElementById('msg')
+
+  function show(kind, text) {
+    box.innerHTML = '<div class="msg ' + kind + '">' + text + '</div>'
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault()
+    var email = document.getElementById('email').value.trim()
+    var message = document.getElementById('message').value.trim()
+    var name = document.getElementById('name').value.trim()
+    if (message.length < 10) { show('err', 'Bitte schreiben Sie noch ein paar Worte mehr, damit wir Ihnen weiterhelfen können.'); return }
+
+    btn.disabled = true
+    btn.textContent = 'Wird gesendet …'
+    fetch('/api/support', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        replyEmail: email,
+        name: name,
+        preferredChannel: 'email',
+        context: { view: 'website-kontakt' },
+      }),
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var d = {}
+        try { d = t ? JSON.parse(t) : {} } catch (_) {}
+        if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status))
+        return d
+      })
+    }).then(function () {
+      form.style.display = 'none'
+      show('ok', '<strong>Vielen Dank — Ihre Nachricht ist angekommen.</strong><br />Wir melden uns bei Ihnen unter ' + email.replace(/[<>&]/g, '') + '.')
+    }).catch(function (err) {
+      show('err', 'Das hat leider nicht geklappt: ' + err.message + '<br />Sie erreichen uns auch direkt unter <a href="mailto:support@lebensgeschichten.ai">support@lebensgeschichten.ai</a>.')
+      btn.disabled = false
+      btn.textContent = 'Nachricht senden'
+    })
+  })
+</script>
+
+</body>
+</html>

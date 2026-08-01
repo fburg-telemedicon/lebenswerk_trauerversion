@@ -146,6 +146,12 @@ if (fs.existsSync(DIST)) {
       if (wantsApp(req)) return next()
       res.sendFile(path.join(SITE, 'index.html'))
     })
+    // Weitere Seiten der Website. Bewusst eine feste Liste statt eines
+    // Static-Handlers auf „/", damit nichts versehentlich den SPA-Fallback
+    // überschattet (dort liegen u. a. /assets und die Icon-Pfade).
+    for (const [route, file] of [['/kontakt', 'kontakt.html']]) {
+      app.get(route, (req, res) => res.sendFile(path.join(SITE, file)))
+    }
     app.use('/site', express.static(SITE))
   }
   app.get(['/app', '/app/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))

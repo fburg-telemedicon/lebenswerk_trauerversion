@@ -41,15 +41,16 @@ export function Impressum() {
       <p><strong>Angaben gemäß § 5 DDG</strong></p>
       <p>Lebenswerk.AI GmbH<br/>Walter-Schneider-Straße 10<br/>06317 Seegebiet Mansfelder Land<br/>Deutschland</p>
       <h2 style={LH}>Vertreten durch</h2>
-      <p>Geschäftsführer Dr. Tobias D. Gantner</p>
+      <p>Geschäftsführer Prof. Dr. med. Tobias D. Gantner</p>
       <h2 style={LH}>Kontakt</h2>
-      <p>E-Mail: support@lebensgeschichten.ai</p>
+      <p>E-Mail: <a href="mailto:support@lebensgeschichten.ai">support@lebensgeschichten.ai</a><br/>Kontaktformular: <a href="/kontakt">lebensgeschichten.ai/kontakt</a></p>
+      <p style={{ fontSize:14, color:'#78716c' }}>Wir verzichten bewusst auf eine Telefonnummer und antworten stattdessen schriftlich — in der Regel innerhalb eines Werktages.</p>
       <h2 style={LH}>Registereintrag</h2>
       <p>Eintragung im Handelsregister ist beantragt.<br/>Registergericht: folgt<br/>Registernummer: folgt</p>
       <h2 style={LH}>Umsatzsteuer-Identifikationsnummer</h2>
       <p>USt-IdNr. gemäß § 27a UStG: folgt</p>
       <h2 style={LH}>Verantwortlich für den Inhalt</h2>
-      <p>gemäß § 18 Abs. 2 MStV: Dr. Tobias D. Gantner, Anschrift wie oben.</p>
+      <p>gemäß § 18 Abs. 2 MStV: Prof. Dr. med. Tobias D. Gantner, Anschrift wie oben.</p>
       <h2 style={LH}>Haftung für die erstellten Bücher und Inhalte</h2>
       <p>{BOOK_DISCLAIMER}</p>
       <p>
@@ -71,7 +72,8 @@ export function Datenschutz() {
       <p>
         Verantwortlich für die Datenverarbeitung im Sinne der DSGVO ist:<br/>
         Lebenswerk.AI GmbH, Walter-Schneider-Straße 10, 06317 Seegebiet Mansfelder Land, Deutschland<br/>
-        E-Mail: support@lebensgeschichten.ai
+        Geschäftsführer: Prof. Dr. med. Tobias D. Gantner<br/>
+        E-Mail: support@lebensgeschichten.ai · Kontaktformular: lebensgeschichten.ai/kontakt
       </p>
 
       <h2 style={LH}>2. Worum es geht</h2>
