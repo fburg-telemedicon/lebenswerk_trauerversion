@@ -373,6 +373,118 @@ const PDF_PAGE_W = 154   // mm – Einzelseite inkl. Beschnitt
 const PDF_PAGE_H = 216   // mm
 const PDF_SPREAD_W = PDF_PAGE_W * 2 // 308 mm – Doppelseite
 
+// ── Silbentrennung ─────────────────────────────────────────────────────────
+// Der Satzspiegel ist nur 118 mm breit. Ohne Trennung reißen lange Komposita
+// („Arbeitsaufkommen") Löcher: die Zeile davor bleibt weit offen, der Blocksatz
+// müsste sie über wenige Wortlücken strecken — deshalb blieb sie bisher linksbündig
+// stehen (sichtbarer Bruch im Satzbild). Mit Trennmustern bricht das Wort selbst um.
+// Die Muster (Sprache einzeln, ~700 kB für Deutsch) werden LAZY geladen und landen
+// in einem eigenen Chunk — sie kosten nur beim PDF-Export, nicht beim Seitenaufruf.
+const HYPHEN_LOADERS = {
+  de:      () => import('hyphen/de'),
+  'de-CH': () => import('hyphen/de-ch-1901'),
+  en:      () => import('hyphen/en-gb'),
+  es:      () => import('hyphen/es'),
+  eu:      () => import('hyphen/eu'),
+  fr:      () => import('hyphen/fr'),
+  it:      () => import('hyphen/it'),
+  pl:      () => import('hyphen/pl'),
+  ro:      () => import('hyphen/ro'),
+  tr:      () => import('hyphen/tr'),
+  ru:      () => import('hyphen/ru'),
+  uk:      () => import('hyphen/uk'),
+  // he/ar: keine Trennmuster (und RTL) → ohne Trennung wie bisher.
+}
+const SOFT = '­'
+
+// Liefert eine Funktion Wort → Liste möglicher Trennstellen (Index im Wort),
+// oder null, wenn die Sprache keine Trennung kennt bzw. das Laden scheitert.
+async function loadHyphenator(lang) {
+  const load = HYPHEN_LOADERS[lang] || HYPHEN_LOADERS[String(lang || '').slice(0, 2)]
+  if (!load) return null
+  try {
+    const mod = await load()
+    const hyphenateSync = mod.hyphenateSync || mod.default?.hyphenateSync
+    if (typeof hyphenateSync !== 'function') return null
+    const cache = new Map()
+    return word => {
+      if (cache.has(word)) return cache.get(word)
+      let points = []
+      try {
+        const marked = hyphenateSync(word, { hyphenChar: SOFT })
+        let idx = 0
+        for (const part of marked.split(SOFT)) { idx += part.length; points.push(idx) }
+        points.pop()   // hinter dem letzten Teil ist keine Trennstelle
+      } catch { points = [] }
+      cache.set(word, points)
+      return points
+    }
+  } catch { return null }   // fehlende Muster dürfen den Export nie stoppen
+}
+
+// Zeilenumbruch mit Silbentrennung. Ersetzt doc.splitTextToSize für Fließtext:
+// baut die Zeile wortweise auf und trennt das erste nicht mehr passende Wort an
+// der spätesten erlaubten Stelle. Ohne Trenner (hyph = null) ist das Ergebnis
+// identisch zu splitTextToSize.
+function wrapWithHyphens(doc, text, width, hyph) {
+  const src = String(text ?? '')
+  if (!hyph) return doc.splitTextToSize(src, width)
+  const out = []
+  const spaceW = doc.getTextWidth(' ')
+  // Mindestlängen: kein „A-rbeit" und kein einzeln hängendes „-en".
+  const MIN_HEAD = 3, MIN_TAIL = 3, MIN_WORD = 7
+  // Nicht mehr als zwei Trennungen hintereinander (typografische Faustregel).
+  let inRow = 0
+
+  const breakWord = (word, avail) => {
+    const letters = word.replace(/[^\p{L}]/gu, '')
+    if (letters.length < MIN_WORD || inRow >= 2) return null
+    const points = hyph(word)
+    let best = null
+    for (const p of points) {
+      if (p < MIN_HEAD || word.length - p < MIN_TAIL) continue
+      if (word[p - 1] === '-') continue           // nicht direkt hinter einem echten Bindestrich
+      const head = word.slice(0, p) + '-'
+      if (doc.getTextWidth(head) <= avail) best = { head, tail: word.slice(p) }
+      else break                                   // Trennstellen sind aufsteigend
+    }
+    return best
+  }
+
+  for (const para of src.split('\n')) {
+    let line = ''
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const cand = line ? `${line} ${word}` : word
+      if (doc.getTextWidth(cand) <= width) { line = cand; continue }
+      const avail = width - (line ? doc.getTextWidth(line) + spaceW : 0)
+      const split = breakWord(word, avail)
+      if (split) {
+        out.push(line ? `${line} ${split.head}` : split.head)
+        inRow++
+        // Rest kann selbst noch zu lang sein (sehr lange Komposita) → weiter trennen.
+        let rest = split.tail
+        let next
+        while (doc.getTextWidth(rest) > width && (next = breakWord(rest, width))) {
+          out.push(next.head); inRow++; rest = next.tail
+        }
+        line = rest
+        continue
+      }
+      if (line) { out.push(line); inRow = 0; line = '' }
+      // Wort passt auch allein nicht in die Zeile → hart umbrechen wie bisher.
+      if (doc.getTextWidth(word) > width) {
+        const hard = doc.splitTextToSize(word, width)
+        out.push(...hard.slice(0, -1)); inRow = 0
+        line = hard[hard.length - 1]
+      } else {
+        line = word
+      }
+    }
+    out.push(line)   // auch leere Zeile: ein „\n" im Text bleibt ein Umbruch
+  }
+  return out
+}
+
 // Baut das druckfertige Innenteil (ohne Cover) und gibt das jsPDF-Dokument + die
 // Seitenzahl zurück, OHNE herunterzuladen. downloadPrintPdf (Druck) und
 // downloadEbookPdf (E-Book, mit Cover-Seiten drumherum) bauen darauf auf.
@@ -447,13 +559,15 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
   // brauchen keine Paritätskorrektur).
   const ML = 18, MR = 18, MT = 22, MB = 20
   const maxW = PDF_PAGE_W - ML - MR
+  // Trennmuster der Buchsprache (null = keine Trennung, dann bricht flow() wie bisher um).
+  const hyph = await loadHyphenator(book.language || 'de')
   const lh = pt => pt * 0.3528 * 1.5
   let y = MT
   const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0, justify = false } = {}) => {
     doc.setFont(BF, style); doc.setFontSize(size); doc.setTextColor(...color)
     const lineH = lh(size)
     const width = maxW - indent
-    const lines = doc.splitTextToSize(String(chunk ?? ''), width)
+    const lines = wrapWithHyphens(doc, chunk, width, hyph)
     lines.forEach((line, i) => {
       if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
       const words = line.split(' ').filter(Boolean)
