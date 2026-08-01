@@ -10,7 +10,8 @@
         "Jedes Buchprojekt hat jetzt eine fortlaufende Nummer. Sie steht als erste Spalte in der Uebersicht und oben auf der Detailseite - praktisch fuer Rueckfragen, ohne den geheimen Zugangscode nennen zu muessen.",
         "Neue Suchleiste ueber der Buchliste: durchsucht Nummer, Name, Zugangscode, Organisator, Inhaber, E-Mail, Kategorie und Notiz. Mehrere Suchwoerter werden verknuepft.",
         "Neu einstellbar je Buch: Die erzaehlende Person darf im Menue selbst waehlen, wie ausfuehrlich nachgefragt wird - wenig, ausgewogen (Voreinstellung) oder intensiv. Standardmaessig ausgeschaltet; dann gilt weiter die Vorgabe des Managers.",
-        "Wer sich selbst einen Zugang anlegt, wird jetzt in einem zusaetzlichen Schritt gefragt, ob es die einfachste Fassung (nur das Interview, Voreinstellung) oder die volle Ausstattung sein soll. Der Zugang entsteht bereits vorher - wer die Frage wegklickt, verliert nichts."
+        "Wer sich selbst einen Zugang anlegt, wird jetzt in einem zusaetzlichen Schritt gefragt, ob es die einfachste Fassung (nur das Interview, Voreinstellung) oder die volle Ausstattung sein soll. Der Zugang entsteht bereits vorher - wer die Frage wegklickt, verliert nichts.",
+        "Der Superadmin kann ein Buchprojekt jetzt direkt fuer einen Kunden anlegen. Bisher entstanden dabei besitzerlose Buecher, die im Dashboard des Kunden gar nicht auftauchten - man musste sich als dieser Kunde anmelden."
       ]
     },
     {
