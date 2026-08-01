@@ -76,48 +76,60 @@ Teilzwecke:
 
 ## 5. Kategorien von Empfängern / Auftragsverarbeitern (Art. 30 Abs. 1 lit. d)
 
-Alle eingesetzten Dienste verarbeiten **ausschließlich in der EU**. Es gibt **keine
-US-Fallbacks** mehr (Anthropic-LLM- und OpenAI-Sprach-Fallback am 2026-06-22 aus dem
-Code entfernt).
+Stand 1. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
+`api/`, `server.js` und `src/`). Sämtliche Dienste verarbeiten **in der EU**. Es gibt
+**keine US-Fallbacks** (Anthropic- und OpenAI-Fallbacks am 2026-06-22 entfernt).
 
 | Auftragsverarbeiter | Leistung | Region / Standort |
 |---|---|---|
-| **Microsoft** (Azure OpenAI) | Interviewführung + Synthese Buch/Rede (gpt-4.1) | EU (westeurope / DataZone) |
-| **Microsoft** (Azure AI Speech) | Text-to-Speech + Speech-to-Text | EU (z. B. westeurope) |
-| **Microsoft** (Azure AI Foundry – FLUX.2 [pro]) | Bilderzeugung; Modell von Black Forest Labs läuft **innerhalb Azure**, keine Weitergabe an BFL | EU |
-| **Supabase** | Datenbank + Bildspeicher (`memorial-images`) | EU (Frankfurt, AWS eu-central-1) |
-| **Vercel** | Hosting + Auslieferung + Serverless-Functions | EU (Funktionsregion `fra1`) |
-| **GitHub** (Actions) | Auslöser des täglichen Lösch-Cron (HTTP-Trigger, **keine personenbezogenen Inhalte** – nur Anstoß) | — |
+| **Microsoft** (Azure OpenAI, `gpt-4.1` über Foundry) | Interviewführung + Synthese Buch/Rede | EU |
+| **Microsoft** (Azure AI Speech) | Text-to-Speech + Speech-to-Text | `westeurope` |
+| **Microsoft** (Azure AI Speech „Voice Live") | Live-Sprachgespräch — **opt-in, Default aus**, nur vom Superadmin freischaltbar | `swedencentral` (einzige EU-Region) |
+| **Microsoft** (Azure AI Foundry – FLUX.2 [pro]) | Bilderzeugung; Modell von Black Forest Labs läuft **innerhalb Azure** | EU |
+| **Microsoft** (Azure Database for PostgreSQL Flexible Server) | Datenbank: Bücher, Beiträge, Konten, Kosten, Audit | North Europe |
+| **Microsoft** (Azure Blob Storage) | Kapitelbilder, hochgeladene Fotos, abgelegte Druck-PDFs | EU |
+| **Microsoft** (Azure Container Apps + Jobs) | Betrieb der Anwendung und der vier Cron-Jobs | EU |
+| **Microsoft** (Microsoft 365 / Graph API) | **E-Mail-Versand**: Zugangs- und Einladungslinks, Wiederaufnahme-Links, Tagesreport, Support-Antworten | M365-Tenant (EU) |
+| **Microsoft** (GitHub Actions + Azure Container Registry) | Auslieferung neuer Programmstände — **keine personenbezogenen Inhalte** | — |
 
-> **Black Forest Labs (FLUX)** ist Modellanbieter, **erhält die Daten aber nicht** –
-> die Verarbeitung findet in Microsoft Azure statt. Daher kein eigener Datenfluss zu BFL.
+**Ein einziger Anbieter.** Nach dem Wegfall des externen QR-Dienstes (siehe unten)
+verlässt kein personenbezogenes Datum den Microsoft-Verbund.
+
+**Entfallen** (Stand hier zuvor falsch, seit der Azure-Migration am 2026-07-13 ohne
+Funktion): *Supabase* (Datenbank/Bildspeicher) und *Vercel* (Hosting) sind aus der
+Produktion entfernt; im Repository verbliebene Artefakte sind Rollback-Referenzen.
+
+**Ebenfalls entfallen:** `api.qrserver.com` erzeugte bis zum 1. August 2026 die
+QR-Codes im Dashboard. Dabei ging die vollständige Einladungs-URL **samt Buch-Code**
+an einen Dritten — beim Lebenswerk ist dieser Code die gesamte Berechtigung des
+Endnutzers. QR-Codes entstehen seither im Browser (`qrCodeDataUrl` in
+`src/shared.js`); der Dienst ist aus dem Code entfernt.
+
+> **Black Forest Labs (FLUX)** ist Modellanbieter, **erhält die Daten aber nicht** —
+> die Verarbeitung findet in Microsoft Azure statt. Kein eigener Datenfluss zu BFL.
 
 ---
 
 ## 6. Übermittlung in Drittländer (Art. 30 Abs. 1 lit. e) + AVV-Checkliste
 
 **Drittlandübermittlung: keine.** Sämtliche Verarbeitung und Speicherung erfolgen in
-der EU/EWR. Folglich keine Stützung auf Art. 44 ff. (SCC, Angemessenheitsbeschluss,
-Art. 49) erforderlich.
+der EU/EWR. Folglich keine Stützung auf Art. 44 ff. (SCC, Angemessenheitsbeschluss).
 
-### AVV/DPA herunterladen, prüfen, archivieren (← „das Runterladen")
+### Eingehende AVVs (wir als Verantwortlicher gegenüber unseren Dienstleistern)
 
-Mit **jedem** aktiven Auftragsverarbeiter muss ein AVV nach **Art. 28** bestehen. Die
-Anbieter stellen Standard-DPAs bereit; jeweils die **aktuelle Fassung herunterladen,
-prüfen und revisionssicher ablegen** (z. B. in einem geschützten Ordner / DMS).
-URLs ändern sich — vor dem Download verifizieren.
+| Anbieter | Dokument | Status |
+|---|---|---|
+| Microsoft (Azure, Microsoft 365, GitHub) | „Microsoft Products and Services Data Protection Addendum (DPA)" | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/`. Deckt Azure-Dienste, M365/Graph und GitHub ab. |
+| Black Forest Labs | kein eigener AVV nötig, solange die Verarbeitung in Azure bleibt | n/a |
+| ~~Supabase~~, ~~Vercel~~ | DPAs 2026-06-22 archiviert | historisch — Dienste nicht mehr im Einsatz |
 
-| Anbieter | Was herunterladen | Wo (vor Download verifizieren) | Status |
-|---|---|---|---|
-| Microsoft (Azure) | „Microsoft Products and Services Data Protection Addendum (DPA)" | Microsoft Trust Center / Lizenzportal | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/` |
-| Supabase | Supabase Data Processing Addendum (DPA) | Supabase-Dashboard bzw. supabase.com/legal/dpa (ggf. anfordern/gegenzeichnen) | ✅ signiert (Zertifikat), abgelegt 2026-06-22 in `DSGVO_AVV/` |
-| Vercel | Vercel Data Processing Addendum (DPA) | vercel.com/legal/dpa (Pro: automatisch einbezogen) | ✅ Pro-Tarif, DPA-PDF abgelegt 2026-06-22 in `DSGVO_AVV/` |
-| GitHub | GitHub Data Protection Agreement | GitHub/Microsoft Trust Center | ✅ Fassung Okt 2025 abgelegt 2026-06-22 in `DSGVO_AVV/`. **Hinweis:** GitHub ist nur Cron-Auslöser (HTTP-Trigger, keine personenbezogenen Inhalte), AVV daher vorsorglich/belt-and-suspenders archiviert. |
-| Black Forest Labs | **kein eigener AVV nötig**, solange die Verarbeitung in Azure bleibt (durch Microsoft-DPA abgedeckt) | — | n/a |
+### Ausgehender AVV (wir als Auftragsverarbeiter gegenüber unseren Kunden)
 
-**Nach dem Download festhalten:** Anbieter, Dokumenttitel, Versions-/Datumsstand,
-Ablageort, ggf. Unterzeichnungsdatum. Jährliche Aktualitätsprüfung ist bereits in
-`BETRIEB-DSGVO.md` (Abschnitt 2, „Jährlich") verankert.
+Betreut ein Kunde — etwa ein Bestattungshaus, eine Klinik oder ein Unternehmen —
+eigene Endkunden über die Plattform, ist **er** der Verantwortliche und die
+Lebenswerk.AI GmbH **Auftragsverarbeiterin** nach Art. 28 DSGVO. Der zugehörige
+Vertragsentwurf samt TOM- und Unterauftragnehmer-Anlage liegt in **`AVV.md`** und ist
+vor dem ersten produktiven Kundeneinsatz zu unterzeichnen.
 
 ---
 
@@ -125,19 +137,26 @@ Ablageort, ggf. Unterzeichnungsdatum. Jährliche Aktualitätsprüfung ist bereit
 
 ```
 Beitragende/r (Browser)
-   │  ?code=XXXXXX  (+ optional ?session=YYY)
+   │  lebensgeschichten.ai/?code=XXXXXXXXXX   (+ optional &session=YYY)
    ▼
-[ Vercel SPA + /api/* Functions, Region fra1 (EU) ]
-   ├─ Sprache rein  → /api/transcribe → Azure AI Speech (EU)      → Text
-   ├─ Frage/Antwort → /api/ask        → Azure OpenAI gpt-4.1 (EU) → Text
-   ├─ Vorlesen      → /api/speak       → Azure AI Speech (EU)      → Audio
-   ├─ Beitrag speichern/abrufen → Supabase (Frankfurt, EU)
-   └─ Buch/Rede (Admin) → /api/ask (Azure) + /api/admin/generate-image
-                                          → Azure Foundry FLUX (EU) → Bild → Supabase-Bucket
-Aufbewahrung: GitHub Actions (täglich) → /api/cron/purge → Löschung nach Frist (Supabase)
+[ Azure Container Apps – Express (server.js) + /api/*, EU ]
+   ├─ Sprache rein   → /api/transcribe → Azure AI Speech (westeurope)     → Text
+   ├─ Frage/Antwort  → /api/ask        → Azure OpenAI gpt-4.1 (EU)        → Text
+   ├─ Vorlesen       → /api/speak      → Azure AI Speech (westeurope)     → Audio
+   ├─ Live-Gespräch  → /api/voicelive-relay → Azure Voice Live (Schweden) → Audio
+   │                   (nur wenn am Buch freigeschaltet; Default aus)
+   ├─ Beitrag/Buch   → Azure Database for PostgreSQL (North Europe)
+   ├─ Bilder/Uploads → Azure Blob Storage (EU, privat, SAS-signierte Lesezugriffe)
+   ├─ Buch/Bilder (Manager) → /api/ask + /api/admin/generate-image
+   │                          → Azure Foundry FLUX (EU) → Blob Storage
+   └─ E-Mail         → Microsoft Graph (M365) → Zugangslink, Wiederaufnahme,
+                       Tagesreport, Support
+Aufbewahrung: Container-Apps-Job (täglich 03:00) → Löschung nach Frist (DB + Blob)
 ```
 
-Kein Pfeil verlässt die EU. Sekundärdaten (IP/Audit/Kosten) bleiben in Supabase (EU).
+Kein Pfeil verlässt die EU. Sekundärdaten (IP-Rate-Limits, Audit, Kostenerfassung)
+liegen in derselben Datenbank (EU). QR-Codes und Buch-PDFs entstehen im Browser der
+Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
 
 ---
 
@@ -160,7 +179,7 @@ Kein Pfeil verlässt die EU. Sekundärdaten (IP/Audit/Kosten) bleiben in Supabas
 ## 9. Allgemeine Beschreibung der TOMs (Art. 30 Abs. 1 lit. g)
 
 Vollständig in **`SICHERHEIT.md`**. Kurzfassung: TLS in transit + AES-256 at rest;
-Supabase-RLS (kein anon/authenticated-Zugriff, nur service_role im Backend);
+Datenbank NUR aus dem Backend erreichbar (eigener DB-Benutzer, kein oeffentlicher Endpunkt);
 HMAC-signierte Admin-Tokens mit 12 h TTL, keine Default-Credentials; Mehrbenutzer-
 Isolation (IDOR-geschützt); Rate-Limiting + Brute-Force-Schutz; Passwortrichtlinie;
 dauerhaftes Audit-Logging; Secrets nur serverseitig.
@@ -170,7 +189,9 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 ## 10. Offene Punkte (Phase 0)
 
 - [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (Entwurf 2026-06-22) — finale Freigabe durch DSB/Jurist:in offen.
-- [x] AVVs gemäß Abschnitt 6 herunterladen, prüfen, archivieren — **erledigt 2026-06-22** (Microsoft, Supabase [signiert], Vercel [Pro], GitHub). Alle in `DSGVO_AVV/`.
+- [x] Eingehende AVVs archiviert — **2026-06-22** (Microsoft; Supabase/Vercel historisch). Alle in `DSGVO_AVV/`.
+- [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
+- [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
 - [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
 - [ ] LDI-NRW-Meldewege in `BETRIEB-DSGVO.md` eintragen.
 - [ ] Gesamtes Dokument **juristisch prüfen** lassen.
