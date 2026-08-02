@@ -231,7 +231,11 @@ schriftlich, in der Regel innerhalb eines Werktages.
   // ── PDFs erzeugen, Markdown wieder entfernen ────────────────────
   const mds = dateien.map(d => path.join(out, d + '.md'))
   execFileSync(process.execPath, [path.join(__dirname, 'md2pdf.js'), ...mds], { stdio: 'inherit' })
-  for (const m of mds) fs.unlinkSync(m)
+  // Das Markdown ist nur Zwischenstufe und wird entfernt — sonst liegen zwei
+  // Fassungen desselben Dokuments beim Kunden. `KEEP_MD=1` behält es, um nach einer
+  // Änderung nachlesen zu können, was die Entinternalisierung wirklich gemacht hat
+  // (im PDF ist der Text wegen der Font-Untermenge nicht durchsuchbar).
+  if (!process.env.KEEP_MD) for (const m of mds) fs.unlinkSync(m)
 
   // ── Was herausgenommen wurde ────────────────────────────────────
   const proQuelle = {}

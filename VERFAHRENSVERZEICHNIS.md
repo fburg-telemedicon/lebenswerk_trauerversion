@@ -251,6 +251,12 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 - [x] Eingehende AVVs archiviert — **2026-06-22** (Microsoft; Supabase/Vercel historisch). Alle in `DSGVO_AVV/`.
 - [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
 - [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
+- [ ] **AVV mit Ecwid/Lightspeed abschließen und in `DSGVO_AVV/` ablegen.** Abschnitt 5a
+      und die AVV-Tabelle setzen ihn bereits als vorhanden voraus (Entscheidung vom
+      2026-08-02, Abschluss für den 2026-08-03 zugesagt). **Bis dahin ist das die einzige
+      Aussage im Dokument, die der Wirklichkeit vorausläuft** — deshalb hier notiert und
+      nicht stillschweigend gelassen. Beim Abschluss zusätzlich prüfen: Ist Ecwid, Inc.
+      in der DPF-Liste des US-Handelsministeriums noch als „Active" geführt?
 - [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
 - [ ] Meldewege der Aufsichtsbehörde Sachsen-Anhalt in `BETRIEB-DSGVO.md` eintragen (Formular/Kontakt pruefen).
 - [ ] Gesamtes Dokument **juristisch prüfen** lassen.
