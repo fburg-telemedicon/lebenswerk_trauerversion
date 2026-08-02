@@ -49,6 +49,41 @@ const CLIENT_ALLOWED_TYPES = new Set([
   'response.cancel',
 ])
 
+// ── EU-Residenz hängt am MODELLNAMEN ──────────────────────────────
+// Voice Live betreibt die nativ unterstützten Modelle selbst; wir wählen den
+// Deployment-Typ NICHT — er steht je Region und Modell in der Microsoft-Doku
+// (learn.microsoft.com/azure/ai-services/speech-service/regions?tabs=voice-live).
+// Für unsere Ressource in `swedencentral` gilt (geprüft 2026-08-02):
+//
+//   gpt-4.1        → Standard        = in-Region verarbeitet  → EU  ✓
+//   gpt-4.1-mini   → Standard        = in-Region verarbeitet  → EU  ✓
+//   gpt-4o         → Data zone std.  = EU-Datenzone           → EU  ✓
+//   gpt-4o-mini    → Data zone std.  = EU-Datenzone           → EU  ✓
+//   gpt-4.1-nano   → Data zone std.  = EU-Datenzone           → EU  ✓
+//   phi4-mm-realtime / phi4-mini → Regional                   → EU  ✓
+//   gpt-realtime, gpt-realtime-mini, gpt-realtime-1.5, azure-realtime,
+//   gpt-5*, gpt-5.x*  → GLOBAL STANDARD = weltweit verarbeitet → NICHT EU  ✗
+//
+// Die Falle: `gpt-realtime` ist das ECHTE Speech-to-Speech-Modell und klingt
+// deutlich natürlicher — es umzustellen wäre verlockend und würde die
+// Verarbeitung still nach außerhalb der EU verlegen. Eine einzige Env-Variable
+// entscheidet also über die Rechtsgrundlage. Deshalb steht hier eine Allowlist:
+// Ein nicht freigegebenes Modell schaltet das Live-Gespräch AB, statt es
+// stillschweigend global laufen zu lassen.
+//
+// Wer ein anderes Modell braucht, nimmt Bring-Your-Own-Model (eigenes, nicht-
+// globales Deployment in unserer Foundry-Ressource) — dann gilt der Deployment-
+// Typ unseres Deployments, und der Name gehört hier eingetragen.
+const EU_RESIDENT_MODELS = new Set([
+  'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+  'gpt-4o', 'gpt-4o-mini',
+  'phi4-mm-realtime', 'phi4-mini',
+])
+
+function isEuResidentModel(model) {
+  return EU_RESIDENT_MODELS.has(String(model || '').trim().toLowerCase())
+}
+
 // ── Konfiguration ─────────────────────────────────────────────────
 // Eigene Ressource, getrennt von der bestehenden westeurope-Speech-Ressource:
 // Voice Live gibt es in der EU NUR in Sweden Central.
@@ -64,9 +99,20 @@ function voiceLiveConfig() {
   }
 }
 
+// Konfiguriert = Endpunkt + Schlüssel gesetzt UND ein Modell, das in der EU
+// verarbeitet wird. Ein nicht freigegebenes Modell lässt den Relay gar nicht
+// erst anlaufen — lieber kein Live-Gespräch als eines außerhalb der EU.
 function isVoiceLiveConfigured() {
   const c = voiceLiveConfig()
-  return Boolean(c.endpoint && c.key)
+  if (!c.endpoint || !c.key) return false
+  if (!isEuResidentModel(c.chatModel)) {
+    console.error(
+      `[voicelive] DEAKTIVIERT: AZURE_VOICELIVE_CHAT_MODEL="${c.chatModel}" ist nicht als ` +
+      'EU-verarbeitet freigegeben (Deployment-Typ „Global standard" verarbeitet weltweit). ' +
+      `Erlaubt: ${[...EU_RESIDENT_MODELS].join(', ')}. Siehe Kommentar in api/_lib/voicelive.js.`)
+    return false
+  }
+  return true
 }
 
 // WebSocket-URL der Sitzung. Bewusst der `/voice-live/realtime`-Pfad (Server-zu-
@@ -274,7 +320,7 @@ function buildSessionUpdate({ instructions, language, voice }) {
 
 module.exports = {
   TICKET_TTL_MS, MAX_INSTRUCTIONS, CLIENT_ALLOWED_TYPES,
-  voiceLiveConfig, isVoiceLiveConfigured, voiceLiveUrl,
+  voiceLiveConfig, isVoiceLiveConfigured, voiceLiveUrl, isEuResidentModel, EU_RESIDENT_MODELS,
   tierForModel, sumUsage, totalTokens,
   signTicket, verifyTicket, buildSessionUpdate, POSITION_TOOL,
 }

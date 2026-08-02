@@ -45,6 +45,18 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
 - **Speicherdauer:** automatische Löschung der Beiträge nach Frist (Standard 90 Tage),
   vollständige manuelle Löschung möglich (VVT Abschnitt 8).
 - **Datenfluss:** kein Pfeil verlässt die EU (VVT Abschnitt 7).
+- **Zusätzlicher Kanal seit 2026-07-28 — Live-Sprachgespräch (opt-in, Default aus):**
+  Statt der Kette „aufnehmen → erkennen → antworten → vorlesen" besteht während des
+  Interviews eine **durchgehende Audioverbindung** zu Azure AI Speech „Voice Live"
+  (Ressource in **Sweden Central**, der einzigen EU-Region des Dienstes). Der Browser
+  spricht dabei **nie direkt** mit Azure: Ein WebSocket-Relay im eigenen Backend hält
+  den Schlüssel, pinnt die Sitzung auf die EU-Ressource und filtert die Nachrichten des
+  Clients gegen eine Allowlist. Betrieben wird **cascaded** (Spracherkennung + `gpt-4.1`
+  + Sprachausgabe), nicht das native Speech-to-Speech-Modell — dieses gibt es nur als
+  global verarbeitetes Deployment. **Es entsteht kein Audio-Mitschnitt**; gespeichert
+  wird ausschließlich das Transkript, in derselben Struktur wie im Mikrofon-Modus.
+  Freischaltung nur durch den Superadmin je Buch; zusätzlich wählt die erzählende
+  Person den Modus selbst. Risiken: R10, R11.
 
 ---
 
@@ -83,6 +95,8 @@ Intervenierbarkeit, Transparenz.
 | R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups (Supabase/Vercel); regelmäßige Restore-Stichprobe (Runbook) | **gering** |
 | R8 | **Kompromittierung Admin-Konto** | hoch | gering | mittel | scrypt-Hash + Salt; Passwortrichtlinie; HMAC-Token mit Ablauf; Audit-Log; Login-Rate-Limit; pro-Nutzer-Kategorien | **gering** |
 | R9 | **Re-Identifikation über Stimme (Biometrie)** | mittel | gering | gering | Stimme wird **nur transkribiert**, nicht zur Identifizierung genutzt → keine biometrische Verarbeitung i. S. v. Art. 9 | **gering** |
+| R10 | **Live-Sprachgespräch: Verarbeitung außerhalb der EU** (durchgehender Audiostrom an Azure Voice Live) | hoch | gering | mittel | Eigene Ressource in **Sweden Central** (einzige Voice-Live-Region in der EU); **Cascaded**-Betrieb mit `gpt-4.1`, das dort als Deployment-Typ **Standard** = in-Region läuft (Microsoft-Doku, geprüft 2026-08-02) — die global verarbeiteten Speech-to-Speech-Modelle (`gpt-realtime`, `gpt-5*`) sind bewusst NICHT im Einsatz; **technische Allowlist** in `api/_lib/voicelive.js` schaltet den Dienst ab, wenn ein nicht-EU-Modell konfiguriert wird; **Server-Relay** statt des von Microsoft für Browser empfohlenen WebRTC-Pfads (dieser nutzt „global standard" und routet zur nächstgelegenen Region); Voice Live speichert selbst nichts | **gering** |
+| R11 | **Live-Sprachgespräch: unbeabsichtigte Aufnahme Dritter** (offenes Mikrofon nimmt Umstehende oder Hintergrundgespräche mit auf) | mittel | mittel | mittel | Modus **doppelt freiwillig** (nur vom Superadmin je Buch freischaltbar, Standard aus; zusätzlich vom Erzähler selbst zu wählen); Verbindung nur auf ausdrückliche Handlung, jederzeit beendbar; es entsteht **kein Audio-Mitschnitt** — gespeichert wird ausschließlich das Transkript in derselben Struktur wie im Mikrofon-Modus; `THIRD_PARTY_RULE` und Inhaltsprüfung greifen unverändert; Sitzungsgrenze 120 Min. | **gering–mittel** |
 
 ---
 
@@ -113,6 +127,26 @@ dokumentiert. Schwerpunkte:
   bestätigen (z. B. berechtigtes Interesse Art. 6 Abs. 1 lit. f).
 - **R3 (KI-Ausgaben):** menschliche Endfreigabe ist die zentrale Garantie — Prozess
   organisatorisch absichern (nicht nur technisch).
+- **R10/R11 (Live-Sprachgespräch), ergänzt 2026-08-02.** Der Modus ist seit dem
+  2026-07-28 im Code, steht aber **standardmäßig aus** und ist nur vom Superadmin je
+  Buch freischaltbar. Zum Stichtag: 2 von 88 Büchern freigeschaltet, davon **ein
+  Testbuch mit tatsächlicher Nutzung** und ein Kundenprojekt, in dem der Modus
+  freigeschaltet, aber **nie benutzt** wurde (keine `cost_events` mit `kind='realtime'`)
+  und in dem nach Auskunft des Kunden ausschließlich Demo-Daten liegen. Es sind also
+  bislang **keine echten Betroffenendaten** über Voice Live gelaufen.
+  - **Residenzfrage geklärt (2026-08-02):** Der offene Punkt aus der Bauphase — Voice
+    Live betreibt die nativ unterstützten Modelle selbst, wir wählen den Deployment-Typ
+    nicht — ist durch die Microsoft-Regionstabelle beantwortet: Sie weist den
+    Deployment-Typ **je Region und Modell** aus. Für `swedencentral` läuft `gpt-4.1` als
+    **Standard** (in-Region). Eine gesonderte schriftliche Zusage von Microsoft ist damit
+    **nicht erforderlich**; Grundlage sind die veröffentlichte Dokumentation und der DPA.
+  - **Verbleibende Lücke:** Voice Lives eigene Orchestrierungsmodelle (semantische VAD,
+    Rauschunterdrückung, End-of-Utterance) sind residenzseitig nicht so ausdrücklich
+    dokumentiert wie das Chat-Modell. Sie verarbeiten Audio **vor** der Spracherkennung.
+    Die allgemeine Speech-Zusage („Azure Speech verarbeitet keine Daten außerhalb der
+    Region der Ressource") deckt das nach unserer Lesart mit ab; für ein zitierbares
+    Einzelstatement wäre ein Azure-Support-Ticket nötig. **Bewertung: geringes
+    Restrisiko**, da diese Modelle nur Signalverarbeitung leisten und nichts speichern.
 - Diese DSFA ist ein **Entwurf**; finale Risikobewertung und Freigabe durch DSB/Jurist:in.
 
 ---
@@ -149,6 +183,7 @@ erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
 
 ## 9. Offene To-dos aus dieser DSFA
 
+- [x] **R10/R11 (Live-Sprachgespräch) ergänzt 2026-08-02.** Residenzfrage geklärt: Der Deployment-Typ steht je Region und Modell in der Microsoft-Regionstabelle; `gpt-4.1` läuft in `swedencentral` als **Standard** (in-Region). Technische Allowlist in `api/_lib/voicelive.js` gebaut, TOMs in `SICHERHEIT.md` Abschnitt 5 ergänzt. — [ ] Optional: Azure-Support-Ticket für ein zitierbares Statement zu den Orchestrierungsmodellen (semantische VAD, Rauschunterdrückung, End-of-Utterance).
 - [x] R6 (Daten Dritter): **Minimierungsmaßnahme umgesetzt** (Interview-Prompt + Inhaltsprüfung, 2026-06-22). — [ ] Rechtsgrundlage für genannte Dritt-Daten noch mit DSB/Jurist:in bestätigen.
 - [ ] DSB benennen/Stellungnahme dokumentieren (Abschnitt 7).
 - [ ] Art.-36-Einschätzung („kein hohes Restrisiko") juristisch bestätigen.
