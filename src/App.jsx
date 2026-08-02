@@ -57,7 +57,8 @@ import { CONSENT_VERSION } from './constants.js'
 import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
 import { SupportProvider, useSupport } from './support.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, partnerLogoSrc, col, th, FooterVisibilityCtx } from './ui.jsx'
-import { adminPurgeMemorial } from './api.js'
+import { adminPurgeMemorial, fairStart, adminFairCodes, adminCreateFairCodes, adminDeleteFairBatch } from './api.js'
+import { downloadFairSheetPdf } from './fairSheet.js'
 import { AdminLangProvider, useAdminLang } from './adminI18n.jsx'
 import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeDataUrl, formatCode, stripCode } from './shared.js'
@@ -67,7 +68,7 @@ import { careDirectiveSystem, downloadCareDirectivePdf } from './careDirective.j
 import { powerOfAttorneySystem, downloadPowerOfAttorneyPdf } from './powerOfAttorney.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
-import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
+import { FairCodesView, AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
 import { formatEur, costKindLabel, parsePriceCents } from './shared.js'
 
 // ── Nebenprodukte des Lebenswerks ─────────────────────────────────
@@ -104,6 +105,7 @@ const urlParams     = new URLSearchParams(window.location.search)
 const codeFromURL   = (urlParams.get('code') || '').toUpperCase().trim()
 const inviteFromURL = (urlParams.get('invite') || '').trim() // Self-Onboarding eines neuen Benutzers
 const registerFromURL = urlParams.has('register')            // öffentliche Selbstregistrierung (Lebenswerk-Test)
+const fairFromURL   = (urlParams.get('messe') || '').toUpperCase().replace(/[^A-Z0-9]/g, '') // Messe-Karte gescannt
 const codeEntryFromURL = urlParams.has('zugang')             // Eingabemaske für einen Zugangscode (ohne ?code=)
 const langFromURL   = (urlParams.get('lang') || '').trim()   // Login-Fenster in dieser Sprache (aus der Zugangsmail)
 
@@ -1410,6 +1412,88 @@ function Dashboard() {
     try { await adminDeleteUser(token, user.id); await loadUsers() }
     catch (e) { setErr(e.message) }
   }
+
+  // ── Messe-Codes (nur Admin) ──
+  // Chargen anlegen und daraus Druckbögen erzeugen. Der QR-Code entsteht im
+  // Browser (qrCodeDataUrl) — er enthält den Kartencode, und der ist ein
+  // Zugangsgeheimnis; er hat auf einem fremden QR-Dienst nichts verloren.
+  const [fairData, setFairData] = useState({ codes: [], batches: [] })
+  const [fairMsg, setFairMsg]   = useState('')
+  const [fairForm, setFairForm] = useState({ batch: '', count: 100, minutes: 5 })
+  const [sheetForm, setSheetForm] = useState({ cols: 2, rows: 5, marginX: 10, marginY: 12, gutterX: 0, gutterY: 0, cutMarks: true })
+
+  async function loadFairCodes() {
+    setErr(''); setFairMsg('')
+    try { setFairData(await adminFairCodes(token)) }
+    catch (e) { setErr(e.message) }
+  }
+  async function createFairBatch() {
+    setErr(''); setFairMsg(''); setBusy(true)
+    try {
+      const minutes = Math.max(1, parseInt(fairForm.minutes, 10) || 5)
+      const d = await adminCreateFairCodes(token, {
+        count: parseInt(fairForm.count, 10) || 0,
+        batch: fairForm.batch.trim(),
+        timerSeconds: minutes * 60,
+      })
+      setFairMsg(`${d.codes.length} Karten angelegt. Jetzt den Druckbogen erzeugen.`)
+      setFairForm({ ...fairForm, count: 100 })
+      await loadFairCodes()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function printFairBatch(batch) {
+    setErr(''); setFairMsg(''); setBusy(true)
+    try {
+      const { codes } = await adminFairCodes(token, batch)
+      if (!codes.length) { setErr('Diese Charge enthält keine Karten.'); return }
+      const pages = await downloadFairSheetPdf(
+        `Messekarten_${safeName(batch || 'ohne_Bezeichnung')}.pdf`,
+        codes,
+        {
+          ...sheetForm,
+          cols: parseInt(sheetForm.cols, 10) || 1,
+          rows: parseInt(sheetForm.rows, 10) || 1,
+          marginX: Number(sheetForm.marginX) || 0,
+          marginY: Number(sheetForm.marginY) || 0,
+          gutterX: Number(sheetForm.gutterX) || 0,
+          gutterY: Number(sheetForm.gutterY) || 0,
+          baseUrl: window.location.origin,
+          logo: fairLogo,
+        })
+      setFairMsg(`Druckbogen mit ${codes.length} Karten auf ${pages} Seiten erstellt.`)
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  async function removeFairBatch(b) {
+    if (!window.confirm(`Nicht eingelöste Karten der Charge „${b.batch || 'ohne Bezeichnung'}" löschen?\n\nBereits eingelöste Karten bleiben bestehen — an ihnen hängt ein Buchprojekt.`)) return
+    setErr(''); setFairMsg(''); setBusy(true)
+    try {
+      const d = await adminDeleteFairBatch(token, b.batch)
+      setFairMsg(`${d.deleted} nicht eingelöste Karten gelöscht.`)
+      await loadFairCodes()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  // Logo für den Druckbogen: das eigene Firmenlogo, sonst das Standardlogo.
+  // Wird einmal geladen und vermessen (jsPDF braucht die Pixelmaße fürs
+  // Seitenverhältnis).
+  const [fairLogo, setFairLogo] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    const src = logo || '/lebenswerk-logo.png'
+    const im = new Image()
+    im.onload = () => {
+      if (cancelled) return
+      try {
+        const cv = document.createElement('canvas')
+        cv.width = im.naturalWidth; cv.height = im.naturalHeight
+        cv.getContext('2d').drawImage(im, 0, 0)
+        setFairLogo({ dataUrl: cv.toDataURL('image/png'), w: im.naturalWidth, h: im.naturalHeight, kind: 'PNG' })
+      } catch { setFairLogo(null) }
+    }
+    im.onerror = () => { if (!cancelled) setFairLogo(null) }
+    im.src = src
+    return () => { cancelled = true }
+  }, [logo])
 
   // ── Freischaltcodes (nur Admin) ──
   async function loadCodes() {
@@ -3582,7 +3666,10 @@ Regeln:
 
   // ── LISTE ──
   if (view === 'list') return (
-    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} loadSupport={loadSupport} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} runRetention={runRetention} retentionBusy={retentionBusy} showArchived={showArchived} setShowArchived={setShowArchived} />
+    view === 'fair-codes' ? (
+    <FairCodesView err={err} fairData={fairData} fairForm={fairForm} sheetForm={sheetForm} busy={busy} fairMsg={fairMsg} logout={logout} setView={setView} setFairForm={setFairForm} setSheetForm={setSheetForm} createFairBatch={createFairBatch} printFairBatch={printFairBatch} removeFairBatch={removeFairBatch} />
+    ) :
+    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} loadSupport={loadSupport} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} loadFairCodes={loadFairCodes} runRetention={runRetention} retentionBusy={retentionBusy} showArchived={showArchived} setShowArchived={setShowArchived} />
   )
 
   // ── BUCH-STANDARDWERTE (nur Admin) ──
@@ -3861,6 +3948,59 @@ const REG_L10N = {
 }
 const regT = (lang) => REG_L10N[lang] || REG_L10N.en
 
+// ── Messe-Karte gescannt (/?messe=CODE) ──────────────────────────
+// Der ganze Sinn dieses Wegs ist Reibungsarmut: Sprache wählen, ein Knopf,
+// Interview. Keine E-Mail, kein Passwort, keine Registrierung — am Messestand
+// springt an jeder Eingabemaske die Hälfte ab. Name und DSGVO-Einwilligung
+// folgen im Beitragenden-Flow, wie bei jedem Lebenswerk.
+//
+// Der zweite Scan führt zurück ins selbe Interview (der Endpunkt ist idempotent);
+// deshalb steht auf der Karte, dass man sie aufbewahren soll.
+function FairStartFlow({ code }) {
+  const [lang, setLang] = useState('de')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr]   = useState('')
+
+  useEffect(() => { document.title = 'Lebenswerk.ai' }, [])
+
+  async function start() {
+    setErr(''); setBusy(true)
+    try {
+      const d = await fairStart({ code, lang })
+      // Ab hier der ganz normale Beitragenden-Flow.
+      window.location.replace(`/?code=${encodeURIComponent(d.memorialCode)}`)
+    } catch (e) { setErr(e.message); setBusy(false) }
+  }
+
+  const T = regT(lang)
+  const rtl = lang === 'he' || lang === 'ar'
+  const card = { width: '100%', maxWidth: 440, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '2rem' }
+  const wrap = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9', padding: '1rem' }
+
+  return (
+    <div style={wrap} dir={rtl ? 'rtl' : 'ltr'}>
+      <div style={card}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{T.title || 'Ihre Lebensgeschichte'}</h1>
+        <p style={{ fontSize: 14, color: '#57534e', lineHeight: 1.6, marginBottom: 20 }}>
+          {T.fairIntro || 'Sie können sofort loslegen — ohne Anmeldung. Wählen Sie zuerst Ihre Sprache.'}
+        </p>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{T.langLabel || 'Sprache'}</label>
+        <select value={lang} onChange={e => setLang(e.target.value)} disabled={busy}
+          style={{ width: '100%', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', marginBottom: 18 }}>
+          {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+        </select>
+        {err && <div style={{ marginBottom: 14 }}><Err msg={err} /></div>}
+        <button onClick={start} disabled={busy} style={{ width: '100%', fontSize: 15, padding: '12px 18px' }}>
+          {busy ? (T.starting || 'Wird geöffnet …') : (T.fairStart || '🎙 Interview beginnen →')}
+        </button>
+        <p style={{ fontSize: 12, color: '#a8a29e', lineHeight: 1.55, marginTop: 16 }}>
+          {T.fairKeep || 'Bitte bewahren Sie Ihre Karte auf — mit ihr kommen Sie jederzeit in dieses Gespräch zurück.'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function RegisterFlow() {
   const [step, setStep]   = useState('lang')  // 'lang' → 'email'
   const [email, setEmail] = useState('')
@@ -4020,7 +4160,7 @@ export default function App() {
   // Ohne ?code/Invite/Register UND ohne Manager-/Endnutzer-Sitzung: das gemerkte
   // Interview direkt öffnen (mit „das bin nicht ich"-Ausweg im ☰-Menü).
   let rememberedCode = ''
-  if (!codeFromURL && !inviteFromURL && !registerFromURL) {
+  if (!codeFromURL && !inviteFromURL && !registerFromURL && !fairFromURL) {
     try { if (!readAdminToken()) rememberedCode = (localStorage.getItem('lw_last_code') || '').trim() } catch { /* ignore */ }
   }
 
@@ -4042,6 +4182,7 @@ export default function App() {
         <FooterVisibilityCtx.Provider value={setHideFooter}>
           <ErrorBoundary>
             {inviteFromURL ? <InviteFlow token={inviteFromURL} />
+              : fairFromURL ? <FairStartFlow code={fairFromURL} />
               : registerFromURL ? <RegisterFlow />
               : codeFromURL ? <ContributorFlow code={codeFromURL} />
               : rememberedCode ? <ContributorFlow code={rememberedCode} fromRemembered />

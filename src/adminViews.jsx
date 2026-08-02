@@ -698,6 +698,111 @@ export function UsersView({ err, usersData, createdInvite, userForm, busy, logou
   )
 }
 
+// ── Messe-Codes (nur Admin) ──
+// Chargen anlegen und daraus einen Druckbogen erzeugen. Das Raster ist frei
+// einstellbar, weil vorgestanzte Bögen gekauft werden und deren Aufteilung der
+// Hersteller vorgibt — nicht wir.
+export function FairCodesView({ err, fairData, fairForm, sheetForm, busy, fairMsg, logout, setView, setFairForm, setSheetForm, createFairBatch, printFairBatch, removeFairBatch }) {
+  const t = useAdminT()
+  const batches = fairData.batches || []
+  const fmtDate = s => { try { return new Date(s).toLocaleDateString('de-DE') } catch { return s } }
+  const perPage = Math.max(1, (parseInt(sheetForm.cols, 10) || 1) * (parseInt(sheetForm.rows, 10) || 1))
+  const num = (label, key, form, setForm, min, max, hint) => (
+    <div>
+      <Lbl>{label}</Lbl>
+      <input type="number" min={min} max={max} value={form[key]}
+        onChange={e => setForm({ ...form, [key]: e.target.value })} style={{ width:'100%' }} />
+      {hint && <p style={{ ...S.muted, fontSize:11, margin:'4px 0 0' }}>{hint}</p>}
+    </div>
+  )
+  return (
+    <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
+      <div style={{ background:'#fff', borderBottom:'1px solid #e7e5e4', padding:'14px 24px', position:'sticky', top:0, zIndex:50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}><button className="ghost" onClick={() => setView('list')} style={{ fontSize:14, color:'#78716c' }}>{t('← Zurück', '← Back')}</button><span style={{ fontWeight:700, fontSize:16 }}>Lebenswerk Admin</span></div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <AdminLangToggle />
+          <button className="secondary" onClick={logout} style={{ fontSize:13, padding:'7px 14px' }}>{t('Abmelden', 'Log out')}</button>
+        </div>
+      </div>
+      <div style={{ maxWidth: 1000, margin:'0 auto', padding:'2rem 1.5rem' }}>
+        <h2 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>{t('Messe-Codes', 'Fair codes')}</h2>
+        <p style={{ ...S.muted, fontSize:13, marginBottom:24, lineHeight:1.6, maxWidth:760 }}>
+          {t('Karten zum Verteilen: Wer den QR-Code scannt, landet ohne Anmeldung und ohne E-Mail direkt im Interview. Das Buchprojekt entsteht erst beim ersten Scan — nicht eingelöste Karten belasten das Dashboard also nicht. Ein zweiter Scan derselben Karte führt in dasselbe Gespräch zurück; deshalb steht auf der Karte, dass man sie aufbewahren soll.',
+             'Cards to hand out: scanning the QR code leads straight into the interview — no sign-up, no email. The book project is only created on first scan, so unredeemed cards do not clutter the dashboard. Scanning the same card again returns to the same conversation; that is why the card says to keep it.')}
+        </p>
+        {err && <div style={{ marginBottom:16 }}><Err msg={err} /></div>}
+        {fairMsg && <div style={{ marginBottom:16, padding:'10px 14px', background:'#dcfce7', border:'1px solid #bbf7d0', borderRadius:8, fontSize:13, color:'#166534' }}>{fairMsg}</div>}
+
+        {/* Charge anlegen */}
+        <div style={{ ...S.card, marginBottom:'1.5rem' }}>
+          <Lbl>{t('Neue Charge anlegen', 'Create a new batch')}</Lbl>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginTop:10 }}>
+            <div>
+              <Lbl>{t('Bezeichnung', 'Label')}</Lbl>
+              <input value={fairForm.batch} onChange={e => setFairForm({ ...fairForm, batch: e.target.value })}
+                placeholder={t('z. B. Altenpflegemesse Nürnberg 2026', 'e.g. Care fair 2026')} style={{ width:'100%' }} />
+            </div>
+            {num(t('Anzahl Karten', 'Number of cards'), 'count', fairForm, setFairForm, 1, 2000)}
+            {num(t('Freizeit je Karte (Minuten)', 'Free minutes per card'), 'minutes', fairForm, setFairForm, 1, 240,
+              t('Danach kann der Gast mit einem Freischaltcode weitermachen.', 'Afterwards the guest can continue with an unlock code.'))}
+          </div>
+          <button onClick={createFairBatch} disabled={busy} style={{ marginTop:14, fontSize:14, padding:'9px 16px' }}>
+            {busy ? t('Wird angelegt …', 'Creating …') : t('Charge anlegen', 'Create batch')}
+          </button>
+        </div>
+
+        {/* Druckbogen */}
+        <div style={{ ...S.card, marginBottom:'1.5rem' }}>
+          <Lbl>{t('Druckbogen (DIN A4)', 'Print sheet (A4)')}</Lbl>
+          <p style={{ ...S.muted, fontSize:12, margin:'6px 0 12px' }}>
+            {t('Auf jede Karte kommen QR-Code, Klartext-Code, Ihr Logo, die Adresse der Website und die Support-Adresse. Für vorgestanzte Bögen stellen Sie Raster und Ränder passend zum Hersteller ein und schalten die Schnittmarken ab.',
+               'Each card carries the QR code, the code in plain text, your logo, the website address and the support address. For pre-perforated sheets, match grid and margins to the manufacturer and switch off the cut marks.')}
+          </p>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+            {num(t('Spalten', 'Columns'), 'cols', sheetForm, setSheetForm, 1, 8)}
+            {num(t('Zeilen', 'Rows'), 'rows', sheetForm, setSheetForm, 1, 12)}
+            {num(t('Rand links/rechts (mm)', 'Margin left/right (mm)'), 'marginX', sheetForm, setSheetForm, 0, 40)}
+            {num(t('Rand oben/unten (mm)', 'Margin top/bottom (mm)'), 'marginY', sheetForm, setSheetForm, 0, 40)}
+            {num(t('Abstand Spalten (mm)', 'Column gap (mm)'), 'gutterX', sheetForm, setSheetForm, 0, 20)}
+            {num(t('Abstand Zeilen (mm)', 'Row gap (mm)'), 'gutterY', sheetForm, setSheetForm, 0, 20)}
+          </div>
+          <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:12, fontSize:13, cursor:'pointer' }}>
+            <input type="checkbox" checked={sheetForm.cutMarks} onChange={e => setSheetForm({ ...sheetForm, cutMarks: e.target.checked })} />
+            {t('Schnittmarken drucken (bei vorgestanzten Bögen abschalten)', 'Print cut marks (switch off for pre-perforated sheets)')}
+          </label>
+          <p style={{ ...S.muted, fontSize:12, marginTop:10 }}>
+            {t(`${perPage} Karten pro Seite.`, `${perPage} cards per page.`)}
+          </p>
+        </div>
+
+        {/* Chargen */}
+        <h3 style={{ fontSize:16, fontWeight:600, margin:'0 0 12px' }}>{t('Chargen', 'Batches')}</h3>
+        {batches.length === 0 && <p style={S.muted}>{t('Noch keine Messe-Codes angelegt.', 'No fair codes yet.')}</p>}
+        {batches.map(b => (
+          <div key={b.batch} style={{ ...S.card, marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            <div>
+              <div style={{ fontWeight:600 }}>{b.batch || t('(ohne Bezeichnung)', '(no label)')}</div>
+              <div style={{ ...S.muted, fontSize:12, marginTop:3 }}>
+                {b.total} {t('Karten', 'cards')} · {b.redeemed} {t('eingelöst', 'redeemed')} · {Math.round((b.timer_seconds || 300) / 60)} {t('Min. Freizeit', 'min free')} · {t('angelegt', 'created')} {fmtDate(b.created_at)}
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <button onClick={() => printFairBatch(b.batch)} disabled={busy} style={{ fontSize:13, padding:'8px 14px' }}>
+                {t('🖨 Druckbogen erzeugen', '🖨 Create print sheet')}
+              </button>
+              <button onClick={() => removeFairBatch(b)} disabled={busy || b.redeemed >= b.total} className="secondary"
+                title={b.redeemed >= b.total ? t('Alle Karten sind eingelöst', 'All cards redeemed') : ''}
+                style={{ fontSize:13, padding:'8px 14px', color:'#b91c1c', borderColor:'#fecaca' }}>
+                {t('Nicht eingelöste löschen', 'Delete unredeemed')}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Freischaltcodes (nur Admin) ──
 // Codes der Form XXXX-XXXX-XXXX, mit denen ein Endnutzer das Zeitlimit seines
 // Testkontos aufhebt. Einmalig, generisch (nicht an ein Konto gebunden).
@@ -1041,7 +1146,7 @@ function RealtimeToggle({ on, set, t, isAdmin }) {
   )
 }
 
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete, runRetention, retentionBusy, showArchived, setShowArchived }) {
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete, loadFairCodes, runRetention, retentionBusy, showArchived, setShowArchived }) {
     const t = useAdminT()
     const openSupport = useSupport()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
@@ -1143,6 +1248,9 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           )}
           {auth.admin && (
             <button className="secondary" onClick={() => { loadCodes(); setErr(''); setView('unlock-codes') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Freischaltcodes', 'Unlock codes')}</button>
+          )}
+          {auth.admin && (
+            <button className="secondary" onClick={() => { loadFairCodes(); setErr(''); setView('fair-codes') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Messe-Codes', 'Fair codes')}</button>
           )}
           {auth.admin && (
             <button className="secondary" onClick={() => { loadSupport(); setErr(''); setView('support') }} style={{ fontSize: 13, padding: '7px 14px' }}>{t('Support-Anfragen', 'Support requests')}</button>

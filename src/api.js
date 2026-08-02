@@ -542,6 +542,38 @@ export async function adminSaveMemorialText(token, code, field, text) {
   return parseResponse(res)
 }
 
+// ── Messe-Karte einlösen (öffentlich, ohne Login) ─────────────────
+// Gibt { memorialCode } zurück; derselbe Code liefert immer dasselbe Buch.
+export async function fairStart({ code, lang }) {
+  const res = await fetch('/api/fair-start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, lang }),
+  })
+  return parseResponse(res)
+}
+
+// ── Messe-Codes verwalten (nur Admin) ─────────────────────────────
+export async function adminFairCodes(token, batch = '') {
+  const q = batch ? `?batch=${encodeURIComponent(batch)}` : ''
+  const res = await fetch(`/api/admin/fair-codes${q}`, { headers: { Authorization: `Bearer ${token}` } })
+  return parseResponse(res)
+}
+export async function adminCreateFairCodes(token, body) {
+  const res = await fetch('/api/admin/fair-codes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  return parseResponse(res)
+}
+export async function adminDeleteFairBatch(token, batch) {
+  const res = await fetch(`/api/admin/fair-codes?batch=${encodeURIComponent(batch)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res)
+}
+
 // ── Aufbewahrung: Eingangsdaten löschen und/oder archivieren ──────
 // action: 'purge' (Standard, braucht confirm) | 'archive' | 'restore'.
 // 'purge' löscht Beiträge und Roh-Uploads unwiderruflich; das Buch bleibt.
