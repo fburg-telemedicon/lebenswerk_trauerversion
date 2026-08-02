@@ -3966,6 +3966,14 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             </label>
           </div>
           )}
+          {/* Hinweis auf die Freiwilligkeit — bewusst AUSSERHALB des Einwilligungs-
+              kastens, damit er auch dann steht, wenn die Einwilligung schon vorliegt
+              und der Kasten wegfällt. Ein Lebensrückblick berührt Verlust, Krankheit,
+              Krieg; wer das erst im Impressum liest, liest es nie. Kein Kasten, keine
+              Warnfarbe: Der Satz soll beruhigen, nicht abschrecken. */}
+          <div style={{ marginBottom:18, fontSize:12.5, lineHeight:1.6, color:'#78716c' }}>
+            {xt(L).gentleNote}
+          </div>
           <button disabled={(askName && !contribForm.name)||(askGender && !contribForm.gender)||(!isSelf && !contribForm.relationship)||(askAddress && !contribForm.address)||!consentChecked} onClick={startInterview} style={{ width:'100%', padding:13, fontSize:15 }}>
             {ct.interviewButton}
           </button>

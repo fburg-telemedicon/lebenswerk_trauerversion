@@ -4,8 +4,13 @@
 // nur die übrigen Sprachen. Platzhalter {r}, {m}, {n}, {min}, {i} werden von
 // proofT() eingesetzt. Fehlt ein Schlüssel, greift der deutsche Rückfall.
 // Maschinell übersetzt — fachliche Prüfung steht aus.
+//
+// ACHTUNG: `gentleNote` (2026-08-02) ist von Hand ergänzt und stammt NICHT aus dem
+// Erzeugungslauf. Wer die Datei neu erzeugt, muss den Schlüssel wieder mitnehmen —
+// sonst verschwindet der Hinweis auf die Freiwilligkeit in elf Sprachen still.
 export const EXTRA_LANGS = {
   "es": {
+    "gentleNote": "Usted decide de qué habla. Puede omitir cualquier pregunta y detenerse en cualquier momento para continuar más tarde. Si un tema le resulta demasiado doloroso, puede interrumpir con toda tranquilidad.",
     "firstQuestion": "La primera pregunta se está preparando — esto puede tardar un momento …",
     "soundBlocked": "🔇 Su navegador todavía bloquea el sonido. Toque aquí para iniciar la conversación.",
     "liveThinkHint": "Conversación en vivo: Piense con calma — no se cortará nada.",
@@ -19,6 +24,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Por favor, tenga en cuenta: Su contribución podría aparecer como un propio capítulo con su nombre en el libro terminado. Cómo se estructurará el libro se decidirá más adelante."
   },
   "eu": {
+    "gentleNote": "Zuk erabakitzen duzu zeri buruz hitz egin. Edozein galdera saltatu dezakezu, eta noiznahi gelditu eta geroago jarraitu. Gai batek min handiegia ematen badizu, lasai utzi dezakezu.",
     "firstQuestion": "Lehen galdera prestatzen ari gara — une labur bat behar izan dezake …",
     "soundBlocked": "🔇 Zure nabigatzaileak oraindik soinua blokeatzen du. Sakatu hemen elkarrizketa hasteko.",
     "liveThinkHint": "Elkarrizketa zuzena: Lasai pentsatu — ezer ez da moztuko.",
@@ -32,6 +38,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Kontuan izan: Zure ekarpena ager liteke amaitutako liburuan kapitulu bereizi gisa zure izenarekin. Liburuaren egitura geroago erabakiko da."
   },
   "fr": {
+    "gentleNote": "C'est vous qui décidez de ce dont vous parlez. Vous pouvez passer n'importe quelle question et vous arrêter à tout moment pour poursuivre plus tard. Si un sujet vous touche de trop près, n'hésitez pas à interrompre.",
     "firstQuestion": "La première question se prépare — cela peut prendre un court instant…",
     "soundBlocked": "🔇 Votre navigateur bloque encore le son. Touchez ici pour commencer la conversation.",
     "liveThinkHint": "Entretien en direct : Prenez votre temps pour réfléchir — rien ne sera coupé.",
@@ -45,6 +52,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Veuillez noter : il est possible que votre contribution apparaisse dans le livre final sous forme de chapitre à votre nom. La structure du livre sera décidée plus tard."
   },
   "it": {
+    "gentleNote": "Decide lei di che cosa parlare. Può saltare qualsiasi domanda e interrompere in qualunque momento per riprendere più tardi. Se un argomento le pesa troppo, si fermi pure.",
     "firstQuestion": "La prima domanda viene preparata — questo può richiedere un breve momento…",
     "soundBlocked": "🔇 Il Suo browser sta ancora bloccando l’audio. Tocchi qui per iniziare la conversazione.",
     "liveThinkHint": "Conversazione dal vivo: Prenda il Suo tempo — nulla verrà tagliato.",
@@ -58,6 +66,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Si prega di notare: Il Suo contributo potrebbe apparire nel libro finito come un capitolo separato con il Suo nome. L’organizzazione del libro sarà definita in seguito."
   },
   "pl": {
+    "gentleNote": "To Ty decydujesz, o czym mówisz. Możesz pominąć każde pytanie, a rozmowę przerwać w dowolnej chwili i wrócić do niej później. Jeśli jakiś temat okaże się zbyt trudny, spokojnie przerwij.",
     "firstQuestion": "Pierwsze pytanie jest przygotowywane — to może chwilę potrwać…",
     "soundBlocked": "🔇 Państwa przeglądarka jeszcze blokuje dźwięk. Proszę kliknąć tutaj, aby rozpocząć rozmowę.",
     "liveThinkHint": "Rozmowa na żywo: Proszę spokojnie pomyśleć — nic nie zostanie ucięte.",
@@ -71,6 +80,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Prosimy pamiętać: Państwa wypowiedź może pojawić się w gotowej książce jako osobny rozdział z Państwa nazwiskiem. To, jak książka zostanie ułożona, zdecyduje się później."
   },
   "ro": {
+    "gentleNote": "Dumneavoastră hotărâți despre ce vorbiți. Puteți sări peste orice întrebare și puteți opri oricând, pentru a continua mai târziu. Dacă un subiect vă apasă prea mult, opriți-vă liniștit.",
     "firstQuestion": "Prima întrebare este în curs de pregătire — acest lucru poate dura câteva momente …",
     "soundBlocked": "🔇 Browserul dumneavoastră blochează încă sunetul. Atingeți aici pentru a porni conversația.",
     "liveThinkHint": "Conversație live: Gândiți în liniște — nimic nu se pierde.",
@@ -84,6 +94,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Vă rugăm să rețineți: Contribuția dumneavoastră ar putea apărea în cartea finală ca un capitol separat cu numele dumneavoastră. Cum va fi structurată cartea se va decide ulterior."
   },
   "tr": {
+    "gentleNote": "Neden söz edeceğinize siz karar verirsiniz. Herhangi bir soruyu atlayabilir, istediğiniz an durup daha sonra devam edebilirsiniz. Bir konu size fazla dokunuyorsa gönül rahatlığıyla ara verin.",
     "firstQuestion": "İlk soru hazırlanıyor — bu kısa bir an sürebilir…",
     "soundBlocked": "🔇 Tarayıcınız henüz sesi engelliyor. Sohbeti başlatmak için lütfen buraya dokunun.",
     "liveThinkHint": "Canlı sohbet: Lütfen sakince düşünün — hiçbir şey kesilmiyor.",
@@ -97,6 +108,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Lütfen dikkat edin: Katkınız, tamamlanan kitapta adınızla kendi bölümünüz olarak yer alabilir. Kitabın nasıl oluşturulacağı daha sonra kesinleşecek."
   },
   "ru": {
+    "gentleNote": "Вы сами решаете, о чём говорить. Любой вопрос можно пропустить, а разговор — прервать в любой момент и продолжить позже. Если тема даётся слишком тяжело, спокойно остановитесь.",
     "firstQuestion": "Первый вопрос готовится — это может занять немного времени…",
     "soundBlocked": "🔇 Ваш браузер пока блокирует звук. Нажмите здесь, чтобы начать разговор.",
     "liveThinkHint": "Живой разговор: Спокойно обдумайте свой ответ — ничего не обрывается.",
@@ -110,6 +122,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Пожалуйста, обратите внимание: Ваш рассказ может стать отдельной главой книги с вашим именем. Окончательная структура книги будет определена позже."
   },
   "uk": {
+    "gentleNote": "Ви самі вирішуєте, про що говорити. Будь-яке запитання можна пропустити, а розмову — перервати будь-коли й продовжити пізніше. Якщо тема надто болюча, спокійно зупиніться.",
     "firstQuestion": "Перше запитання готується — це може зайняти кілька секунд…",
     "soundBlocked": "🔇 Ваш браузер наразі блокує звук. Натисніть тут, щоб розпочати розмову.",
     "liveThinkHint": "Жива розмова: Ви можете спокійно обміркувати відповідь — нічого не буде скорочено.",
@@ -123,6 +136,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "Зверніть увагу: Ваш внесок може з'явитися у готовій книзі як окрема глава з Вашим ім'ям. Остаточна структура книги буде визначена пізніше."
   },
   "he": {
+    "gentleNote": "אתם מחליטים על מה לדבר. אפשר לדלג על כל שאלה, ואפשר להפסיק בכל רגע ולהמשיך מאוחר יותר. אם נושא מסוים קשה מדי, אפשר להפסיק בלי חשש.",
     "firstQuestion": "השאלה הראשונה מוכנה — זה עשוי להימשך רגע קצר ...",
     "soundBlocked": "🔇 הדפדפן שלך עדיין חוסם את הצליל. נא להקיש כאן כדי להתחיל את השיחה.",
     "liveThinkHint": "שיחה חיה: נא לחשוב בנחת — שום דבר לא יימחק.",
@@ -136,6 +150,7 @@ export const EXTRA_LANGS = {
     "nameNoticeMaybe": "נא לשים לב: ייתכן שתרומתך תופיע בספר המוגמר כפרק נפרד עם שמך. כיצד ייבנה הספר יוחלט בהמשך."
   },
   "ar": {
+    "gentleNote": "أنت من يقرّر عمّا تتحدّث. يمكنك تجاوز أي سؤال، والتوقّف في أي وقت ومتابعة الحديث لاحقًا. وإذا كان موضوع ما ثقيلًا عليك، فلا بأس أن تتوقّف.",
     "firstQuestion": "يتم إعداد أول سؤال — قد يستغرق ذلك لحظة قصيرة...",
     "soundBlocked": "🔇 متصفحكم لا يسمح بعد بالصوت. يرجى النقر هنا لبدء المحادثة.",
     "liveThinkHint": "محادثة مباشرة: تفضلوا بالتفكير بكل هدوء — لا شيء يُقطع.",

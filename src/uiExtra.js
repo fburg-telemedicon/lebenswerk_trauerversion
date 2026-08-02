@@ -15,6 +15,9 @@ const DE = {
   detailMenu: 'Wie ausführlich nachfragen?',
   bookDoneTitle: 'Das Buch ist schon fertig',
   bookDoneText: 'Vielen Dank für Ihr Interesse! Dieses Buch ist bereits abgeschlossen, weitere Beiträge sind deshalb nicht mehr möglich. Bitte wenden Sie sich an die Person, die Ihnen den Link geschickt hat.',
+  // Steht vor dem ersten Wort, nicht im Impressum: Ein Lebensrückblick berührt
+  // auch Verlust, Krankheit, Krieg. Der Hinweis nützt nur dort, wo er gelesen wird.
+  gentleNote: 'Sie bestimmen, worüber Sie sprechen. Jede Frage dürfen Sie übergehen, und Sie können jederzeit aufhören und später weitererzählen. Geht Ihnen ein Thema zu nahe, brechen Sie ruhig ab.',
 }
 
 const EN = {
@@ -27,6 +30,7 @@ const EN = {
   detailMenu: 'Depth of questions',
   bookDoneTitle: 'This book is already finished',
   bookDoneText: 'Thank you for your interest! This book has already been completed, so no further contributions are possible. Please contact the person who sent you the link.',
+  gentleNote: 'You decide what you talk about. You may skip any question, and you can stop at any time and continue later. If a subject feels too close, it is fine to stop.',
 }
 
 // xt('fr').soundTest → französisch, sonst deutsch. Schlüsselweiser Rückfall.

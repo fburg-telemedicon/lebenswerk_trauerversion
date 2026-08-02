@@ -56,7 +56,9 @@
         "Im Verarbeitungsverzeichnis stehen jetzt auch die eigenen Mitarbeitenden als betroffene Personengruppe, dazu die Rechtsgrundlagen für Protokolle und Beschäftigtenkonten sowie die Aufbewahrungsfristen für Bestell- und Buchhaltungsdaten.",
         "Der Auftragsverarbeitungsvertrag hält ausdrücklich fest, dass die Daten weder für KI-Training noch für Forschung oder eigene Auswertungen genutzt werden. Sollte eine wissenschaftliche Nutzung je vorgesehen werden, setzt sie eine gesonderte Einwilligung der betroffenen Personen voraus — die bestehenden Verträge decken sie nicht.",
         "Die Einwilligungsfassung steht damit auf 1.6. Jeder Beitrag merkt sich, welche Fassung die erzählende Person gesehen hat.",
-        "Beim Gegenlesen korrigiert: Die Folgenabschätzung nannte bei zwei Risiken noch die alte Plattform (Zugriffsschutz per Datenbankregel, Sicherungen beim vorherigen Anbieter). Beschrieben ist jetzt der tatsächliche Aufbau in Azure."
+        "Beim Gegenlesen korrigiert: Die Folgenabschätzung nannte bei zwei Risiken noch die alte Plattform (Zugriffsschutz per Datenbankregel, Sicherungen beim vorherigen Anbieter). Beschrieben ist jetzt der tatsächliche Aufbau in Azure.",
+        "Der Hinweis auf die Freiwilligkeit steht jetzt dort, wo er wirkt: unmittelbar vor dem ersten Wort des Interviews, in allen 14 Sprachen. „Sie bestimmen, worüber Sie sprechen. Jede Frage dürfen Sie übergehen, und Sie können jederzeit aufhören und später weitererzählen. Geht Ihnen ein Thema zu nahe, brechen Sie ruhig ab.\" Bewusst ohne Kasten und ohne Warnfarbe — der Satz soll beruhigen, nicht abschrecken.",
+        "Er erscheint auch dann, wenn die Einwilligung aus einer früheren Sitzung schon vorliegt und der Einwilligungskasten deshalb wegfällt."
       ]
     },
     {
