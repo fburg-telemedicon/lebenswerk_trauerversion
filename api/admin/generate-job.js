@@ -14,7 +14,7 @@ const genjobs = require('../_lib/genjobs')
 
 // 'tree' = Stammbaum, 'poster' = Lebensposter, 'care' = Betreuungsverfügung
 // (Lebenswerk-Nebenprodukte; laufen seit dem Umbau ebenfalls serverseitig als Job).
-const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care'])
+const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa'])
 
 // Prüft Zugriff auf das Buchprojekt (Admin = alles; sonst eigenes Buch der
 // erlaubten Kategorien). Rückgabe: memorial-Row (id) oder null.

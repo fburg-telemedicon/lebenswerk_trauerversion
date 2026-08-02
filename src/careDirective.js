@@ -38,8 +38,8 @@
 //
 // Maße in mm, Ursprung oben links (wie lifeworkExtras.js).
 
-import { jsPDF } from 'jspdf'
 import { selfOnly, contributionBlocks } from './categories.js'
+import { newForm, pickByKey, strList, wishList, personList, personLine, INK, SOFT, AMBER } from './legalForms.js'
 
 // Die vier rechtlichen Aufgabenbereiche. Reihenfolge = Reihenfolge im Formular;
 // `key` ist zugleich der Schlüssel, den die KI im JSON liefern muss.
@@ -130,145 +130,22 @@ ${contributionBlocks(contributions)}`
 // 2) Das Formular (DIN A4 hoch)
 // ════════════════════════════════════════════════════════════════
 
-// Die KI liefert "areas" mal als Liste, mal als Objekt — beides annehmen, statt
-// am Formatwechsel eines einzelnen Laufs zu scheitern.
-function areaData(data, key) {
-  const src = data?.areas
-  if (Array.isArray(src)) return src.find(a => a?.key === key) || {}
-  if (src && typeof src === 'object') return src[key] || {}
-  return {}
-}
-const strList = v => (Array.isArray(v) ? v : []).map(s => String(s ?? '').trim()).filter(Boolean)
-function wishList(a) {
-  return (Array.isArray(a?.wishes) ? a.wishes : [])
-    .map(w => (typeof w === 'string'
-      ? { text: w.trim(), evidence: '' }
-      : { text: String(w?.text ?? '').trim(), evidence: String(w?.evidence ?? '').trim() }))
-    .filter(w => w.text)
-}
+// Die KI liefert "areas" mal als Liste, mal als Objekt — pickByKey nimmt beides.
+const areaData = (data, key) => pickByKey(data?.areas, key)
 
-const AMBER = [180, 83, 9]
-const BLUE  = [37, 99, 235]
-const INK   = [35, 35, 35]
-const SOFT  = [110, 110, 110]
-
+// Zeichnet das Formular und gibt das jsPDF-Dokument zurück, ohne es zu speichern.
 // Zeichnet das Formular und gibt das jsPDF-Dokument zurück, ohne es zu speichern.
 // Getrennt von downloadCareDirectivePdf(), damit dasselbe Layout auch außerhalb
 // des Browsers erzeugt werden kann (Skripte, Nachbearbeitung bestehender
 // Biographien) — dort gibt es kein doc.save().
 export function buildCareDirectiveDoc(data, memorial) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const PW = 210, PH = 297, M = 20, FOOT = 15
-  const maxW = PW - 2 * M
-  let y = M
-
-  const lh = s => s * 0.3528 * 1.22
-  const ensure = h => { if (y + h > PH - FOOT) { doc.addPage(); y = M } }
-  const gap = h => { y += h }
-
-  function text(str, { size = 10.5, style = 'normal', color = INK, x = M, w = maxW, gapAfter = 2.5, align } = {}) {
-    doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...color)
-    for (const line of doc.splitTextToSize(String(str ?? ''), w)) {
-      ensure(lh(size))
-      if (align === 'center') doc.text(line, PW / 2, y, { align: 'center' })
-      else doc.text(line, x, y)
-      y += lh(size)
-    }
-    y += gapAfter
-  }
-
-  function rule(color = [200, 200, 200], lw = 0.3) {
-    ensure(2); doc.setDrawColor(...color); doc.setLineWidth(lw)
-    doc.line(M, y, PW - M, y); y += 3
-  }
-
-  // Abschnittsüberschrift. Sie darf nicht allein am Seitenfuß stehen bleiben —
-  // deshalb wird Platz für Überschrift plus zwei Textzeilen verlangt.
-  function h1(str) {
-    gap(4)
-    if (y + lh(13) + 4 + 2 * lh(10.5) > PH - FOOT) { doc.addPage(); y = M }
-    text(str, { size: 13, style: 'bold', color: [20, 20, 20], gapAfter: 1 })
-    rule([170, 170, 170], 0.4)
-  }
-  function h2(str) {
-    gap(2)
-    if (y + lh(11) + 2 * lh(10.5) > PH - FOOT) { doc.addPage(); y = M }
-    text(str, { size: 11, style: 'bold', color: [30, 30, 30], gapAfter: 1.5 })
-  }
-
-  // Aufzählungspunkt; `box` setzt statt des Punktes ein Ankreuzkästchen. Jeder
-  // KI-Vorschlag bekommt eins: Was hier steht, ist ein ENTWURF — die Person hakt
-  // ab, was sie sich zu eigen macht, und streicht den Rest.
-  function bullet(str, { box = false, size = 10.5, indent = 0, color = INK } = {}) {
-    const x = M + indent + (box ? 6.5 : 5)
-    const w = maxW - (x - M)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(...color)
-    doc.splitTextToSize(String(str ?? ''), w).forEach((ln, i) => {
-      ensure(lh(size))
-      if (i === 0) {
-        if (box) { doc.setDrawColor(120); doc.setLineWidth(0.35); doc.rect(M + indent, y - 3.1, 3.5, 3.5) }
-        else { doc.setFillColor(130); doc.circle(M + indent + 1.5, y - 1.2, 0.65, 'F') }
-      }
-      doc.setTextColor(...color)
-      doc.text(ln, x, y); y += lh(size)
-    })
-    y += 1.2
-  }
-
-  // Ausfüllfeld: Beschriftung links, Linie rechts. `value` wird nur gesetzt, wenn
-  // die Angabe wirklich bekannt ist — geraten wird in einem solchen Dokument nichts.
-  function field(label, value = '', { labelW = 40, w = maxW } = {}) {
-    ensure(9)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...SOFT)
-    doc.text(label, M, y)
-    doc.setDrawColor(160); doc.setLineWidth(0.25)
-    doc.line(M + labelW, y + 0.9, M + w, y + 0.9)
-    if (value) {
-      doc.setFontSize(10.5); doc.setTextColor(...INK)
-      doc.text(String(value), M + labelW + 1.5, y)
-    }
-    y += 8.5
-  }
-
-  function blankLines(n = 3, w = maxW) {
-    for (let i = 0; i < n; i++) {
-      ensure(8); doc.setDrawColor(175); doc.setLineWidth(0.25)
-      doc.line(M, y + 0.9, M + w, y + 0.9); y += 8
-    }
-    y += 1
-  }
-
-  // Hinweisblock mit farbigem Balken links. Bewusst KEIN gefüllter Kasten: Der
-  // Block darf über einen Seitenumbruch laufen, ein Kasten könnte das nicht.
-  function callout(title, items, accent = BLUE) {
-    gap(1.5)
-    const push = (str, style, size, color) => {
-      doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...color)
-      for (const ln of doc.splitTextToSize(String(str ?? ''), maxW - 7)) {
-        ensure(lh(size))
-        doc.setDrawColor(...accent); doc.setLineWidth(1)
-        doc.line(M + 0.5, y - 3.2, M + 0.5, y + 1)
-        doc.setFont('helvetica', style); doc.setTextColor(...color)
-        doc.text(ln, M + 7, y); y += lh(size)
-      }
-    }
-    if (title) push(title, 'bold', 9.5, accent)
-    for (const it of items) push(it, 'normal', 9.5, [70, 70, 70])
-    y += 3.5
-  }
-
-  // Ja/Nein-Ankreuzzeile für einen Aufgabenbereich.
-  function yesNo() {
-    ensure(9)
-    doc.setDrawColor(90); doc.setLineWidth(0.4)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK)
-    doc.rect(M, y - 3.2, 3.8, 3.8)
-    doc.text('Dieser Aufgabenbereich soll übertragen werden.', M + 6, y)
-    const x2 = M + 105
-    doc.rect(x2, y - 3.2, 3.8, 3.8)
-    doc.text('Ausdrücklich nicht.', x2 + 6, y)
-    y += 8
-  }
+  // Layout-Bausteine aus src/legalForms.js — dieselben, aus denen die
+  // Vorsorgevollmacht gesetzt wird. Die Ankreuzkästchen an jedem KI-Vorschlag
+  // sind Absicht: Was hier steht, ist ein ENTWURF; die Person hakt ab, was sie
+  // sich zu eigen macht, und streicht den Rest.
+  const t = newForm()
+  const { doc, maxW, PW, M } = t
+  const { text, rule, h1, h2, bullet, field, blankLines, callout, yesNo, signatureRow, ensure, gap } = t
 
   const name = String(memorial?.name || '').trim()
   const d = data || {}
@@ -348,7 +225,7 @@ export function buildCareDirectiveDoc(data, memorial) {
 
     h2(area.title)
     text(area.scope, { size: 9.5, color: SOFT, gapAfter: 3 })
-    yesNo()
+    yesNo('Dieser Aufgabenbereich soll übertragen werden.', 'Ausdrücklich nicht.')
     text('Meine Wünsche für diesen Bereich:', { size: 10, style: 'bold', gapAfter: 2.5 })
     if (wishes.length) {
       for (const w of wishes) bullet(w.text, { box: true })
@@ -397,24 +274,11 @@ export function buildCareDirectiveDoc(data, memorial) {
   // ── 8. Unterschrift ───────────────────────────────────────────
   h1('8. Ort, Datum und eigenhändige Unterschrift')
   text('Eine Betreuungsverfügung ist an keine Form gebunden. Sie sollte aber schriftlich vorliegen und eigenhändig unterschrieben sein — sonst lässt sich später schwer belegen, dass sie von mir stammt. Eine Beglaubigung ist nicht erforderlich.', { size: 9.5, color: SOFT, gapAfter: 5 })
-  ensure(24)
-  doc.setDrawColor(120); doc.setLineWidth(0.35)
-  doc.line(M, y + 10, M + 78, y + 10)
-  doc.line(M + 92, y + 10, PW - M, y + 10)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...SOFT)
-  doc.text('Ort, Datum', M, y + 14.5)
-  doc.text('Unterschrift', M + 92, y + 14.5)
-  y += 22
+  signatureRow('Ort, Datum', 'Unterschrift')
 
   h2('Spätere Bestätigung')
   text('Eine Verfügung wirkt umso stärker, je aktueller sie ist. Bestätigen Sie sie am besten alle ein bis zwei Jahre mit Datum und Unterschrift.', { size: 9.5, color: SOFT, gapAfter: 4 })
-  for (let i = 0; i < 3; i++) {
-    ensure(13)
-    doc.setDrawColor(150); doc.setLineWidth(0.25)
-    doc.line(M, y + 5, M + 78, y + 5)
-    doc.line(M + 92, y + 5, PW - M, y + 5)
-    y += 13
-  }
+  for (let i = 0; i < 3; i++) signatureRow(null, null, { gapBefore: 5, gapAfter: 13, lw: 0.25, color: 150 })
 
   // ── 9. Aufbewahrung ───────────────────────────────────────────
   h1('9. Wo diese Verfügung liegt')
@@ -427,7 +291,7 @@ export function buildCareDirectiveDoc(data, memorial) {
   // ════════════════════════════════════════════════════════════
   // TEIL B — Arbeitshilfe (nicht Bestandteil der Verfügung)
   // ════════════════════════════════════════════════════════════
-  doc.addPage(); y = M
+  doc.addPage(); t.y = M
 
   text('ARBEITSHILFE', { size: 16, style: 'bold', color: [15, 15, 15], gapAfter: 1.5 })
   text('Nicht Bestandteil der Betreuungsverfügung', { size: 10, color: SOFT, gapAfter: 3 })
@@ -512,16 +376,8 @@ export function buildCareDirectiveDoc(data, memorial) {
   ]) bullet(step, { box: true })
 
   // ── Fußzeile auf allen Seiten ─────────────────────────────────
-  const total = doc.getNumberOfPages()
   const created = new Date().toLocaleDateString('de-DE')
-  for (let p = 1; p <= total; p++) {
-    doc.setPage(p)
-    doc.setDrawColor(215); doc.setLineWidth(0.25)
-    doc.line(M, PH - 12, PW - M, PH - 12)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(140, 140, 140)
-    doc.text(`Betreuungsverfügung${name ? ` · ${name}` : ''} · Entwurf vom ${created}`, M, PH - 8)
-    doc.text(`Seite ${p} von ${total}`, PW - M, PH - 8, { align: 'right' })
-  }
+  t.footer(`Betreuungsverfügung${name ? ` · ${name}` : ''} · Entwurf vom ${created}`)
 
   return doc
 }

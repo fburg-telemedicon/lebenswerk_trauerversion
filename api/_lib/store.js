@@ -42,7 +42,7 @@ const {
 const JSONB_COLS = new Set([
   // memorials
   'intake', 'uploaded_images', 'content_reports', 'pickup_address', 'purge_info',
-  'book_v1', 'book_v2', 'family_tree', 'life_poster', 'care_directive',
+  'book_v1', 'book_v2', 'family_tree', 'life_poster', 'care_directive', 'power_of_attorney',
   // contributions
   'messages', 'transcript_corrections',
   // cost_events

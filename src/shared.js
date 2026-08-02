@@ -175,6 +175,7 @@ const COST_KIND_LABEL = {
   tree:       'Stammbaum – Generierung',
   poster:     'Lebensposter – Generierung',
   care:       'Betreuungsverfügung – Generierung',
+  poa:        'Vorsorgevollmacht – Generierung',
   anamnese_section:   'Anamnesebogen – Generierung',
   anamnese_translate: 'Anamnesebogen – Übersetzung',
   anamnese_edit:      'Anamnesebogen – Korrektur',

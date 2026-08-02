@@ -63,6 +63,7 @@ import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSessi
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { careDirectiveSystem, downloadCareDirectivePdf } from './careDirective.js'
+import { powerOfAttorneySystem, downloadPowerOfAttorneyPdf } from './powerOfAttorney.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -89,6 +90,11 @@ const LIFEWORK_EXTRAS = {
     field: 'care_directive', filename: 'Betreuungsverfuegung', article: 'Die Betreuungsverfügung',
     firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Betreuungsverfügung.',
     system: careDirectiveSystem,
+  },
+  poa: {
+    field: 'power_of_attorney', filename: 'Vorsorgevollmacht', article: 'Die Vorsorgevollmacht',
+    firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Vorsorgevollmacht.',
+    system: powerOfAttorneySystem,
   },
 }
 
@@ -2748,6 +2754,7 @@ Regeln:
     try {
       if (kind === 'tree') downloadTreePdf(`${base}.pdf`, data, mem)
       else if (kind === 'care') downloadCareDirectivePdf(`${base}.pdf`, data, mem)
+      else if (kind === 'poa') downloadPowerOfAttorneyPdf(`${base}.pdf`, data, mem)
       // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.
       else if (Array.isArray(data.variants) && data.variants.length) {
         const v = data.variants.find(x => x.style === styleKey) || data.variants[0]
