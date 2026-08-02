@@ -11,11 +11,74 @@
 // über ein `profile`-Objekt mit kategoriespezifischen Formulierungen gefüttert
 // werden.
 
+// Die Geschlechts-Auswahl teilen wir mit der Anlage-Maske (constants.js hat
+// selbst keine Importe — kein Zyklus).
+import { GENDERS } from './constants.js'
+
 export const DEFAULT_CATEGORY = 'memorial'
 
 // ── gemeinsame Helfer ─────────────────────────────────────────────
 function genderNote(memorial) {
   return memorial?.gender ? ` (${memorial.gender})` : ''
+}
+
+// ── Hochzeitsjubiläum: ZWEI Menschen, nicht einer ────────────────
+// Beim Jubiläumsbuch ist `memorial.name` ein Paar-String („Anna & Thomas
+// Müller"), und `useGender` ist aus — ein einzelnes Geschlecht wäre falsch.
+// Die Folge war, dass die Prompts das Paar durchgehend als EINE Einheit
+// behandelten: Alle Themenfelder waren gemeinsam („wie sie als Paar wirken"),
+// keiner der beiden Menschen kam einzeln vor, und wer überwiegend eine Seite
+// kannte (Kollegen des Ehemanns z. B.), machte das Buch unbemerkt schief.
+//
+// Sind beide Namen in der Anlage erfasst (intake.partner1Name/partner2Name),
+// liefert couplePartners() sie samt Geschlecht, und die Prompt-Bauer ergänzen
+// die Regeln unten. FEHLT einer der Namen, gibt die Funktion null zurück und
+// alles verhält sich exakt wie vorher — bestehende Jubiläumsbücher ändern sich
+// dadurch um kein Zeichen.
+export function couplePartners(memorial) {
+  if (memorial?.product_category !== 'anniversary') return null
+  const i = memorial?.intake || {}
+  const a = { name: String(i.partner1Name || '').trim(), gender: String(i.partner1Gender || '').trim() }
+  const b = { name: String(i.partner2Name || '').trim(), gender: String(i.partner2Gender || '').trim() }
+  return (a.name && b.name) ? [a, b] : null
+}
+
+const partnerLabel = p => `${p.name}${p.gender && p.gender !== 'keine Angabe' ? ` (${p.gender})` : ''}`
+
+// Regel für das INTERVIEW: beide auseinanderhalten und beide zur Sprache bringen.
+function coupleInterviewRule(memorial, contributorName) {
+  const ps = couplePartners(memorial)
+  if (!ps) return ''
+  const [a, b] = ps
+  const who = contributorName || 'die beitragende Person'
+  return `
+- ZWEI MENSCHEN, NICHT EINER: Dieses Buch gilt einem Paar — ${partnerLabel(a)} und ${partnerLabel(b)}. Sprich sie beim Vornamen an und halte sie sauber auseinander; benutze die Pronomen, die zum jeweils angegebenen Geschlecht passen, und rate sie nicht aus dem Namen.
+- BEIDE MÜSSEN VORKOMMEN: Frage nicht nur nach dem Paar als Ganzem. Sorge dafür, dass im Lauf des Gesprächs BEIDE auch einzeln zur Sprache kommen — mindestens je eine Frage, die sich ausdrücklich nur auf ${a.name} bzw. nur auf ${b.name} bezieht (wer ist dieser Mensch, was macht ihn aus, welche eigene Geschichte verbindet dich mit ihm).
+- UNGLEICHE NÄHE IST NORMAL: Kennt ${who} eine der beiden deutlich besser, ist das in Ordnung. Frage dann trotzdem einmal behutsam nach der anderen — und lass es auf sich beruhen, wenn dazu nichts kommt. Dränge nicht und erfinde nichts.`
+}
+
+// Zusatz nur fürs BUCH-GERÜST (Variante 2): Neben den gemeinsamen Stationen
+// bekommt jede der beiden Personen ein eigenes Porträtkapitel. Ohne das bestand
+// die Gliederung ausschließlich aus gemeinsamen Stationen — der einzelne Mensch
+// hatte im ganzen Buch keinen Ort.
+function couplePortraitRule(memorial) {
+  const ps = couplePartners(memorial)
+  if (!ps) return ''
+  const [a, b] = ps
+  return `
+
+PORTRÄTKAPITEL (Pflicht): Plane neben den gemeinsamen Stationen ZWEI Kapitel, die je einem der beiden Menschen allein gewidmet sind — eines ${a.name}, eines ${b.name}. Dort geht es darum, wer dieser Mensch für sich ist: Wesen, Eigenheiten, eigener Weg, was die Beitragenden an ihm schätzen. Diese beiden Kapitel zählen in die oben genannte Kapitelzahl hinein und sollen vergleichbaren Umfang haben.`
+}
+
+// Regel für die TEXTE (Buch, Kapitel, Festrede): beide auseinanderhalten und
+// beiden vergleichbaren Raum geben, ohne dafür etwas zu erfinden.
+function coupleTextRule(memorial) {
+  const ps = couplePartners(memorial)
+  if (!ps) return ''
+  const [a, b] = ps
+  return `
+- DAS PAAR SIND ZWEI MENSCHEN: ${partnerLabel(a)} und ${partnerLabel(b)}. Halte sie im Text auseinander, nenne sie beim Namen und benutze die Pronomen, die zum angegebenen Geschlecht passen.
+- BALANCE: Beide sollen im Ergebnis ähnlich präsent sein. Geben die Beiträge zu einer der beiden deutlich weniger her, dann fasse dich dort kürzer — erfinde NICHTS, um die Waage auszugleichen.`
 }
 
 function blocks(contributions) {
@@ -646,7 +709,7 @@ Regeln:
 - Reagiere kurz und herzlich auf die vorherige Antwort (max. 1 Satz)
 - Frage nach konkreten Erlebnissen und Geschichten, nicht Allgemeinem
 - ${p.empathyRule}
-- ${THIRD_PARTY_RULE}
+- ${THIRD_PARTY_RULE}${coupleInterviewRule(memorial, name)}
 ${interviewGreetingRule(name)}
 ${interviewScopeRule(name)}
 ${flow}
@@ -690,7 +753,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 Regeln:
 - "title" persönlich, ${p.titleTone}, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
-- ${aliveRule(p, memorial)}
+- ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
 - Auf Deutsch
 - Gültiges JSON, keine trailing commas
 
@@ -761,7 +824,7 @@ Regeln:
 - "heading": eine INDIVIDUELLE, prägnante Überschrift, die ein konkretes Motiv, eine Szene, einen Ort oder einen Charakterzug aus GENAU DIESEM Beitrag aufgreift — jede Kapitel-Überschrift muss einzigartig sein. Verwende NICHT die Schablone „Mit den Augen von …" und keine generische, für jedes Kapitel austauschbare Formulierung. Der Name (${contribution.contributor_name}) darf vorkommen, ist aber nicht nötig; der Inhalt des Kapitels steht im Vordergrund
 - ${NO_FILLER_RULE}
 - "body": ${p.chapterVoice}; nutze ALLE konkreten Geschichten und Details aus den Antworten und formuliere sie aus. ${chapterLengthRule(band.min, band.max)} Ein knapper Beitrag ergibt ein kurzes Kapitel — strecke ihn NICHT. Absätze durch \\n\\n trennen${textStyleRule(memorial)}
-- ${aliveRule(p, memorial)}
+- ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum Inhalt des Kapitels
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -783,7 +846,7 @@ function makeV2Outline(p) {
     }) + v2CoverageRule(contributions.length)
     return `Du bist ${p.v2Role}. Aus den folgenden Beiträgen von ${contributions.length} Menschen, die ${memorial.name}${g} ${p.knowVerb}, planst du ${p.v2NounIndef} (Variante 2: ${p.v2Concept}).
 
-Plane jetzt das Gerüst: Titel, Untertitel und ${span.min}–${span.max} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.
+Plane jetzt das Gerüst: Titel, Untertitel und ${span.min}–${span.max} Kapitel ${p.v2Arrange} (z. B. ${p.v2StationExamples}). Wähle nur Kapitel, die zu dem passen, was die Beiträge tatsächlich hergeben. Die Kapitel-TEXTE werden später separat geschrieben.${couplePortraitRule(memorial)}
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
 {
@@ -800,7 +863,7 @@ Regeln:
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
 - "title" persönlich, ${p.titleTone}, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
-- ${aliveRule(p, memorial)}
+- ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
 - Auf Deutsch
 - Gültiges JSON, keine trailing commas
 
@@ -831,7 +894,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 Regeln:
 - ${NO_FILLER_RULE}
 - "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
-- ${aliveRule(p, memorial)}
+- ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -858,7 +921,7 @@ ${styleBlock}
 Anforderungen:
 ${greetRule}
 - ${p.finalToneRule}
-- ${aliveRule(p, memorial)}
+- ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
 - Webe konkrete Erinnerungen und Geschichten aus den Beiträgen ein, ohne die Quellen einzeln zu nennen
 - Ton: gesprochene Sprache, gut zum Vorlesen geeignet — kurze Sätze sind willkommen
 - Auf Deutsch
@@ -1516,7 +1579,10 @@ const PROFILES = {
     relationClause: (m, g) => ` für ein Buch zum Hochzeitsjubiläum von ${m.name}`,
     interviewGoal: 'Schöne Erinnerungen, Anekdoten und Glückwünsche über das Paar für ein Jubiläumsbuch sammeln.',
     empathyRule: 'Sei herzlich und würdige die gemeinsame Geschichte des Paares.',
-    themeFields: 'wie sich das Paar kennenlernte, gemeinsame Höhepunkte, die Hochzeit, Familie, gemeinsame Reisen, wie sie als Paar wirken, kleine Eigenheiten, schöne Anekdoten, was ihre Verbindung ausmacht, Wünsche fürs Paar',
+    // Bewusst gemischt: gemeinsame Felder UND Felder, die auf je eine der beiden
+    // Personen zielen. Vorher waren alle zehn Felder gemeinsam — die einzelnen
+    // Menschen kamen im Interview nie vor.
+    themeFields: 'wie sich das Paar kennenlernte, gemeinsame Höhepunkte, die Hochzeit, Familie, gemeinsame Reisen, wie sie als Paar wirken, was die eine der beiden Personen als Menschen ausmacht, was die andere als Menschen ausmacht, eine eigene Erinnerung mit nur einer der beiden, kleine Eigenheiten, schöne Anekdoten, was ihre Verbindung ausmacht, Wünsche fürs Paar',
     knowVerb: 'als Paar kennen', bookNounIndef: 'ein Jubiläumsbuch zur Hochzeit', bookNounGen: 'eines Jubiläumsbuchs',
     titleTone: 'festlich und warm', chapterVoice: 'fließender Text in Ich-Form aus Sicht der beitragenden Person',
     v2Role: 'einfühlsamer Autor', v2NounIndef: 'eine Festschrift zum Jubiläum', v2NounGen: 'einer Festschrift',
@@ -1532,7 +1598,7 @@ const PROFILES = {
     ],
     finalSections: FOUR_GREETS(
       { key: 'begruessung', label: 'Begrüßung', brief: 'Warme, festliche Eröffnung. Stimme die Gäste auf die Feier ein. Ca. 80–130 Wörter.', greets: true },
-      'Das Paar', 'Würdige das Paar — wer sie sind, was ihre Verbindung ausmacht. Ca. 100–180 Wörter.',
+      'Die beiden — und was sie verbindet', 'Würdige ZUERST beide Personen EINZELN und nacheinander, in vergleichbarer Länge: wer ist der eine Mensch, wer der andere, was macht jede und jeden für sich aus. Nenne sie dabei beim Namen. Erst DANACH zwei, drei Sätze darüber, was ihre Verbindung ausmacht. Ca. 160–260 Wörter.',
       'Gemeinsame Geschichte und Anekdoten', 'Webe konkrete gemeinsame Erinnerungen und Anekdoten aus den Beiträgen ein, ohne Quellen einzeln zu nennen. Ca. 150–260 Wörter.',
       'Glückwünsche und Abschluss', 'Herzliche Glückwünsche fürs Paar und ein schöner Abschluss. Ca. 80–140 Wörter.'),
   },
@@ -1757,10 +1823,22 @@ export const CATEGORIES = {
     v2Label: 'Version 2 – Festschrift', v2Filename: 'Jubilaeumsbuch_V2',
     intake: {
       subjectLabel: 'Name des Jubelpaars *', subjectPlaceholder: 'z. B. Anna & Thomas Müller',
+      // Kein einzelnes Geschlecht — es sind zwei Menschen. Erfasst werden sie
+      // stattdessen unten einzeln (siehe couplePartners).
       useGender: false,
       useDate: true, dateLabel: 'Tag der Feier',
       useCutoff: true, cutoffLabel: 'Tage vor der Feier, bis zu denen Beiträge erfasst werden',
-      extra: [{ key: 'anniversaryType', label: 'Art des Jubiläums', placeholder: 'z. B. Goldene Hochzeit (50 Jahre)' }],
+      // Die beiden Personen einzeln. Sind BEIDE Namen gesetzt, fragt das Interview
+      // gezielt auch nach jedem Menschen für sich, das Buch bekommt zwei
+      // Porträtkapitel und die Festrede würdigt beide getrennt. Bleiben die Felder
+      // leer, verhält sich alles wie vor dieser Ergänzung (bestehende Bücher).
+      extra: [
+        { key: 'anniversaryType', label: 'Art des Jubiläums', placeholder: 'z. B. Goldene Hochzeit (50 Jahre)' },
+        { key: 'partner1Name',   label: 'Erste Person – Name', placeholder: 'z. B. Anna Müller' },
+        { key: 'partner1Gender', label: 'Erste Person – Geschlecht', type: 'select', placeholder: 'Bitte wählen …', options: GENDERS },
+        { key: 'partner2Name',   label: 'Zweite Person – Name', placeholder: 'z. B. Thomas Müller' },
+        { key: 'partner2Gender', label: 'Zweite Person – Geschlecht', type: 'select', placeholder: 'Bitte wählen …', options: GENDERS },
+      ],
       createHeading: 'Neues Jubiläumsbuch anlegen',
       createIntro: 'Erstellen Sie ein Jubiläumsbuch und teilen Sie anschließend den Einladungslink.',
       createButton: 'Jubiläumsbuch anlegen →',
