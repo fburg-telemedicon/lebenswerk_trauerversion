@@ -1177,7 +1177,10 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
     // Archiv: aufgeräumte Projekte sollen die Liste nicht zuwachsen lassen und
     // sind deshalb ausgeblendet, bis man sie ausdrücklich einblendet.
     const archivedCount = memorials.filter(m => m.archived_at).length
-    const dueCount = memorials.filter(m => m.purge_due && !m.archived_at).length
+    // Seit dem Rückbau auf automatische Löschung ist die VORWARNUNG die wichtige
+    // Zahl: „abgelaufen" verschwindet beim nächsten nächtlichen Lauf von selbst.
+    const soonList = memorials.filter(m => m.purge_soon && !m.archived_at)
+    const soonCount = soonList.length
     const visibleMemorials = memorials.filter(m => (showArchived ? !!m.archived_at : !m.archived_at) && matchesQuery(m) && sortCols.every(c => {
       const sel = filters[c.key]
       return !sel || sel.includes(c.disp(m))
@@ -1266,13 +1269,31 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
         {/* Aufbewahrung: Seit dem 2026-08-02 löscht der Cron außerhalb der
             Anamnese nicht mehr selbst — dieser Hinweis IST die Maßnahme und
             darf deshalb nicht übersehbar sein. */}
-        {dueCount > 0 && !showArchived && (
-          <div style={{ marginBottom:'1.25rem', padding:'12px 16px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, fontSize:13, color:'#92400e', lineHeight:1.55 }}>
-            <strong>{dueCount === 1
-              ? t('Bei 1 Buchprojekt ist die Aufbewahrungsfrist abgelaufen.', '1 book project has passed its retention period.')
-              : t(`Bei ${dueCount} Buchprojekten ist die Aufbewahrungsfrist abgelaufen.`, `${dueCount} book projects have passed their retention period.`)}</strong>{' '}
-            {t('Die Eingangsdaten (Interviewbeiträge und Original-Fotos) sollten jetzt gelöscht werden. Die betroffenen Projekte sind in der Liste markiert; das Aufräumen stoßen Sie auf der Detailseite an — das fertige Buch bleibt dabei erhalten.',
-               'The input data (interview contributions and original photos) should now be deleted. The affected projects are flagged in the list; start the cleanup on the detail page — the finished book is kept.')}
+        {/* Vorwarnung vor der automatischen Löschung. Bewusst kräftig gestaltet und
+            ganz oben: Nach Ablauf der Frist sind die Interviewdaten unwiderruflich
+            weg, und das ist der letzte Moment, in dem man noch etwas retten kann. */}
+        {soonCount > 0 && !showArchived && (
+          <div style={{ marginBottom:'1.25rem', padding:'14px 18px', background:'#fef2f2', border:'2px solid #fca5a5', borderRadius:8, fontSize:13.5, color:'#7f1d1d', lineHeight:1.6 }}>
+            <div style={{ fontWeight:700, fontSize:15, marginBottom:5 }}>
+              ⏳ {soonCount === 1
+                ? t('1 Buchprojekt wird demnächst automatisch bereinigt', '1 book project will be cleaned up automatically soon')
+                : t(`${soonCount} Buchprojekte werden demnächst automatisch bereinigt`, `${soonCount} book projects will be cleaned up automatically soon`)}
+            </div>
+            {t('Nach Ablauf der Aufbewahrungsfrist löscht das System die Eingangsdaten — alle Interviewbeiträge und die hochgeladenen Original-Fotos — unwiderruflich. Das fertige Buch samt Bildern bleibt erhalten. Wenn noch etwas fehlt oder gesichert werden soll, jetzt handeln:',
+               'When the retention period ends, the system irreversibly deletes the input data — all interview contributions and the uploaded original photos. The finished book including images is kept. If anything is still missing or needs saving, act now:')}
+            <ul style={{ margin:'8px 0 0', paddingLeft:20 }}>
+              {soonList.slice(0, 8).map(m => (
+                <li key={m.id} style={{ marginBottom:2 }}>
+                  <button className="ghost" onClick={() => openMemorial(m)} style={{ padding:0, fontSize:13.5, color:'#7f1d1d', textDecoration:'underline', fontWeight:600 }}>
+                    {displayBookName(m) || m.id}
+                  </button>
+                  {' — '}{m.purge_due_days <= 0
+                    ? t('heute', 'today')
+                    : t(`in ${m.purge_due_days} ${m.purge_due_days === 1 ? 'Tag' : 'Tagen'}`, `in ${m.purge_due_days} ${m.purge_due_days === 1 ? 'day' : 'days'}`)}
+                </li>
+              ))}
+              {soonList.length > 8 && <li>{t(`… und ${soonList.length - 8} weitere`, `… and ${soonList.length - 8} more`)}</li>}
+            </ul>
           </div>
         )}
 
@@ -1400,12 +1421,14 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' }} onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.project_no != null ? m.project_no : '—'}</td>
                       <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
                         {displayBookName(m) || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}
-                        {/* Abgelaufene Aufbewahrungsfrist direkt am Namen — hier
+                        {/* Bevorstehende automatische Löschung direkt am Namen — hier
                             sucht man das Projekt, nicht in einer Extraspalte. */}
-                        {m.purge_due && !m.archived_at && (
-                          <span title={t('Aufbewahrungsfrist abgelaufen – Eingangsdaten sollten gelöscht werden', 'Retention period passed – input data should be deleted')}
-                            style={{ marginLeft:8, fontSize:11, fontWeight:600, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:5, padding:'1px 6px', whiteSpace:'nowrap' }}>
-                            {t('Frist abgelaufen', 'Retention due')}
+                        {m.purge_soon && !m.archived_at && (
+                          <span title={t('Die Eingangsdaten werden nach Ablauf der Aufbewahrungsfrist automatisch gelöscht', 'Input data is deleted automatically when the retention period ends')}
+                            style={{ marginLeft:8, fontSize:11, fontWeight:700, color:'#7f1d1d', background:'#fee2e2', border:'1px solid #fca5a5', borderRadius:5, padding:'1px 6px', whiteSpace:'nowrap' }}>
+                            {m.purge_due_days <= 0
+                              ? t('Löschung heute', 'Deleted today')
+                              : t(`Löschung in ${m.purge_due_days} T.`, `Deleted in ${m.purge_due_days} d`)}
                           </span>
                         )}
                       </td>
@@ -3329,11 +3352,8 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     {selected.purge_info?.purged_at
                       ? t(`Eingangsdaten wurden am ${new Date(selected.purge_info.purged_at).toLocaleDateString('de-DE')} gelöscht. Das Buch und die übrigen Endprodukte sind erhalten.`,
                           `Input data was deleted on ${new Date(selected.purge_info.purged_at).toLocaleDateString('de-DE')}. The book and the other outputs are kept.`)
-                      : selected.purge_due
-                        ? t(`Die Aufbewahrungsfrist von ${selected.retention_days ?? 90} Tagen ist abgelaufen${selected.purge_due_at ? ` (seit ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')})` : ''}. Die Eingangsdaten sollten jetzt gelöscht werden.`,
-                            `The retention period of ${selected.retention_days ?? 90} days has passed${selected.purge_due_at ? ` (since ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')})` : ''}. The input data should now be deleted.`)
-                        : t(`Die Eingangsdaten sollten nach ${selected.retention_days ?? 90} Tagen gelöscht werden${selected.purge_due_at ? ` — also ab dem ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')}` : ''}. Sie können das jederzeit auch früher tun.`,
-                            `The input data should be deleted after ${selected.retention_days ?? 90} days${selected.purge_due_at ? ` — from ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')}` : ''}. You can do it earlier at any time.`)}
+                      : t(`Die Eingangsdaten werden ${selected.purge_due_at ? `am ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')}` : `nach ${selected.retention_days ?? 90} Tagen`} automatisch gelöscht${selected.purge_due_days > 0 ? ` — in ${selected.purge_due_days} ${selected.purge_due_days === 1 ? 'Tag' : 'Tagen'}` : ''}. Das ist die vertraglich zugesagte Frist und läuft ohne Ihr Zutun. Früher löschen können Sie jederzeit über den Knopf unten.`,
+                          `The input data is deleted automatically ${selected.purge_due_at ? `on ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')}` : `after ${selected.retention_days ?? 90} days`}${selected.purge_due_days > 0 ? ` — in ${selected.purge_due_days} ${selected.purge_due_days === 1 ? 'day' : 'days'}` : ''}. This is the contractually promised deadline and runs without your involvement. You can delete earlier at any time using the button below.`)}
                   </p>
                 </div>
                 {selected.archived_at && (

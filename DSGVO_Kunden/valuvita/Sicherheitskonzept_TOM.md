@@ -38,9 +38,9 @@ jeweiligen Anbieter neu erzeugen und in Vercel (Production + Preview) ersetzen;
 
 ## 3. Zugriffs-/Audit-Logging
 
-- Dauerhaftes Audit-Log in Supabase (`audit_log`, SQL: `supabase/audit.sql`),
+- Dauerhaftes Audit-Log in der Datenbank,
   da Vercel-Logs auf dem Hobby-Plan flüchtig sind.
-- Geschrieben über `api/_lib/audit.js` (fail-open: ein Logging-Fehler bricht
+- Geschrieben über eine eigene Protokollfunktion (fail-open: ein Logging-Fehler bricht
   nie die eigentliche Aktion ab). **PII-arm**: nur Akteur (uid), Aktion,
   Ziel-Code/-ID, IP, Zeitstempel — keine Inhalte, kein Passwort-Material.
 - Protokollierte Aktionen:
@@ -50,20 +50,18 @@ jeweiligen Anbieter neu erzeugen und in Vercel (Production + Preview) ersetzen;
   - `user.create`, `user.update`, `user.delete`
 - **Auswertung:** über das Supabase-Dashboard (Tabelle `audit_log`).
 - **Aufbewahrung:** Einträge älter als 365 Tage werden vom täglichen
-  Cron-Lauf (`api/cron/purge.js`) automatisch entfernt.
+  Cron-Lauf automatisch entfernt.
 
 ## 4. Zugriffskontrolle (Kurzüberblick)
 
-- Admin-Endpunkte: HMAC-signierter Bearer-Token mit 12 h Ablauf
-  (`api/_lib/auth.js`), keine unsicheren Defaults.
+- Admin-Endpunkte: HMAC-signierter Bearer-Token mit 12 h Ablauf, keine unsicheren Defaults.
 - Mehrbenutzer-Isolation: Nicht-Admins sehen/bearbeiten nur eigene
-  Gedenkbücher (`api/_lib/access.js`).
+  Gedenkbücher.
 - Öffentlicher Beitragenden-Flow: ein Beitrag nur per geheimer Beitrags-ID
   (Capability); `/api/memorial` liefert nur eine Feld-Allowlist.
-- Offene KI-Proxies an gültigen Code gebunden + Rate-Limiting
-  (`api/_lib/ratelimit.js`), Login zusätzlich Brute-Force-gebremst.
+- Offene KI-Proxies an gültigen Code gebunden + Rate-Limiting, Login zusätzlich Brute-Force-gebremst.
 - RLS auf allen Tabellen aktiviert, keine Policies → nur `service_role`
-  (Backend) greift zu (`supabase/rls.sql`).
+  (Backend) greift zu.
 
 ## 5. Live-Sprachgespräch (Azure Voice Live) — ergänzt 2026-08-02
 
@@ -71,8 +69,7 @@ Der optionale vierte Mikrofon-Modus hält während des Interviews eine durchgehe
 Audioverbindung. Weil dabei Art.-9-Daten als Rohaudio fließen, gelten eigene
 Maßnahmen:
 
-- **Kein Direktkontakt Browser ↔ Azure.** Ein WebSocket-Relay im eigenen Backend
-  (`api/_lib/voicelive-relay.js`, angehängt in `server.js`) steht dazwischen. Grund:
+- **Kein Direktkontakt Browser ↔ Azure.** Ein WebSocket-Relay im eigenen Backend steht dazwischen. Grund:
   Ein Browser-WebSocket kann keinen `Authorization`-Header setzen — Microsofts
   Beispiele hängen den Ressourcenschlüssel als Query-Parameter an, er läge damit im
   Browser. Über das Relay bleibt der Schlüssel serverseitig.
@@ -80,7 +77,7 @@ Maßnahmen:
   **Sweden Central**. Der von Microsoft für Browser empfohlene WebRTC-Pfad
   (`/voice-live/realtime/calls`) wird bewusst **nicht** benutzt: Er nutzt laut Doku
   „global standard deployments" und routet zur nächstgelegenen Region.
-- **Modell-Allowlist (`EU_RESIDENT_MODELS` in `api/_lib/voicelive.js`).** Die
+- **Modell-Allowlist.** Die
   EU-Residenz hängt am Deployment-Typ des Chat-Modells, und den gibt Microsoft je
   Region und Modell vor. Ein nicht freigegebenes Modell (z. B. `gpt-realtime`, das nur
   als „Global standard" existiert) **deaktiviert den Dienst**, statt ihn still global
@@ -108,9 +105,3 @@ Maßnahmen:
   die optionale Protokollierung für Support-Fälle ist nicht aktiviert.
 - **Kostendeckel greift auch hier.** Jede Antwortrunde wird über `costRealtime` auf das
   Buch gebucht; die Budget-Obergrenze stoppt die Sitzung wie jede andere KI-Funktion.
-
-## Einzuspielende SQL-Skripte (Supabase SQL-Editor)
-
-Einmalig in Produktion auszuführen (idempotent):
-`schema.sql`, `users.sql`, `consent.sql`, `rls.sql`, `ratelimit.sql`,
-`audit.sql`.

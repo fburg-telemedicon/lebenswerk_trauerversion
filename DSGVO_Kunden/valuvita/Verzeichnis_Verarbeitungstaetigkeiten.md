@@ -3,13 +3,13 @@
 Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**
 Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
 
-Dieses Dokument erfüllt zusammen mit `SICHERHEIT.md` (technische und organisatorische
-Maßnahmen, Art. 32) und `BETRIEB-DSGVO.md` (Betriebs-Runbook, Art. 33/34) die
+Dieses Dokument erfüllt zusammen mit „Sicherheitskonzept (TOM)" (technische und organisatorische
+Maßnahmen, Art. 32) und „Betriebs-Runbook Datenschutz" (Betriebs-Runbook, Art. 33/34) die
 Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 
 > **Begleitende Pflichten (Phase 0 der DSGVO-Roadmap), die NICHT durch dieses
 > Dokument abgedeckt sind:**
-> - **DSFA (Art. 35)** — erstellt als `DSFA.md`.
+> - **DSFA (Art. 35)** — erstellt als „Datenschutz-Folgenabschaetzung".
 > - **AVV/DPA herunterladen & archivieren** — siehe Abschnitt 6 (Checkliste).
 
 ---
@@ -66,7 +66,7 @@ Teilzwecke:
 - **Art. 6 Abs. 1 lit. a** (Einwilligung) und für besondere Kategorien
   **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung).
 - **Protokollierung:** Pflicht-Häkchen vor dem Interview; gespeichert als
-  `consent_at` + `consent_version` auf `contributions` (Migration `supabase/consent.sql`).
+  `consent_at` + Fassungsnummer der Einwilligung am jeweiligen Beitrag.
   Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.4**, 2026-06-22).
 - **Widerruf:** jederzeit per E-Mail an support@lebensgeschichten.ai; das Team löscht
   Beitrag/Buch manuell. Dokumentiert in der Datenschutzerklärung (Abschnitt 7+8).
@@ -76,8 +76,7 @@ Teilzwecke:
 
 ## 5. Kategorien von Empfängern / Auftragsverarbeitern (Art. 30 Abs. 1 lit. d)
 
-Stand 1. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
-`api/`, `server.js` und `src/`). Sämtliche Dienste verarbeiten **in der EU**. Es gibt
+Stand 1. August 2026, geprüft gegen den Code (sämtliche ausgehenden Verbindungen). Sämtliche Dienste verarbeiten **in der EU**. Es gibt
 **keine US-Fallbacks** (Anthropic- und OpenAI-Fallbacks am 2026-06-22 entfernt).
 
 | Auftragsverarbeiter | Leistung | Region / Standort |
@@ -102,8 +101,7 @@ Produktion entfernt; im Repository verbliebene Artefakte sind Rollback-Referenze
 **Ebenfalls entfallen:** `api.qrserver.com` erzeugte bis zum 1. August 2026 die
 QR-Codes im Dashboard. Dabei ging die vollständige Einladungs-URL **samt Buch-Code**
 an einen Dritten — beim Lebenswerk ist dieser Code die gesamte Berechtigung des
-Endnutzers. QR-Codes entstehen seither im Browser (`qrCodeDataUrl` in
-`src/shared.js`); der Dienst ist aus dem Code entfernt.
+Endnutzers. QR-Codes entstehen seither im Browser (`qrCodeDataUrl` in); der Dienst ist aus dem Code entfernt.
 
 > **Black Forest Labs (FLUX)** ist Modellanbieter, **erhält die Daten aber nicht** —
 > die Verarbeitung findet in Microsoft Azure statt. Kein eigener Datenfluss zu BFL.
@@ -128,7 +126,7 @@ der EU/EWR. Folglich keine Stützung auf Art. 44 ff. (SCC, Angemessenheitsbeschl
 Betreut ein Kunde — etwa ein Bestattungshaus, eine Klinik oder ein Unternehmen —
 eigene Endkunden über die Plattform, ist **er** der Verantwortliche und die
 Lebenswerk.AI GmbH **Auftragsverarbeiterin** nach Art. 28 DSGVO. Der zugehörige
-Vertragsentwurf samt TOM- und Unterauftragnehmer-Anlage liegt in **`AVV.md`** und ist
+Vertragsentwurf samt TOM- und Unterauftragnehmer-Anlage liegt in **„Auftragsverarbeitungsvertrag"** und ist
 vor dem ersten produktiven Kundeneinsatz zu unterzeichnen.
 
 ---
@@ -163,14 +161,14 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
 ## 8. Aufbewahrung / Löschfristen (Art. 30 Abs. 1 lit. f)
 
 - **Beiträge (PII):** automatische Löschung nach `funeral_date` (sonst `created_at`)
-  + `RETENTION_DAYS` (Standard **90 Tage**) via `api/cron/purge.js` (GitHub Actions,
+  + `RETENTION_DAYS` (Standard **90 Tage**) via der Anwendung (GitHub Actions,
   täglich 03:00 UTC). Erhalten bleiben dann nur noch das fertige Buch/die Rede
   (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in `memorials.purge_info`
   vermerkt.
 - **`audit_log`:** 365 Tage (Housekeeping im selben Cron).
 - **`rate_limits`:** kurzlebig (Housekeeping).
 - **Manuelle Voll-Löschung** (Admin) entfernt Buch, Beiträge, Kosten-Events und
-  Storage-Bilder vollständig (`api/_lib/delete-memorial.js`).
+  Storage-Bilder vollständig.
 - **Betroffenenrechte:** Auskunft/Export (Art. 15/20) als ZIP (PDF + JSON) pro
   Beitrag im Admin; Löschung (Art. 17) vollständig inkl. Storage.
 
@@ -178,7 +176,7 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
 
 ## 9. Allgemeine Beschreibung der TOMs (Art. 30 Abs. 1 lit. g)
 
-Vollständig in **`SICHERHEIT.md`**. Kurzfassung: TLS in transit + AES-256 at rest;
+Vollständig in **„Sicherheitskonzept (TOM)"**. Kurzfassung: TLS in transit + AES-256 at rest;
 Datenbank NUR aus dem Backend erreichbar (eigener DB-Benutzer, kein oeffentlicher Endpunkt);
 HMAC-signierte Admin-Tokens mit 12 h TTL, keine Default-Credentials; Mehrbenutzer-
 Isolation (IDOR-geschützt); Rate-Limiting + Brute-Force-Schutz; Passwortrichtlinie;

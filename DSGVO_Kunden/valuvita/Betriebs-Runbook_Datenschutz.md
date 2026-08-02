@@ -50,7 +50,7 @@ unvollständig melden als zu spät.
    Vorfallregister (siehe unten).
 
 ### Nach dem Vorfall
-9. Ursache beheben, Maßnahme in `SICHERHEIT.md` / dieser Datei nachziehen,
+9. Ursache beheben, Maßnahme in „Sicherheitskonzept (TOM)" / dieser Datei nachziehen,
    ggf. DSFA aktualisieren.
 
 ---
@@ -58,7 +58,7 @@ unvollständig melden als zu spät.
 ## 2. Regelmäßige Reviews & Löschläufe
 
 ### Automatisch (bereits aktiv)
-- **Aufbewahrungs-Löschung:** `api/cron/purge.js`, täglich 03:00 UTC via
+- **Aufbewahrungs-Löschung:** der Anwendung, täglich 03:00 UTC via
   GitHub Actions (`.github/workflows/purge.yml`). Löscht Gedenkbücher nach
   `funeral_date` (sonst `created_at`) + `RETENTION_DAYS` (Standard 90) inkl.
   Beiträge, Kosten-Events und Storage-Bildern.
@@ -70,8 +70,8 @@ unvollständig melden als zu spät.
 **Monatlich**
 - [ ] Audit-Log sichten (Admin → „Audit-Log"): auffällige Login-Fehlschläge,
       unerwartete Löschungen, fremde IPs?
-- [ ] Dry-Run der Löschung prüfen: `GET /api/cron/purge?dry=1` (mit Bearer
-      `CRON_SECRET`) — kommen die fälligen Bücher wie erwartet?
+- [ ] Löschlauf prüfen: Kommen die fälligen Buchprojekte wie erwartet in der
+      Übersicht an?
 - [ ] Aktive `app_users` durchsehen: nur benötigte Konten, korrekte Kategorien.
 
 **Quartalsweise**
@@ -85,7 +85,7 @@ unvollständig melden als zu spät.
 - [ ] AVV mit allen aktiven Auftragsverarbeitern (Vercel, Supabase, Microsoft
       Azure [Azure OpenAI + AI Speech + Foundry/FLUX], Black Forest Labs, GitHub)
       auf Aktualität prüfen. (Keine US-Anbieter mehr: Anthropic-/OpenAI-Fallbacks am 2026-06-22 entfernt.)
-- [ ] `SICHERHEIT.md` (TOM) und dieses Runbook überprüfen.
+- [ ] „Sicherheitskonzept (TOM)" (TOM) und dieses Runbook überprüfen.
 
 ---
 

@@ -1,0 +1,199 @@
+// scripts/md2pdf.js
+// Markdown → PDF, für die Dokumente, die an Kunden gehen.
+//   node scripts/md2pdf.js <datei.md|ordner> [...]
+//
+// Weg: Markdown → HTML (hier) → Edge/Chrome im Kopflos-Modus → PDF. Bewusst kein
+// jsPDF wie bei den Formularen: Diese Dokumente leben von TABELLEN, und die von Hand
+// zu setzen wäre viel Aufwand für ein schlechteres Ergebnis. Der Browser kann Tabellen,
+// Seitenumbrüche und Silbentrennung von Haus aus.
+//
+// Der Markdown-Umfang ist bewusst klein gehalten — genau das, was in unseren
+// Dokumenten vorkommt: Überschriften, Tabellen, Listen samt Ankreuzkästchen, fett/
+// kursiv/Code, Zitatblöcke, Trennlinien, eingerückte Formularblöcke und Links.
+
+const fs = require('fs')
+const path = require('path')
+const { execFileSync } = require('child_process')
+
+const BROWSERS = [
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+]
+const browser = () => {
+  const b = BROWSERS.find(p => fs.existsSync(p))
+  if (!b) throw new Error('Weder Edge noch Chrome gefunden — für die PDF-Ausgabe nötig.')
+  return b
+}
+
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// Zeichenformatierung INNERHALB einer Zeile. Reihenfolge zählt: Code zuerst, damit
+// Sternchen in `code` nicht als Fettschrift gelesen werden.
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/☐/g, '<span class="box"></span>')
+}
+
+const splitRow = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+
+function mdToHtml(md) {
+  const lines = md.replace(/\r\n/g, '\n').split('\n')
+  const out = []
+  let i = 0
+  const closeList = st => { while (st.length) out.push(st.pop()) }
+  const listStack = []
+
+  while (i < lines.length) {
+    const l = lines[i]
+
+    // Tabelle: Kopfzeile + Trennzeile + Datenzeilen
+    if (/^\|/.test(l) && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1] || '')) {
+      closeList(listStack)
+      const head = splitRow(l)
+      i += 2
+      const rows = []
+      while (i < lines.length && /^\|/.test(lines[i])) { rows.push(splitRow(lines[i])); i++ }
+      out.push('<table><thead><tr>' + head.map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>' +
+        rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') +
+        '</tbody></table>')
+      continue
+    }
+
+    // Eingerückter Block (Formularfelder, Unterschriftszeilen) → vorformatiert
+    if (/^ {4}\S/.test(l)) {
+      closeList(listStack)
+      const buf = []
+      while (i < lines.length && (/^ {4}/.test(lines[i]) || lines[i].trim() === '')) {
+        if (lines[i].trim() === '' && !/^ {4}/.test(lines[i + 1] || '')) break
+        buf.push(lines[i].replace(/^ {4}/, '')); i++
+      }
+      out.push(`<pre>${esc(buf.join('\n'))}</pre>`)
+      continue
+    }
+
+    const h = l.match(/^(#{1,4})\s+(.*)$/)
+    if (h) { closeList(listStack); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue }
+
+    if (/^(---|___|\*\*\*)\s*$/.test(l)) { closeList(listStack); out.push('<hr>'); i++; continue }
+
+    if (/^>\s?/.test(l)) {
+      closeList(listStack)
+      const buf = []
+      while (i < lines.length && /^>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^>\s?/, '')); i++ }
+      out.push(`<blockquote>${mdToHtml(buf.join('\n'))}</blockquote>`)
+      continue
+    }
+
+    const li = l.match(/^(\s*)([-*]|\d+\.)\s+(.*)$/)
+    if (li) {
+      const ordered = /\d/.test(li[2])
+      const tag = ordered ? 'ol' : 'ul'
+      if (!listStack.length) { out.push(`<${tag}>`); listStack.push(`</${tag}>`) }
+      // Ankreuzkästchen als echtes Kästchen, nicht als „[ ]". Reihenfolge zählt:
+      // erst maskieren, DANN das HTML einsetzen — andersherum escapt inline() das
+      // Kästchen und im PDF steht wörtlich „<span class=…>".
+      const cb = li[3].match(/^\[( |x|X)\]\s*/)
+      const box = cb ? `<span class="box${/x/i.test(cb[1]) ? ' on' : ''}"></span> ` : ''
+      out.push(`<li>${box}${inline(cb ? li[3].slice(cb[0].length) : li[3])}</li>`)
+      i++; continue
+    }
+
+    if (l.trim() === '') { closeList(listStack); i++; continue }
+
+    // Absatz: Folgezeilen anhängen, bis eine Leerzeile oder ein Blockanfang kommt
+    const buf = [l]; i++
+    while (i < lines.length && lines[i].trim() !== '' && !/^(#{1,4}\s|>|\||\s*([-*]|\d+\.)\s|---)/.test(lines[i]) && !/^ {4}\S/.test(lines[i])) {
+      buf.push(lines[i]); i++
+    }
+    closeList(listStack)
+    out.push(`<p>${inline(buf.join(' '))}</p>`)
+  }
+  closeList(listStack)
+  return out.join('\n')
+}
+
+const CSS = `
+@page { size: A4; margin: 20mm 18mm 18mm; }
+* { box-sizing: border-box; }
+body { font: 10.5pt/1.5 "Segoe UI", Arial, sans-serif; color: #1c1917; margin: 0; hyphens: auto; }
+h1 { font-size: 19pt; margin: 0 0 4mm; line-height: 1.25; }
+h2 { font-size: 13pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #d6d3d1; break-after: avoid; }
+h3 { font-size: 11.5pt; margin: 6mm 0 2mm; break-after: avoid; }
+h4 { font-size: 10.5pt; margin: 5mm 0 2mm; break-after: avoid; }
+p { margin: 0 0 3mm; }
+ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin-bottom: 1.5mm; }
+hr { border: none; border-top: 1px solid #e7e5e4; margin: 6mm 0; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f5f5f4; padding: 0 1mm; border-radius: 2px; }
+a { color: #1c1917; text-decoration: underline; }
+/* Formularfelder und Unterschriftszeilen: Ausrichtung muss erhalten bleiben. */
+pre { font-family: Consolas, monospace; font-size: 9.5pt; line-height: 1.7; background: #fafaf9;
+      border-left: 2px solid #d6d3d1; padding: 3mm 4mm; margin: 0 0 4mm; white-space: pre-wrap;
+      break-inside: avoid; }
+blockquote { margin: 0 0 4mm; padding: 2.5mm 4mm; background: #fffbeb; border-left: 3px solid #fbbf24; }
+blockquote p:last-child { margin-bottom: 0; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 9.5pt; break-inside: auto; }
+th, td { border: 1px solid #d6d3d1; padding: 1.8mm 2.2mm; text-align: left; vertical-align: top; }
+th { background: #f5f5f4; font-weight: 600; }
+tr { break-inside: avoid; }
+thead { display: table-header-group; }
+/* Ankreuzkästchen zum Ausfüllen auf Papier */
+.box { display: inline-block; width: 3.4mm; height: 3.4mm; border: 0.4mm solid #57534e;
+       vertical-align: -0.4mm; margin-right: 0.8mm; }
+.box.on { background: #57534e; }
+`
+
+function convert(mdPath) {
+  const md = fs.readFileSync(mdPath, 'utf8')
+  const title = (md.match(/^#\s+(.*)$/m) || [, path.basename(mdPath, '.md')])[1]
+  const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<title>${esc(title)}</title><style>${CSS}</style></head><body>${mdToHtml(md)}</body></html>`
+
+  const tmp = mdPath.replace(/\.md$/, '.tmp.html')
+  const pdf = mdPath.replace(/\.md$/, '.pdf')
+  fs.writeFileSync(tmp, html, 'utf8')
+
+  // Eigenes Profilverzeichnis je Aufruf. Ohne das klinkt sich der Aufruf in eine
+  // schon laufende Browser-Instanz ein, kehrt sofort zurück — und hinterlässt eine
+  // PDF-Datei mit 0 Byte. Genau das ist beim Stapellauf passiert.
+  const profile = path.join(require('os').tmpdir(), `md2pdf-${process.pid}-${Math.random().toString(36).slice(2)}`)
+
+  try {
+    for (let versuch = 1; versuch <= 3; versuch++) {
+      try { fs.unlinkSync(pdf) } catch {}
+      execFileSync(browser(), [
+        '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+        '--no-pdf-header-footer', `--user-data-dir=${profile}`,
+        `--print-to-pdf=${pdf}`, 'file:///' + tmp.replace(/\\/g, '/'),
+      ], { stdio: 'ignore', timeout: 90000 })
+      // Nicht nur „existiert", sondern „ist ein PDF mit Inhalt".
+      if (fs.existsSync(pdf) && fs.statSync(pdf).size > 1000 &&
+          fs.readFileSync(pdf, { encoding: 'latin1', flag: 'r' }).slice(0, 5) === '%PDF-') return pdf
+      if (versuch < 3) console.warn(`    (leeres PDF, Versuch ${versuch + 1}: ${path.basename(pdf)})`)
+    }
+    throw new Error(`PDF blieb leer nach drei Versuchen: ${pdf}`)
+  } finally {
+    try { fs.unlinkSync(tmp) } catch {}
+    try { fs.rmSync(profile, { recursive: true, force: true }) } catch {}
+  }
+}
+
+const targets = []
+for (const arg of process.argv.slice(2)) {
+  const p = path.resolve(arg)
+  if (fs.statSync(p).isDirectory()) {
+    for (const f of fs.readdirSync(p)) if (f.endsWith('.md')) targets.push(path.join(p, f))
+  } else targets.push(p)
+}
+if (!targets.length) { console.error('Nichts zu tun. Aufruf: node scripts/md2pdf.js <datei.md|ordner>'); process.exit(1) }
+
+for (const t of targets) {
+  const pdf = convert(t)
+  console.log(`  · ${path.basename(pdf)}  (${(fs.statSync(pdf).size / 1024).toFixed(0)} kB)`)
+}
+console.log(`\n${targets.length} PDF${targets.length === 1 ? '' : 's'} erzeugt.`)

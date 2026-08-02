@@ -7,7 +7,7 @@ const { createClient, pool } = require('../_lib/store')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { audit } = require('../_lib/audit')
-const { purgeDueAt, isPurgeDue, daysUntilDue, retentionDaysFor } = require('../_lib/retention')
+const { purgeDueAt, isPurgeDue, isPurgeSoon, daysUntilDue, retentionDaysFor, WARN_DAYS } = require('../_lib/retention')
 const { isValidCategory, DEFAULT_CATEGORY, isAnamnesisCategory, isEnduserCategory } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
@@ -580,6 +580,8 @@ module.exports = async function handler(req, res) {
         m.text_style  = m.text_style  || defaultTextStyle(m.product_category)
         m.purge_due_at    = purgeDueAt(m)
         m.purge_due       = isPurgeDue(m, nowMs)
+        m.purge_soon      = isPurgeSoon(m, nowMs)
+        m.purge_warn_days = WARN_DAYS
         m.purge_due_days  = daysUntilDue(m, nowMs)
         m.retention_days  = retentionDaysFor(m)
       }

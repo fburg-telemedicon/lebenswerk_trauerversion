@@ -5,9 +5,9 @@ Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
 Verantwortlicher: **Lebenswerk.AI GmbH**, Seegebiet Mansfelder Land (GF Prof. Dr. med. Tobias D. Gantner).
 
 Baut auf den bestehenden Dokumenten auf und wiederholt deren Inhalte nicht:
-- `VERFAHRENSVERZEICHNIS.md` — Verarbeitungstätigkeiten (Art. 30), Datenkategorien, Datenfluss, Empfänger, Löschfristen.
-- `SICHERHEIT.md` — technische und organisatorische Maßnahmen (Art. 32).
-- `BETRIEB-DSGVO.md` — Data-Breach-Prozess (Art. 33/34), laufende Reviews.
+- „Verzeichnis der Verarbeitungstaetigkeiten" — Verarbeitungstätigkeiten (Art. 30), Datenkategorien, Datenfluss, Empfänger, Löschfristen.
+- „Sicherheitskonzept (TOM)" — technische und organisatorische Maßnahmen (Art. 32).
+- „Betriebs-Runbook Datenschutz" — Data-Breach-Prozess (Art. 33/34), laufende Reviews.
 
 ---
 
@@ -31,7 +31,7 @@ Auslöser erfüllt (es genügt regelmäßig die Erfüllung von zwei Kriterien de
 
 ## 2. Systematische Beschreibung der Verarbeitung (Art. 35 Abs. 7 lit. a)
 
-Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
+Vollständig in „Verzeichnis der Verarbeitungstaetigkeiten" (Abschnitte 2, 3, 7). Kurzfassung:
 
 - **Zweck:** Erstellung eines individuellen Erinnerungs-/Gedenkwerks (Buch/Rede) aus
   Beiträgen mehrerer Personen; acht Produktkategorien.
@@ -94,11 +94,11 @@ Intervenierbarkeit, Transparenz.
 | R3 | **Fehlerhafte/unangemessene KI-Ausgaben** im Werk (falsche, bloßstellende, sensible Inhalte) | mittel | mittel | mittel | KI-gestützte Inhalts-/Datenschutzprüfung (`runContentReview`); **menschliche Endfreigabe** vor Auslieferung; Korrekturmöglichkeit | **gering–mittel** |
 | R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; US-Fallbacks (Anthropic/OpenAI) am 2026-06-22 aus dem Code entfernt; AVVs mit EU-Verarbeitung | **gering** |
 | R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (Frist, Standard 90 Tage) + Housekeeping; manuelle Voll-Löschung; Tombstones | **gering** |
-| R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | **Datenminimierung im Interview-Prompt** (KI fragt Dritt-Daten nicht aktiv ab; `categories.js`, `THIRD_PARTY_RULE`); **KI-Inhaltsprüfung** Kategorie „Personenbezogene Daten Dritter" (`review.js`) + **menschliche Endfreigabe**; Löschung auf Anfrage; Fristlöschung | **gering–mittel** |
+| R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | **Datenminimierung im Interview-Prompt** (KI fragt Dritt-Daten nicht aktiv ab; , `THIRD_PARTY_RULE`); **KI-Inhaltsprüfung** Kategorie „Personenbezogene Daten Dritter" + **menschliche Endfreigabe**; Löschung auf Anfrage; Fristlöschung | **gering–mittel** |
 | R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups (Supabase/Vercel); regelmäßige Restore-Stichprobe (Runbook) | **gering** |
 | R8 | **Kompromittierung Admin-Konto** | hoch | gering | mittel | scrypt-Hash + Salt; Passwortrichtlinie; HMAC-Token mit Ablauf; Audit-Log; Login-Rate-Limit; pro-Nutzer-Kategorien | **gering** |
 | R9 | **Re-Identifikation über Stimme (Biometrie)** | mittel | gering | gering | Stimme wird **nur transkribiert**, nicht zur Identifizierung genutzt → keine biometrische Verarbeitung i. S. v. Art. 9 | **gering** |
-| R10 | **Live-Sprachgespräch: Verarbeitung außerhalb der EU** (durchgehender Audiostrom an Azure Voice Live) | hoch | gering | mittel | Eigene Ressource in **Sweden Central** (einzige Voice-Live-Region in der EU); **Cascaded**-Betrieb mit `gpt-4.1`, das dort als Deployment-Typ **Standard** = in-Region läuft (Microsoft-Doku, geprüft 2026-08-02) — die global verarbeiteten Speech-to-Speech-Modelle (`gpt-realtime`, `gpt-5*`) sind bewusst NICHT im Einsatz; **technische Allowlist** in `api/_lib/voicelive.js` schaltet den Dienst ab, wenn ein nicht-EU-Modell konfiguriert wird; **Server-Relay** statt des von Microsoft für Browser empfohlenen WebRTC-Pfads (dieser nutzt „global standard" und routet zur nächstgelegenen Region); Voice Live speichert selbst nichts | **gering** |
+| R10 | **Live-Sprachgespräch: Verarbeitung außerhalb der EU** (durchgehender Audiostrom an Azure Voice Live) | hoch | gering | mittel | Eigene Ressource in **Sweden Central** (einzige Voice-Live-Region in der EU); **Cascaded**-Betrieb mit `gpt-4.1`, das dort als Deployment-Typ **Standard** = in-Region läuft (Microsoft-Doku, geprüft 2026-08-02) — die global verarbeiteten Speech-to-Speech-Modelle (`gpt-realtime`, `gpt-5*`) sind bewusst NICHT im Einsatz; **technische Allowlist** in der Anwendung schaltet den Dienst ab, wenn ein nicht-EU-Modell konfiguriert wird; **Server-Relay** statt des von Microsoft für Browser empfohlenen WebRTC-Pfads (dieser nutzt „global standard" und routet zur nächstgelegenen Region); Voice Live speichert selbst nichts | **gering** |
 | R11 | **Live-Sprachgespräch: unbeabsichtigte Aufnahme Dritter** (offenes Mikrofon nimmt Umstehende oder Hintergrundgespräche mit auf) | mittel | mittel | mittel | Modus ist **nie Voreinstellung** und wird nur auf ausdrückliche Auswahl der erzählenden Person aktiv (Voreinstellung bleibt die Mischform mit Beenden per Knopfdruck); Verbindung nur auf ausdrückliche Handlung, jederzeit beendbar; es entsteht **kein Audio-Mitschnitt** — gespeichert wird ausschließlich das Transkript in derselben Struktur wie im Mikrofon-Modus; `THIRD_PARTY_RULE` und Inhaltsprüfung greifen unverändert; Sitzungsgrenze 120 Min. | **gering–mittel** |
 
 ---
@@ -106,7 +106,7 @@ Intervenierbarkeit, Transparenz.
 ## 5. Abhilfemaßnahmen und Garantien (Art. 35 Abs. 7 lit. d)
 
 Die in Spalte „Maßnahmen" genannten Garantien sind **bereits umgesetzt** (Phasen 1–5 der
-DSGVO-Roadmap) und in `SICHERHEIT.md` (Art. 32) sowie `BETRIEB-DSGVO.md` (Art. 33/34)
+DSGVO-Roadmap) und in „Sicherheitskonzept (TOM)" (Art. 32) sowie „Betriebs-Runbook Datenschutz" (Art. 33/34)
 dokumentiert. Schwerpunkte:
 
 - **Datenresidenz EU:** alle KI-/Speicher-Bausteine in der EU, keine US-Pfade mehr.
@@ -122,9 +122,8 @@ dokumentiert. Schwerpunkte:
 
 - **R6 (Daten Dritter):** Beitragende können lebende Hinterbliebene namentlich/mit
   Anschrift erwähnen, ohne dass diese selbst eingewilligt haben.
-  **Technische Maßnahmen umgesetzt (2026-06-22):** Datenminimierung im Interview-Prompt
-  (`categories.js`, `THIRD_PARTY_RULE` — KI fragt Dritt-Daten nicht aktiv ab) **und**
-  KI-Inhaltsprüfung mit eigener Kategorie „Personenbezogene Daten Dritter" (`review.js`)
+  **Technische Maßnahmen umgesetzt (2026-06-22):** Datenminimierung im Interview-Prompt (`THIRD_PARTY_RULE` — KI fragt Dritt-Daten nicht aktiv ab) **und**
+  KI-Inhaltsprüfung mit eigener Kategorie „Personenbezogene Daten Dritter"
   mit anschließender **menschlicher Endfreigabe** → Restrisiko auf **gering–mittel** gesenkt.
   **Noch offen (DSB/Jurist:in):** Rechtsgrundlage für die dennoch genannten Dritt-Daten
   bestätigen (z. B. berechtigtes Interesse Art. 6 Abs. 1 lit. f).
@@ -183,4 +182,4 @@ erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
 
 **Überprüfung:** mindestens **jährlich** sowie bei wesentlichen Änderungen
 (neue Modelle/Anbieter, neue Datenarten, neue Produktkategorien) — bereits in
-`BETRIEB-DSGVO.md` (Abschnitt 2, „Jährlich") verankert.
+„Betriebs-Runbook Datenschutz" (Abschnitt 2, „Jährlich") verankert.

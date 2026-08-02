@@ -6,7 +6,7 @@
 > entsprechen dem tatsächlichen Stand der Anwendung (geprüft gegen den Quellcode).
 > Die **rechtliche** Formulierung muss vor der ersten Unterzeichnung von einer
 > Anwältin bzw. einem Anwalt oder der/dem Datenschutzbeauftragten freigegeben werden.
-> Ergänzend: `VERFAHRENSVERZEICHNIS.md`, `DSFA.md`, `SICHERHEIT.md`.
+> Ergänzend: „Verzeichnis der Verarbeitungstaetigkeiten", „Datenschutz-Folgenabschaetzung", „Sicherheitskonzept (TOM)".
 
 ---
 
@@ -210,8 +210,8 @@ angemessener Frist, durch Kontrolle vor Ort während der Geschäftszeiten und oh
 Störung des Betriebsablaufs.
 
 **(2)** Die Auftragnehmerin weist die Einhaltung vorrangig durch aktuelle Unterlagen
-nach: dieses Dokument samt Anlagen, `SICHERHEIT.md`, `VERFAHRENSVERZEICHNIS.md`,
-`DSFA.md` sowie die Zertifikate und Prüfberichte ihrer Unterauftragnehmer (ISO 27001,
+nach: dieses Dokument samt Anlagen, „Sicherheitskonzept (TOM)", „Verzeichnis der Verarbeitungstaetigkeiten",
+„Datenschutz-Folgenabschaetzung" sowie die Zertifikate und Prüfberichte ihrer Unterauftragnehmer (ISO 27001,
 SOC 2 der Microsoft-Rechenzentren).
 
 **(3)** Für Kontrollen, die über eine jährliche hinausgehen und nicht durch einen
@@ -268,14 +268,15 @@ Datenschutz betrifft.
     Ort, Datum: ____________________        Ort, Datum: ____________________
 
     ______________________________          ______________________________
-    Dr. Christoph Wagner                  Prof. Dr. med. Tobias D. Gantner
-    valuvita GmbH                 Lebenswerk.AI GmbH
+    Dr. Christoph Wagner
+    valuvita GmbH                          Prof. Dr. med. Tobias D. Gantner
+                                            Lebenswerk.AI GmbH
 
 ---
 
 # Anlage 1 — Technische und organisatorische Maßnahmen (Art. 32 DSGVO)
 
-Ausführlich in `SICHERHEIT.md`. Kurzfassung:
+Ausführlich in „Sicherheitskonzept (TOM)". Kurzfassung:
 
 **Vertraulichkeit**
 - Zutritt: keine eigenen Server; Betrieb ausschließlich in Microsoft-Azure-Rechen-
@@ -299,8 +300,8 @@ Ausführlich in `SICHERHEIT.md`. Kurzfassung:
   Container-Betrieb mit automatischem Neustart; Geheimnisse nur serverseitig.
 
 **Verfahren zur Überprüfung**
-- Jährliche Prüfung dieses Dokuments und der Dienstleisterlage (`BETRIEB-DSGVO.md`);
-  Datenschutz-Folgenabschätzung in `DSFA.md`.
+- Jährliche Prüfung dieses Dokuments und der Dienstleisterlage („Betriebs-Runbook Datenschutz");
+  Datenschutz-Folgenabschätzung in „Datenschutz-Folgenabschaetzung".
 
 **Datenminimierung als Voreinstellung**
 - Rohdaten werden automatisch nach Frist gelöscht; Bilder und Uploads eines Projekts

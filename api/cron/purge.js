@@ -2,11 +2,16 @@
 // Automatische Löschung nach Aufbewahrungsfrist (DSGVO Art. 5 Abs. 1 e / Art. 17).
 // Wird von einem Vercel Cron Job täglich aufgerufen (siehe vercel.json).
 //
-// SEIT 2026-08-02 zwei Regime (siehe api/_lib/retention.js):
-//   Anamnese  → nach 14 Tagen weiterhin AUTOMATISCHE Vollloeschung (medizinische Daten).
-//   Alle uebrigen → KEINE automatische Loeschung mehr. Der Cron stellt nur noch
-//     fest, welche Buecher faellig sind; das Dashboard weist darauf hin und der
-//     Manager raeumt selbst auf (api/admin/purge-memorial.js).
+// ZWEI REGIME (siehe api/_lib/retention.js):
+//   Anamnese      → nach 14 Tagen VOLLSTAENDIGE Loeschung (medizinische Daten).
+//   Alle uebrigen → nach RETENTION_DAYS (90) werden die EINGANGSDATEN geloescht
+//     (Beitraege, Roh-Uploads, Protokolle); Buch, Rede und die uebrigen Endprodukte
+//     bleiben. Das entspricht der vertraglichen Zusage an die Kunden.
+//
+// Am 2026-08-02 war die automatische Loeschung kurzzeitig durch Hinweis + Knopf
+// ersetzt und am selben Tag zurueckgebaut: Die AGB sagen den Kunden eine Loeschung
+// nach Frist zu, das darf nicht davon abhaengen, ob jemand klickt. Der Knopf im
+// Dashboard bleibt zusaetzlich bestehen (frueher loeschen), ebenso das Archiv.
 //
 // Loesch-Stichtag: funeral_date + Frist, ersatzweise created_at + Frist.
 //
@@ -17,7 +22,7 @@
 // Test ohne zu löschen:  GET /api/cron/purge?dry=1  (mit Bearer-Secret)
 
 const { createClient } = require('../_lib/store')
-const { deleteMemorialCompletely } = require('../_lib/delete-memorial')
+const { purgeMemorialContributions, deleteMemorialCompletely } = require('../_lib/delete-memorial')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 const { isAnamnesisCategory } = require('../_lib/categories')
 
@@ -44,10 +49,6 @@ module.exports = async function handler(req, res) {
     // Fällig = Frist abgelaufen UND noch nicht bereinigt (purge_info.purged_at).
     // Frist je Kategorie: Anamnese 14 Tage, sonst RETENTION_DAYS (Standard 90).
     const due = (rows || []).filter(m => isPurgeDue(m, now))
-    // Nur die Anamnese wird noch automatisch geloescht. Fuer alle uebrigen ist
-    // 'due' ab jetzt eine reine MELDUNG an das Dashboard und den Tagesreport.
-    const autoDelete = due.filter(m => isAnamnesisCategory(m.product_category))
-    const awaitingManager = due.filter(m => !isAnamnesisCategory(m.product_category))
 
     if (dryRun) {
       return res.json({
@@ -55,13 +56,12 @@ module.exports = async function handler(req, res) {
         retention_days: RETENTION_DAYS,
         anamnesis_retention_days: ANAMNESIS_RETENTION_DAYS,
         checked: rows?.length || 0,
-        auto_delete: autoDelete.map(m => ({ code: m.id, name: m.name, product_category: m.product_category })),
-        awaiting_manager: awaitingManager.map(m => ({ code: m.id, name: m.name, product_category: m.product_category, retention_days: retentionDaysFor(m), funeral_date: m.funeral_date, created_at: m.created_at })),
+        due: due.map(m => ({ code: m.id, name: m.name, product_category: m.product_category, retention_days: retentionDaysFor(m) })),
       })
     }
 
     const results = []
-    for (const m of autoDelete) {
+    for (const m of due) {
       try {
         const days = retentionDaysFor(m)
         if (isAnamnesisCategory(m.product_category)) {
@@ -70,6 +70,13 @@ module.exports = async function handler(req, res) {
           // vollständig (Storage, cost_events, Beiträge, memorial-Zeile, Endnutzer-Konto).
           const warnings = await deleteMemorialCompletely(supabase, m.id)
           results.push({ code: m.id, ok: true, retention_days: days, deleted: 'complete', warnings })
+        } else {
+          // Übrige Kategorien: Eingangsdaten (Beiträge, Roh-Uploads, Protokolle) weg,
+          // das fertige Werk bleibt. Genau das, was der Kunde vertraglich zugesagt
+          // bekommt — deshalb läuft es automatisch und nicht auf Knopfdruck.
+          const reason = `Automatische Löschung nach Aufbewahrungsfrist (${days} Tage)`
+          const { count } = await purgeMemorialContributions(supabase, m.id, reason)
+          results.push({ code: m.id, ok: true, retention_days: days, contributions_deleted: count })
         }
       } catch (e) {
         results.push({ code: m.id, ok: false, error: e.message })
@@ -81,9 +88,6 @@ module.exports = async function handler(req, res) {
     // Heartbeat für den Systemstatus im Tagesreport (nur echte Läufe, kein Dry-Run).
     await recordHeartbeat(supabase, 'purge', results.some(r => !r.ok) ? 'partial' : 'ok', {
       checked: rows?.length || 0, due: due.length, purged: purgedOk,
-      // Faellig, aber bewusst NICHT geloescht: wartet auf den Manager. Geht so in
-      // den Tagesreport und darf dort nicht untergehen.
-      awaiting_manager: awaitingManager.length,
     })
 
     // Best-effort Haushaltspflege (darf den Purge nie scheitern lassen):
@@ -109,7 +113,6 @@ module.exports = async function handler(req, res) {
       checked: rows?.length || 0,
       purged: results.length,
       results,
-      awaiting_manager: awaitingManager.map(m => ({ code: m.id, name: m.name, product_category: m.product_category })),
       housekeeping,
     })
   } catch (e) {

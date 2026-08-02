@@ -15,15 +15,17 @@
 //   Manager stößt das Aufräumen selbst an (Eingangsdaten weg, Endprodukt
 //   bleibt). Umgestellt am 2026-08-02 auf Wunsch des Betreibers.
 //
-// ACHTUNG, bewusste Abwägung: Ohne automatische Löschung bleiben Beiträge
-// Dritter liegen, bis jemand den Knopf drückt. Das ist datenschutzrechtlich
-// schwächer als vorher — der Hinweis im Dashboard ist damit keine Bequemlichkeit,
-// sondern die tragende Maßnahme. Er darf nicht wieder verschwinden.
-//
-// Eine zweite, längere Frist als Rückfalllösung (nach der doch automatisch
-// gelöscht wird, falls niemand klickt) wurde am 2026-08-02 vorgeschlagen und vom
-// Betreiber ausdrücklich ABGELEHNT. Bitte nicht erneut einbauen, ohne das mit ihm
-// zu klären — die Entscheidung ist getroffen, nicht übersehen.
+// HISTORIE, damit niemand im Kreis läuft: Am 2026-08-02 war die automatische
+// Löschung vorübergehend durch „Hinweis + Knopf" ersetzt und am selben Tag wieder
+// zurückgebaut. Grund für den Rückbau: Den Kunden ist in den AGB eine Löschung
+// nach Frist ZUGESAGT. Eine Zusage, die davon abhängt, ob jemand im Dashboard
+// klickt, ist keine. Der Knopf bleibt zusätzlich bestehen (früher löschen), das
+// Archiv ebenfalls — nur ersetzen sie die automatische Löschung nicht mehr.
+
+// Wie viele Tage vor der Löschung das Dashboard warnt. Sieben Tage sind genug,
+// um ein Buch noch fertigzustellen oder die Daten zu exportieren, und kurz genug,
+// dass die Warnung nicht monatelang danebensteht und ignoriert wird.
+const WARN_DAYS = 7
 
 const { isAnamnesisCategory } = require('./categories')
 
@@ -63,7 +65,15 @@ function daysUntilDue(m, now = Date.now()) {
   return Math.ceil((new Date(due).getTime() - now) / DAY_MS)
 }
 
+// Steht die Löschung unmittelbar bevor? Für die Vorwarnung im Dashboard.
+// Bereits bereinigte Bücher sind nie „bald fällig".
+function isPurgeSoon(m, now = Date.now()) {
+  if (m?.purge_info?.purged_at) return false
+  const d = daysUntilDue(m, now)
+  return d !== null && d >= 0 && d <= WARN_DAYS
+}
+
 module.exports = {
-  DAY_MS, RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS,
-  retentionDaysFor, retentionAnchor, purgeDueAt, isPurgeDue, daysUntilDue,
+  DAY_MS, RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS, WARN_DAYS,
+  retentionDaysFor, retentionAnchor, purgeDueAt, isPurgeDue, isPurgeSoon, daysUntilDue,
 }
