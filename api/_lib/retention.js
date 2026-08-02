@@ -19,6 +19,11 @@
 // Dritter liegen, bis jemand den Knopf drückt. Das ist datenschutzrechtlich
 // schwächer als vorher — der Hinweis im Dashboard ist damit keine Bequemlichkeit,
 // sondern die tragende Maßnahme. Er darf nicht wieder verschwinden.
+//
+// Eine zweite, längere Frist als Rückfalllösung (nach der doch automatisch
+// gelöscht wird, falls niemand klickt) wurde am 2026-08-02 vorgeschlagen und vom
+// Betreiber ausdrücklich ABGELEHNT. Bitte nicht erneut einbauen, ohne das mit ihm
+// zu klären — die Entscheidung ist getroffen, nicht übersehen.
 
 const { isAnamnesisCategory } = require('./categories')
 
