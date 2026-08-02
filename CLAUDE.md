@@ -52,7 +52,7 @@ A `view` string state machine drives everything; there is no router. The UI is s
 - `src/adminViews.jsx` — the admin views (list, create, detail, users, costs…) as ~17 exported components.
 - `src/categories.js` — single source for everything category-specific (labels, contributor wording, **all KI prompt builders**).
 - `src/api.js` — thin fetch client. Keeps a module-level `currentAudio` so `stopSpeaking()` always cancels previous TTS playback.
-- `src/bookExport.js`, `src/coverExport.js`, `src/bookLayouts.js`, `src/lifeworkExtras.js` — PDF/DOCX/e-book/cover rendering and the two graphical side products (family tree, life poster) via `jspdf` / `docx` in the browser.
+- `src/bookExport.js`, `src/coverExport.js`, `src/bookLayouts.js`, `src/lifeworkExtras.js`, `src/careDirective.js` — PDF/DOCX/e-book/cover rendering and the three lifework side products (family tree, life poster, care directive / *Betreuungsverfügung*) via `jspdf` / `docx` in the browser. All three follow the same shape: an LLM prompt builder returning structured JSON (stored on the memorial row) plus a deterministic renderer that draws the PDF from it. The care directive is a German legal form — it deliberately leaves the preferred guardian blank (§ 1816 Abs. 2 BGB binds the court to that choice), excludes treatment decisions (that is a *Patientenverfügung*), and uses `selfOnly()` sources only.
 - `src/i18n.js`, `src/i18nLangs.js`, `src/adminI18n.jsx`, `src/proofI18n.js` — contributor-flow UI strings and language directives.
 
 Two top-level flows are selected at boot:
@@ -128,7 +128,7 @@ Azure Database for PostgreSQL Flexible Server (PG 16).
 - **No Row Level Security.** Azure Postgres is not exposed through a public PostgREST-style API; only the backend connects, with a dedicated DB user. The old "RLS as a firewall" layer was dropped deliberately, not forgotten — do not re-add RLS expecting it to matter.
 - `gen_random_uuid()` comes from PG core; `pgcrypto` is deliberately avoided (would need the `azure.extensions` allowlist).
 
-Main tables: `memorials`, `contributions`, `app_users`, `cost_events`, `generation_jobs`, plus catalogs/feedback/reports tables. `memorials` carries the per-book configuration (`product_category`, `owner_user`, `intake`, `languages`, `book_v1`/`book_v2` jsonb, `eulogy_text`, `uploaded_images`, `family_tree`, `life_poster`, `image_style`, `book_layout`, `text_style`, `companion_mode`, `proof_enabled`/`proof_max`/`proof_used`, `interview_closed`, `book_finalized`, …). `SELECT_COLS` in `api/admin/memorials.js` is a practical inventory of the current column set.
+Main tables: `memorials`, `contributions`, `app_users`, `cost_events`, `generation_jobs`, plus catalogs/feedback/reports tables. `memorials` carries the per-book configuration (`product_category`, `owner_user`, `intake`, `languages`, `book_v1`/`book_v2` jsonb, `eulogy_text`, `uploaded_images`, `family_tree`, `life_poster`, `care_directive`, `image_style`, `book_layout`, `text_style`, `companion_mode`, `proof_enabled`/`proof_max`/`proof_used`, `interview_closed`, `book_finalized`, …). `SELECT_COLS` in `api/admin/memorials.js` is a practical inventory of the current column set.
 
 **Adding a memorial column** follows a well-worn pattern, copy it: column in `db/schema.sql` → `SELECT_COLS` + insert/update mapping in `api/admin/memorials.js` (including its defensive "column does not exist" fallback) → draft field in `App.jsx` → control in `adminViews.jsx`. `companion_mode` and `proof_enabled` are the cleanest examples.
 

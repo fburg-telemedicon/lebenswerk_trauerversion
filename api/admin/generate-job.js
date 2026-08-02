@@ -12,9 +12,9 @@ const { checkAuth } = require('../_lib/auth')
 const { enforceBudget } = require('../_lib/cost')
 const genjobs = require('../_lib/genjobs')
 
-// 'tree' = Stammbaum, 'poster' = Lebensposter (Lebenswerk-Nebenprodukte; laufen
-// seit dem Umbau ebenfalls serverseitig als Job).
-const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster'])
+// 'tree' = Stammbaum, 'poster' = Lebensposter, 'care' = Betreuungsverfügung
+// (Lebenswerk-Nebenprodukte; laufen seit dem Umbau ebenfalls serverseitig als Job).
+const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care'])
 
 // Prüft Zugriff auf das Buchprojekt (Admin = alles; sonst eigenes Buch der
 // erlaubten Kategorien). Rückgabe: memorial-Row (id) oder null.

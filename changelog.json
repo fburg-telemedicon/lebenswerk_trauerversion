@@ -2,6 +2,17 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-02",
+      "items": [
+        "Neues Nebenprodukt des Lebenswerks: die Betreuungsverfügung. Die KI liest aus der Lebensgeschichte das Wertesystem heraus — woran der Mensch sein Leben ausrichtet, wie er entscheidet, was ihm Würde bedeutet — und leitet daraus einen ausfüllfertigen Formular-Entwurf ab (A4, mit Ankreuzfeldern und Unterschriftszeile). Gegliedert nach den vier rechtlichen Aufgabenbereichen: Gesundheitssorge, Vermögenssorge, Wohnungsangelegenheiten, Aufenthaltsbestimmung. Erzeugt und geladen wird sie wie Stammbaum und Lebensposter über die Detailseite.",
+        "Die Betreuungsverfügung nennt bewusst KEINE Wunschperson. Nach § 1816 Abs. 2 BGB bindet dieser Vorschlag das Betreuungsgericht — eine solche Bindung darf nicht aus einer KI-Schlussfolgerung entstehen. Das Feld bleibt leer; im Interview genannte Vertrauenspersonen erscheinen nur als Gedächtnisstütze mit Belegstelle.",
+        "Ebenfalls bewusst ausgeschlossen: Behandlungsentscheidungen. Bei der Gesundheitssorge steht nur, WIE und mit wem entschieden werden soll — welche Behandlung erfolgen oder unterbleiben soll, gehört in eine Patientenverfügung und lässt sich aus einer Lebensgeschichte nicht ableiten.",
+        "In die Betreuungsverfügung fließt ausschließlich die Selbstauskunft ein, keine Gastbeiträge. Was die Tochter über ihre Mutter erzählt, darf nicht zum erklärten Willen der Mutter werden.",
+        "Das PDF hat zwei Teile: das Dokument zum Unterschreiben und eine abtrennbare Arbeitshilfe. Dort steht zu jedem Vorschlag die wörtliche Interview-Stelle, aus der er stammt, dazu die Lücken je Aufgabenbereich und eine Liste dessen, was vor der Unterschrift noch zu klären ist (Wunschperson fragen, Eintrag im Zentralen Vorsorgeregister, Verhältnis zu Vorsorgevollmacht und Patientenverfügung).",
+        "In der Kostenübersicht heißen die Nebenprodukte jetzt beim Namen: „Stammbaum – Generierung\", „Lebensposter – Generierung\", „Betreuungsverfügung – Generierung\" statt der internen Kürzel."
+      ]
+    },
+    {
       "date": "2026-08-01",
       "items": [
         "Druckfertige Buecher lassen sich wieder auf dem Server ablegen. Bei sehr umfangreichen Buechern mit vielen Bildern (ab etwa 50 MB) schlug die Ablage bisher stillschweigend fehl, weil die Datei auf dem Weg zum Server aufgeblaeht wurde. Sie wird jetzt unveraendert uebertragen; die Grenze liegt bei 200 MB.",

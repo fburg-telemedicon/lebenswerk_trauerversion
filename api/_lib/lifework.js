@@ -186,12 +186,14 @@ async function ensureLifeworkSchema() {
   // jetzt 10-stelligen Codes (Kürzung → gebrochener Link, verwaiste Konten). Idempotent
   // auf 16 verbreitern (No-op, falls bereits breit; binärkompatibel, kein Rewrite).
   await pool().query(`alter table app_users alter column enduser_memorial type varchar(16)`).catch(() => {})
-  // Die beiden grafischen Nebenprodukte des Lebenswerks werden als extrahiertes
-  // JSON am Buch gespeichert (gezeichnet wird daraus im Browser).
+  // Die Nebenprodukte des Lebenswerks werden als extrahiertes JSON am Buch
+  // gespeichert (gezeichnet wird daraus im Browser): Stammbaum, Lebensposter und
+  // die Betreuungsverfügung (aus dem Wertesystem abgeleiteter Formular-Entwurf).
   await pool().query(`
     alter table memorials
       add column if not exists family_tree jsonb,
       add column if not exists life_poster jsonb,
+      add column if not exists care_directive jsonb,
       add column if not exists text_style  text,
       add column if not exists stored_pdfs jsonb,
       add column if not exists interview_timer_seconds integer,

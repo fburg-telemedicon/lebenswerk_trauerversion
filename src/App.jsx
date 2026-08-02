@@ -62,10 +62,35 @@ import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } 
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeDataUrl, formatCode, stripCode } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
+import { careDirectiveSystem, downloadCareDirectivePdf } from './careDirective.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
 import { formatEur, costKindLabel, parsePriceCents } from './shared.js'
+
+// ── Nebenprodukte des Lebenswerks ─────────────────────────────────
+// Drei Erzeugnisse neben der Autobiographie und dem Pflegeexzerpt. Alle folgen
+// demselben Ablauf (KI → JSON am Buch → PDF im Browser) und unterscheiden sich
+// nur in Prompt, Zielspalte und Beschriftung — deshalb hier EINE Tabelle statt
+// drei Sonderfälle in generateExtra()/downloadExtra(). Der Schlüssel ist zugleich
+// die `kind` des Generierungsjobs (siehe ALLOWED_KINDS in generate-job.js).
+const LIFEWORK_EXTRAS = {
+  tree: {
+    field: 'family_tree', filename: 'Stammbaum', article: 'Der Stammbaum',
+    firstStep: 'Familie wird gelesen', missing: 'Es gibt noch keinen Stammbaum.',
+    system: treeSystem,
+  },
+  poster: {
+    field: 'life_poster', filename: 'Lebensposter', article: 'Das Lebensposter',
+    firstStep: 'Lebensstationen werden gesammelt', missing: 'Es gibt noch kein Lebensposter.',
+    system: posterSystem,
+  },
+  care: {
+    field: 'care_directive', filename: 'Betreuungsverfuegung', article: 'Die Betreuungsverfügung',
+    firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Betreuungsverfügung.',
+    system: careDirectiveSystem,
+  },
+}
 
 // ── URL params ────────────────────────────────────────────────────
 const urlParams     = new URLSearchParams(window.location.search)
@@ -2643,10 +2668,10 @@ Regeln:
     if (m) generate(m.key, m.extraArg, { lang: code, skipConfirm: m.extraArg !== undefined })
   }
 
-  // ── Lebenswerk-Nebenprodukte: Stammbaum + Lebensposter ──
-  // Ablauf für beide: Die KI liest das Interview und liefert STRUKTURIERTES JSON,
-  // das am Buch gespeichert wird; gezeichnet (und als PDF geladen) wird daraus im
-  // Browser (src/lifeworkExtras.js).
+  // ── Lebenswerk-Nebenprodukte: Stammbaum + Lebensposter + Betreuungsverfügung ──
+  // Ablauf für alle drei: Die KI liest das Interview und liefert STRUKTURIERTES
+  // JSON, das am Buch gespeichert wird; gezeichnet (und als PDF geladen) wird
+  // daraus im Browser (src/lifeworkExtras.js bzw. src/careDirective.js).
   //
   // Beim POSTER kommt die Bildarbeit dazu: Zu jeder Lebensstation entsteht eine
   // freigestellte Vignette (FLUX im Modus 'vignette', im gewählten Poster-Stil).
@@ -2666,27 +2691,30 @@ Regeln:
 
   async function generateExtra(kind, posterStyles = POSTER_STYLES.map(s => s.key)) {
     if (!selected) return
-    const isTree = kind === 'tree'
-    const field = isTree ? 'family_tree' : 'life_poster'
+    const ex = LIFEWORK_EXTRAS[kind]
+    if (!ex) return
+    const field = ex.field
     if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
-    if (selected[field] && !window.confirm(`${isTree ? 'Der Stammbaum' : 'Das Lebensposter'} wird neu erzeugt und ersetzt die bisherige Fassung. Fortfahren?`)) return
+    if (selected[field] && !window.confirm(`${ex.article} wird neu erzeugt und ersetzt die bisherige Fassung. Fortfahren?`)) return
 
     setErr('')
     setGenErr(p => ({ ...p, [kind]: '' }))
     setGenOwner(o => ({ ...o, [kind]: selected.id }))
     setGenerating(g => ({ ...g, [kind]: true }))
-    setGenProgress(p => ({ ...p, [kind]: isTree ? 'Familie wird gelesen …' : 'Lebensstationen werden gesammelt …' }))
+    setGenProgress(p => ({ ...p, [kind]: `${ex.firstStep} …` }))
     setGenPct(p => ({ ...p, [kind]: 0 }))
     cancelGenRef.current[kind] = false
     try {
-      const params = isTree
-        ? { resultType: 'json', field, kind: 'family_tree', memorialCode: selected.id, label: 'Familie wird gelesen',
-            system: treeSystem(selected, bookContribs), user: 'Gib jetzt das JSON aus.' }
+      const params = kind === 'poster'
         // Poster: EIN Satz Inhalte, daraus je gewähltem Stil ein Blatt. Der Worker
         // zeichnet die Szenen einzeln; die Detailansicht zeigt die Blätter nebeneinander.
-        : { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id,
+        ? { resultType: 'poster', field, kind: 'life_poster', memorialCode: selected.id,
             posterStyles,
             system: posterSystem(selected, bookContribs), user: 'Gib jetzt das JSON aus.' }
+        // Stammbaum und Betreuungsverfügung: ein einzelner KI-Aufruf, Ergebnis ist
+        // das JSON, aus dem der Browser sein PDF zeichnet.
+        : { resultType: 'json', field, kind: field, memorialCode: selected.id, label: ex.firstStep,
+            system: ex.system(selected, bookContribs), user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId
       await pollGeneration(kind, jobId)
@@ -2711,13 +2739,15 @@ Regeln:
   // Dauert trotzdem spürbar: Beim Poster werden bis zu 20 Vignetten geladen und
   // ein mehrere MB großes PDF gezeichnet. Deshalb ein eigener Busy-Zustand.
   async function downloadExtra(kind, mem = selected, styleKey = null) {
-    const isTree = kind === 'tree'
-    const data = isTree ? mem?.family_tree : mem?.life_poster
-    if (!data) { setErr(isTree ? 'Es gibt noch keinen Stammbaum.' : 'Es gibt noch kein Lebensposter.'); return }
-    const base = `${isTree ? 'Stammbaum' : 'Lebensposter'}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
+    const ex = LIFEWORK_EXTRAS[kind]
+    if (!ex) return
+    const data = mem?.[ex.field]
+    if (!data) { setErr(ex.missing); return }
+    const base = `${ex.filename}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
     setExtraDl(styleKey ? `poster:${styleKey}` : kind); setErr('')
     try {
-      if (isTree) downloadTreePdf(`${base}.pdf`, data, mem)
+      if (kind === 'tree') downloadTreePdf(`${base}.pdf`, data, mem)
+      else if (kind === 'care') downloadCareDirectivePdf(`${base}.pdf`, data, mem)
       // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.
       else if (Array.isArray(data.variants) && data.variants.length) {
         const v = data.variants.find(x => x.style === styleKey) || data.variants[0]

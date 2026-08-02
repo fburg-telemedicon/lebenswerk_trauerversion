@@ -3115,7 +3115,12 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   sub:t('KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).', 'The AI reads the family from the interview; a family tree is created from it (PDF, A3 portrait).') },
                 { kind:'poster', field:'life_poster', icon:'🖼', title:t('Lebensposter', 'Life poster'),
                   sub:t('Ein illustriertes Blatt (A2 quer): Die Bild-KI malt den Lebensweg mit allen Szenen in einem Zug, die Beschriftung kommt als scharfer Vektortext darüber. Die Stile wählst du vor der Erzeugung.', 'An illustrated sheet (A2 landscape): the image AI paints the life path with all scenes in one go, the labels are added as crisp vector text on top. You choose the styles before generating.') },
-              ].map(({ kind, field, icon, title, sub }) => {
+                // Rechtsdokument, kein Erzeugnis wie die anderen beiden: Der Hinweis
+                // unter der Karte gehört zwingend dazu (Entwurf, keine Rechtsberatung).
+                { kind:'care', field:'care_directive', icon:'⚖️', title:t('Betreuungsverfügung', 'Care directive'),
+                  sub:t('Die KI liest das Wertesystem aus der Lebensgeschichte und leitet daraus einen ausfüllfertigen Formular-Entwurf ab (A4): Wunschperson, Gesundheitssorge, Vermögenssorge, Wohnungsangelegenheiten, Aufenthaltsbestimmung — samt Arbeitshilfe mit allen Belegstellen.', 'The AI reads the value system from the life story and derives a ready-to-complete form draft (A4): preferred guardian, health care, financial affairs, housing matters, place of residence — plus a worksheet with all supporting quotes.'),
+                  note:t('Entwurf, keine Rechtsberatung. Die Wunschperson bleibt bewusst ein leeres Feld — nach § 1816 Abs. 2 BGB bindet dieser Vorschlag das Betreuungsgericht, er darf nicht aus einer KI-Schlussfolgerung stammen. Es fließt nur die Selbstauskunft ein, keine Gastbeiträge. Behandlungsentscheidungen sind nicht enthalten (das wäre eine Patientenverfügung). Das Dokument richtet sich nach deutschem Recht und muss eigenhändig unterschrieben werden.', 'Draft, not legal advice. The preferred guardian is deliberately left blank — under § 1816 (2) German Civil Code this proposal binds the court, so it must not come from an AI inference. Only the person’s own account is used, no guest contributions. Treatment decisions are excluded (that would be an advance healthcare directive). The document follows German law and must be signed by hand.') },
+              ].map(({ kind, field, icon, title, sub, note }) => {
                 const has  = !!selected[field]
                 // Läuft serverseitig als Job — Fortschritt und Abbrechen wie beim Buch.
                 const busy = !!generating[kind] && genOwner[kind] === selected.id
@@ -3126,6 +3131,11 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                       <div>
                         <div style={{ fontWeight:600, marginBottom:4 }}>{icon} {title}</div>
                         <p style={{ ...S.muted, fontSize:13, margin:0 }}>{sub}</p>
+                        {note && (
+                          <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'8px 10px' }}>
+                            ⚠ {note}
+                          </p>
+                        )}
                       </div>
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>{t('✓ Erzeugt', '✓ Created')}</span>}
                     </div>

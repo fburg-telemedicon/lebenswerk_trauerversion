@@ -339,6 +339,7 @@ async function processBook(job, deadline) {
 // gab keinen Abbrechen-Knopf). Jetzt laufen sie wie Buch und Rede als Job:
 //   Stammbaum: { resultType:'json', field:'family_tree', system, user }
 //   Poster:    { resultType:'poster', field:'life_poster', system, user, posterStyle }
+//   Betreuungsverfügung: { resultType:'json', field:'care_directive', system, user }
 async function processJson(job, deadline) {
   const p = job.params || {}
   if (await canceled(job.id)) return 'canceled'

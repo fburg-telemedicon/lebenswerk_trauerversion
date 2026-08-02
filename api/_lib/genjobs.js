@@ -14,7 +14,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const LOCK_STALE_MS = 3 * 60 * 1000
 
 // In der DB speicherbare Zielfelder (Allowlist, wie beim Admin-PATCH der Bücher).
-const SAVE_FIELDS = new Set(['book_v1', 'book_v2', 'eulogy_text', 'family_tree', 'life_poster'])
+const SAVE_FIELDS = new Set(['book_v1', 'book_v2', 'eulogy_text', 'family_tree', 'life_poster', 'care_directive'])
 
 async function enqueue({ memorial_id, kind, params, owner_user }) {
   const { data, error } = await supabase.from('generation_jobs')
