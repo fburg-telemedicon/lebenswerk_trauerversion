@@ -151,7 +151,11 @@ const BLUE  = [37, 99, 235]
 const INK   = [35, 35, 35]
 const SOFT  = [110, 110, 110]
 
-export function downloadCareDirectivePdf(filename, data, memorial) {
+// Zeichnet das Formular und gibt das jsPDF-Dokument zurück, ohne es zu speichern.
+// Getrennt von downloadCareDirectivePdf(), damit dasselbe Layout auch außerhalb
+// des Browsers erzeugt werden kann (Skripte, Nachbearbeitung bestehender
+// Biographien) — dort gibt es kein doc.save().
+export function buildCareDirectiveDoc(data, memorial) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const PW = 210, PH = 297, M = 20, FOOT = 15
   const maxW = PW - 2 * M
@@ -518,5 +522,9 @@ export function downloadCareDirectivePdf(filename, data, memorial) {
     doc.text(`Seite ${p} von ${total}`, PW - M, PH - 8, { align: 'right' })
   }
 
-  doc.save(filename)
+  return doc
+}
+
+export function downloadCareDirectivePdf(filename, data, memorial) {
+  buildCareDirectiveDoc(data, memorial).save(filename)
 }
