@@ -183,15 +183,3 @@ Datenbank NUR aus dem Backend erreichbar (eigener DB-Benutzer, kein oeffentliche
 HMAC-signierte Admin-Tokens mit 12 h TTL, keine Default-Credentials; Mehrbenutzer-
 Isolation (IDOR-geschützt); Rate-Limiting + Brute-Force-Schutz; Passwortrichtlinie;
 dauerhaftes Audit-Logging; Secrets nur serverseitig.
-
----
-
-## 10. Offene Punkte (Phase 0)
-
-- [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (2026-06-22, fortgeschrieben 2026-08-02).
-- [x] Eingehende AVVs archiviert — **2026-06-22** (Microsoft; Supabase/Vercel historisch). Alle in `DSGVO_AVV/`.
-- [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
-- [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
-- [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
-- [ ] Meldewege der Aufsichtsbehörde Sachsen-Anhalt in `BETRIEB-DSGVO.md` eintragen (Formular/Kontakt pruefen).
-- [ ] Gesamtes Dokument **juristisch prüfen** lassen.

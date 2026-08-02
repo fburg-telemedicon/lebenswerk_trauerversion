@@ -184,13 +184,3 @@ erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
 **Überprüfung:** mindestens **jährlich** sowie bei wesentlichen Änderungen
 (neue Modelle/Anbieter, neue Datenarten, neue Produktkategorien) — bereits in
 `BETRIEB-DSGVO.md` (Abschnitt 2, „Jährlich") verankert.
-
----
-
-## 9. Offene To-dos aus dieser DSFA
-
-- [x] **R10/R11 (Live-Sprachgespräch) ergänzt 2026-08-02.** Residenzfrage geklärt: Der Deployment-Typ steht je Region und Modell in der Microsoft-Regionstabelle; `gpt-4.1` läuft in `swedencentral` als **Standard** (in-Region). Technische Allowlist in `api/_lib/voicelive.js` gebaut, TOMs in `SICHERHEIT.md` Abschnitt 5 ergänzt. — [ ] Optional: Azure-Support-Ticket für ein zitierbares Statement zu den Orchestrierungsmodellen (semantische VAD, Rauschunterdrückung, End-of-Utterance).
-- [x] R6 (Daten Dritter): **Minimierungsmaßnahme umgesetzt** (Interview-Prompt + Inhaltsprüfung, 2026-06-22). — [ ] Rechtsgrundlage für genannte Dritt-Daten noch mit DSB/Jurist:in bestätigen.
-- [ ] DSB benennen/Stellungnahme dokumentieren (Abschnitt 7).
-- [ ] Art.-36-Einschätzung („kein hohes Restrisiko") juristisch bestätigen.
-- [ ] DSFA final freigeben (Abschnitt 8) und Erstprüfdatum setzen.
