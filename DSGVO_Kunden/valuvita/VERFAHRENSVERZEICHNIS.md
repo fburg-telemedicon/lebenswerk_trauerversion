@@ -21,8 +21,8 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 | Verantwortlicher | **Lebenswerk.AI GmbH** |
 | Sitz | Walter-Schneider-Straße 10, 06317 Seegebiet Mansfelder Land |
 | Vertretung | Geschäftsführer Dr. Gantner |
-| Kontakt Datenschutz | support@lebensgeschichten.ai |
-| Datenschutzbeauftragter | _[falls bestellt, hier eintragen — sonst Begründung der Nicht-Bestellung dokumentieren]_ |
+| Kontakt Datenschutz | Florian Burg, Projektleiter · florian.burg@lebensgeschichten.ai · support@lebensgeschichten.ai |
+| Datenschutzbeauftragter | **Externe Bestellung eingeleitet.** Die Benennungspflicht folgt aus § 38 Abs. 1 Satz 2 BDSG (Verarbeitungen, die einer DSFA nach Art. 35 unterliegen) sowie Art. 37 Abs. 1 lit. c. Bis zur Bestellung ist Florian Burg **Ansprechpartner für Datenschutzfragen** — ausdrücklich **nicht** als Datenschutzbeauftragter, da er als Projektleiter über Zwecke und Mittel mitentscheidet und damit nach Art. 38 Abs. 6 in einem Interessenkonflikt stünde. |
 | Zuständige Aufsichtsbehörde | Landesbeauftragter für den Datenschutz Sachsen-Anhalt, Magdeburg (Unternehmenssitz Seegebiet Mansfelder Land) |
 
 ---

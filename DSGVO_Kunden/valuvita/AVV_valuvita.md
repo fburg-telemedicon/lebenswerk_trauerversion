@@ -339,5 +339,5 @@ im Browser erzeugt statt bei einem externen Dienst.
 | Rolle | Verantwortlicher | Auftragnehmerin |
 |---|---|---|
 | Weisungsbefugt | ____________________ | Prof. Dr. med. Tobias D. Gantner |
-| Datenschutz-Kontakt | ____________________ | support@lebensgeschichten.ai |
+| Datenschutz-Kontakt | ____________________ | Florian Burg, Projektleiter · florian.burg@lebensgeschichten.ai |
 | Meldung von Vorfällen | ____________________ | support@lebensgeschichten.ai |
