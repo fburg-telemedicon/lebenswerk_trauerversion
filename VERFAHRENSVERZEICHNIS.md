@@ -41,6 +41,16 @@ Teilzwecke:
 5. **Bilderzeugung** für Buchkapitel (KI).
 6. **Inhalts-/Datenschutzprüfung** des erzeugten Textes (LLM).
 7. **Kosten- und Zugriffsprotokollierung** (Betrieb, Sicherheit, Abrechnung).
+8. **Lizenzverkauf über den Online-Shop** (Vertragsschluss, Zahlung, Rechnung) —
+   getrennte Verarbeitung, siehe Abschnitt 5a. Der Shop kennt **keine** Interview-Inhalte.
+9. **Beschäftigtenverwaltung** in dem Umfang, der für die Erbringung der Leistung
+   nötig ist: Konten der eigenen Mitarbeitenden im Dashboard (`app_users`),
+   Protokollierung ihrer Aktionen (`audit_log`).
+
+**Keine wissenschaftliche Nutzung.** Beiträge, Bücher und Reden werden derzeit nicht
+für Forschung oder Auswertung verwendet. Sollte das vorgesehen werden, holen wir dafür
+vorab eine **gesonderte, ausdrückliche Einwilligung** der betroffenen Personen ein; ohne
+sie bleibt es bei der hier beschriebenen Zweckbindung.
 
 ---
 
@@ -52,7 +62,17 @@ Teilzwecke:
 | **Gewürdigte Person** (z. B. Verstorbene/r) | Name, Geburts-/Sterbejahr, Geschlecht, Lebensgeschichte (im Buchtext) | `memorials`, `book_v1/v2`, `eulogy_text` |
 | **In Beiträgen genannte Dritte** | Namen, ggf. Beziehungen/Anschriften lebender Hinterbliebener (im Freitext) | `contributions`, Buchtext |
 | **Admin-/Kundennutzer** | Benutzername, **scrypt-Passwort-Hash + Salt**, erlaubte Kategorien, Admin-Flag | `app_users` |
-| **Technische Protokolle** | IP-Adresse (Rate-Limiting, Audit), Aktions-/Login-Ereignisse (PII-arm), Kosten-Events (ohne PII) | `rate_limits`, `audit_log`, `cost_events` |
+| **Eigene Mitarbeitende** (Beschäftigte der Lebenswerk.AI GmbH mit Dashboard-Zugang) | dieselben Kontodaten wie oben; zusätzlich Protokoll ihrer Aktionen (Anmeldung, Anlage/Löschung von Büchern) | `app_users`, `audit_log` |
+| **Kundinnen und Kunden des Online-Shops** | Name, Rechnungs-/Lieferanschrift, E-Mail, Bestell- und Zahlungsdaten | Ecwid (extern), Buchhaltung |
+| **Technische Protokolle** | IP-Adresse, Zeitstempel, aufgerufener Pfad, Fehlermeldung (Rate-Limiting, Missbrauchsabwehr, Fehlersuche); Aktions-/Login-Ereignisse (PII-arm); Kosten-Events (ohne PII) | `rate_limits`, `audit_log`, `cost_events` |
+
+> **Zugriffsdaten (Logfiles):** Rechtsgrundlage ist **Art. 6 Abs. 1 lit. f** (berechtigtes
+> Interesse an sicherem Betrieb), nicht die Einwilligung. Aufbewahrung: `audit_log` 365 Tage,
+> `rate_limits` kurzlebig — beides räumt derselbe Cron auf (Abschnitt 8).
+>
+> **Beschäftigtendaten:** Rechtsgrundlage **§ 26 Abs. 1 BDSG** / Art. 6 Abs. 1 lit. b.
+> Die Protokollierung dient der Nachvollziehbarkeit sicherheitsrelevanter Vorgänge, nicht
+> der Leistungs- oder Verhaltenskontrolle.
 
 > **Besondere Kategorien (Art. 9):** Stimmaufnahmen sowie Interview-/Buchinhalte
 > können **Gesundheitsdaten, Angaben zu Todesumständen und religiöse
@@ -67,18 +87,25 @@ Teilzwecke:
   **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung).
 - **Protokollierung:** Pflicht-Häkchen vor dem Interview; gespeichert als
   `consent_at` + `consent_version` auf `contributions` (Migration `supabase/consent.sql`).
-  Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.4**, 2026-06-22).
+  Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.6**, 2026-08-02).
+- **Nicht auf Einwilligung gestützt:** Zugriffsprotokolle (Art. 6 Abs. 1 lit. f),
+  Shop-Bestellungen (lit. b, steuerliche Aufbewahrung lit. c), Beschäftigtenkonten
+  (§ 26 Abs. 1 BDSG).
+- **Pflicht zur Bereitstellung:** keine. Ohne Erzählung entsteht kein Buch — das ist der
+  Zweck, nicht eine gesetzliche oder vertragliche Pflicht. Hinweis nach
+  **Art. 13 Abs. 2 lit. e** in der Datenschutzerklärung, Abschnitt 5.
 - **Widerruf:** jederzeit per E-Mail an support@lebensgeschichten.ai; das Team löscht
-  Beitrag/Buch manuell. Dokumentiert in der Datenschutzerklärung (Abschnitt 7+8).
+  Beitrag/Buch manuell. Dokumentiert in der Datenschutzerklärung (Abschnitt 10+11).
 - **Datenfluss-Landkarte:** siehe Abschnitt 7.
 
 ---
 
 ## 5. Kategorien von Empfängern / Auftragsverarbeitern (Art. 30 Abs. 1 lit. d)
 
-Stand 1. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
-`api/`, `server.js` und `src/`). Sämtliche Dienste verarbeiten **in der EU**. Es gibt
-**keine US-Fallbacks** (Anthropic- und OpenAI-Fallbacks am 2026-06-22 entfernt).
+Stand 2. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
+`api/`, `server.js` und `src/`). Sämtliche Dienste **der Anwendung** verarbeiten
+**in der EU**. Es gibt **keine US-Fallbacks** (Anthropic- und OpenAI-Fallbacks am
+2026-06-22 entfernt). Der Online-Shop steht daneben und ist getrennt geführt (5a).
 
 | Auftragsverarbeiter | Leistung | Region / Standort |
 |---|---|---|
@@ -93,7 +120,23 @@ Stand 1. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
 | **Microsoft** (GitHub Actions + Azure Container Registry) | Auslieferung neuer Programmstände — **keine personenbezogenen Inhalte** | — |
 
 **Ein einziger Anbieter.** Nach dem Wegfall des externen QR-Dienstes (siehe unten)
-verlässt kein personenbezogenes Datum den Microsoft-Verbund.
+verlässt kein personenbezogenes Datum aus der Anwendung den Microsoft-Verbund.
+
+### 5a. Online-Shop (getrennte Verarbeitung)
+
+| Auftragsverarbeiter | Leistung | Region / Standort |
+|---|---|---|
+| **Ecwid, Inc.** („Ecwid by Lightspeed"), 687 S Coast Hwy 101, Ste. 239, Encinitas, CA 92024, USA; Konzernmutter Lightspeed Commerce Inc., 700 Saint-Antoine St. E., Suite 300, Montréal (Québec) H2Y 1A6, Kanada | Online-Shop für den Lizenzverkauf: Warenkorb, Bestellabwicklung, Bestellhistorie | **USA** (Drittland, siehe Abschnitt 6) |
+
+**Datenkategorien im Shop:** Name, Rechnungs- und ggf. Lieferanschrift, E-Mail,
+Bestell- und Zahlungsdaten. **Nicht im Shop:** Interview-Inhalte, Stimmaufnahmen,
+Bücher, Reden, Fotos — zwischen Shop und Anwendung besteht keine Datenverbindung;
+Lizenzen werden manuell bzw. über den Buch-Code eingelöst.
+
+**Grenze der Verantwortung:** Für den Shop ist die Lebenswerk.AI GmbH
+Verantwortliche. Kundendaten aus dem Shop fließen **nicht** in Verarbeitungen ein, für
+die wir Auftragsverarbeiterin eines Kunden sind; der Shop taucht deshalb in der
+Unterauftragnehmer-Anlage des Kunden-AVV bewusst **nicht** auf.
 
 **Entfallen** (Stand hier zuvor falsch, seit der Azure-Migration am 2026-07-13 ohne
 Funktion): *Supabase* (Datenbank/Bildspeicher) und *Vercel* (Hosting) sind aus der
@@ -112,14 +155,25 @@ Endnutzers. QR-Codes entstehen seither im Browser (`qrCodeDataUrl` in
 
 ## 6. Übermittlung in Drittländer (Art. 30 Abs. 1 lit. e) + AVV-Checkliste
 
-**Drittlandübermittlung: keine.** Sämtliche Verarbeitung und Speicherung erfolgen in
-der EU/EWR. Folglich keine Stützung auf Art. 44 ff. (SCC, Angemessenheitsbeschluss).
+**Anwendung (Interview, Buch, Rede, Bilder, Speicherung): keine Drittlandübermittlung.**
+Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR.
+
+**Einzige Ausnahme: der Online-Shop.** Ecwid, Inc. verarbeitet die Bestelldaten in den
+**USA**. Gestützt auf:
+
+| Grundlage | Angabe |
+|---|---|
+| Art. 45 DSGVO | Ecwid, Inc. ist unter dem **EU-US Data Privacy Framework** zertifiziert (Liste des US-Handelsministeriums; Angemessenheitsbeschluss der Kommission vom 10.07.2023) |
+| Art. 46 Abs. 2 lit. c | zusätzlich **Standardvertragsklauseln** im Auftragsverarbeitungsvertrag mit Lightspeed/Ecwid |
+| Betroffene Daten | ausschließlich Bestelldaten (Abschnitt 5a) — **keine** Interview-Inhalte, keine besonderen Kategorien nach Art. 9 |
+| Hinweis an Betroffene | Datenschutzerklärung, Abschnitt 8 |
 
 ### Eingehende AVVs (wir als Verantwortlicher gegenüber unseren Dienstleistern)
 
 | Anbieter | Dokument | Status |
 |---|---|---|
 | Microsoft (Azure, Microsoft 365, GitHub) | „Microsoft Products and Services Data Protection Addendum (DPA)" | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/`. Deckt Azure-Dienste, M365/Graph und GitHub ab. |
+| Ecwid / Lightspeed (Online-Shop) | „Data Processing Agreement" samt Standardvertragsklauseln | ✅ abgeschlossen, abgelegt in `DSGVO_AVV/` |
 | Black Forest Labs | kein eigener AVV nötig, solange die Verarbeitung in Azure bleibt | n/a |
 | ~~Supabase~~, ~~Vercel~~ | DPAs 2026-06-22 archiviert | historisch — Dienste nicht mehr im Einsatz |
 
@@ -167,8 +221,13 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
   täglich 03:00 UTC). Erhalten bleiben dann nur noch das fertige Buch/die Rede
   (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in `memorials.purge_info`
   vermerkt.
-- **`audit_log`:** 365 Tage (Housekeeping im selben Cron).
-- **`rate_limits`:** kurzlebig (Housekeeping).
+- **`audit_log`** (Zugriffs-/Aktionsprotokoll inkl. IP): 365 Tage, danach automatisch
+  gelöscht (Housekeeping im selben Cron).
+- **`rate_limits`:** kurzlebig, Ablauf am selben Tag (Housekeeping).
+- **Shop-Bestelldaten:** solange für die Vertragsabwicklung nötig; Rechnungen und
+  Buchungsbelege **10 Jahre** (§ 147 AO, § 257 HGB).
+- **Konten von Mitarbeitenden und Kundennutzern:** bis zum Entzug des Zugangs, danach
+  Löschung des Kontos; das Aktionsprotokoll läuft nach 365 Tagen aus.
 - **Manuelle Voll-Löschung** (Admin) entfernt Buch, Beiträge, Kosten-Events und
   Storage-Bilder vollständig (`api/_lib/delete-memorial.js`).
 - **Betroffenenrechte:** Auskunft/Export (Art. 15/20) als ZIP (PDF + JSON) pro

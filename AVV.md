@@ -98,9 +98,13 @@ mit dem erhöhten Schutzniveau nach Art. 9 Abs. 2 lit. a DSGVO (ausdrückliche
 Einwilligung). Die Anwendung weist die KI an, nicht gezielt nach identifizierenden
 oder sensiblen Angaben **Dritter** zu fragen.
 
-**(6) Kein Training.** Die Auftragnehmerin verwendet die Daten **nicht** zum Training,
-zur Verbesserung oder zur Evaluierung eigener oder fremder KI-Modelle. Sie hat dies
-mit ihren Unterauftragnehmern vertraglich abgesichert.
+**(6) Kein Training, keine Eigennutzung.** Die Auftragnehmerin verwendet die Daten
+**nicht** zum Training, zur Verbesserung oder zur Evaluierung eigener oder fremder
+KI-Modelle. Sie hat dies mit ihren Unterauftragnehmern vertraglich abgesichert.
+Ebenso wenig nutzt sie die Daten für **eigene Zwecke, Forschung oder Auswertung**.
+Sollte eine wissenschaftliche Nutzung vorgesehen werden, setzt sie eine **gesonderte,
+ausdrückliche Einwilligung** der betroffenen Personen sowie eine Weisung des
+Verantwortlichen voraus; dieser Vertrag deckt sie nicht.
 
 ---
 

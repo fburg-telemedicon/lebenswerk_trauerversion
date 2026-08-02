@@ -47,7 +47,9 @@ Die Mitarbeitenden der Einrichtung, die das Buch betreuen, und technisch die
 Lebenswerk.AI GmbH. Für Spracherkennung, Sprachausgabe und Textverarbeitung werden
 Dienste von Microsoft (Azure) eingesetzt. **Alle Verarbeitung findet in der
 Europäischen Union statt.** Ihre Angaben werden **nicht** zum Training von
-KI-Systemen verwendet und nicht weiterverkauft.
+KI-Systemen verwendet, **nicht** für Forschung oder Auswertungen genutzt und nicht
+weiterverkauft. Sollte einmal eine wissenschaftliche Nutzung in Frage kommen, würden
+Sie vorher eigens gefragt — mit dieser Erklärung ist sie nicht abgedeckt.
 
 **Wie lange wird gespeichert?**
 
@@ -69,6 +71,14 @@ Sie müssen nicht mitmachen. Wenn Sie ablehnen oder später aufhören, hat das
 keiner Weise. Sie können Ihre Einwilligung **jederzeit widerrufen**, ohne Angabe von
 Gründen; formlos gegenüber der Einrichtung genügt. Bis zum Widerruf bleibt die
 Verarbeitung rechtmäßig.
+
+**Wenn Erinnerungen belasten**
+
+Über das eigene Leben zu sprechen, berührt auch Schweres — Verluste, Krankheit, Krieg,
+Flucht. Sie bestimmen, worüber Sie sprechen. Jede Frage dürfen Sie übergehen, und Sie
+können jederzeit aufhören und später weitererzählen. Sagen Sie es bitte, wenn Ihnen ein
+Thema zu nahe geht. Das Programm ist **keine Therapie und keine Behandlung**; es stellt
+keine Diagnosen und gibt keine gesundheitlichen Empfehlungen.
 
 **Wenn Sie über andere Menschen sprechen**
 

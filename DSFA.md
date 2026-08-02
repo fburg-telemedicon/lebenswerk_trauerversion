@@ -67,7 +67,7 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
 
 | Prüfpunkt | Bewertung |
 |---|---|
-| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.4). |
+| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.6). Für Zugriffsprotokolle Art. 6 Abs. 1 lit. f, für Beschäftigtenkonten § 26 Abs. 1 BDSG. |
 | **Zweckbindung** | Daten werden ausschließlich zur Erstellung des bestellten Werks und dessen Betrieb verarbeitet; keine Weiterverwendung, **kein KI-Training** durch die Anbieter. |
 | **Datenminimierung** | Nur freiwillig beigetragene Inhalte; keine Pflichtfelder zu sensiblen Daten; Sekundärdaten (IP/Audit/Kosten) PII-arm. |
 | **Speicherbegrenzung** | Automatische Löschung der Interview-Rohdaten nach Frist; Buch/Rede bleibt ohne Rohdaten erhalten (Tombstone in `purge_info`). |
@@ -89,17 +89,18 @@ Intervenierbarkeit, Transparenz.
 
 | ID | Risiko für die Betroffenen | Schaden | Eintritt (roh) | Risiko (roh) | Wesentliche Maßnahmen | Restrisiko |
 |---|---|---|---|---|---|---|
-| R1 | **Offenlegung von Art.-9-Daten** (Hack/Leak, fremder Zugriff) | hoch | mittel | **hoch** | TLS + AES-256; Supabase-RLS (nur service_role); gehärtete Admin-Auth (HMAC-Token 12 h, keine Defaults); IDOR-/Mehrbenutzer-Isolation; beitragsgenauer Capability-Zugriff (14-stellige ID statt Code); Rate-Limiting/Brute-Force-Schutz; EU-only | **gering–mittel** |
+| R1 | **Offenlegung von Art.-9-Daten** (Hack/Leak, fremder Zugriff) | hoch | mittel | **hoch** | TLS + AES-256; Datenbank ohne öffentlichen Endpunkt, nur aus dem Backend mit eigenem DB-Benutzer erreichbar; gehärtete Admin-Auth (HMAC-Token 12 h, keine Defaults); IDOR-/Mehrbenutzer-Isolation; beitragsgenauer Capability-Zugriff (14-stellige ID statt Code); Rate-Limiting/Brute-Force-Schutz; EU-only | **gering–mittel** |
 | R2 | **Verarbeitung ohne wirksame Einwilligung** | hoch | gering | mittel | Pflicht-Consent vor Interview; Protokollierung `consent_at`/`consent_version`; Art. 9 Abs. 2 lit. a | **gering** |
 | R3 | **Fehlerhafte/unangemessene KI-Ausgaben** im Werk (falsche, bloßstellende, sensible Inhalte) | mittel | mittel | mittel | KI-gestützte Inhalts-/Datenschutzprüfung (`runContentReview`); **menschliche Endfreigabe** vor Auslieferung; Korrekturmöglichkeit | **gering–mittel** |
 | R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; US-Fallbacks (Anthropic/OpenAI) am 2026-06-22 aus dem Code entfernt; AVVs mit EU-Verarbeitung | **gering** |
 | R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (Frist, Standard 90 Tage) + Housekeeping; manuelle Voll-Löschung; Tombstones | **gering** |
 | R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | **Datenminimierung im Interview-Prompt** (KI fragt Dritt-Daten nicht aktiv ab; `categories.js`, `THIRD_PARTY_RULE`); **KI-Inhaltsprüfung** Kategorie „Personenbezogene Daten Dritter" (`review.js`) + **menschliche Endfreigabe**; Löschung auf Anfrage; Fristlöschung | **gering–mittel** |
-| R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups (Supabase/Vercel); regelmäßige Restore-Stichprobe (Runbook) | **gering** |
+| R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups der Azure Database for PostgreSQL Flexible Server (Point-in-Time, EU); georedundanter Blob-Speicher; regelmäßige Restore-Stichprobe (Runbook) | **gering** |
 | R8 | **Kompromittierung Admin-Konto** | hoch | gering | mittel | scrypt-Hash + Salt; Passwortrichtlinie; HMAC-Token mit Ablauf; Audit-Log; Login-Rate-Limit; pro-Nutzer-Kategorien | **gering** |
 | R9 | **Re-Identifikation über Stimme (Biometrie)** | mittel | gering | gering | Stimme wird **nur transkribiert**, nicht zur Identifizierung genutzt → keine biometrische Verarbeitung i. S. v. Art. 9 | **gering** |
 | R10 | **Live-Sprachgespräch: Verarbeitung außerhalb der EU** (durchgehender Audiostrom an Azure Voice Live) | hoch | gering | mittel | Eigene Ressource in **Sweden Central** (einzige Voice-Live-Region in der EU); **Cascaded**-Betrieb mit `gpt-4.1`, das dort als Deployment-Typ **Standard** = in-Region läuft (Microsoft-Doku, geprüft 2026-08-02) — die global verarbeiteten Speech-to-Speech-Modelle (`gpt-realtime`, `gpt-5*`) sind bewusst NICHT im Einsatz; **technische Allowlist** in `api/_lib/voicelive.js` schaltet den Dienst ab, wenn ein nicht-EU-Modell konfiguriert wird; **Server-Relay** statt des von Microsoft für Browser empfohlenen WebRTC-Pfads (dieser nutzt „global standard" und routet zur nächstgelegenen Region); Voice Live speichert selbst nichts | **gering** |
 | R11 | **Live-Sprachgespräch: unbeabsichtigte Aufnahme Dritter** (offenes Mikrofon nimmt Umstehende oder Hintergrundgespräche mit auf) | mittel | mittel | mittel | Modus ist **nie Voreinstellung** und wird nur auf ausdrückliche Auswahl der erzählenden Person aktiv (Voreinstellung bleibt die Mischform mit Beenden per Knopfdruck); Verbindung nur auf ausdrückliche Handlung, jederzeit beendbar; es entsteht **kein Audio-Mitschnitt** — gespeichert wird ausschließlich das Transkript in derselben Struktur wie im Mikrofon-Modus; `THIRD_PARTY_RULE` und Inhaltsprüfung greifen unverändert; Sitzungsgrenze 120 Min. | **gering–mittel** |
+| R12 | **Psychische Belastung durch die Biografiearbeit** (Erinnerung an Verlust, Krankheit, Krieg, Flucht; erhöhte Verletzlichkeit bei Trauernden, Hochbetagten, Menschen in Pflege) | mittel | mittel | mittel | Teilnahme und jede einzelne Frage sind **freiwillig**; Interview jederzeit abbrech- und fortsetzbar (Sitzung bleibt 60 Tage erhalten); der Interview-Prompt fragt nicht drängend nach und akzeptiert Ausweichen; **kein Heil- oder Diagnoseversprechen** und klarer Hinweis auf die mögliche Belastung in Impressum und Einwilligungstext; in Einrichtungen begleitet Personal des Verantwortlichen die Erzählenden (Anlage 1 des AVV: Auswahl und Betreuung der Erzählenden liegt beim Verantwortlichen); Beiträge lassen sich einzeln zurückziehen | **gering–mittel** |
 
 ---
 
@@ -130,6 +131,14 @@ dokumentiert. Schwerpunkte:
   bestätigen (z. B. berechtigtes Interesse Art. 6 Abs. 1 lit. f).
 - **R3 (KI-Ausgaben):** menschliche Endfreigabe ist die zentrale Garantie — Prozess
   organisatorisch absichern (nicht nur technisch).
+- **R12 (psychische Belastung), ergänzt 2026-08-02.** Das Risiko lässt sich technisch
+  nicht ausschließen: Wer über sein Leben spricht, berührt Schweres. Die Anwendung
+  drängt nicht, erzwingt keine Antwort und lässt sich jederzeit beenden — die
+  eigentliche Absicherung ist aber **organisatorisch** und liegt beim Verantwortlichen:
+  Er wählt die erzählenden Personen aus, schätzt deren Belastbarkeit ein und begleitet
+  sie. In Pflege- und Klinikkontexten ist das ausdrücklich Teil der Weisungslage
+  (Anlage 1 des AVV). Die Anwendung erbringt **keine therapeutische Leistung** und
+  stellt keine Diagnosen; das steht seit dem 2026-08-02 auch im Impressum.
 - **R10/R11 (Live-Sprachgespräch), ergänzt 2026-08-02.** Der Modus ist seit dem
   2026-07-28 im Code. Bis zum 2026-08-02 war er zusätzlich je Buch vom Superadmin
   freizuschalten und stand nur bei 2 von 88 Büchern offen; über Voice Live sind in
