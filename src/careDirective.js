@@ -116,6 +116,7 @@ REGELN — verbindlich:
 - KEINE RECHTSBERATUNG, keine Paragraphen, keine Vollmachtsformeln — der rechtliche Rahmen steht bereits im Formular.
 - Umfang: 4–7 "values"; je Aufgabenbereich 3–6 "wishes" und 1–3 "gaps"; höchstens 6 "daily_life"; 3–8 "open_points".
 - Gibt die Erzählung zu einem Aufgabenbereich nichts her, lass "wishes" LEER und benenne das in "gaps". Eine leere Liste ist besser als ein erfundener Wunsch.
+- AUSLANDSBEZUG: Spielt die Lebensgeschichte erkennbar außerhalb Deutschlands (Wohnort, Beruf, Staatsangehörigkeit), dann nimm als ERSTEN "open_points"-Eintrag einen Hinweis auf, dass dieses Formular deutschem Recht folgt und zu prüfen ist, welches Recht tatsächlich gilt — im angelsächsischen Raum entsprechen ihm am ehesten „Power of Attorney" und „Health Care Proxy", in Österreich die Erwachsenenvertretung, in der Schweiz der Vorsorgeauftrag. Spielt sie in Deutschland, lass diesen Hinweis weg.
 - Alle vier Aufgabenbereiche müssen in "areas" vorkommen, mit genau diesen "key"-Werten: gesundheit, vermoegen, wohnung, aufenthalt.
 - Antworte AUSSCHLIESSLICH auf Deutsch — auch wenn das Interview in einer anderen Sprache geführt wurde. Das Dokument geht an ein deutsches Betreuungsgericht.
 - Gültiges JSON, keine trailing commas.
