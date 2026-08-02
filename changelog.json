@@ -58,7 +58,18 @@
         "Die Einwilligungsfassung steht damit auf 1.6. Jeder Beitrag merkt sich, welche Fassung die erzählende Person gesehen hat.",
         "Beim Gegenlesen korrigiert: Die Folgenabschätzung nannte bei zwei Risiken noch die alte Plattform (Zugriffsschutz per Datenbankregel, Sicherungen beim vorherigen Anbieter). Beschrieben ist jetzt der tatsächliche Aufbau in Azure.",
         "Der Hinweis auf die Freiwilligkeit steht jetzt dort, wo er wirkt: unmittelbar vor dem ersten Wort des Interviews, in allen 14 Sprachen. „Sie bestimmen, worüber Sie sprechen. Jede Frage dürfen Sie übergehen, und Sie können jederzeit aufhören und später weitererzählen. Geht Ihnen ein Thema zu nahe, brechen Sie ruhig ab.\" Bewusst ohne Kasten und ohne Warnfarbe — der Satz soll beruhigen, nicht abschrecken.",
-        "Er erscheint auch dann, wenn die Einwilligung aus einer früheren Sitzung schon vorliegt und der Einwilligungskasten deshalb wegfällt."
+        "Er erscheint auch dann, wenn die Einwilligung aus einer früheren Sitzung schon vorliegt und der Einwilligungskasten deshalb wegfällt.",
+        "Es gibt jetzt Allgemeine Geschäftsbedingungen. Bisher gab es keine — weder im Shop noch im Kundenpaket. Sie regeln Leistungsumfang, Nutzungsdauer und Fristen, Mitwirkung, Rechte am Werk, Verfügbarkeit und Haftung.",
+        "Darin ausdrücklich festgehalten: Die Anwendung erbringt keine medizinische oder therapeutische Leistung, stellt keine Diagnosen und ersetzt keine Behandlung. Die Vorsorgedokumente sind Entwürfe zur eigenen Verwendung, keine Rechtsberatung.",
+        "Neu ist auch die Widerrufsbelehrung samt Muster-Widerrufsformular für Verbraucherinnen und Verbraucher — mit dem Hinweis, dass das Widerrufsrecht vorzeitig erlischt, wenn auf ausdrücklichen Wunsch sofort begonnen wird. Für Verträge mit Einrichtungen und Unternehmen gilt sie nicht.",
+        "Die Nutzungsdauer einer Lizenz beträgt sechs Monate ab Erwerb. Das stand bisher nirgends und ist jetzt Vertragsinhalt.",
+        "Wichtiger Fund dabei: Die Löschung lief nach 90 Tagen ab Anlage — also mitten in der sechsmonatigen Laufzeit. Ein Kunde hätte noch drei Monate Anspruch gehabt, aber keine Beiträge mehr, aus denen sich ein Buch bauen ließe. Die Frist beginnt jetzt erst mit dem Ende der Nutzungsdauer: Anlass-Termin, sonst Anlage plus sechs Monate, danach 90 Tage. Fristen werden dadurch nur länger, nie kürzer — es verliert niemand Daten früher als bisher zugesagt.",
+        "Die Anamnese bleibt davon unberührt: dort weiterhin vollständige Löschung 14 Tage nach der Aufnahme. Eine Lizenzlaufzeit gibt es dort nicht.",
+        "Der Tagesreport rechnete die Löschfristen bisher selbst nach und wäre damit von der neuen Regel abgedriftet. Er fragt jetzt dieselbe Stelle wie der Löschlauf.",
+        "Beim Nachrechnen der Sechs-Monats-Frist gefunden und behoben: Die Zeitumstellung verschob den Stichtag um eine Stunde, wodurch ein im Winter angelegtes Buch einen Tag zu früh gelöscht worden wäre.",
+        "Das Kundenpaket enthält jetzt zusätzlich die AGB, die Datenschutzerklärung und das Impressum — beide letzteren unverändert aus dem Quelltext erzeugt, damit die Kundenfassung nicht von dem abweicht, was Betroffene tatsächlich sehen. Mit einer Einordnung, für wen sie gelten: Für die Bücher der Bewohnerinnen ist die Einrichtung Verantwortliche, nicht wir.",
+        "Dabei aufgefallen: In der extrahierten Datenschutzerklärung stand am Ende ein Stück Quelltext-Kommentar. Behoben.",
+        "Die Einwilligungsfassung steht damit auf 1.7 — die Speicherdauer im Text hat sich geändert."
       ]
     },
     {

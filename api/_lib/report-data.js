@@ -8,9 +8,9 @@
 // umgangen), der vom Aufrufer übergeben wird.
 
 const { changelogForDate } = require('./changelog')
+const { purgeDueAt } = require('./retention')
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
 
 // ── Europe/Berlin Zeit-Helfer (ohne externe tz-Bibliothek) ────────
 function berlinDateStr(d) {
@@ -249,8 +249,11 @@ async function gatherReport(supabase, opts = {}) {
   let retention7 = 0, retention30 = 0, retentionOverdue = 0
   const nowMs = now.getTime()
   for (const m of memorials) {
-    const anchor = m.funeral_date ? new Date(m.funeral_date) : new Date(m.created_at)
-    const due = anchor.getTime() + RETENTION_DAYS * DAY_MS
+    // Fälligkeit NICHT hier nachrechnen — sonst driftet der Report von dem ab,
+    // was der Purge-Cron tatsächlich tut (Nutzungsdauer + Frist, je Kategorie).
+    const dueIso = purgeDueAt(m)
+    if (!dueIso) continue
+    const due = new Date(dueIso).getTime()
     const inDays = (due - nowMs) / DAY_MS
     if (inDays >= 0 && inDays <= 7) retention7++
     if (inDays >= 0 && inDays <= 30) retention30++

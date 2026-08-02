@@ -37,7 +37,8 @@ Set on the Container App (via `infra/deploy.sh`) and in a local `.env` for `node
 | `CRON_SECRET` | Authorises the cron endpoints; `scripts/cron-run.js` sends it. The endpoints refuse everything if unset. |
 | `CRON_SELF_BASE_URL` | Base URL the cron/worker uses to call back into its own HTTP API. |
 | `USD_TO_EUR` | EUR conversion factor for cost tracking (default `0.92`). |
-| `RETENTION_DAYS` | Days after `funeral_date` (else `created_at`) before a memorial is auto-deleted (default `90`). |
+| `RETENTION_DAYS` | Days after the **end of the usage period** before a memorial's input data is auto-deleted (default `90`). Usage period ends at `funeral_date`, else `created_at + LICENSE_MONTHS`. See `api/_lib/retention.js` — it is the single source, do not recompute the deadline anywhere else. |
+| `LICENSE_MONTHS` | Contractual licence term in months (default `6`), used as the retention anchor when no `funeral_date` is set. Anamnesis categories ignore it (14 days from `created_at`, full deletion). |
 | `JSON_LIMIT` | Body size limit for the Express JSON parser (default `50mb`; base64 audio/images). |
 | `PDF_LIMIT` / `PDF_MAX_MB` | Only for `/api/admin/store-pdf`, which takes the **raw** PDF blob (not base64 JSON) so big print PDFs fit. Raw body limit (default `200mb`) and the handler's own check (default `200`). Keep the two in sync. |
 

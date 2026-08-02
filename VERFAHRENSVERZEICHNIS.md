@@ -216,11 +216,20 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
 
 ## 8. Aufbewahrung / Löschfristen (Art. 30 Abs. 1 lit. f)
 
-- **Beiträge (PII):** automatische Löschung nach `funeral_date` (sonst `created_at`)
-  + `RETENTION_DAYS` (Standard **90 Tage**) via `api/cron/purge.js` (GitHub Actions,
-  täglich 03:00 UTC). Erhalten bleiben dann nur noch das fertige Buch/die Rede
-  (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in `memorials.purge_info`
-  vermerkt.
+- **Beiträge (PII):** automatische Löschung **90 Tage nach Ende der Nutzungsdauer**
+  (`RETENTION_DAYS`, Standard 90) via `api/cron/purge.js` (Container-Apps-Job,
+  täglich 03:00). Die Nutzungsdauer endet mit `funeral_date`; ist kein Anlassdatum
+  hinterlegt, `created_at` + `LICENSE_MONTHS` (Standard **6 Monate**, die
+  vertragliche Lizenzlaufzeit). Erhalten bleiben dann nur noch das fertige Buch/die
+  Rede (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in
+  `memorials.purge_info` vermerkt.
+
+  > **Warum nicht schlicht „Anlage + 90 Tage" (Stand bis 2026-08-02):** Die Lizenz
+  > läuft sechs Monate. Eine Löschung nach 90 Tagen hätte mitten in der bezahlten
+  > Laufzeit die Eingangsdaten entfernt — der Kunde hätte noch Anspruch gehabt, aber
+  > nichts mehr, woraus ein Buch entstehen könnte. Gegenüber Art. 5 Abs. 1 lit. e
+  > gerechtfertigt: Solange erzählt werden darf, sind die Beiträge für den Zweck
+  > erforderlich. Bücher mit Anlassdatum sind unverändert (Anlass + 90 Tage).
 - **`audit_log`** (Zugriffs-/Aktionsprotokoll inkl. IP): 365 Tage, danach automatisch
   gelöscht (Housekeeping im selben Cron).
 - **`rate_limits`:** kurzlebig, Ablauf am selben Tag (Housekeeping).

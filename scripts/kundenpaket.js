@@ -22,6 +22,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
+const { legalMarkdown } = require('./legal2md')
 
 const ROOT = path.resolve(__dirname, '..')
 
@@ -49,6 +50,7 @@ const DOC = {
   'BETRIEB-DSGVO.md':                  'Betriebs-Runbook Datenschutz',
   'EINWILLIGUNG_PFLEGEEINRICHTUNG.md': 'Einwilligung der Bewohner',
   'KUNDENPAKET-DATENSCHUTZ.md':        'Deckblatt',
+  'AGB.md':                            'Allgemeine Geschaeftsbedingungen',
 }
 
 // ── Entinternalisierung ───────────────────────────────────────────
@@ -181,6 +183,21 @@ function run(key) {
       `Sie können sich außerdem bei der zuständigen\nAufsichtsbehörde beschweren: ${k.aufsicht}.`)
   schreibe(`Einwilligung_${k.kurz}`, ein, 'Einwilligung der Bewohner')
 
+  // ── Vertrags- und Rechtstexte ───────────────────────────────────
+  schreibe('AGB', read('AGB.md'), 'Allgemeine Geschäftsbedingungen')
+  // Datenschutzerklärung und Impressum werden AUS DEM QUELLTEXT erzeugt, nicht aus
+  // einer zweiten gepflegten Fassung — sonst driftet das Kundenexemplar von dem ab,
+  // was Betroffene tatsächlich zu sehen bekommen. Genau das war schon einmal der
+  // Fall (eine Fassung von Mai 2026 nannte noch Supabase und Vercel).
+  const einordnung = `> **Für wen diese Erklärung gilt.** Sie beschreibt unser eigenes Angebot, bei dem
+> die Lebenswerk.AI GmbH Verantwortliche ist — Website, Shop, eigene Kundschaft.
+> **Für die Werke der Endkundinnen und Endkunden der ${k.name} ist die ${k.name}
+> Verantwortliche**; dort gilt die Betroffeneninformation in Teil A der
+> Einwilligungsvorlage. Beigelegt, damit sich prüfen lässt, ob unsere öffentliche
+> Erklärung zu den Zusagen des Auftragsverarbeitungsvertrags passt.`
+  schreibe('Datenschutzerklaerung', legalMarkdown('Datenschutz', einordnung), 'Datenschutzerklärung')
+  schreibe('Impressum', legalMarkdown('Impressum'), 'Impressum')
+
   // ── Nachweise ───────────────────────────────────────────────────
   schreibe('Sicherheitskonzept_TOM', read('SICHERHEIT.md'), 'Sicherheitskonzept (TOM)')
   schreibe('Betriebs-Runbook_Datenschutz', read('BETRIEB-DSGVO.md'), 'Betriebs-Runbook Datenschutz')
@@ -210,8 +227,25 @@ Schrift- oder elektronische Form; beidseitig zeichnen, je ein Exemplar für beid
 | Deckblatt_${k.kurz}.pdf | Rollenverteilung, Dokumentenliste, Pflichten des Verantwortlichen, Prüfleitfaden |
 | Sicherheitskonzept_TOM.pdf | Technische und organisatorische Maßnahmen (Art. 32) |
 | Verzeichnis_Verarbeitungstaetigkeiten.pdf | Verarbeitungstätigkeiten, Datenflusskarte, Empfänger, Fristen (Art. 30) |
-| Datenschutz-Folgenabschaetzung.pdf | Risikoregister R1–R11 (Art. 35) |
+| Datenschutz-Folgenabschaetzung.pdf | Risikoregister R1–R12 (Art. 35) |
 | Betriebs-Runbook_Datenschutz.pdf | Meldeprozess bei Datenpannen (Art. 33/34), laufende Kontrollen |
+| Datenschutzerklaerung.pdf | Die öffentliche Erklärung der Anwendung, unverändert aus dem Quelltext erzeugt |
+| Impressum.pdf | Anbieterkennzeichnung, Haftungsausschlüsse |
+
+Datenschutzerklärung und Impressum beschreiben **unser eigenes** Angebot, bei dem wir
+Verantwortliche sind. Für die Werke Ihrer Endkundinnen und Endkunden sind **Sie**
+Verantwortliche; dort gilt die Betroffeneninformation in Teil A der
+Einwilligungsvorlage. Beide Texte liegen bei, damit sich prüfen lässt, ob unsere
+öffentliche Erklärung zu den Zusagen des Auftragsverarbeitungsvertrags passt.
+
+## Vertragsgrundlage
+
+| Dokument | Inhalt |
+|---|---|
+| AGB.pdf | Leistungsumfang, **Nutzungsdauer sechs Monate ab Lizenzerwerb**, Fristen und Löschung, Mitwirkung, Rechte am Werk, Haftung; mit Widerrufsbelehrung und Muster-Widerrufsformular für Verbraucher |
+
+Die Widerrufsbelehrung betrifft **Verbraucherinnen und Verbraucher**; für Verträge
+mit der ${k.name} als Unternehmen gilt sie nicht.
 
 ## Zur Verwendung im Haus
 
@@ -271,4 +305,8 @@ Diese Datei liegt bewusst **außerhalb** des Kundenordners
   console.log(`Intern:      DSGVO_Kunden/_intern/Nur zur internen Verwendung.pdf  (${weg.length} Stellen)`)
 }
 
-run(process.argv[2] || 'valuvita')
+// Nur als Werkzeug laufen lassen. Ohne diese Bedingung baut schon ein `require`
+// dieser Datei das ganze Paket neu — beim Syntaxcheck einmal passiert.
+if (require.main === module) run(process.argv[2] || 'valuvita')
+
+module.exports = { run, deIntern, KUNDEN }

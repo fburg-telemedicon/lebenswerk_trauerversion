@@ -3,17 +3,19 @@
 // Wird von einem Vercel Cron Job täglich aufgerufen (siehe vercel.json).
 //
 // ZWEI REGIME (siehe api/_lib/retention.js):
-//   Anamnese      → nach 14 Tagen VOLLSTAENDIGE Loeschung (medizinische Daten).
-//   Alle uebrigen → nach RETENTION_DAYS (90) werden die EINGANGSDATEN geloescht
-//     (Beitraege, Roh-Uploads, Protokolle); Buch, Rede und die uebrigen Endprodukte
-//     bleiben. Das entspricht der vertraglichen Zusage an die Kunden.
+//   Anamnese      → 14 Tage nach Anlage VOLLSTAENDIGE Loeschung (medizinische Daten).
+//   Alle uebrigen → RETENTION_DAYS (90) nach ENDE DER NUTZUNGSDAUER werden die
+//     EINGANGSDATEN geloescht (Beitraege, Roh-Uploads, Protokolle); Buch, Rede und
+//     die uebrigen Endprodukte bleiben. Das entspricht der vertraglichen Zusage.
+//     Nutzungsdauer = funeral_date, sonst created_at + LICENSE_MONTHS (6) — die
+//     Lizenz laeuft ein halbes Jahr, vorher zu loeschen wuerde sie entwerten.
 //
 // Am 2026-08-02 war die automatische Loeschung kurzzeitig durch Hinweis + Knopf
 // ersetzt und am selben Tag zurueckgebaut: Die AGB sagen den Kunden eine Loeschung
 // nach Frist zu, das darf nicht davon abhaengen, ob jemand klickt. Der Knopf im
 // Dashboard bleibt zusaetzlich bestehen (frueher loeschen), ebenso das Archiv.
 //
-// Loesch-Stichtag: funeral_date + Frist, ersatzweise created_at + Frist.
+// Loesch-Stichtag: siehe api/_lib/retention.js — dort steht die Rechnung EINMAL.
 //
 // Schutz: Der Endpunkt verlangt den Header `Authorization: Bearer <CRON_SECRET>`.
 // Vercel setzt diesen Header bei Cron-Aufrufen automatisch, wenn die Env-Variable

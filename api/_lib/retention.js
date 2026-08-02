@@ -33,22 +33,63 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '90', 10)
 const ANAMNESIS_RETENTION_DAYS = parseInt(process.env.ANAMNESIS_RETENTION_DAYS || '14', 10)
 
+// Vertragliche Nutzungsdauer einer Lizenz: sechs Monate ab Erwerb (= Anlage des
+// Buchprojekts). Erst DANACH läuft die Aufbewahrungsfrist an.
+//
+// Warum nicht wie früher stur „Anlage + 90 Tage": Die Nutzungsdauer beträgt sechs
+// Monate. Eine Löschung nach 90 Tagen hätte mitten in der bezahlten Laufzeit die
+// Eingangsdaten entfernt — der Kunde hätte noch drei Monate Anspruch gehabt, aber
+// nichts mehr, woraus sich ein Buch bauen ließe. Die Frist wird dadurch nur
+// LÄNGER, nie kürzer; niemand verliert Daten früher als bisher zugesagt.
+// Rechtfertigung gegenüber Art. 5 Abs. 1 lit. e: Solange erzählt werden darf,
+// sind die Beiträge für den Zweck erforderlich.
+const LICENSE_MONTHS = parseInt(process.env.LICENSE_MONTHS || '6', 10)
+
 const retentionDaysFor = m => isAnamnesisCategory(m?.product_category) ? ANAMNESIS_RETENTION_DAYS : RETENTION_DAYS
 
-// Anker der Frist: der Anlass (Bestattung, Feier …), sonst die Anlage. Ohne
-// Anlassdatum liefe die Frist sonst nie an.
-function retentionAnchor(m) {
-  const raw = m?.funeral_date || m?.created_at
+const parseDate = raw => {
   if (!raw) return null
   const d = new Date(raw)
   return isNaN(d.getTime()) ? null : d
 }
 
+// Monate addieren, ohne in den Folgemonat zu rutschen: 31.08. + 6 Monate ist der
+// 28./29.02., nicht der 03.03. (`setMonth` rechnet sonst den Überhang weiter).
+//
+// Durchgehend in UTC gerechnet. Mit den lokalen Gettern verschiebt die
+// Sommerzeit den Zeitpunkt um eine Stunde — bei einem Zeitstempel um Mitternacht
+// UTC kippt er damit auf den Vortag, und die Frist endete einen Tag zu früh.
+function addMonths(d, months) {
+  const r = new Date(d.getTime())
+  const tag = r.getUTCDate()
+  r.setUTCDate(1)
+  r.setUTCMonth(r.getUTCMonth() + months)
+  const letzter = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + 1, 0)).getUTCDate()
+  r.setUTCDate(Math.min(tag, letzter))
+  return r
+}
+
+// Ende der Nutzungsdauer — ab hier läuft die Aufbewahrungsfrist.
+//   • Anlassdatum gesetzt (Bestattung, Feier, Verabschiedung): der Anlass ist der
+//     Endpunkt, danach ist das Werk fertig. Unverändert gegenüber früher.
+//   • sonst (Lebenswerk, Firma, Ermutigung …): Anlage + Nutzungsdauer.
+//   • Anamnese: keine Lizenzlaufzeit, hier zählt allein die Anlage.
+function usageEndsAt(m) {
+  const anlass = parseDate(m?.funeral_date)
+  if (anlass) return anlass
+  const angelegt = parseDate(m?.created_at)
+  if (!angelegt) return null
+  return isAnamnesisCategory(m?.product_category) ? angelegt : addMonths(angelegt, LICENSE_MONTHS)
+}
+
+// Alter Name, weiter benutzt von Aufrufern, die nur den Startpunkt brauchen.
+const retentionAnchor = usageEndsAt
+
 // Zeitpunkt, ab dem aufgeräumt werden soll (ISO-String) — null, wenn unbestimmbar.
 function purgeDueAt(m) {
-  const anchor = retentionAnchor(m)
-  if (!anchor) return null
-  return new Date(anchor.getTime() + retentionDaysFor(m) * DAY_MS).toISOString()
+  const ende = usageEndsAt(m)
+  if (!ende) return null
+  return new Date(ende.getTime() + retentionDaysFor(m) * DAY_MS).toISOString()
 }
 
 // Ist die Frist abgelaufen und noch nicht aufgeräumt worden?
@@ -74,6 +115,7 @@ function isPurgeSoon(m, now = Date.now()) {
 }
 
 module.exports = {
-  DAY_MS, RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS, WARN_DAYS,
-  retentionDaysFor, retentionAnchor, purgeDueAt, isPurgeDue, isPurgeSoon, daysUntilDue,
+  DAY_MS, RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS, WARN_DAYS, LICENSE_MONTHS,
+  retentionDaysFor, retentionAnchor, usageEndsAt, addMonths,
+  purgeDueAt, isPurgeDue, isPurgeSoon, daysUntilDue,
 }

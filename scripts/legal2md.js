@@ -57,19 +57,41 @@ function jsxToMarkdown(jsx) {
 
   // Zeilen aufräumen: Einrückung weg, Mehrfach-Leerzeilen zusammenfassen.
   s = s.split('\n').map(l => l.replace(/^\s+/, '').replace(/\s+$/, m => m.includes('  ') ? '  ' : ''))
+       // Quelltext-Kommentare fliegen raus. Sie stehen zwischen den Komponenten und
+       // landeten sonst im Kundendokument — genau so ist der Kommentar über
+       // `LegalFooter` einmal hinter dem Beschwerderecht aufgetaucht.
+       .filter(l => !/^\/\//.test(l))
        .join('\n').replace(/\n{3,}/g, '\n\n').trim()
   return s
 }
 
-const OUT = path.resolve(process.argv[2] || '.')
-fs.mkdirSync(OUT, { recursive: true })
-const src = fs.readFileSync(SRC, 'utf8')
-
-for (const [comp, file, titel] of [
+const DOKUMENTE = [
   ['Datenschutz', 'Datenschutzerklaerung.md', 'Datenschutzerklärung'],
   ['Impressum', 'Impressum.md', 'Impressum'],
-]) {
-  const md = `# ${titel}\n\n> Erzeugt aus der Anwendung (\`src/LegalPages.jsx\`) am ${new Date().toISOString().slice(0, 10)}.\n> Maßgeblich ist die jeweils unter lebensgeschichten.ai veröffentlichte Fassung.\n\n${jsxToMarkdown(componentBody(src, comp))}\n`
-  fs.writeFileSync(path.join(OUT, file), md)
-  console.log('  ·', file, `(${md.length} Zeichen)`)
+]
+
+// Ein Rechtstext als Markdown, mit Kopfzeile. `vorspann` hängt eine Einordnung
+// darunter — im Kundenpaket muss dort stehen, für wen die Erklärung gilt.
+function legalMarkdown(comp, vorspann = '') {
+  const eintrag = DOKUMENTE.find(d => d[0] === comp)
+  if (!eintrag) throw new Error(`Unbekanntes Dokument: ${comp}`)
+  const src = fs.readFileSync(SRC, 'utf8')
+  const heute = new Date().toISOString().slice(0, 10)
+  return `# ${eintrag[2]}\n\n> Erzeugt aus der Anwendung am ${heute}.\n` +
+    `> Maßgeblich ist die jeweils unter lebensgeschichten.ai veröffentlichte Fassung.\n` +
+    (vorspann ? `\n${vorspann}\n` : '') +
+    `\n${jsxToMarkdown(componentBody(src, comp))}\n`
+}
+
+module.exports = { legalMarkdown, jsxToMarkdown, componentBody, DOKUMENTE }
+
+// Als Werkzeug aufgerufen: beide Texte in einen Ordner schreiben.
+if (require.main === module) {
+  const OUT = path.resolve(process.argv[2] || '.')
+  fs.mkdirSync(OUT, { recursive: true })
+  for (const [comp, file] of DOKUMENTE) {
+    const md = legalMarkdown(comp)
+    fs.writeFileSync(path.join(OUT, file), md)
+    console.log('  ·', file, `(${md.length} Zeichen)`)
+  }
 }

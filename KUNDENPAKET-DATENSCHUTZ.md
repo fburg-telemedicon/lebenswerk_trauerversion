@@ -40,12 +40,20 @@ schließen (beiliegend als `AVV.md`), **bevor** die erste Bewohnerin erzählt.
 | `AVV.md` | Auftragsverarbeitungsvertrag samt drei Anlagen: TOM, genehmigte Unterauftragnehmer, Ansprechpartner | Art. 28 Abs. 3 |
 | `SICHERHEIT.md` | Technische und organisatorische Maßnahmen im Detail (Verschlüsselung, Zugriffskontrolle, Protokollierung, Live-Sprachgespräch) | Art. 32 |
 | `VERFAHRENSVERZEICHNIS.md` | Unser Verzeichnis der Verarbeitungstätigkeiten, Datenkategorien, Datenflusskarte, Empfänger, Löschfristen | Art. 30 |
-| `DSFA.md` | Unsere Datenschutz-Folgenabschätzung mit Risikoregister R1–R11 | Art. 35 |
+| `DSFA.md` | Unsere Datenschutz-Folgenabschätzung mit Risikoregister R1–R12 | Art. 35 |
 | `BETRIEB-DSGVO.md` | Meldeprozess bei Datenschutzverletzungen, wiederkehrende Kontrollen | Art. 33/34 |
 | `EINWILLIGUNG_PFLEGEEINRICHTUNG.md` | Vorlage für die Einwilligung der Bewohner (Papier) samt Betroffeneninformation | Art. 6 Abs. 1 lit. a, Art. 9 Abs. 2 lit. a, Art. 13 |
+| `AGB.md` | Allgemeine Geschäftsbedingungen samt Widerrufsbelehrung und Muster-Widerrufsformular — Leistungsumfang, Nutzungsdauer, Fristen, Haftung | — |
+| Datenschutzerklärung | Die öffentliche Erklärung der Anwendung, aus dem Quelltext erzeugt (identisch mit der veröffentlichten Fassung) | Art. 13/14 |
+| Impressum | Anbieterkennzeichnung und Haftungsausschlüsse | § 5 DDG, § 18 MStV |
 
-Die Datenschutzerklärung der Anwendung ist unter
-`lebensgeschichten.ai/#datenschutz` jederzeit abrufbar.
+**Zur Einordnung der beiden letzten Dokumente:** Sie beschreiben unser **eigenes**
+Angebot, bei dem wir Verantwortliche sind — etwa gegenüber Besucherinnen unserer
+Website und Kundinnen unseres Shops. Für die Bücher **Ihrer** Endkundinnen und
+Endkunden sind **Sie** Verantwortliche; dort gilt die Betroffeneninformation in
+Teil A der beiliegenden Einwilligungsvorlage. Wir legen beide Texte bei, weil eine
+Prüfung typischerweise fragt, ob unsere öffentliche Erklärung zu dem passt, was der
+Auftragsverarbeitungsvertrag zusagt.
 
 ---
 
@@ -113,7 +121,7 @@ sondern die tragende Maßnahme — siehe R6 in unserer DSFA.
 | Welche technischen Maßnahmen? | `AVV.md` Anlage 1, ausführlich `SICHERHEIT.md` |
 | Wird die Stimme biometrisch ausgewertet? | Nein — nur Transkription, siehe R9 in `DSFA.md` |
 | Was ist das „Live-Sprachgespräch"? | `SICHERHEIT.md` Abschnitt 5 — durchgehende Sprachverbindung, Verarbeitung in Schweden, ohne Audio-Mitschnitt; nie voreingestellt |
-| Gibt es eine DSFA? | `DSFA.md`, Risikoregister R1–R11 |
+| Gibt es eine DSFA? | `DSFA.md`, Risikoregister R1–R12 |
 
 ---
 

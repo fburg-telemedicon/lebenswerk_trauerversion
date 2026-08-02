@@ -58,10 +58,11 @@ unvollständig melden als zu spät.
 ## 2. Regelmäßige Reviews & Löschläufe
 
 ### Automatisch (bereits aktiv)
-- **Aufbewahrungs-Löschung:** `api/cron/purge.js`, täglich 03:00 UTC via
-  GitHub Actions (`.github/workflows/purge.yml`). Löscht Gedenkbücher nach
-  `funeral_date` (sonst `created_at`) + `RETENTION_DAYS` (Standard 90) inkl.
-  Beiträge, Kosten-Events und Storage-Bildern.
+- **Aufbewahrungs-Löschung:** `api/cron/purge.js`, täglich 03:00 als
+  Container-Apps-Job (`lebenswerk-web-cron-purge`). Löscht die Eingangsdaten
+  **90 Tage nach Ende der Nutzungsdauer** — Nutzungsdauer = `funeral_date`, sonst
+  `created_at` + `LICENSE_MONTHS` (6). Anamnese-Projekte werden 14 Tage nach der
+  Anlage vollständig gelöscht (Beiträge, Kosten-Events, Storage-Bilder, Zeile).
 - **Housekeeping:** derselbe Lauf entfernt abgelaufene `rate_limits` und
   `audit_log`-Einträge > 365 Tage.
 

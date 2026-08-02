@@ -199,10 +199,18 @@ export function Datenschutz() {
 
       <h2 style={LH}>9. Speicherdauer</h2>
       <p>
-        Wir löschen die zu einem Buch gehörenden personenbezogenen Daten automatisch
-        <strong> 90 Tage nach dem hinterlegten Anlass-Termin</strong> (z. B. Bestattung, Feier oder
-        Verabschiedung; ist kein Termin hinterlegt, 90 Tage nach Anlage des Buchs). Auf Ihren Wunsch
-        löschen wir Ihre Daten auch früher.
+        Die zu einem Buch gehörenden Eingangsdaten – Interviewbeiträge und hochgeladene
+        Original-Fotos – löschen wir automatisch <strong>90 Tage nach Ende der Nutzungsdauer</strong>.
+        Die Nutzungsdauer endet mit dem hinterlegten Anlass-Termin (z. B. Bestattung, Feier oder
+        Verabschiedung); ist kein Termin hinterlegt, sechs Monate nach Anlage des Buchs. Auf Wunsch
+        löschen wir früher – dafür genügt eine Nachricht.
+      </p>
+      <p>
+        Das fertige Werk – Buch, Rede bzw. Exzerpt und die weiteren Ausgaben – bleibt erhalten; es ist
+        der Zweck der Sache. Für die Kategorie <strong>Anamnese</strong> gilt eine kürzere Frist: Dort
+        wird der gesamte Datensatz einschließlich des Bogens 14 Tage nach der Aufnahme vollständig
+        gelöscht. Zugriffsprotokolle laufen nach einem Jahr aus (Abschnitt 3), Rechnungen und
+        Buchungsbelege unterliegen der gesetzlichen Aufbewahrung von zehn Jahren (Abschnitt 8).
       </p>
 
       <h2 style={LH}>10. Ihre Rechte</h2>

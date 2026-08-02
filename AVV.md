@@ -240,9 +240,12 @@ verarbeiteten Daten oder gibt sie zurück — nach Wahl des Verantwortlichen.
 Textform mit. Ohne Mitteilung wird gelöscht.
 
 **(3)** **Unabhängig davon** löscht die Anwendung Rohdaten bereits im laufenden
-Betrieb automatisch nach der eingestellten Aufbewahrungsfrist (Standard 90 Tage nach
-dem Anlass, für Anamnese-Projekte 14 Tage). Erfasst sind Beiträge, Aufnahmen,
-Verschriftlichungen und hochgeladene Fotos.
+Betrieb automatisch: **90 Tage nach Ende der Nutzungsdauer**. Die Nutzungsdauer endet
+mit dem hinterlegten Anlass-Termin; ohne Anlass-Termin sechs Monate nach Anlage des
+Projekts (Lizenzlaufzeit). Für Anamnese-Projekte wird der gesamte Datensatz bereits
+14 Tage nach der Aufnahme gelöscht. Erfasst sind Beiträge, Aufnahmen,
+Verschriftlichungen und hochgeladene Fotos. Sieben Tage vor der Löschung weist das
+Dashboard darauf hin; der Verantwortliche kann jederzeit früher löschen.
 
 **(4)** Fertiggestellte Werke (Buchtexte, gesetzte Bildseiten) bleiben bis zur
 Löschung des Projekts erhalten — sie sind das Ergebnis, das der Verantwortliche

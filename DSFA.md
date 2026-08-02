@@ -40,10 +40,14 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
   Speicherung → Admin generiert Buch/Rede (LLM) + Kapitelbilder (FLUX) → KI-gestützte
   Inhalts-/Datenschutzprüfung → Export (DOCX/PDF).
 - **Datenarten:** siehe VVT Abschnitt 3 (inkl. Art.-9-Daten).
-- **Empfänger/Auftragsverarbeiter:** ausschließlich EU (Microsoft Azure, Supabase
-  Frankfurt, Vercel `fra1`); AVVs nach Art. 28 abgeschlossen (VVT Abschnitt 6).
-- **Speicherdauer:** automatische Löschung der Beiträge nach Frist (Standard 90 Tage),
-  vollständige manuelle Löschung möglich (VVT Abschnitt 8).
+- **Empfänger/Auftragsverarbeiter:** für die Anwendung ausschließlich EU (Microsoft
+  Azure, North Europe/Westeuropa/Schweden); AVVs nach Art. 28 abgeschlossen
+  (VVT Abschnitt 6). Einzige Ausnahme außerhalb der Anwendung: der Online-Shop
+  (VVT Abschnitt 5a/6).
+- **Speicherdauer:** automatische Löschung der Beiträge **90 Tage nach Ende der
+  Nutzungsdauer** (Anlass-Termin, sonst Anlage + 6 Monate Lizenzlaufzeit); Anamnese
+  vollständig nach 14 Tagen; vollständige manuelle Löschung jederzeit möglich
+  (VVT Abschnitt 8).
 - **Datenfluss:** kein Pfeil verlässt die EU (VVT Abschnitt 7).
 - **Zusätzlicher Kanal seit 2026-07-28 — Live-Sprachgespräch (frei wählbar, nie Voreinstellung):**
   Statt der Kette „aufnehmen → erkennen → antworten → vorlesen" besteht während des
@@ -93,7 +97,7 @@ Intervenierbarkeit, Transparenz.
 | R2 | **Verarbeitung ohne wirksame Einwilligung** | hoch | gering | mittel | Pflicht-Consent vor Interview; Protokollierung `consent_at`/`consent_version`; Art. 9 Abs. 2 lit. a | **gering** |
 | R3 | **Fehlerhafte/unangemessene KI-Ausgaben** im Werk (falsche, bloßstellende, sensible Inhalte) | mittel | mittel | mittel | KI-gestützte Inhalts-/Datenschutzprüfung (`runContentReview`); **menschliche Endfreigabe** vor Auslieferung; Korrekturmöglichkeit | **gering–mittel** |
 | R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; US-Fallbacks (Anthropic/OpenAI) am 2026-06-22 aus dem Code entfernt; AVVs mit EU-Verarbeitung | **gering** |
-| R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (Frist, Standard 90 Tage) + Housekeeping; manuelle Voll-Löschung; Tombstones | **gering** |
+| R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (90 Tage nach Ende der Nutzungsdauer; Anamnese 14 Tage vollständig) + Housekeeping; sichtbare Vorwarnung 7 Tage vorher; manuelle Voll-Löschung jederzeit; Tombstones. Die Frist beginnt bewusst erst mit dem Ende der Lizenzlaufzeit — eine frühere Löschung würde die Leistung unmöglich machen, für die die Daten erhoben wurden | **gering** |
 | R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | **Datenminimierung im Interview-Prompt** (KI fragt Dritt-Daten nicht aktiv ab; `categories.js`, `THIRD_PARTY_RULE`); **KI-Inhaltsprüfung** Kategorie „Personenbezogene Daten Dritter" (`review.js`) + **menschliche Endfreigabe**; Löschung auf Anfrage; Fristlöschung | **gering–mittel** |
 | R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups der Azure Database for PostgreSQL Flexible Server (Point-in-Time, EU); georedundanter Blob-Speicher; regelmäßige Restore-Stichprobe (Runbook) | **gering** |
 | R8 | **Kompromittierung Admin-Konto** | hoch | gering | mittel | scrypt-Hash + Salt; Passwortrichtlinie; HMAC-Token mit Ablauf; Audit-Log; Login-Rate-Limit; pro-Nutzer-Kategorien | **gering** |
