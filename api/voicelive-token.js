@@ -63,19 +63,14 @@ module.exports = async function handler(req, res) {
     // weiter, sobald sie einmal offen ist.
     if (!(await enforceBudget(res, target.id))) return
 
-    // Feature-Flag am Buch. Fehlt die Spalte noch (Migration nicht gelaufen),
-    // gilt das Feature als aus — kein Fehler, nur kein Live-Modus.
-    let realtimeOn = false
+    // Kein Buch-Flag mehr: Der Live-Modus steht allen offen und ist immer die
+    // bewusste Wahl der erzählenden Person (2026-08-02). Gelesen wird hier nur
+    // noch die Buchstimme, damit beide Modi gleich klingen.
     let voice = null
     {
-      const { data, error } = await supabase
-        .from('memorials').select('realtime_enabled, tts_voice').eq('id', target.id).maybeSingle()
-      if (!error && data) {
-        realtimeOn = data.realtime_enabled === true
-        voice = data.tts_voice || null
-      }
+      const { data } = await supabase.from('memorials').select('tts_voice').eq('id', target.id).maybeSingle()
+      voice = data?.tts_voice || null
     }
-    if (!realtimeOn) return res.status(409).json(UNAVAILABLE)
 
     // Stimme: Der Beitragenden-Flow wählt sie mit `interviewTtsVoice` (Regel dort:
     // nach Geschlecht) und schickt sie mit. Ohne das sprach dasselbe Buch im

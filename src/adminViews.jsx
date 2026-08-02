@@ -1130,22 +1130,6 @@ function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
 // (eigene Sweden-Central-Ressource, DSFA/Verfahrensverzeichnis). Ein Manager soll
 // den Modus nicht versehentlich freischalten können. Das Ausblenden ist nur die
 // halbe Miete — verriegelt ist es serverseitig in api/admin/memorials.js.
-function RealtimeToggle({ on, set, t, isAdmin }) {
-  if (!isAdmin) return null
-  return (
-    <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #e7e5e4' }}>
-      <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
-        <input type="checkbox" checked={on === true} onChange={e => set(e.target.checked)} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-        <span style={{ fontSize:14 }}>{t('🗣 Live-Sprachgespräch zusätzlich anbieten (Beta)', '🗣 Additionally offer live voice conversation (beta)')}</span>
-      </label>
-      <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28, lineHeight:1.45 }}>
-        {t('Standard: aus. Die Person spricht dann in einem durchgehenden Gespräch mit der KI — ohne Mikrofon-Antippen, mit Denkpausen, und sie kann die KI unterbrechen. Ist die Strecke nicht verfügbar (Sprache nicht abgedeckt, Verbindung gestört, Server nicht konfiguriert), laufen automatisch die oben gewählten Mikrofon-Modi weiter. Achtung: deutlich höhere Kosten je Interviewminute.',
-           'Default: off. The person then talks with the AI in one continuous conversation — no tapping the microphone, thinking pauses allowed, and they can interrupt the AI. If it is unavailable (language not covered, connection issues, server not configured), the microphone modes selected above are used instead. Note: markedly higher cost per interview minute.')}
-      </p>
-    </div>
-  )
-}
-
 export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete, loadFairCodes, runRetention, retentionBusy, showArchived, setShowArchived }) {
     const t = useAdminT()
     const openSupport = useSupport()
@@ -1922,7 +1906,6 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
             <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: aus. Eingeschaltet erscheint im ☰-Menü „Wie ausführlich nachfragen?" mit drei Stufen — wenig (1), ausgewogen (2, Voreinstellung) und intensiv (4 Nachfragen je Thema). Ohne eigene Wahl gilt weiter Ihre Vorgabe oben.', 'Default: off. When on, the ☰ menu shows “Depth of questions” with three levels — few (1), balanced (2, preselected) and in depth (4 follow-ups per topic). Without an explicit choice your setting above still applies.')}</p>
-          <RealtimeToggle isAdmin={auth?.admin === true} on={createForm.realtimeEnabled === true} set={v => setCreateForm({ ...createForm, realtimeEnabled: v })} t={t} />
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -3602,7 +3585,6 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0' }}>{t('Standard: aus. Menüpunkt „Wie ausführlich nachfragen?" mit drei Stufen (wenig / ausgewogen / intensiv). Greift ab der nächsten Frage.', 'Default: off. Menu item “Depth of questions” with three levels (few / balanced / in depth). Applies from the next question on.')}</p>
-                  <RealtimeToggle isAdmin={auth?.admin === true} on={od.realtimeEnabled === true} set={v => setOd({ realtimeEnabled: v })} t={t} />
                 </div>
                 {isAnamnesis && (
                 <div style={{ marginBottom:14 }}>

@@ -588,7 +588,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, realtimeEnabled, guestEnabled, detailChoice, ownerUser } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, guestEnabled, detailChoice, ownerUser } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -745,7 +745,6 @@ module.exports = async function handler(req, res) {
         // kostet ein Vielfaches von STT→LLM→TTS. Ein Manager darf sie deshalb
         // nicht für sein Buch einschalten können — hier serverseitig verriegelt,
         // nicht bloß im Dashboard ausgeblendet.
-        realtime_enabled: req.auth?.admin === true && realtimeEnabled === true,
         // Gastbeiträge (nur Lebenswerk): schon beim Anlegen aktivierbar, damit der
         // Manager Buch-Link und Gast-Link in einem Zug bekommt. Der Gast-Code ist ein
         // EIGENES Geheimnis (der Buch-Code allein öffnet den Endnutzer-Bereich) und
@@ -991,7 +990,6 @@ module.exports = async function handler(req, res) {
         // Nur der Superadmin (siehe Anlage oben). Bei allen anderen wird das Feld
         // stillschweigend ignoriert — ein Manager kann das Live-Gespräch weder
         // ein- noch ausschalten.
-        if ('realtimeEnabled' in meta && req.auth?.admin === true) update.realtime_enabled = meta.realtimeEnabled === true
         if ('proofEnabled' in meta)  update.proof_enabled = meta.proofEnabled === true
         // Gastbeiträge (nur Lebenswerk): Der Gast-Link ist ein EIGENES Geheimnis.
         // Der Code wird beim ERSTEN Einschalten erzeugt und danach behalten —

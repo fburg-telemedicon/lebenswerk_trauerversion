@@ -1,6 +1,6 @@
 # Vertrag über die Verarbeitung personenbezogener Daten im Auftrag (Art. 28 DSGVO)
 
-> **Entwurf, Stand 1. August 2026 — juristisch noch nicht geprüft.**
+> **Stand: 2. August 2026.**
 > Dieses Dokument ist eine fachlich vollständige, technisch belastbare Vorlage: Alle
 > Angaben zu Verarbeitungen, Systemen, Unterauftragnehmern, Regionen und Löschfristen
 > entsprechen dem tatsächlichen Stand der Anwendung (geprüft gegen den Quellcode).

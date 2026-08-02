@@ -411,7 +411,11 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   //    `bookMode` kann nie 'live' werden, es braucht immer die Wahl der Person.
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
   const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid' || micMode === 'live') ? micMode : bookMode
-  const liveMode = effMode === 'live' && memorial?.realtime_enabled === true && !companionOn
+  // Der Live-Modus steht allen offen; er ist nie Standard, sondern immer die
+  // bewusste Wahl der erzählenden Person. Im Begleiteten Modus bleibt er aus:
+  // dort sprechen zwei Menschen abwechselnd, das verträgt sich nicht mit einer
+  // durchgehenden Verbindung mit Sprecherkennung auf eine Stimme.
+  const liveMode = effMode === 'live' && !companionOn
   const handsFree = !liveMode && effMode !== 'manual' && !companionOn
   const micManualStop = handsFree && effMode === 'hybrid'
   // Aktuelle Modus-Werte zusätzlich in Refs spiegeln, damit asynchrone Stellen
@@ -2037,12 +2041,11 @@ function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
   const cur = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid' || micMode === 'live') ? micMode : bookMode
   const opts = [
-    // Vierter Modus, nur wenn der Manager ihn für dieses Buch freigeschaltet hat
-    // (realtime_enabled) — nie Standard, immer die bewusste Wahl der Person.
-    ...(memorial?.realtime_enabled === true ? [{ key:'live',
-      title: en ? 'Live conversation (beta)' : 'Live-Gespräch (Beta)',
+    // Vierter Modus, allen offen — nie Standard, immer die bewusste Wahl der Person.
+    { key:'live',
+      title: en ? 'Live conversation' : 'Live-Gespräch',
       sub: en ? 'One continuous conversation: talk freely, pause to think, and interrupt whenever you like — no tapping at all.'
-              : 'Ein durchgehendes Gespräch: frei sprechen, in Ruhe nachdenken und jederzeit dazwischenreden — ganz ohne Antippen.' }] : []),
+              : 'Ein durchgehendes Gespräch: frei sprechen, in Ruhe nachdenken und jederzeit dazwischenreden — ganz ohne Antippen.' },
     { key:'auto',   title: en ? 'Conduct conversation automatically' : 'Gespräch selbständig führen',
       sub: en ? 'The microphone opens after each question; a short pause sends your answer. No tapping.' : 'Das Mikrofon öffnet nach jeder Frage; eine kurze Sprechpause sendet Ihre Antwort. Kein Antippen.' },
     { key:'hybrid', title: en ? 'Opens automatically, you stop it' : 'Automatisch öffnen, selbst beenden',
@@ -4108,7 +4111,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               onPause={cur === 'interview' ? handlePause : null}
               onSupport={() => openSupportHere({ view: 'interview' })}
               onSwitchInterview={switchInterview}
-              onMicMode={((memorial?.mic_mode_switch !== false || memorial?.realtime_enabled === true) && !companionOn) ? () => setMicModeOpen(true) : null}
+              onMicMode={!companionOn ? () => setMicModeOpen(true) : null}
               micModeLabel={xt(L).micModeMenu}
               onDetail={memorial?.detail_choice === true ? () => setDetailOpen(true) : null}
               detailLabel={xt(L).detailMenu}

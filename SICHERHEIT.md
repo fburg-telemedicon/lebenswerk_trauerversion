@@ -1,7 +1,7 @@
 # Sicherheit & technische Maßnahmen (TOM)
 
 Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App
-(DSGVO Art. 32). Stand: 2026-07-07. Produktion: lebensgeschichten.ai.
+(DSGVO Art. 32). Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
 
 ## 1. Verschlüsselung
 
@@ -92,11 +92,17 @@ Maßnahmen:
   manipulierter Client die Sitzung auf ein teureres oder außereuropäisches Modell
   umbiegen.
 - **Kurzlebiges Ticket statt Dauerzugang.** `POST /api/voicelive-token` prüft Buch-Code,
-  Freischaltung, Budget und Sprache und stellt ein HMAC-signiertes Ticket mit 2 Minuten
-  Gültigkeit aus (`ADMIN_TOKEN_SECRET`). Es dient nur dem Verbindungsaufbau.
-- **Doppelte Freiwilligkeit.** `memorials.realtime_enabled` ist Default aus und **nur vom
-  Superadmin** setzbar (`api/admin/memorials.js`); zusätzlich wählt die erzählende Person
-  den Modus selbst. Jeder Fehler fällt still auf die bestehenden Mikrofon-Modi zurück.
+  Budget und Sprache und stellt ein HMAC-signiertes Ticket mit 2 Minuten Gültigkeit aus
+  (`ADMIN_TOKEN_SECRET`). Es dient nur dem Verbindungsaufbau.
+- **Nie Standard, immer bewusste Wahl.** Der Modus steht seit dem 2026-08-02 allen
+  offen (der frühere Freischaltvorbehalt je Buch ist entfallen), ist aber **niemals
+  voreingestellt**: Voreinstellung bleibt die Mischform (Mikrofon öffnet automatisch,
+  die erzählende Person beendet per Knopfdruck). Der Live-Modus wird ausschließlich
+  aktiv, wenn die Person ihn im Menü „Mikrofon-Modus" selbst auswählt, und lässt sich
+  jederzeit wieder verlassen. Jeder Fehler fällt still auf die Mikrofon-Modi zurück.
+- **Im Begleiteten Modus abgeschaltet.** Sprechen zwei Menschen abwechselnd
+  (Begleitperson), bleibt der Live-Modus aus — eine durchgehende Verbindung mit
+  Ausrichtung auf eine Stimme passt dort nicht.
 - **Kein Audio-Mitschnitt.** Gespeichert wird ausschließlich das Transkript in derselben
   Struktur wie im Mikrofon-Modus. Voice Live selbst speichert nach Microsoft-Doku nichts;
   die optionale Protokollierung für Support-Fälle ist nicht aktiviert.

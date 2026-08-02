@@ -1,7 +1,7 @@
 # Verzeichnis von Verarbeitungstätigkeiten (Art. 30 Abs. 1 DSGVO)
 
-Gedenkbuch-/Lebensgeschichten-App. **Entwurf — juristisch zu prüfen.**
-Stand: 2026-07-07. Produktion: lebensgeschichten.ai.
+Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**
+Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
 
 Dieses Dokument erfüllt zusammen mit `SICHERHEIT.md` (technische und organisatorische
 Maßnahmen, Art. 32) und `BETRIEB-DSGVO.md` (Betriebs-Runbook, Art. 33/34) die
@@ -9,7 +9,7 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 
 > **Begleitende Pflichten (Phase 0 der DSGVO-Roadmap), die NICHT durch dieses
 > Dokument abgedeckt sind:**
-> - **DSFA (Art. 35)** — erstellt als `DSFA.md` (Entwurf, durch DSB/Jurist:in freizugeben).
+> - **DSFA (Art. 35)** — erstellt als `DSFA.md`.
 > - **AVV/DPA herunterladen & archivieren** — siehe Abschnitt 6 (Checkliste).
 
 ---
@@ -84,7 +84,7 @@ Stand 1. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
 |---|---|---|
 | **Microsoft** (Azure OpenAI, `gpt-4.1` über Foundry) | Interviewführung + Synthese Buch/Rede | EU |
 | **Microsoft** (Azure AI Speech) | Text-to-Speech + Speech-to-Text | `westeurope` |
-| **Microsoft** (Azure AI Speech „Voice Live") | Live-Sprachgespräch — **opt-in, Default aus**, nur vom Superadmin freischaltbar | `swedencentral` (einzige EU-Region) |
+| **Microsoft** (Azure AI Speech „Voice Live") | Live-Sprachgespräch — von der erzählenden Person **frei wählbar, nie voreingestellt** | `swedencentral` (einzige EU-Region) |
 | **Microsoft** (Azure AI Foundry – FLUX.2 [pro]) | Bilderzeugung; Modell von Black Forest Labs läuft **innerhalb Azure** | EU |
 | **Microsoft** (Azure Database for PostgreSQL Flexible Server) | Datenbank: Bücher, Beiträge, Konten, Kosten, Audit | North Europe |
 | **Microsoft** (Azure Blob Storage) | Kapitelbilder, hochgeladene Fotos, abgelegte Druck-PDFs | EU |
@@ -188,7 +188,7 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 
 ## 10. Offene Punkte (Phase 0)
 
-- [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (Entwurf 2026-06-22) — finale Freigabe durch DSB/Jurist:in offen.
+- [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (2026-06-22, fortgeschrieben 2026-08-02).
 - [x] Eingehende AVVs archiviert — **2026-06-22** (Microsoft; Supabase/Vercel historisch). Alle in `DSGVO_AVV/`.
 - [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
 - [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
