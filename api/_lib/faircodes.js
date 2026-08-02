@@ -98,7 +98,17 @@ async function redeem(rawCode, createMemorial) {
   const { rows } = await pool().query('select * from fair_codes where code = $1', [code])
   const row = rows[0]
   if (!row) return { error: 'unknown' }
-  if (row.redeemed_memorial) return { memorialCode: row.redeemed_memorial, reused: true }
+
+  if (row.redeemed_memorial) {
+    // Zeigt der Code noch auf ein existierendes Buch? Wurde das Projekt
+    // zwischenzeitlich gelöscht (Aufbewahrung, Löschung von Hand), liefe der
+    // Gast beim nächsten Scan sonst in eine tote Seite. Dann wird die Karte
+    // wieder frei und legt ein neues Gespräch an — sie bleibt brauchbar.
+    const { rows: mem } = await pool().query('select 1 from memorials where id = $1', [row.redeemed_memorial])
+    if (mem.length) return { memorialCode: row.redeemed_memorial, reused: true }
+    await pool().query(
+      'update fair_codes set redeemed_at = null, redeemed_memorial = null where code = $1', [code])
+  }
 
   const memorialCode = await createMemorial({ timerSeconds: row.timer_seconds, batch: row.batch })
 

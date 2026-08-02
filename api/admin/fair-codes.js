@@ -11,6 +11,10 @@
 // Eingelöste Codes werden NICHT gelöscht: An ihnen hängt ein Buchprojekt, und
 // die Karte in fremder Hand soll weiter dorthin führen. Das Buchprojekt selbst
 // löscht man regulär über die Buchliste.
+//
+// AUSNAHME: Ist das Buchprojekt bereits gelöscht (Aufbewahrung, Löschung von
+// Hand), ist der Code verwaist — er führt ins Leere und darf weg. Gescannt wird
+// eine solche Karte ohnehin wieder frei (siehe redeem() in _lib/faircodes.js).
 
 const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
@@ -77,15 +81,21 @@ module.exports = async function handler(req, res) {
       const code = normalizeFairCode(req.query?.code || '')
       const batch = String(req.query?.batch || '').trim()
       if (code) {
-        const { rowCount } = await pool().query(
-          'delete from fair_codes where code = $1 and redeemed_memorial is null', [code])
-        if (!rowCount) return res.status(409).json({ error: 'Code ist bereits eingelöst und wird nicht gelöscht.' })
+        const { rowCount } = await pool().query(`delete from fair_codes
+            where code = $1
+              and (redeemed_memorial is null
+                   or not exists (select 1 from memorials m where m.id = fair_codes.redeemed_memorial))`, [code])
+        if (!rowCount) return res.status(409).json({ error: 'Code ist eingelöst und führt zu einem bestehenden Buchprojekt — er wird nicht gelöscht.' })
         await audit(req, { actor: req.auth, action: 'faircodes.delete', target: code })
         return res.json({ ok: true, deleted: rowCount })
       }
       if (batch) {
-        const { rowCount } = await pool().query(
-          'delete from fair_codes where batch = $1 and redeemed_memorial is null', [batch])
+        // Eingelöste Karten bleiben — an ihnen hängt ein Buchprojekt. Verwaiste
+        // (Buch gelöscht) werden mitgenommen, sie führen ohnehin ins Leere.
+        const { rowCount } = await pool().query(`delete from fair_codes
+            where batch = $1
+              and (redeemed_memorial is null
+                   or not exists (select 1 from memorials m where m.id = fair_codes.redeemed_memorial))`, [batch])
         await audit(req, { actor: req.auth, action: 'faircodes.delete_batch', detail: { batch, deleted: rowCount } })
         return res.json({ ok: true, deleted: rowCount })
       }
