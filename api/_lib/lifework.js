@@ -195,6 +195,7 @@ async function ensureLifeworkSchema() {
       add column if not exists life_poster jsonb,
       add column if not exists care_directive jsonb,
       add column if not exists power_of_attorney jsonb,
+      add column if not exists archived_at timestamptz,
       add column if not exists text_style  text,
       add column if not exists stored_pdfs jsonb,
       add column if not exists interview_timer_seconds integer,

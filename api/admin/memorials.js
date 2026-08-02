@@ -7,6 +7,7 @@ const { createClient, pool } = require('../_lib/store')
 const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { audit } = require('../_lib/audit')
+const { purgeDueAt, isPurgeDue, daysUntilDue, retentionDaysFor } = require('../_lib/retention')
 const { isValidCategory, DEFAULT_CATEGORY, isAnamnesisCategory, isEnduserCategory } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
@@ -30,7 +31,7 @@ const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, 
 // family_tree/life_poster/care_directive: die Nebenprodukte des Lebenswerks.
 // Fehlen die Spalten (Migration noch nicht gelaufen), fällt der GET auf
 // SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -453,7 +454,7 @@ module.exports = async function handler(req, res) {
       // show_contributors evtl. noch nicht migriert (db/show-contributors.sql) →
       // ohne die Spalte erneut lesen. Eine fehlende Migration darf niemals das
       // gesamte Dashboard lahmlegen; der Default (an) greift dann im Frontend.
-      if (error && /show_contributors|family_tree|life_poster|care_directive|power_of_attorney|column/i.test(error.message || '')) {
+      if (error && /show_contributors|family_tree|life_poster|care_directive|power_of_attorney|archived_at|column/i.test(error.message || '')) {
         ;({ data, error } = await listQuery(SELECT_COLS_LEGACY))
       }
       if (error) throw error
@@ -569,10 +570,18 @@ module.exports = async function handler(req, res) {
 
       // Grafikstil + Buchlayout kommen aus dem Haupt-Select; nur Defaults für
       // (noch) leere Werte setzen.
+      // Aufbewahrung: Fälligkeit einmal serverseitig ausrechnen, damit Dashboard
+      // und Tagesreport dieselbe Zahl sehen (api/_lib/retention.js ist die
+      // einzige Quelle der Fristenlogik).
+      const nowMs = Date.now()
       for (const m of memorials) {
         m.image_style = m.image_style || DEFAULT_STYLE
         m.book_layout = m.book_layout || DEFAULT_BOOK_LAYOUT
         m.text_style  = m.text_style  || defaultTextStyle(m.product_category)
+        m.purge_due_at    = purgeDueAt(m)
+        m.purge_due       = isPurgeDue(m, nowMs)
+        m.purge_due_days  = daysUntilDue(m, nowMs)
+        m.retention_days  = retentionDaysFor(m)
       }
 
       return res.json(memorials)

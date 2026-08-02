@@ -542,6 +542,18 @@ export async function adminSaveMemorialText(token, code, field, text) {
   return parseResponse(res)
 }
 
+// ── Aufbewahrung: Eingangsdaten löschen und/oder archivieren ──────
+// action: 'purge' (Standard, braucht confirm) | 'archive' | 'restore'.
+// 'purge' löscht Beiträge und Roh-Uploads unwiderruflich; das Buch bleibt.
+export async function adminPurgeMemorial(token, code, action = 'purge') {
+  const res = await fetch('/api/admin/purge-memorial', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ code, action, ...(action === 'purge' ? { confirm: true } : {}) }),
+  })
+  return parseResponse(res)
+}
+
 // ── Serverseitige Generierung (Job-Queue, robust gegen Verbindungsabbruch) ──
 // Job anlegen (Worker startet sofort). params = { field, resultType, combine, steps:[{system,user,label}] }.
 export async function enqueueGeneration(token, memorialCode, kind, params) {

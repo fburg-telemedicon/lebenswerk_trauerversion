@@ -1041,7 +1041,7 @@ function RealtimeToggle({ on, set, t, isAdmin }) {
   )
 }
 
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete }) {
+export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete, runRetention, retentionBusy, showArchived, setShowArchived }) {
     const t = useAdminT()
     const openSupport = useSupport()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
@@ -1085,7 +1085,11 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
     const distinctVals = col => [...new Set(memorials.map(col.disp))].sort((a, b) => String(a).localeCompare(String(b), 'de', { numeric: true }))
     // Sichtbarkeit: ein Buch passt, wenn es in JEDER aktiven Filterspalte einen
     // ausgewählten Wert hat. Fehlt der Filtereintrag, ist die Spalte ungefiltert.
-    const visibleMemorials = memorials.filter(m => matchesQuery(m) && sortCols.every(c => {
+    // Archiv: aufgeräumte Projekte sollen die Liste nicht zuwachsen lassen und
+    // sind deshalb ausgeblendet, bis man sie ausdrücklich einblendet.
+    const archivedCount = memorials.filter(m => m.archived_at).length
+    const dueCount = memorials.filter(m => m.purge_due && !m.archived_at).length
+    const visibleMemorials = memorials.filter(m => (showArchived ? !!m.archived_at : !m.archived_at) && matchesQuery(m) && sortCols.every(c => {
       const sel = filters[c.key]
       return !sel || sel.includes(c.disp(m))
     }))
@@ -1167,8 +1171,21 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
           so passen auch viele Spalten nebeneinander, ohne dass horizontal gescrollt
           werden muss, und es bleiben keine großen leeren Ränder. */}
       <div style={{ margin: '2rem auto', padding: '0 1.5rem' }}>
+        {/* Aufbewahrung: Seit dem 2026-08-02 löscht der Cron außerhalb der
+            Anamnese nicht mehr selbst — dieser Hinweis IST die Maßnahme und
+            darf deshalb nicht übersehbar sein. */}
+        {dueCount > 0 && !showArchived && (
+          <div style={{ marginBottom:'1.25rem', padding:'12px 16px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, fontSize:13, color:'#92400e', lineHeight:1.55 }}>
+            <strong>{dueCount === 1
+              ? t('Bei 1 Buchprojekt ist die Aufbewahrungsfrist abgelaufen.', '1 book project has passed its retention period.')
+              : t(`Bei ${dueCount} Buchprojekten ist die Aufbewahrungsfrist abgelaufen.`, `${dueCount} book projects have passed their retention period.`)}</strong>{' '}
+            {t('Die Eingangsdaten (Interviewbeiträge und Original-Fotos) sollten jetzt gelöscht werden. Die betroffenen Projekte sind in der Liste markiert; das Aufräumen stoßen Sie auf der Detailseite an — das fertige Buch bleibt dabei erhalten.',
+               'The input data (interview contributions and original photos) should now be deleted. The affected projects are flagged in the list; start the cleanup on the detail page — the finished book is kept.')}
+          </div>
+        )}
+
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem', gap:12 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700 }}>{t('Alle Bücher', 'All books')}</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>{showArchived ? t('Archiv', 'Archive') : t('Alle Bücher', 'All books')}</h2>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             {/* Suche: durchsucht Nr., Name, Buch-Code, Organisator, Inhaber, E-Mail,
                 Kategorie und Notiz. ✕ leert das Feld (auch mit Esc). */}
@@ -1186,6 +1203,13 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
             </div>
             {Object.keys(filters).length > 0 && (
               <button className="secondary" onClick={() => setFilters({})} style={{ fontSize:13, padding:'8px 12px' }}>{t('Filter zurücksetzen', 'Reset filters')}</button>
+            )}
+            {/* Archiv: aufgeräumte Projekte. Der Knopf erscheint erst, wenn es
+                überhaupt welche gibt — sonst wäre er nur Rauschen. */}
+            {(archivedCount > 0 || showArchived) && (
+              <button className="secondary" onClick={() => setShowArchived(v => !v)} style={{ fontSize:13, padding:'8px 12px' }}>
+                {showArchived ? t('← Zurück zur Liste', '← Back to list') : `${t('Archiv', 'Archive')} (${archivedCount})`}
+              </button>
             )}
             <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
               {t('+ Neues Buch', '+ New book')}
@@ -1282,7 +1306,17 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                   return (
                     <tr key={m.id}>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap', fontVariantNumeric:'tabular-nums' }} onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.project_no != null ? m.project_no : '—'}</td>
-                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{displayBookName(m) || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}</td>
+                      <td style={{ ...mainCell, fontWeight: 600 }}                       onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
+                        {displayBookName(m) || <span style={{ color:'#a8a29e', fontWeight:400 }}>{t('Name folgt', 'Name to follow')}</span>}
+                        {/* Abgelaufene Aufbewahrungsfrist direkt am Namen — hier
+                            sucht man das Projekt, nicht in einer Extraspalte. */}
+                        {m.purge_due && !m.archived_at && (
+                          <span title={t('Aufbewahrungsfrist abgelaufen – Eingangsdaten sollten gelöscht werden', 'Retention period passed – input data should be deleted')}
+                            style={{ marginLeft:8, fontSize:11, fontWeight:600, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:5, padding:'1px 6px', whiteSpace:'nowrap' }}>
+                            {t('Frist abgelaufen', 'Retention due')}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}   onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>{m.enduser_email || m.intake?.contact_email || '—'}</td>
                       {showCategoryColumn && (
                         <td style={{ ...mainCell, color:'#78716c', whiteSpace:'nowrap' }}     onMouseEnter={enterMain} onMouseLeave={leaveRow} onClick={() => openMemorial(m)}>
@@ -2529,7 +2563,7 @@ function GuestActions({ c, setGuestStatus }) {
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [] }) {
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3188,6 +3222,62 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
           </>)}
 
           <div style={S.divider} />
+
+          {/* ── Aufbewahrung ──────────────────────────────────────────
+              Außerhalb der Anamnese wird seit dem 2026-08-02 nicht mehr
+              automatisch gelöscht. Diese Karte ist der Ersatz dafür: Hinweis,
+              wenn die Frist abgelaufen ist, und der Knopf, der genau das tut,
+              was der Cron vorher tat — Eingangsdaten weg, Endprodukt bleibt. */}
+          {!isAnamnesis && (
+            <div style={{ ...S.card, marginBottom:'1.5rem',
+              ...(selected.purge_due && !selected.archived_at ? { borderColor:'#fde68a', background:'#fffdf5' } : {}) }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:10 }}>
+                <div>
+                  <div style={{ fontWeight:600, marginBottom:4 }}>🗄 {t('Aufbewahrung', 'Retention')}</div>
+                  <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+                    {selected.purge_info?.purged_at
+                      ? t(`Eingangsdaten wurden am ${new Date(selected.purge_info.purged_at).toLocaleDateString('de-DE')} gelöscht. Das Buch und die übrigen Endprodukte sind erhalten.`,
+                          `Input data was deleted on ${new Date(selected.purge_info.purged_at).toLocaleDateString('de-DE')}. The book and the other outputs are kept.`)
+                      : selected.purge_due
+                        ? t(`Die Aufbewahrungsfrist von ${selected.retention_days ?? 90} Tagen ist abgelaufen${selected.purge_due_at ? ` (seit ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')})` : ''}. Die Eingangsdaten sollten jetzt gelöscht werden.`,
+                            `The retention period of ${selected.retention_days ?? 90} days has passed${selected.purge_due_at ? ` (since ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')})` : ''}. The input data should now be deleted.`)
+                        : t(`Die Eingangsdaten sollten nach ${selected.retention_days ?? 90} Tagen gelöscht werden${selected.purge_due_at ? ` — also ab dem ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')}` : ''}. Sie können das jederzeit auch früher tun.`,
+                            `The input data should be deleted after ${selected.retention_days ?? 90} days${selected.purge_due_at ? ` — from ${new Date(selected.purge_due_at).toLocaleDateString('de-DE')}` : ''}. You can do it earlier at any time.`)}
+                  </p>
+                </div>
+                {selected.archived_at && (
+                  <span style={{ fontSize:11, color:'#57534e', background:'#f5f5f4', border:'1px solid #e7e5e4', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>
+                    {t('Im Archiv', 'Archived')}
+                  </span>
+                )}
+              </div>
+
+              {!selected.purge_info?.purged_at && (
+                <p style={{ fontSize:12, lineHeight:1.55, margin:'0 0 12px', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'8px 10px' }}>
+                  ⚠ {t('Gelöscht werden alle Beiträge (Interviewtexte), die hochgeladenen Original-Fotos und die Änderungsprotokolle — unwiderruflich. Erhalten bleiben das fertige Buch samt Bildern, Rede bzw. Exzerpt sowie Stammbaum, Poster und die Vorsorge-Dokumente.',
+                          'Deleted are all contributions (interview texts), the uploaded original photos and the edit logs — irreversibly. Kept are the finished book including images, the speech or excerpt, and the family tree, poster and precautionary documents.')}
+                </p>
+              )}
+
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {!selected.purge_info?.purged_at && (
+                  <button onClick={() => runRetention(selected, 'purge')} disabled={retentionBusy === selected.id}
+                    style={{ fontSize:13, padding:'8px 14px', background:'#b91c1c' }}>
+                    {retentionBusy === selected.id ? t('Wird gelöscht …', 'Deleting …') : t('🗑 Eingangsdaten löschen und archivieren', '🗑 Delete input data and archive')}
+                  </button>
+                )}
+                {selected.archived_at ? (
+                  <button onClick={() => runRetention(selected, 'restore')} disabled={retentionBusy === selected.id} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                    {t('↩ Aus dem Archiv holen', '↩ Restore from archive')}
+                  </button>
+                ) : (
+                  <button onClick={() => runRetention(selected, 'archive')} disabled={retentionBusy === selected.id} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+                    {t('🗄 Nur archivieren', '🗄 Archive only')}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── Auftragsdaten (Stammdaten) — selten gebraucht, daher unten ── */}
           <div style={{ ...S.card, marginBottom:'1.5rem' }}>
