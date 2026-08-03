@@ -199,7 +199,8 @@ Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR. Das gilt auch f�
 
 ### Ausgehender AVV (wir als Auftragsverarbeiter gegenüber unseren Kunden)
 
-Betreut ein Kunde — etwa ein Bestattungshaus, eine Klinik oder ein Unternehmen —
+Betreut ein Kunde — etwa eine **Pflegeeinrichtung**, ein Bestattungshaus, eine Klinik
+oder ein Unternehmen —
 eigene Endkunden über die Plattform, ist **er** der Verantwortliche und die
 Lebenswerk.AI GmbH **Auftragsverarbeiterin** nach Art. 28 DSGVO. Der zugehörige
 Vertragsentwurf samt TOM- und Unterauftragnehmer-Anlage liegt in **`AVV.md`** und ist
