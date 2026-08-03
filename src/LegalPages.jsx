@@ -4,20 +4,22 @@
 import { useState, useEffect } from 'react'
 import { CONSENT_VERSION } from './constants.js'
 import { BOOK_DISCLAIMER } from './bookExport.js'
+// Die AGB kommen aus derselben Datei, aus der auch das Kunden-PDF gebaut wird.
+import agbMarkdown from '../AGB.md?raw'
 
 // Footer-Beschriftungen je Sprache. Die ZIELDOKUMENTE bleiben deutsch (nur die
 // Link-Texte werden übersetzt) — so entschieden, weil Rechtstexte maßgeblich
 // deutsch sind.
 const FOOTER_LABELS = {
-  de:      { privacy: 'Datenschutzerklärung', imprint: 'Impressum' },
-  'de-CH': { privacy: 'Datenschutzerklärung', imprint: 'Impressum' },
-  en:      { privacy: 'Privacy policy', imprint: 'Legal notice' },
-  pl:      { privacy: 'Polityka prywatności', imprint: 'Nota prawna' },
-  es:      { privacy: 'Política de privacidad', imprint: 'Aviso legal' },
-  it:      { privacy: 'Informativa sulla privacy', imprint: 'Note legali' },
-  eu:      { privacy: 'Pribatutasun-politika', imprint: 'Lege-oharra' },
-  he:      { privacy: 'מדיניות פרטיות', imprint: 'הצהרה משפטית' },
-  ar:      { privacy: 'سياسة الخصوصية', imprint: 'الإشعار القانوني' },
+  de:      { privacy: 'Datenschutzerklärung', imprint: 'Impressum', terms: 'AGB', revoke: 'Widerruf' },
+  'de-CH': { privacy: 'Datenschutzerklärung', imprint: 'Impressum', terms: 'AGB', revoke: 'Widerruf' },
+  en:      { privacy: 'Privacy policy', imprint: 'Legal notice', terms: 'Terms', revoke: 'Right of withdrawal' },
+  pl:      { privacy: 'Polityka prywatności', imprint: 'Nota prawna', terms: 'Regulamin', revoke: 'Odstąpienie' },
+  es:      { privacy: 'Política de privacidad', imprint: 'Aviso legal', terms: 'Condiciones', revoke: 'Desistimiento' },
+  it:      { privacy: 'Informativa sulla privacy', imprint: 'Note legali', terms: 'Condizioni', revoke: 'Recesso' },
+  eu:      { privacy: 'Pribatutasun-politika', imprint: 'Lege-oharra', terms: 'Baldintzak', revoke: 'Atzera egitea' },
+  he:      { privacy: 'מדיניות פרטיות', imprint: 'הצהרה משפטית', terms: 'תנאי שימוש', revoke: 'זכות ביטול' },
+  ar:      { privacy: 'سياسة الخصوصية', imprint: 'الإشعار القانوني', terms: 'الشروط والأحكام', revoke: 'حق الانسحاب' },
 }
 
 function LegalLayout({ title, children }) {
@@ -35,6 +37,120 @@ function LegalLayout({ title, children }) {
 
 const LH = { fontSize:18, fontWeight:700, margin:'1.8rem 0 .6rem', color:'#1c1917' }
 
+// ── AGB + Widerrufsbelehrung ──────────────────────────────────────
+// Die AGB stehen NICHT ein zweites Mal als JSX hier, sondern werden aus `AGB.md`
+// gerendert — derselben Datei, aus der das Kundenpaket sein AGB-PDF baut. Bei
+// Impressum und Datenschutzerklärung läuft es andersherum (JSX ist die Quelle,
+// `scripts/legal2md.js` zieht das Markdown heraus). Beide Male ist der Punkt
+// derselbe: eine Quelle, damit die veröffentlichte Fassung und die Fassung im
+// Kundenordner nicht auseinanderlaufen.
+//
+// Der Markdown-Umfang ist bewusst derselbe kleine wie in `scripts/md2pdf.js`:
+// Überschriften, Absätze, Tabellen, Listen, Zitatblöcke, Trennlinien, eingerückte
+// Formularblöcke, fett/kursiv/Code/Links.
+
+const MD_INLINE = /(\*\*[\s\S]+?\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|<br\s*\/?>|\*[^*\n]+\*)/g
+
+function mdInline(text) {
+  return String(text).split(MD_INLINE).filter(p => p).map((p, i) => {
+    if (/^\*\*[\s\S]+\*\*$/.test(p)) return <strong key={i}>{p.slice(2, -2)}</strong>
+    if (/^`[^`]+`$/.test(p))         return <code key={i} style={{ fontSize:13, background:'#f5f5f4', padding:'0 3px', borderRadius:2 }}>{p.slice(1, -1)}</code>
+    if (/^<br/.test(p))              return <br key={i} />
+    if (/^\*[^*]+\*$/.test(p))       return <em key={i}>{p.slice(1, -1)}</em>
+    const a = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (a) return <a key={i} href={a[2]} style={{ color:'#1c1917' }}>{a[1]}</a>
+    return p
+  })
+}
+
+// Anker für die Sprungmarke auf die Widerrufsbelehrung.
+const mdSlug = s => String(s).toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-').replace(/^-|-$/g, '')
+
+const MD_TD = { border:'1px solid #d6d3d1', padding:'6px 8px', textAlign:'left', verticalAlign:'top' }
+const splitRow = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+
+function mdBlocks(md) {
+  const lines = md.replace(/\r\n/g, '\n').split('\n')
+  const out = []
+  let i = 0
+  const key = () => out.length
+
+  while (i < lines.length) {
+    const l = lines[i]
+
+    // Tabelle
+    if (/^\|/.test(l) && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1] || '')) {
+      const head = splitRow(l)
+      i += 2
+      const rows = []
+      while (i < lines.length && /^\|/.test(lines[i])) { rows.push(splitRow(lines[i])); i++ }
+      out.push(
+        <div key={key()} style={{ overflowX:'auto', margin:'0 0 1rem' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:14 }}>
+            <thead><tr>{head.map((c, n) => <th key={n} style={{ ...MD_TD, background:'#f5f5f4' }}>{mdInline(c)}</th>)}</tr></thead>
+            <tbody>{rows.map((r, n) => <tr key={n}>{r.map((c, m) => <td key={m} style={MD_TD}>{mdInline(c)}</td>)}</tr>)}</tbody>
+          </table>
+        </div>)
+      continue
+    }
+
+    // Eingerückter Block (Anschrift, Muster-Widerrufsformular)
+    if (/^ {4}\S/.test(l)) {
+      const buf = []
+      while (i < lines.length && (/^ {4}/.test(lines[i]) || lines[i].trim() === '')) {
+        if (lines[i].trim() === '' && !/^ {4}/.test(lines[i + 1] || '')) break
+        buf.push(lines[i].replace(/^ {4}/, '')); i++
+      }
+      out.push(<pre key={key()} style={{ fontSize:13, lineHeight:1.7, background:'#fafaf9', borderLeft:'2px solid #d6d3d1', padding:'10px 14px', margin:'0 0 1rem', whiteSpace:'pre-wrap', fontFamily:'ui-monospace, Consolas, monospace' }}>{buf.join('\n')}</pre>)
+      continue
+    }
+
+    const h = l.match(/^(#{1,4})\s+(.*)$/)
+    if (h) {
+      // Die Dokumentüberschrift steht schon in der Kopfzeile der Seite.
+      if (h[1] === '#' && out.length === 0) { i++; continue }
+      const gross = h[1].length === 1
+      out.push(<h2 key={key()} id={mdSlug(h[2])} style={{ ...LH, fontSize: gross ? 20 : 18, marginTop: gross ? '2.6rem' : '1.8rem' }}>{mdInline(h[2])}</h2>)
+      i++; continue
+    }
+
+    if (/^(---|___)\s*$/.test(l)) { out.push(<hr key={key()} style={{ border:'none', borderTop:'1px solid #e7e5e4', margin:'1.6rem 0' }} />); i++; continue }
+
+    if (/^>\s?/.test(l)) {
+      const buf = []
+      while (i < lines.length && /^>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^>\s?/, '')); i++ }
+      out.push(<blockquote key={key()} style={{ margin:'0 0 1rem', padding:'10px 14px', background:'#fffbeb', borderLeft:'3px solid #fbbf24' }}>{mdBlocks(buf.join('\n'))}</blockquote>)
+      continue
+    }
+
+    // Liste. Fortsetzungszeilen gehören zum Punkt — sonst zerreißt Fettdruck,
+    // der über den Zeilenumbruch geht.
+    if (/^(\s*)([-*]|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d/.test(l)
+      const items = []
+      while (i < lines.length) {
+        const m = lines[i].match(/^(\s*)([-*]|\d+\.)\s+(.*)$/)
+        if (!m) break
+        const buf = [m[3]]; i++
+        while (i < lines.length && lines[i].trim() !== '' && /^\s/.test(lines[i]) && !/^\s*([-*]|\d+\.)\s/.test(lines[i])) { buf.push(lines[i].trim()); i++ }
+        items.push(buf.join(' '))
+      }
+      const Tag = ordered ? 'ol' : 'ul'
+      out.push(<Tag key={key()} style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>{items.map((t, n) => <li key={n} style={{ marginBottom:6 }}>{mdInline(t)}</li>)}</Tag>)
+      continue
+    }
+
+    if (l.trim() === '') { i++; continue }
+
+    const buf = [l]; i++
+    while (i < lines.length && lines[i].trim() !== '' && !/^(#{1,4}\s|>|\||\s*([-*]|\d+\.)\s|---)/.test(lines[i]) && !/^ {4}\S/.test(lines[i])) { buf.push(lines[i]); i++ }
+    out.push(<p key={key()} style={{ margin:'0 0 .9rem' }}>{mdInline(buf.join(' '))}</p>)
+  }
+  return out
+}
+
+// `anchor` springt beim Aufruf über /#widerruf direkt zur Widerrufsbelehrung —
+// die muss für Verbraucher leicht auffindbar sein, nicht erst nach zwölf Paragraphen.
 export function Impressum() {
   return (
     <LegalLayout title="Impressum">
@@ -239,6 +355,22 @@ export function Datenschutz() {
   )
 }
 
+export function AGB({ anchor }) {
+  useEffect(() => {
+    if (!anchor) return
+    // Über den Anfang der Kennung gesucht, nicht über die vollständige: Die
+    // Überschrift heißt „Anlage 1 — Widerrufsbelehrung" und darf umbenannt werden,
+    // ohne dass der Link ins Leere zeigt.
+    const el = [...document.querySelectorAll('[id]')].find(e => e.id.includes(anchor))
+    if (el) el.scrollIntoView({ block:'start' })
+  }, [anchor])
+  return (
+    <LegalLayout title="Allgemeine Geschäftsbedingungen">
+      {mdBlocks(agbMarkdown)}
+    </LegalLayout>
+  )
+}
+
 // Der Footer wird global gerendert und kennt die Interview-Sprache nicht direkt.
 // Der Beitragenden-Flow schreibt sie nach `document.documentElement.lang` und löst
 // ein `lw-lang`-Event aus; darauf liest der Footer die Sprache neu und übersetzt
@@ -258,6 +390,10 @@ export function LegalFooter() {
       <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={a}>{L.privacy}</a>
       <span style={{ color:'#d6d3d1' }}>·</span>
       <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={a}>{L.imprint}</a>
+      <span style={{ color:'#d6d3d1' }}>·</span>
+      <a href="/#agb" target="_blank" rel="noopener noreferrer" style={a}>{L.terms}</a>
+      <span style={{ color:'#d6d3d1' }}>·</span>
+      <a href="/#widerruf" target="_blank" rel="noopener noreferrer" style={a}>{L.revoke}</a>
     </footer>
   )
 }

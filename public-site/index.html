@@ -250,7 +250,9 @@
     <div>
       <div style="font-weight:700;color:var(--ink);margin-bottom:6px">Rechtliches</div>
       <a href="/app#impressum">Impressum</a><br />
-      <a href="/app#datenschutz">Datenschutzerklärung</a>
+      <a href="/app#datenschutz">Datenschutzerklärung</a><br />
+      <a href="/app#agb">AGB</a><br />
+      <a href="/app#widerruf">Widerrufsbelehrung</a>
     </div>
   </div>
 </footer>
@@ -261,7 +263,7 @@
   // funktionieren, deshalb hier auf die Rechtsseiten der Anwendung weiterleiten.
   (function () {
     var h = (location.hash || '').toLowerCase()
-    if (h === '#datenschutz' || h === '#impressum') location.replace('/app' + h)
+    if (['#datenschutz', '#impressum', '#agb', '#widerruf'].indexOf(h) !== -1) location.replace('/app' + h)
   })()
 </script>
 

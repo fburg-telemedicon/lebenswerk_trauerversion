@@ -1,7 +1,7 @@
 # Verzeichnis von Verarbeitungstätigkeiten (Art. 30 Abs. 1 DSGVO)
 
 Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**
-Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
+Stand: 2026-08-03. Produktion: lebensgeschichten.ai.
 
 Dieses Dokument erfüllt zusammen mit `SICHERHEIT.md` (technische und organisatorische
 Maßnahmen, Art. 32) und `BETRIEB-DSGVO.md` (Betriebs-Runbook, Art. 33/34) die
@@ -29,9 +29,18 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 
 ## 2. Zwecke der Verarbeitung (Art. 30 Abs. 1 lit. b)
 
-Erstellung eines individuellen **Erinnerungs-/Gedenkwerks** (Buch bzw. Rede) aus
-Beiträgen mehrerer Personen. Acht Produktkategorien: Gedenken (memorial),
-Geburtstag, Jubiläum, Abschied, (Trauer-)Feier, Firma, Geburt, Ermutigung.
+Erstellung eines individuellen **Erinnerungs-, Lebens- oder Gedenkwerks** (Buch,
+Rede bzw. Anamnesebogen) aus dem, was die erzählenden Personen berichten. **Elf
+Produktkategorien**, die sich in zwei Formen teilen:
+
+| Form | Kategorien | Wer erzählt |
+|---|---|---|
+| **Selbsterzählung** | Lebenswerk, Anamnesebogen (Reha), Anamnese KVSW (Krankenhausaufnahme) | die betroffene Person über sich selbst, mit eigenem Zugang |
+| **Beiträge mehrerer** | Gedenken, Geburtstag, Hochzeitsjubiläum, Abschied & Ruhestand, Dienstjubiläum, Betriebsjubiläum, Geburt (Willkommensbuch), Ermutigung (Mutmachbuch) | Angehörige, Freundinnen, Kolleginnen über eine Person (bzw. beim Betriebsjubiläum über die Organisation) |
+
+Die Unterscheidung ist datenschutzrechtlich erheblich: Bei der Selbsterzählung gibt
+es keine Beitragenden-Gruppe, und der Zugangscode ist der Zugang der erzählenden
+Person selbst.
 
 Teilzwecke:
 1. **KI-gestütztes Interview** (Sprache oder Text) zur Sammlung von Erinnerungen.

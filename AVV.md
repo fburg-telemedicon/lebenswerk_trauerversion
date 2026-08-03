@@ -1,6 +1,6 @@
 # Vertrag über die Verarbeitung personenbezogener Daten im Auftrag (Art. 28 DSGVO)
 
-> **Stand: 2. August 2026.**
+> **Stand: 3. August 2026.**
 > Dieses Dokument ist eine fachlich vollständige, technisch belastbare Vorlage: Alle
 > Angaben zu Verarbeitungen, Systemen, Unterauftragnehmern, Regionen und Löschfristen
 > entsprechen dem tatsächlichen Stand der Anwendung (geprüft gegen den Quellcode).
@@ -38,9 +38,15 @@
 ## § 1 Gegenstand und Dauer
 
 **(1)** Die Auftragnehmerin betreibt die Anwendung *Lebensgeschichten.ai*, mit der aus
-sprachgeführten Interviews persönliche Bücher, Gedenkbücher und Reden entstehen. Der
+sprachgeführten Interviews persönliche Werke entstehen — je nach Anlass eine
+Lebensgeschichte („Lebenswerk"), ein Gedenkbuch, ein Buch zu Geburtstag, Jubiläum,
+Abschied oder Geburt, ein Mutmachbuch, eine Rede oder ein Anamnesebogen. Der
 Verantwortliche nutzt die Anwendung, um für die von ihm betreuten Personen
 Buchprojekte anzulegen, Zugänge auszugeben und die entstehenden Werke abzurufen.
+
+**(1a) Beauftragte Kategorien.** Welche dieser Anlässe der Verantwortliche tatsächlich
+einsetzt, ergibt sich aus dem Hauptvertrag. Für nicht beauftragte Anlässe entsteht
+keine Verarbeitung im Auftrag.
 
 **(2)** Gegenstand dieses Vertrages ist die Verarbeitung personenbezogener Daten durch
 die Auftragnehmerin im Auftrag und nach Weisung des Verantwortlichen.
@@ -322,7 +328,7 @@ Stand 1. August 2026. Sämtliche Verarbeitung findet in der EU statt; es besteht
 |---|---|---|---|
 | Microsoft Ireland Operations Ltd. — Azure OpenAI (`gpt-4.1`) | Interviewführung, Erstellung von Buch- und Redetexten | EU | Microsoft DPA |
 | Microsoft — Azure AI Speech | Vorlesen (TTS) und Spracherkennung (STT) | westeurope | Microsoft DPA |
-| Microsoft — Azure AI Speech „Voice Live" | Live-Sprachgespräch; **nur wenn ausdrücklich freigeschaltet**, Voreinstellung aus | swedencentral | Microsoft DPA |
+| Microsoft — Azure AI Speech „Voice Live" | Live-Sprachgespräch; von der erzählenden Person **frei wählbar, nie Voreinstellung** | swedencentral | Microsoft DPA |
 | Microsoft — Azure AI Foundry (FLUX.2 [pro]) | Erzeugung der Kapitel- und Coverbilder | EU | Microsoft DPA |
 | Microsoft — Azure Database for PostgreSQL | Speicherung aller Projektdaten | North Europe | Microsoft DPA |
 | Microsoft — Azure Blob Storage | Bilder, hochgeladene Fotos, abgelegte PDFs | EU | Microsoft DPA |

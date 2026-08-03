@@ -1,7 +1,7 @@
 # Datenschutz-Folgenabschätzung (DSFA, Art. 35 DSGVO)
 
 Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**
-Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
+Stand: 2026-08-03. Produktion: lebensgeschichten.ai.
 Verantwortlicher: **Lebenswerk.AI GmbH**, Seegebiet Mansfelder Land (GF Prof. Dr. med. Tobias D. Gantner).
 
 Baut auf den bestehenden Dokumenten auf und wiederholt deren Inhalte nicht:
@@ -33,9 +33,11 @@ Auslöser erfüllt (es genügt regelmäßig die Erfüllung von zwei Kriterien de
 
 Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
 
-- **Zweck:** Erstellung eines individuellen Erinnerungs-/Gedenkwerks (Buch/Rede) aus
-  Beiträgen mehrerer Personen; acht Produktkategorien.
-- **Ablauf:** Beitragende/r ruft per 6-stelligem Code die App auf → optionales
+- **Zweck:** Erstellung eines individuellen Erinnerungs-, Lebens- oder Gedenkwerks
+  (Buch, Rede bzw. Anamnesebogen); **elf Produktkategorien** in zwei Formen —
+  Selbsterzählung (Lebenswerk, beide Anamnese-Kategorien) und Beiträge mehrerer
+  Personen (VVT Abschnitt 2).
+- **Ablauf:** Beitragende/r bzw. erzählende Person ruft per 10-stelligem Code die App auf → optionales
   Einführungsvideo (nur memorial) → Sprach- oder Text-Interview → KI-Rückfragen →
   Speicherung → Admin generiert Buch/Rede (LLM) + Kapitelbilder (FLUX) → KI-gestützte
   Inhalts-/Datenschutzprüfung → Export (DOCX/PDF).

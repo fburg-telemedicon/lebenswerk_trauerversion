@@ -54,7 +54,7 @@ function CoverPreview({ prep, posKey, width = 420 }) {
   return <canvas ref={ref} style={{ display:'block', borderRadius:6, border:'1px solid #e7e5e4' }} />
 }
 import { CONSENT_VERSION } from './constants.js'
-import { Impressum, Datenschutz, LegalFooter } from './LegalPages.jsx'
+import { Impressum, Datenschutz, AGB, LegalFooter } from './LegalPages.jsx'
 import { SupportProvider, useSupport } from './support.jsx'
 import { S, Lbl, Err, Back, Dots, PartnerBanner, partnerLogoSrc, col, th, FooterVisibilityCtx } from './ui.jsx'
 import { adminPurgeMemorial, fairStart, adminFairCodes, adminCreateFairCodes, adminDeleteFairBatch } from './api.js'
@@ -4162,6 +4162,8 @@ export default function App() {
   const route = hash.replace(/^#/, '')
   if (route === 'impressum')  return <Impressum />
   if (route === 'datenschutz') return <Datenschutz />
+  if (route === 'agb')        return <AGB />
+  if (route === 'widerruf')   return <AGB anchor="widerrufsbelehrung" />
 
   return (
     <>

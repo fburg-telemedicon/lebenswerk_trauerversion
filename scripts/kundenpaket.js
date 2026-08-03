@@ -37,6 +37,9 @@ const KUNDEN = {
     aufsicht:  'Der Landesbeauftragte für den Datenschutz und die Informationsfreiheit Rheinland-Pfalz',
     kurz:      'valuvita',
     umfang:    '15 Lebenswerk-Bücher',
+    // Beauftragte Produktkategorien. `nurLebenswerk` schneidet das ganze Paket auf
+    // die Selbsterzählung zu — siehe Abschnitt „Zuschnitt" weiter unten.
+    nurLebenswerk: true,
   },
 }
 
@@ -115,6 +118,181 @@ function deIntern(md, quelle, weg) {
   return s
 }
 
+// ── Zuschnitt auf die beauftragten Produktkategorien ──────────────
+// Die Originale beschreiben die ganze Anwendung mit ihren elf Anlässen. Wer nur
+// einen davon einsetzt, soll auch nur davon Unterlagen bekommen: Sonst prüft
+// die/der DSB Verarbeitungen, die es in diesem Auftragsverhältnis gar nicht gibt
+// — Beitragende, Verstorbene, Anamnesebögen —, und der AVV verspricht Dinge, die
+// niemand bestellt hat.
+//
+// Der Zuschnitt arbeitet mit wörtlichen Ersetzungen statt mit Mustern. Das ist
+// Absicht: Ändert sich ein Original, findet die Ersetzung ihren Text nicht mehr
+// und das Skript sagt es (`! Zuschnitt`), statt still eine veraltete Fassung
+// auszuliefern.
+const ZUSCHNITT_HINWEIS = k => `> **Zuschnitt auf die ${k.name}.** Im Auftrag der ${k.name} wird ausschließlich die
+> Produktkategorie **Lebenswerk** eingesetzt: Die erzählende Person berichtet ihr
+> eigenes Leben und erhält dafür einen eigenen Zugang. Die Anwendung beherrscht
+> weitere Anlässe — Gedenkbuch, Geburtstag, Jubiläum, Abschied, Geburt, Mutmachbuch,
+> Anamnesebogen —, die hier **nicht beauftragt** und deshalb aus dieser Fassung
+> entfernt sind. Maßgeblich für das Auftragsverhältnis ist diese Fassung.`
+
+const nurLebenswerk = k => ({
+  'Auftragsverarbeitungsvertrag': [
+    [`sprachgeführten Interviews persönliche Werke entstehen — je nach Anlass eine
+Lebensgeschichte („Lebenswerk"), ein Gedenkbuch, ein Buch zu Geburtstag, Jubiläum,
+Abschied oder Geburt, ein Mutmachbuch, eine Rede oder ein Anamnesebogen. Der`,
+     `sprachgeführten Interviews persönliche Werke entstehen. Gegenstand dieses
+Vertrages ist ausschließlich die Kategorie **„Lebenswerk"**: Die erzählende Person
+berichtet ihr eigenes Leben, daraus entsteht ihr Buch. Der`],
+
+    [`**(1a) Beauftragte Kategorien.** Welche dieser Anlässe der Verantwortliche tatsächlich
+einsetzt, ergibt sich aus dem Hauptvertrag. Für nicht beauftragte Anlässe entsteht
+keine Verarbeitung im Auftrag.`,
+     `**(1a) Beauftragte Kategorie.** Der Verantwortliche setzt ausschließlich die
+Kategorie „Lebenswerk" ein. Weitere Anlässe der Anwendung — Gedenkbuch, Geburtstag,
+Jubiläum, Abschied, Geburt, Mutmachbuch, Anamnesebogen — sind **nicht beauftragt**;
+für sie entsteht keine Verarbeitung im Auftrag. Sämtliche Bestimmungen und Anlagen
+dieses Vertrages sind auf die Kategorie „Lebenswerk" zugeschnitten. Eine Ausweitung
+auf weitere Kategorien bedarf einer Weisung in Textform.`],
+
+    [`- Erstellung der daraus abgeleiteten Werke: Buch, Gedenkbuch, Trauerrede, Anamnesebogen,
+  Kapitelbilder, Stammbaum und Lebensposter,`,
+     `- Erstellung des daraus abgeleiteten Werkes: das Lebenswerk-Buch samt Kapitelbildern,
+  auf Wunsch zusätzlich Stammbaum, Lebensposter sowie Betreuungsverfügung und
+  Vorsorgevollmacht als Entwurf,`],
+
+    [`| Erzählende Personen | Menschen, die ihre eigene Lebensgeschichte erzählen (Kategorie „Lebenswerk") |
+| Beitragende | Angehörige, Freundinnen, Weggefährten, die zu einem Gedenkbuch beitragen |
+| Verstorbene | Personen, über die berichtet wird (nicht mehr von der DSGVO erfasst, aber schutzwürdig) |`,
+     `| Erzählende Personen | Menschen, die ihre eigene Lebensgeschichte erzählen — die einzige Gruppe, die in dieser Kategorie ein Interview führt |`],
+
+    [`Kategorien ab. Da Menschen frei erzählen, **können** dennoch Angaben zu Gesundheit,
+Religion, Weltanschauung oder sexueller Orientierung fallen; in den Kategorien
+„Anamnese" sind Gesundheitsdaten sogar der Zweck. Die Parteien behandeln solche Daten`,
+     `Kategorien ab. Da Menschen frei ihr Leben erzählen, **ist** mit Angaben zu
+Gesundheit, Religion, Weltanschauung oder sexueller Orientierung zu rechnen. Die
+Parteien behandeln solche Daten`],
+
+    ['| Auskunft und Datenübertragbarkeit (Art. 15, 20) | Beitragende erhalten ihre Daten als PDF-Datenauskunft |',
+     '| Auskunft und Datenübertragbarkeit (Art. 15, 20) | Die erzählende Person erhält ihre Daten als PDF-Datenauskunft |'],
+
+    [`Betrieb automatisch: **90 Tage nach Ende der Nutzungsdauer**. Die Nutzungsdauer endet
+mit dem hinterlegten Anlass-Termin; ohne Anlass-Termin sechs Monate nach Anlage des
+Projekts (Lizenzlaufzeit). Für Anamnese-Projekte wird der gesamte Datensatz bereits
+14 Tage nach der Aufnahme gelöscht. Erfasst sind Beiträge, Aufnahmen,`,
+     `Betrieb automatisch: **90 Tage nach Ende der Nutzungsdauer**. Beim Lebenswerk ist
+in aller Regel kein Anlass-Termin hinterlegt; die Nutzungsdauer endet dann sechs
+Monate nach Anlage des Projekts (Lizenzlaufzeit), gelöscht wird mithin rund neun
+Monate nach Anlage. Erfasst sind Beiträge, Aufnahmen,`],
+  ],
+
+  'Verzeichnis der Verarbeitungstätigkeiten': [
+    ['Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**',
+     'Lebensgeschichten-App, Kategorie **Lebenswerk**. **Vom Verantwortlichen in Kraft gesetzt.**'],
+
+    [`Erstellung eines individuellen **Erinnerungs-, Lebens- oder Gedenkwerks** (Buch,
+Rede bzw. Anamnesebogen) aus dem, was die erzählenden Personen berichten. **Elf
+Produktkategorien**, die sich in zwei Formen teilen:
+
+| Form | Kategorien | Wer erzählt |
+|---|---|---|
+| **Selbsterzählung** | Lebenswerk, Anamnesebogen (Reha), Anamnese KVSW (Krankenhausaufnahme) | die betroffene Person über sich selbst, mit eigenem Zugang |
+| **Beiträge mehrerer** | Gedenken, Geburtstag, Hochzeitsjubiläum, Abschied & Ruhestand, Dienstjubiläum, Betriebsjubiläum, Geburt (Willkommensbuch), Ermutigung (Mutmachbuch) | Angehörige, Freundinnen, Kolleginnen über eine Person (bzw. beim Betriebsjubiläum über die Organisation) |
+
+Die Unterscheidung ist datenschutzrechtlich erheblich: Bei der Selbsterzählung gibt
+es keine Beitragenden-Gruppe, und der Zugangscode ist der Zugang der erzählenden
+Person selbst.`,
+     `Erstellung eines individuellen **Lebenswerks** — eines autobiographischen Buches
+aus dem, was die erzählende Person selbst berichtet. Es ist die einzige
+Produktkategorie, die im Auftrag der ${k.name} eingesetzt wird.
+
+Das ist eine **Selbsterzählung**: Es gibt keine Gruppe von Beitragenden, die über
+eine dritte Person berichtet, und der Zugangscode ist der Zugang der erzählenden
+Person selbst.`],
+
+    [`| **Beitragende** (geben das Interview) | Name, Beziehung, Geschlecht, Anrede; **Stimmaufnahme**; Interviewinhalt (Freitext); Einwilligungs-Zeitstempel + -Version | \`contributions\` |
+| **Gewürdigte Person** (z. B. Verstorbene/r) | Name, Geburts-/Sterbejahr, Geschlecht, Lebensgeschichte (im Buchtext) | \`memorials\`, \`book_v1/v2\`, \`eulogy_text\` |`,
+     `| **Erzählende Person** (erzählt ihr eigenes Leben) | Name, Geschlecht, Anrede, Geburtsjahr; **Stimmaufnahme**; Interviewinhalt (Freitext); Einwilligungs-Zeitstempel + -Version; die Lebensgeschichte im fertigen Buchtext | \`contributions\`, \`memorials\`, \`book_v1/v2\` |`],
+
+    ['Beitragende/r (Browser)', 'Erzählende Person (Browser)'],
+  ],
+
+  'Datenschutz-Folgenabschätzung': [
+    ['Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**',
+     'Lebensgeschichten-App, Kategorie **Lebenswerk**. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**'],
+
+    ['| Verarbeitung von Daten **schutzbedürftiger Personen** | **Ja** | Trauernde/Hinterbliebene; emotional belastende Ausnahmesituation |',
+     '| Verarbeitung von Daten **schutzbedürftiger Personen** | **Ja** | Hochbetagte, teils pflegebedürftige und kognitiv eingeschränkte Menschen; Abhängigkeitsverhältnis zur Einrichtung (Art. 7 Abs. 4) |'],
+
+    ['| Zusammenführung/Anreicherung aus mehreren Quellen | Teilweise | Mehrere Beitragende zu einer Person zu einem Werk verknüpft |',
+     '| Zusammenführung/Anreicherung aus mehreren Quellen | Nein | Beim Lebenswerk erzählt eine Person über sich selbst; Beiträge Dritter werden nicht zusammengeführt |'],
+
+    [`- **Zweck:** Erstellung eines individuellen Erinnerungs-, Lebens- oder Gedenkwerks
+  (Buch, Rede bzw. Anamnesebogen); **elf Produktkategorien** in zwei Formen —
+  Selbsterzählung (Lebenswerk, beide Anamnese-Kategorien) und Beiträge mehrerer
+  Personen (VVT Abschnitt 2).
+- **Ablauf:** Beitragende/r bzw. erzählende Person ruft per 10-stelligem Code die App auf → optionales`,
+     `- **Zweck:** Erstellung eines individuellen **Lebenswerks** — eines
+  autobiographischen Buches aus dem, was die erzählende Person selbst berichtet
+  (VVT Abschnitt 2).
+- **Ablauf:** Die erzählende Person ruft per 10-stelligem Code die App auf → optionales`],
+
+    [`- **Speicherdauer:** automatische Löschung der Beiträge **90 Tage nach Ende der
+  Nutzungsdauer** (Anlass-Termin, sonst Anlage + 6 Monate Lizenzlaufzeit); Anamnese
+  vollständig nach 14 Tagen; vollständige manuelle Löschung jederzeit möglich
+  (VVT Abschnitt 8).`,
+     `- **Speicherdauer:** automatische Löschung der Beiträge **90 Tage nach Ende der
+  Nutzungsdauer**; beim Lebenswerk regelmäßig ohne Anlass-Termin, also Anlage
+  + 6 Monate Lizenzlaufzeit + 90 Tage; vollständige manuelle Löschung jederzeit
+  möglich (VVT Abschnitt 8).`],
+
+    ['(90 Tage nach Ende der Nutzungsdauer; Anamnese 14 Tage vollständig) + Housekeeping',
+     '(90 Tage nach Ende der Nutzungsdauer) + Housekeeping'],
+
+    [`- **R6 (Daten Dritter):** Beitragende können lebende Hinterbliebene namentlich/mit
+  Anschrift erwähnen, ohne dass diese selbst eingewilligt haben.`,
+     `- **R6 (Daten Dritter):** Wer sein Leben erzählt, nennt andere Menschen —
+  Angehörige, frühere Kolleginnen, mitunter Mitbewohner oder Pflegekräfte —, ohne
+  dass diese selbst eingewilligt haben.`],
+  ],
+
+  'Sicherheitskonzept (TOM)': [
+    ['Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App',
+     'Kurzdokumentation der technischen Schutzmaßnahmen der Lebensgeschichten-App'],
+    [`- Mehrbenutzer-Isolation: Nicht-Admins sehen/bearbeiten nur eigene
+  Gedenkbücher (\`api/_lib/access.js\`).`,
+     `- Mehrbenutzer-Isolation: Nicht-Admins sehen/bearbeiten nur eigene
+  Buchprojekte (\`api/_lib/access.js\`).`],
+  ],
+
+  'Betriebs-Runbook Datenschutz': [
+    ['Praktische Abläufe für den laufenden Betrieb der Gedenkbuch-App.',
+     'Praktische Abläufe für den laufenden Betrieb der Lebensgeschichten-App.'],
+    [`  **90 Tage nach Ende der Nutzungsdauer** — Nutzungsdauer = \`funeral_date\`, sonst
+  \`created_at\` + \`LICENSE_MONTHS\` (6). Anamnese-Projekte werden 14 Tage nach der
+  Anlage vollständig gelöscht (Beiträge, Kosten-Events, Storage-Bilder, Zeile).`,
+     `  **90 Tage nach Ende der Nutzungsdauer** — beim Lebenswerk ohne Anlass-Termin
+  also \`created_at\` + \`LICENSE_MONTHS\` (6) + 90 Tage.`],
+  ],
+})
+
+// Die Rechtstexte (AGB, Datenschutzerklärung, Impressum) werden NICHT zugeschnitten:
+// Sie sind unsere veröffentlichten Fassungen und gelten für alle Anlässe. Eine
+// gekürzte Fassung wäre keine Kopie mehr, sondern eine zweite Wahrheit.
+const OHNE_ZUSCHNITT = ['Allgemeine Geschäftsbedingungen', 'Datenschutzerklärung', 'Impressum', 'Inhaltsverzeichnis', 'Deckblatt', 'Einwilligung der Bewohner']
+
+function zuschneiden(md, quelle, k) {
+  if (!k.nurLebenswerk || OHNE_ZUSCHNITT.includes(quelle)) return md
+  let s = md
+  for (const [alt, neu] of (nurLebenswerk(k)[quelle] || [])) {
+    if (!s.includes(alt)) { console.warn(`  ! Zuschnitt greift nicht mehr in „${quelle}": ${alt.split('\n')[0].slice(0, 60)}…`); continue }
+    s = s.split(alt).join(neu)
+  }
+  // Hinweis direkt hinter den Kopf, vor die erste Trennlinie.
+  const i = s.indexOf('\n---\n')
+  return i === -1 ? `${ZUSCHNITT_HINWEIS(k)}\n\n${s}` : `${s.slice(0, i + 1)}\n${ZUSCHNITT_HINWEIS(k)}\n${s.slice(i)}`
+}
+
 function cutSectionToEnd(md, heading) {
   const i = md.indexOf(heading)
   if (i === -1) { console.warn(`  ! Abschnitt nicht gefunden: ${heading}`); return md }
@@ -133,7 +311,7 @@ function run(key) {
   const dateien = []
   const schreibe = (basename, md, quelle) => {
     const p = path.join(out, basename + '.md')
-    fs.writeFileSync(p, deIntern(md, quelle, weg))
+    fs.writeFileSync(p, deIntern(zuschneiden(md, quelle, k), quelle, weg))
     dateien.push(basename)
   }
 
@@ -166,7 +344,17 @@ function run(key) {
     '**Für die Prüfung durch die/den Datenschutzbeauftragte:n des Auftraggebers.**\nStand: 2026-08-02 · Anwendung: lebensgeschichten.ai · Auftragnehmerin: Lebenswerk.AI GmbH',
     `**Für die Prüfung durch die/den Datenschutzbeauftragte:n der ${k.name}.**\n` +
     `Stand: ${heute} · Anwendung: lebensgeschichten.ai · Auftragnehmerin: Lebenswerk.AI GmbH\n` +
-    `Vorhaben: ${k.umfang}.`)
+    `Vorhaben: ${k.umfang}.` +
+    (k.nurLebenswerk
+      ? `\n\n> **Eine Produktkategorie.** Eingesetzt wird ausschließlich das **Lebenswerk**:
+> Die Bewohnerin oder der Bewohner erzählt das eigene Leben und hat dafür einen
+> eigenen Zugang. Es gibt in dieser Kategorie **keine Gruppe von Beitragenden**, die
+> über eine dritte Person berichtet. Die Nachweisdokumente in diesem Paket sind
+> darauf zugeschnitten; nicht beauftragte Anlässe der Anwendung — Gedenkbuch,
+> Jubiläum, Anamnesebogen und die übrigen — kommen darin nicht mehr vor. Nur die
+> drei Rechtstexte am Ende (AGB, Datenschutzerklärung, Impressum) sind unverändert:
+> Sie sind unsere veröffentlichten Fassungen und gelten für alle Anlässe.`
+      : ''))
   schreibe(`Deckblatt_${k.kurz}`, deck, 'Deckblatt')
 
   // ── Einwilligung ────────────────────────────────────────────────
@@ -210,7 +398,13 @@ function run(key) {
   schreibe('00_Inhalt', `# Datenschutz-Paket für ${k.name}
 
 Stand ${heute}. Vorhaben: ${k.umfang}.
-
+${k.nurLebenswerk ? `
+**Produktkategorie: ausschließlich Lebenswerk.** Die erzählende Person berichtet ihr
+eigenes Leben. Vertrag und Nachweisdokumente sind darauf zugeschnitten — nicht
+beauftragte Anlässe der Anwendung kommen darin nicht vor. Unverändert bleiben die
+drei Rechtstexte (AGB, Datenschutzerklärung, Impressum): Sie sind die
+veröffentlichten Fassungen und gelten für alle Anlässe.
+` : ''}
 ## Zu unterschreiben
 
 | Dokument | Wer zeichnet |

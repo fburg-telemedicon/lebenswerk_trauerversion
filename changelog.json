@@ -2,6 +2,18 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-03",
+      "items": [
+        "Die AGB stehen jetzt auf der Website. Bisher gab es sie nur als Dokument im Kundenpaket — für einen Shop, der an Verbraucherinnen und Verbraucher verkauft, zu wenig. Neu erreichbar über den Fußbereich jeder Seite: AGB und, als eigener Sprungpunkt, die Widerrufsbelehrung mit Muster-Widerrufsformular.",
+        "Die veröffentlichte Fassung und die Fassung im Kundenpaket stammen aus derselben Datei. Sie können damit nicht mehr auseinanderlaufen — dieselbe Vorkehrung, die schon für Datenschutzerklärung und Impressum gilt, nur in die andere Richtung.",
+        "Die AGB gelten ausdrücklich für alle elf Anlässe, nicht nur für das Gedenkbuch. Neu ist eine Übersicht, wer bei welchem Anlass erzählt und was dabei entsteht — vom Lebenswerk über Geburtstag, Jubiläum, Abschied, Geburt und Mutmachbuch bis zu den beiden Anamnesebögen. Die Fristen sind je Anlass benannt: sechs Monate Nutzungsdauer, beim Anlass-Termin früher, bei den Anamnesebögen vollständige Löschung nach 14 Tagen.",
+        "Im PDF-Erzeuger für die Kundendokumente steckte ein Fehler: Fettdruck, der über einen Zeilenumbruch ging, blieb als wörtliches „**\" stehen, und eingerückte Fortsetzungen von Aufzählungen landeten mitten im Fließtext als Kasten in Schreibmaschinenschrift. Beides ist behoben; die Dokumente sind neu gesetzt.",
+        "Das Datenschutz-Paket für valuvita ist auf die tatsächlich beauftragte Leistung zugeschnitten. Dort entsteht ausschließlich das Lebenswerk — Bewohnerinnen und Bewohner erzählen ihr eigenes Leben. Vertrag und Nachweisdokumente sprechen deshalb nicht mehr von Gedenkbüchern, Trauerreden, Verstorbenen oder Anamnesebögen: Was nicht beauftragt ist, steht auch nicht in den Unterlagen.",
+        "Unverändert bleiben im Kundenpaket die drei Rechtstexte AGB, Datenschutzerklärung und Impressum. Sie sind unsere veröffentlichten Fassungen und gelten für alle Anlässe; eine gekürzte Fassung wäre keine Kopie mehr.",
+        "Beim Gegenlesen berichtigt: Die Datenschutzdokumente sprachen noch von acht Produktkategorien und einem sechsstelligen Zugangscode. Es sind elf Kategorien, und die Codes haben seit Längerem zehn Stellen."
+      ]
+    },
+    {
       "date": "2026-08-02",
       "items": [
         "Neues Nebenprodukt des Lebenswerks: die Betreuungsverfügung. Die KI liest aus der Lebensgeschichte das Wertesystem heraus — woran der Mensch sein Leben ausrichtet, wie er entscheidet, was ihm Würde bedeutet — und leitet daraus einen ausfüllfertigen Formular-Entwurf ab (A4, mit Ankreuzfeldern und Unterschriftszeile). Gegliedert nach den vier rechtlichen Aufgabenbereichen: Gesundheitssorge, Vermögenssorge, Wohnungsangelegenheiten, Aufenthaltsbestimmung. Erzeugt und geladen wird sie wie Stammbaum und Lebensposter über die Detailseite.",

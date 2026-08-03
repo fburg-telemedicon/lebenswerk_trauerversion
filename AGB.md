@@ -1,9 +1,10 @@
 # Allgemeine Geschäftsbedingungen
 
-**Lebenswerk.AI GmbH** · Stand: 2026-08-02 · Anwendung: lebensgeschichten.ai
+**Lebenswerk.AI GmbH** · Stand: 2026-08-03 · Anwendung: lebensgeschichten.ai
 
 Diese Bedingungen gelten für alle Verträge über die Nutzung der Anwendung
-*lebensgeschichten.ai* und die damit erstellten Werke.
+*lebensgeschichten.ai* und die damit erstellten Werke. Die jeweils gültige Fassung
+steht unter lebensgeschichten.ai/#agb.
 
 ---
 
@@ -32,10 +33,28 @@ Verarbeitung personenbezogener Daten geht.
 ## § 2 Leistung
 
 **(1)** Wir stellen eine Anwendung bereit, mit der aus einem sprach- oder
-textgeführten Interview ein persönliches Werk entsteht — je nach gewähltem Anlass
-ein Buch, eine Rede oder ein Exzerpt, auf Wunsch nebst weiteren Ausgaben
-(Druck-PDF, E-Book, Word-Datei, Umschlag) und den zum Lebenswerk gehörenden
-Zusatzdokumenten.
+textgeführten Interview ein persönliches Werk entsteht. Diese Bedingungen gelten
+für **alle Anlässe (Produktkategorien)** der Anwendung. Welcher Anlass gilt,
+wählen Sie bei der Bestellung:
+
+| Anlass | Wer erzählt | Was entsteht |
+|---|---|---|
+| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter sowie Betreuungsverfügung und Vorsorgevollmacht als Entwurf (Absatz 4) |
+| **Gedenkbuch** | Angehörige und Weggefährten, über eine verstorbene Person | Gedenkbuch; auf Wunsch eine Trauerrede |
+| **Geburtstagsbuch** | Freunde und Familie | Geburtstagsbuch |
+| **Hochzeitsjubiläum** | Familie und Gäste, über das Paar | Jubiläumsbuch |
+| **Abschied & Ruhestand** | Kolleginnen, Kollegen, Wegbegleiter | Abschiedsbuch |
+| **Dienstjubiläum** | Kolleginnen und Kollegen | Jubiläumsbuch |
+| **Betriebsjubiläum** | Beschäftigte, Mitglieder, Weggefährten, über das Haus selbst | Festschrift/Jubiläumsbuch |
+| **Willkommensbuch** | Familie und Freunde, für ein neugeborenes Kind | Willkommensbuch |
+| **Mutmachbuch** | Nahestehende, für einen schwer erkrankten Menschen | Mutmachbuch |
+| **Anamnesebogen** (Reha-Aufnahme) | die Patientin/der Patient selbst | strukturierter Anamnesebogen für das aufnehmende Behandlungsteam |
+| **Anamnese KVSW** (Krankenhausaufnahme) | die Patientin/der Patient selbst | strukturierter Aufnahmebogen für das aufnehmende Behandlungsteam |
+
+Zu jedem Werk gehören auf Wunsch weitere Ausgaben: Druck-PDF, E-Book, Word-Datei
+und Umschlag. Die beiden Anamnese-Anlässe vereinbaren wir ausschließlich mit
+Einrichtungen des Gesundheitswesens (§ 14 BGB), nicht mit Verbraucherinnen und
+Verbrauchern.
 
 **(2)** Das Werk entsteht **mithilfe künstlicher Intelligenz** aus dem, was die
 erzählenden Personen berichten. Es gibt deren persönliche Schilderungen wieder.
@@ -81,8 +100,9 @@ beitragen sollen.
 Lizenzerwerb**. Innerhalb dieser Zeit können Interviews geführt, Beiträge
 gesammelt und das Werk erzeugt werden.
 
-**(2)** Ist zum Werk ein **Anlass-Termin** hinterlegt (Bestattung, Feier,
-Verabschiedung), endet die Nutzungsdauer mit diesem Termin.
+**(2)** Ist zum Werk ein **Anlass-Termin** hinterlegt — Bestattung, Geburtstag,
+Jubiläum, Verabschiedung, Feier —, endet die Nutzungsdauer mit diesem Termin.
+Beim **Lebenswerk** gibt es in der Regel keinen solchen Termin; dort gilt Absatz 1.
 
 **(3)** Nach Ende der Nutzungsdauer bleiben die Daten **weitere 90 Tage**
 erhalten; anschließend werden die **Eingangsdaten automatisch gelöscht** — alle
@@ -97,10 +117,12 @@ behalten möchten. Eine Wiederherstellung ist danach nicht möglich.
 **(5)** Sie können die Löschung jederzeit **früher** auslösen — über die
 Aufbewahrungs-Karte im Dashboard oder mit einer Nachricht an uns.
 
-**(6)** Für die Anlässe **Anamnese** gilt abweichend: Der gesamte Datensatz
-einschließlich des erzeugten Bogens wird **14 Tage** nach der Aufnahme
-vollständig gelöscht. Grund ist die besondere Schutzbedürftigkeit von
-Gesundheitsdaten.
+**(6)** Für die Anlässe **Anamnesebogen** und **Anamnese KVSW** gilt abweichend:
+Der gesamte Datensatz einschließlich des erzeugten Bogens wird **14 Tage** nach
+der Aufnahme vollständig gelöscht — es bleibt also, anders als in Absatz 3, auch
+das Ergebnis nicht erhalten. Grund ist die besondere Schutzbedürftigkeit von
+Gesundheitsdaten. Eine Lizenzlaufzeit nach Absatz 1 gibt es für diese beiden
+Anlässe nicht.
 
 **(7)** Eine Verlängerung der Nutzungsdauer ist gegen Erwerb einer weiteren Lizenz
 möglich, solange die Daten noch nicht gelöscht sind.

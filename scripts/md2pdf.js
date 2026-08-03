@@ -30,13 +30,20 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
 
 // Zeichenformatierung INNERHALB einer Zeile. Reihenfolge zählt: Code zuerst, damit
 // Sternchen in `code` nicht als Fettschrift gelesen werden.
+//
+// `**Fettdruck**` darf über einen Zeilenumbruch gehen — im Fließtext tut er das
+// ständig. Deshalb bekommt inline() IMMER den ganzen Block (Absatz, Listenpunkt,
+// Tabellenzelle) auf einer Zeile; die Blöcke werden vorher zusammengefügt.
 function inline(s) {
   return esc(s)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
     .replace(/☐/g, '<span class="box"></span>')
+    // Der einzige rohe HTML-Tag, den unsere Dokumente benutzen (Abstand vor
+    // Unterschriftszeilen). Ohne das steht wörtlich „<br>" im PDF.
+    .replace(/&lt;br\s*\/?&gt;/g, '<br>')
 }
 
 const splitRow = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim())
@@ -45,7 +52,9 @@ function mdToHtml(md) {
   const lines = md.replace(/\r\n/g, '\n').split('\n')
   const out = []
   let i = 0
-  const closeList = st => { while (st.length) out.push(st.pop()) }
+  // Offene Listen als Stapel {einzug, schluss} — damit eingerückte Unterlisten
+  // auch als Unterlisten erscheinen und nicht auf eine Ebene fallen.
+  const closeList = st => { while (st.length) out.push(st.pop().schluss) }
   const listStack = []
 
   while (i < lines.length) {
@@ -91,16 +100,37 @@ function mdToHtml(md) {
 
     const li = l.match(/^(\s*)([-*]|\d+\.)\s+(.*)$/)
     if (li) {
+      const einzug = li[1].length
       const ordered = /\d/.test(li[2])
       const tag = ordered ? 'ol' : 'ul'
-      if (!listStack.length) { out.push(`<${tag}>`); listStack.push(`</${tag}>`) }
+      while (listStack.length && einzug < listStack[listStack.length - 1].einzug) out.push(listStack.pop().schluss)
+      if (!listStack.length || einzug > listStack[listStack.length - 1].einzug) {
+        out.push(`<${tag}>`); listStack.push({ einzug, schluss: `</${tag}>` })
+      }
+
+      // FORTSETZUNGSZEILEN einsammeln. Ein Listenpunkt über mehrere Zeilen ist der
+      // Normalfall in diesen Dokumenten. Ohne das hier passierte zweierlei: über den
+      // Umbruch gehender **Fettdruck** blieb als wörtliches „**" stehen, und eine mit
+      // vier Leerzeichen eingerückte Fortsetzung (Unterlisten) landete im
+      // Formularblock-Zweig — also mitten im Fließtext ein Kasten in Schreibmaschine.
+      const buf = [li[3]]
+      i++
+      while (i < lines.length) {
+        const n = lines[i]
+        if (n.trim() === '' || !/^\s/.test(n)) break
+        if (/^\s*([-*]|\d+\.)\s/.test(n)) break
+        if (/^\s*(#{1,4}\s|>|\||---)/.test(n)) break
+        buf.push(n.trim()); i++
+      }
+
       // Ankreuzkästchen als echtes Kästchen, nicht als „[ ]". Reihenfolge zählt:
       // erst maskieren, DANN das HTML einsetzen — andersherum escapt inline() das
       // Kästchen und im PDF steht wörtlich „<span class=…>".
-      const cb = li[3].match(/^\[( |x|X)\]\s*/)
+      const text = buf.join(' ')
+      const cb = text.match(/^\[( |x|X)\]\s*/)
       const box = cb ? `<span class="box${/x/i.test(cb[1]) ? ' on' : ''}"></span> ` : ''
-      out.push(`<li>${box}${inline(cb ? li[3].slice(cb[0].length) : li[3])}</li>`)
-      i++; continue
+      out.push(`<li>${box}${inline(cb ? text.slice(cb[0].length) : text)}</li>`)
+      continue
     }
 
     if (l.trim() === '') { closeList(listStack); i++; continue }
@@ -127,6 +157,7 @@ h3 { font-size: 11.5pt; margin: 6mm 0 2mm; break-after: avoid; }
 h4 { font-size: 10.5pt; margin: 5mm 0 2mm; break-after: avoid; }
 p { margin: 0 0 3mm; }
 ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+ul ul, ul ol, ol ul, ol ol { margin: 1.5mm 0 0; }
 li { margin-bottom: 1.5mm; }
 hr { border: none; border-top: 1px solid #e7e5e4; margin: 6mm 0; }
 code { font-family: Consolas, monospace; font-size: 9pt; background: #f5f5f4; padding: 0 1mm; border-radius: 2px; }
@@ -183,17 +214,23 @@ function convert(mdPath) {
   }
 }
 
-const targets = []
-for (const arg of process.argv.slice(2)) {
-  const p = path.resolve(arg)
-  if (fs.statSync(p).isDirectory()) {
-    for (const f of fs.readdirSync(p)) if (f.endsWith('.md')) targets.push(path.join(p, f))
-  } else targets.push(p)
-}
-if (!targets.length) { console.error('Nichts zu tun. Aufruf: node scripts/md2pdf.js <datei.md|ordner>'); process.exit(1) }
+module.exports = { mdToHtml, convert }
 
-for (const t of targets) {
-  const pdf = convert(t)
-  console.log(`  · ${path.basename(pdf)}  (${(fs.statSync(pdf).size / 1024).toFixed(0)} kB)`)
+// Nur als Werkzeug laufen lassen — sonst baut schon ein `require` dieser Datei
+// (etwa aus einer Prüfung des Markdown-Umbaus) sofort PDFs.
+if (require.main === module) {
+  const targets = []
+  for (const arg of process.argv.slice(2)) {
+    const p = path.resolve(arg)
+    if (fs.statSync(p).isDirectory()) {
+      for (const f of fs.readdirSync(p)) if (f.endsWith('.md')) targets.push(path.join(p, f))
+    } else targets.push(p)
+  }
+  if (!targets.length) { console.error('Nichts zu tun. Aufruf: node scripts/md2pdf.js <datei.md|ordner>'); process.exit(1) }
+
+  for (const t of targets) {
+    const pdf = convert(t)
+    console.log(`  · ${path.basename(pdf)}  (${(fs.statSync(pdf).size / 1024).toFixed(0)} kB)`)
+  }
+  console.log(`\n${targets.length} PDF${targets.length === 1 ? '' : 's'} erzeugt.`)
 }
-console.log(`\n${targets.length} PDF${targets.length === 1 ? '' : 's'} erzeugt.`)

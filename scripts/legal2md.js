@@ -20,6 +20,12 @@ const ROOT = path.resolve(__dirname, '..')
 const SRC = path.join(ROOT, 'src', 'LegalPages.jsx')
 
 // Den Rumpf EINER exportierten Komponente ausschneiden.
+//
+// ACHTUNG: „bis zur nächsten `export function`" heißt wörtlich das. Wer zwischen
+// zwei exportierte Komponenten Hilfsfunktionen legt, schiebt deren Quelltext in
+// das Kundendokument — einmal passiert, als der Markdown-Renderer der AGB-Seite
+// zwischen `Datenschutz` und `AGB` lag. Hilfsfunktionen gehören deshalb VOR die
+// erste exportierte Komponente.
 function componentBody(src, name) {
   const start = src.indexOf(`export function ${name}()`)
   if (start === -1) throw new Error(`Komponente nicht gefunden: ${name}`)
