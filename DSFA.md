@@ -200,15 +200,10 @@ erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
 |---|---|---|---|
 | Verantwortlicher (Geschäftsführer) | Prof. Dr. med. Tobias D. Gantner | | ☐ |
 | Datenschutzbeauftragte/r | ____________________________ | | ☐ |
-| Juristische Prüfung | ____________________________ | | ☐ |
 
-Die beiden unteren Zeilen sind offen, und zwar aus benennbaren Gründen: Die
-**externe Bestellung einer bzw. eines Datenschutzbeauftragten ist eingeleitet**
-(Verzeichnis der Verarbeitungstätigkeiten, Abschnitt 1) — solange niemand bestellt
-ist, kann dort kein Name stehen. Die **juristische Prüfung** dieses Dokuments ist
-beauftragt, aber noch nicht abgeschlossen. Beides ändert nichts daran, dass der
-Verantwortliche diese Folgenabschätzung in Kraft gesetzt hat; beide Zeichnungen
-werden nachgetragen.
+Die untere Zeile ist offen, und zwar aus benennbarem Grund: Die **externe Bestellung
+einer bzw. eines Datenschutzbeauftragten ist eingeleitet** (Verzeichnis der
+Verarbeitungstätigkeiten, Abschnitt 1).
 
 **Überprüfung:** mindestens **jährlich** sowie bei wesentlichen Änderungen
 (neue Modelle/Anbieter, neue Datenarten, neue Produktkategorien) — bereits in
