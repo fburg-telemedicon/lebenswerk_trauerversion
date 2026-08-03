@@ -348,8 +348,8 @@ export function Datenschutz() {
       <h2 style={LH}>12. Beschwerderecht</h2>
       <p>
         Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren. Nach dem Sitz
-        unseres Unternehmens ist das der Landesbeauftragte für den Datenschutz Sachsen-Anhalt,
-        Leiterstraße 9, 39104 Magdeburg.
+        unseres Unternehmens ist das die Landesbeauftragte für den Datenschutz Sachsen-Anhalt,
+        Otto-von-Guericke-Straße 34a, 39104 Magdeburg.
       </p>
     </LegalLayout>
   )

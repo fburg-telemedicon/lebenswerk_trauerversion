@@ -1,6 +1,6 @@
 # Datenschutz-Folgenabschätzung (DSFA, Art. 35 DSGVO)
 
-Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**
+Lebensgeschichten-App. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**
 Stand: 2026-08-03. Produktion: lebensgeschichten.ai.
 Verantwortlicher: **Lebenswerk.AI GmbH**, Seegebiet Mansfelder Land (GF Prof. Dr. med. Tobias D. Gantner).
 
@@ -57,7 +57,7 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
   vollständig nach 14 Tagen; vollständige manuelle Löschung jederzeit möglich
   (VVT Abschnitt 8).
 - **Datenfluss:** kein Pfeil verlässt die EU (VVT Abschnitt 7).
-- **Zusätzlicher Kanal seit 2026-07-28 — Live-Sprachgespräch (frei wählbar, nie Voreinstellung):**
+- **Zusätzlicher Kanal — Live-Sprachgespräch (frei wählbar, nie Voreinstellung):**
   Statt der Kette „aufnehmen → erkennen → antworten → vorlesen" besteht während des
   Interviews eine **durchgehende Audioverbindung** zu Azure AI Speech „Voice Live"
   (Ressource in **Sweden Central**, der einzigen EU-Region des Dienstes). Der Browser
@@ -67,7 +67,7 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
   + Sprachausgabe), nicht das native Speech-to-Speech-Modell — dieses gibt es nur als
   global verarbeitetes Deployment. **Es entsteht kein Audio-Mitschnitt**; gespeichert
   wird ausschließlich das Transkript, in derselben Struktur wie im Mikrofon-Modus.
-  Der Modus steht seit dem 2026-08-02 allen erzählenden Personen offen, ist aber
+  Der Modus steht allen erzählenden Personen offen, ist aber
   **nie voreingestellt**: Voreinstellung bleibt die Mischform (Mikrofon öffnet
   automatisch, Beenden per Knopfdruck). Er wird nur aktiv, wenn die Person ihn im
   Menü „Mikrofon-Modus" ausdrücklich auswählt, und lässt sich jederzeit verlassen.
@@ -79,7 +79,7 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
 
 | Prüfpunkt | Bewertung |
 |---|---|
-| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.6). Für Zugriffsprotokolle Art. 6 Abs. 1 lit. f, für Beschäftigtenkonten § 26 Abs. 1 BDSG. |
+| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.7). Für Zugriffsprotokolle Art. 6 Abs. 1 lit. f, für Beschäftigtenkonten § 26 Abs. 1 BDSG. |
 | **Zweckbindung** | Daten werden ausschließlich zur Erstellung des bestellten Werks und dessen Betrieb verarbeitet; keine Weiterverwendung, **kein KI-Training** durch die Anbieter. |
 | **Datenminimierung** | Nur freiwillig beigetragene Inhalte; keine Pflichtfelder zu sensiblen Daten; Sekundärdaten (IP/Audit/Kosten) PII-arm. |
 | **Speicherbegrenzung** | Automatische Löschung der Interview-Rohdaten nach Frist; Buch/Rede bleibt ohne Rohdaten erhalten (Tombstone in `purge_info`). |
@@ -135,7 +135,7 @@ dokumentiert. Schwerpunkte:
 
 - **R6 (Daten Dritter):** Beitragende können lebende Hinterbliebene namentlich/mit
   Anschrift erwähnen, ohne dass diese selbst eingewilligt haben.
-  **Technische Maßnahmen umgesetzt (2026-06-22):** Datenminimierung im Interview-Prompt
+  **Technische Maßnahmen umgesetzt:** Datenminimierung im Interview-Prompt
   (`categories.js`, `THIRD_PARTY_RULE` — KI fragt Dritt-Daten nicht aktiv ab) **und**
   KI-Inhaltsprüfung mit eigener Kategorie „Personenbezogene Daten Dritter" (`review.js`)
   mit anschließender **menschlicher Endfreigabe** → Restrisiko auf **gering–mittel** gesenkt.
@@ -143,30 +143,24 @@ dokumentiert. Schwerpunkte:
   bestätigen (z. B. berechtigtes Interesse Art. 6 Abs. 1 lit. f).
 - **R3 (KI-Ausgaben):** menschliche Endfreigabe ist die zentrale Garantie — Prozess
   organisatorisch absichern (nicht nur technisch).
-- **R12 (psychische Belastung), ergänzt 2026-08-02.** Das Risiko lässt sich technisch
+- **R12 (psychische Belastung).** Das Risiko lässt sich technisch
   nicht ausschließen: Wer über sein Leben spricht, berührt Schweres. Die Anwendung
   drängt nicht, erzwingt keine Antwort und lässt sich jederzeit beenden — die
   eigentliche Absicherung ist aber **organisatorisch** und liegt beim Verantwortlichen:
   Er wählt die erzählenden Personen aus, schätzt deren Belastbarkeit ein und begleitet
   sie. In Pflege- und Klinikkontexten ist das ausdrücklich Teil der Weisungslage
   (Anlage 1 des AVV). Die Anwendung erbringt **keine therapeutische Leistung** und
-  stellt keine Diagnosen; das steht seit dem 2026-08-02 auch im Impressum.
-- **R10/R11 (Live-Sprachgespräch), ergänzt 2026-08-02.** Der Modus ist seit dem
-  2026-07-28 im Code. Bis zum 2026-08-02 war er zusätzlich je Buch vom Superadmin
-  freizuschalten und stand nur bei 2 von 88 Büchern offen; über Voice Live sind in
-  dieser Zeit **keine echten Betroffenendaten** gelaufen (nachweisbar über
-  `cost_events` mit `kind='realtime'`). **Seit dem 2026-08-02 ist dieser Vorbehalt
-  entfallen** — der Modus steht allen erzählenden Personen zur Wahl. Damit ist er
-  **nicht mehr auf Testbetrieb beschränkt**, und die Maßnahmen zu R10/R11 tragen die
-  Bewertung allein. Tragend sind vor allem: keine Voreinstellung (die Person muss den
-  Modus ausdrücklich wählen und kann ihn jederzeit verlassen), die technische
-  Modell-Allowlist für die EU-Residenz und der Verzicht auf jeden Audio-Mitschnitt.
-  - **Residenzfrage geklärt (2026-08-02):** Der offene Punkt aus der Bauphase — Voice
-    Live betreibt die nativ unterstützten Modelle selbst, wir wählen den Deployment-Typ
-    nicht — ist durch die Microsoft-Regionstabelle beantwortet: Sie weist den
-    Deployment-Typ **je Region und Modell** aus. Für `swedencentral` läuft `gpt-4.1` als
-    **Standard** (in-Region). Eine gesonderte schriftliche Zusage von Microsoft ist damit
-    **nicht erforderlich**; Grundlage sind die veröffentlichte Dokumentation und der DPA.
+  stellt keine Diagnosen; das steht auch im Impressum.
+- **R10/R11 (Live-Sprachgespräch).** Der Modus steht allen erzählenden Personen zur
+  Wahl; die Maßnahmen zu R10/R11 tragen die Bewertung allein. Tragend sind vor allem:
+  keine Voreinstellung (die Person muss den Modus ausdrücklich wählen und kann ihn
+  jederzeit verlassen), die technische Modell-Allowlist für die EU-Residenz und der
+  Verzicht auf jeden Audio-Mitschnitt.
+  - **Residenz des Chat-Modells:** Voice Live betreibt die nativ unterstützten Modelle
+    selbst; den Deployment-Typ gibt Microsoft je Region und Modell vor. Für
+    `swedencentral` läuft `gpt-4.1` als **Standard** (in-Region). Eine gesonderte
+    schriftliche Zusage von Microsoft ist damit **nicht erforderlich**; Grundlage sind
+    die veröffentlichte Dokumentation und der DPA.
   - **Verbleibende Lücke:** Voice Lives eigene Orchestrierungsmodelle (semantische VAD,
     Rauschunterdrückung, End-of-Utterance) sind residenzseitig nicht so ausdrücklich
     dokumentiert wie das Chat-Modell. Sie verarbeiten Audio **vor** der Spracherkennung.
@@ -182,9 +176,9 @@ dokumentiert. Schwerpunkte:
 
 | Punkt | Status |
 |---|---|
-| Einbindung Datenschutzbeauftragte/r (Art. 35 Abs. 2) | _[DSB benennen/Stellungnahme einholen — siehe VVT Abschnitt 1]_ |
-| Standpunkt der betroffenen Personen (Art. 35 Abs. 9) | _[soweit angemessen einholen/begründet entfallen lassen]_ |
-| **Vorherige Konsultation der Aufsichtsbehörde (Art. 36)** | Erforderlich nur bei **verbleibend hohem** Risiko trotz Maßnahmen. Nach Abschnitt 4 verbleibt **kein hohes Restrisiko** (höchstes Restrisiko „mittel", R6) → Art. 36 voraussichtlich **nicht** ausgelöst. **Von DSB/Jurist:in bestätigen lassen.** Zuständig wäre der Landesbeauftragte für den Datenschutz Sachsen-Anhalt. |
+| Einbindung Datenschutzbeauftragte/r (Art. 35 Abs. 2) | Die externe Bestellung ist eingeleitet (Verzeichnis der Verarbeitungstätigkeiten, Abschnitt 1). Die Stellungnahme wird unmittelbar nach der Bestellung eingeholt und hier dokumentiert. |
+| Standpunkt der betroffenen Personen (Art. 35 Abs. 9) | Nicht förmlich erhoben. Der Standpunkt ist in das Verfahren eingebaut: Die Teilnahme ist freiwillig, jede einzelne Frage darf übergangen und das Gespräch jederzeit beendet werden; eine gesonderte Befragung wäre daneben unverhältnismäßig. Rückmeldungen aus dem laufenden Betrieb werden bei der Fortschreibung berücksichtigt. |
+| **Vorherige Konsultation der Aufsichtsbehörde (Art. 36)** | Erforderlich nur bei **verbleibend hohem** Risiko trotz Maßnahmen. Nach Abschnitt 4 verbleibt **kein hohes Restrisiko** (höchstes Restrisiko „mittel", R6) → Art. 36 voraussichtlich **nicht** ausgelöst. **Von DSB/Jurist:in bestätigen lassen.** Zuständig wäre die Landesbeauftragte für den Datenschutz Sachsen-Anhalt. |
 
 ---
 
@@ -198,9 +192,17 @@ erforderlich. Offen bleibt insbesondere **R6 (Daten Dritter)**.
 
 | Rolle | Name | Datum | Freigabe |
 |---|---|---|---|
-| Verantwortlicher (GF) | Dr. Gantner | | ☐ |
-| Datenschutzbeauftragte/r | _[eintragen]_ | | ☐ |
-| Juristische Prüfung | _[eintragen]_ | | ☐ |
+| Verantwortlicher (Geschäftsführer) | Prof. Dr. med. Tobias D. Gantner | | ☐ |
+| Datenschutzbeauftragte/r | ____________________________ | | ☐ |
+| Juristische Prüfung | ____________________________ | | ☐ |
+
+Die beiden unteren Zeilen sind offen, und zwar aus benennbaren Gründen: Die
+**externe Bestellung einer bzw. eines Datenschutzbeauftragten ist eingeleitet**
+(Verzeichnis der Verarbeitungstätigkeiten, Abschnitt 1) — solange niemand bestellt
+ist, kann dort kein Name stehen. Die **juristische Prüfung** dieses Dokuments ist
+beauftragt, aber noch nicht abgeschlossen. Beides ändert nichts daran, dass der
+Verantwortliche diese Folgenabschätzung in Kraft gesetzt hat; beide Zeichnungen
+werden nachgetragen.
 
 **Überprüfung:** mindestens **jährlich** sowie bei wesentlichen Änderungen
 (neue Modelle/Anbieter, neue Datenarten, neue Produktkategorien) — bereits in

@@ -5,11 +5,13 @@ Verantwortlicher: **Lebenswerk.AI GmbH**, Seegebiet Mansfelder Land (GF Prof. Dr
 Stand: 2026-08-03.
 
 > Zuständige Aufsichtsbehörde (Unternehmenssitz Seegebiet Mansfelder Land,
-> Sachsen-Anhalt): **Landesbeauftragter für den Datenschutz Sachsen-Anhalt**,
-> Leiterstraße 9, 39104 Magdeburg.
-> Melde-/Kontaktweg vorab verifizieren und hier eintragen:
-> - Online-Meldeformular: _[eintragen]_
-> - Telefon/E-Mail: _[eintragen]_
+> Sachsen-Anhalt): **Landesbeauftragte für den Datenschutz Sachsen-Anhalt**,
+> Otto-von-Guericke-Straße 34a, 39104 Magdeburg (Postfach 1947, 39009 Magdeburg).
+> - **Meldung nach Art. 33** über das Online-Formular „Datenschutzverletzung":
+>   `datenschutz.sachsen-anhalt.de/service/online-formulare/datenschutzverletzung`
+> - Telefon 0391 81803-0, Fax 0391 81803-33. Erreichbar Mo–Do 8–12 und 14–15:30 Uhr,
+>   Fr 8–13 Uhr — die 72-Stunden-Frist läuft auch außerhalb dieser Zeiten, deshalb
+>   ist das Formular der Regelweg.
 
 ---
 

@@ -188,7 +188,7 @@ Monate nach Anlage. Erfasst sind Beiträge, Aufnahmen,`],
   ],
 
   'Verzeichnis der Verarbeitungstätigkeiten': [
-    ['Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**',
+    ['Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**',
      'Lebensgeschichten-App, Kategorie **Lebenswerk**. **Vom Verantwortlichen in Kraft gesetzt.**'],
 
     [`Erstellung eines individuellen **Erinnerungs-, Lebens- oder Gedenkwerks** (Buch,
@@ -235,7 +235,7 @@ Person selbst.`],
   ],
 
   'Datenschutz-Folgenabschätzung': [
-    ['Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**',
+    ['Lebensgeschichten-App. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**',
      'Lebensgeschichten-App, Kategorie **Lebenswerk**. **Vom Verantwortlichen durchgeführt und in Kraft gesetzt.**'],
 
     ['| Verarbeitung von Daten **schutzbedürftiger Personen** | **Ja** | Trauernde/Hinterbliebene; emotional belastende Ausnahmesituation |',
@@ -443,7 +443,7 @@ veröffentlichten Fassungen und gelten für alle Anlässe.
 
 | Dokument | Wer zeichnet |
 |---|---|
-| Auftragsverarbeitungsvertrag_${k.kurz}.pdf | ${k.zeichnet} für ${k.name}, Prof. Dr. Gantner für Lebenswerk.AI |
+| Auftragsverarbeitungsvertrag_${k.kurz}.pdf | ${k.zeichnet} für ${k.name}, Prof. Dr. med. Tobias D. Gantner für Lebenswerk.AI |
 
 Das ist **das einzige** Dokument mit Unterschrift. Art. 28 Abs. 9 DSGVO verlangt
 Schrift- oder elektronische Form; beidseitig zeichnen, je ein Exemplar für beide Seiten.

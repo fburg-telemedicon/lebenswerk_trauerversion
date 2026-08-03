@@ -14,7 +14,7 @@ Kurzdokumentation der technischen Schutzmaßnahmen der Lebensgeschichten-App
   - Microsoft Azure OpenAI (LLM, EU): `https://<resource>.services.ai.azure.com` (gpt-4.1, DataZone EU/westeurope)
   - Microsoft Azure AI Speech (TTS/STT, EU): `https://<region>.tts.speech.microsoft.com` bzw. `https://<region>.api.cognitive.microsoft.com`
   - Microsoft Azure Foundry – FLUX.2 [pro] (Bilderzeugung, EU): `https://<resource>.services.ai.azure.com`
-  - **Keine US-Pfade mehr.** Ist ein Azure-Dienst nicht erreichbar, meldet der Endpunkt einen Fehler, statt auf einen Anbieter außerhalb der EU auszuweichen.
+  - **Keine US-Pfade.** Ist ein Azure-Dienst nicht erreichbar, meldet der Endpunkt einen Fehler, statt auf einen Anbieter außerhalb der EU auszuweichen.
 - Keine unverschlüsselten (`http://`) Produktivverbindungen im Code.
 
 **At Rest (Speicherung)**
@@ -67,12 +67,12 @@ jeweiligen Anbieter neu erzeugen und in der Container-App ersetzen;
   (Capability); der öffentliche Buch-Endpunkt liefert nur eine Feld-Allowlist.
 - Offene KI-Proxies an gültigen Code gebunden + Rate-Limiting
   (`api/_lib/ratelimit.js`), Login zusätzlich Brute-Force-gebremst.
-- **Keine Row Level Security** — sie wäre wirkungslos: Die Datenbank ist nicht über
-  eine öffentliche Datenschnittstelle erreichbar, sondern ausschließlich aus dem
-  Backend mit einem eigenen Datenbankbenutzer. Der frühere RLS-Riegel stammte aus
-  der Zeit vor der Azure-Umstellung und wurde bewusst aufgegeben, nicht vergessen.
+- **Keine Row Level Security.** Sie wäre hier wirkungslos: Die Datenbank ist nicht
+  über eine öffentliche Datenschnittstelle erreichbar, sondern ausschließlich aus dem
+  Backend mit einem eigenen Datenbankbenutzer. Der Zugriffsschutz liegt damit in der
+  Anwendung (Abschnitte oben) und im Netzzugang, nicht in Tabellenrichtlinien.
 
-## 5. Live-Sprachgespräch (Azure Voice Live) — ergänzt 2026-08-02
+## 5. Live-Sprachgespräch (Azure Voice Live)
 
 Der optionale vierte Mikrofon-Modus hält während des Interviews eine durchgehende
 Audioverbindung. Weil dabei Art.-9-Daten als Rohaudio fließen, gelten eigene
@@ -101,8 +101,7 @@ Maßnahmen:
 - **Kurzlebiges Ticket statt Dauerzugang.** `POST /api/voicelive-token` prüft Buch-Code,
   Budget und Sprache und stellt ein HMAC-signiertes Ticket mit 2 Minuten Gültigkeit aus
   (`ADMIN_TOKEN_SECRET`). Es dient nur dem Verbindungsaufbau.
-- **Nie Standard, immer bewusste Wahl.** Der Modus steht seit dem 2026-08-02 allen
-  offen (der frühere Freischaltvorbehalt je Buch ist entfallen), ist aber **niemals
+- **Nie Standard, immer bewusste Wahl.** Der Modus steht allen offen, ist aber **niemals
   voreingestellt**: Voreinstellung bleibt die Mischform (Mikrofon öffnet automatisch,
   die erzählende Person beendet per Knopfdruck). Der Live-Modus wird ausschließlich
   aktiv, wenn die Person ihn im Menü „Mikrofon-Modus" selbst auswählt, und lässt sich

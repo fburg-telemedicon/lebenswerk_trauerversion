@@ -321,7 +321,7 @@ Ausführlich in `SICHERHEIT.md`. Kurzfassung:
 
 # Anlage 2 — Genehmigte Unterauftragnehmer
 
-Stand 1. August 2026. Sämtliche Verarbeitung findet in der EU statt; es besteht
+Stand 3. August 2026. Sämtliche Verarbeitung findet in der EU statt; es besteht
 **keine Drittlandübermittlung**.
 
 | Unterauftragnehmer | Leistung | Region | Grundlage |
@@ -339,8 +339,8 @@ Stand 1. August 2026. Sämtliche Verarbeitung findet in der EU statt; es besteht
 innerhalb von Azure.
 
 **Keine weiteren Empfänger.** Insbesondere werden keine Analyse-, Tracking- oder
-Schriftarten-Dienste Dritter eingebunden; QR-Codes werden seit dem 1. August 2026
-im Browser erzeugt statt bei einem externen Dienst.
+Schriftarten-Dienste Dritter eingebunden; QR-Codes werden im Browser erzeugt,
+nicht bei einem externen Dienst.
 
 ---
 

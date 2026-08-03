@@ -1,6 +1,6 @@
 # Verzeichnis von Verarbeitungstätigkeiten (Art. 30 Abs. 1 DSGVO)
 
-Gedenkbuch-/Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**
+Lebensgeschichten-App. **Vom Verantwortlichen in Kraft gesetzt.**
 Stand: 2026-08-03. Produktion: lebensgeschichten.ai.
 
 Dieses Dokument erfüllt zusammen mit `SICHERHEIT.md` (technische und organisatorische
@@ -20,10 +20,10 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 |---|---|
 | Verantwortlicher | **Lebenswerk.AI GmbH** |
 | Sitz | Walter-Schneider-Straße 10, 06317 Seegebiet Mansfelder Land |
-| Vertretung | Geschäftsführer Dr. Gantner |
+| Vertretung | Geschäftsführer Prof. Dr. med. Tobias D. Gantner |
 | Kontakt Datenschutz | Florian Burg, Projektleiter · florian.burg@lebensgeschichten.ai · support@lebensgeschichten.ai |
 | Datenschutzbeauftragter | **Externe Bestellung eingeleitet.** Die Benennungspflicht folgt aus § 38 Abs. 1 Satz 2 BDSG (Verarbeitungen, die einer DSFA nach Art. 35 unterliegen) sowie Art. 37 Abs. 1 lit. c. Bis zur Bestellung ist Florian Burg **Ansprechpartner für Datenschutzfragen** — ausdrücklich **nicht** als Datenschutzbeauftragter, da er als Projektleiter über Zwecke und Mittel mitentscheidet und damit nach Art. 38 Abs. 6 in einem Interessenkonflikt stünde. |
-| Zuständige Aufsichtsbehörde | Landesbeauftragter für den Datenschutz Sachsen-Anhalt, Magdeburg (Unternehmenssitz Seegebiet Mansfelder Land) |
+| Zuständige Aufsichtsbehörde | Landesbeauftragte für den Datenschutz Sachsen-Anhalt, Otto-von-Guericke-Straße 34a, 39104 Magdeburg (Unternehmenssitz Seegebiet Mansfelder Land) |
 
 ---
 
@@ -96,7 +96,7 @@ sie bleibt es bei der hier beschriebenen Zweckbindung.
   **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung).
 - **Protokollierung:** Pflicht-Häkchen vor dem Interview; gespeichert als
   `consent_at` + `consent_version` auf `contributions` (Migration `supabase/consent.sql`).
-  Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.6**, 2026-08-02).
+  Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.7**).
 - **Nicht auf Einwilligung gestützt:** Zugriffsprotokolle (Art. 6 Abs. 1 lit. f),
   Shop-Bestellungen (lit. b, steuerliche Aufbewahrung lit. c), Beschäftigtenkonten
   (§ 26 Abs. 1 BDSG).
@@ -111,9 +111,9 @@ sie bleibt es bei der hier beschriebenen Zweckbindung.
 
 ## 5. Kategorien von Empfängern / Auftragsverarbeitern (Art. 30 Abs. 1 lit. d)
 
-Stand 2. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
+Stand 3. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
 `api/`, `server.js` und `src/`). Sämtliche Dienste **der Anwendung** verarbeiten
-**in der EU**; es gibt **keine US-Pfade mehr**. Fällt ein Dienst aus, meldet der
+**in der EU**; es gibt **keine US-Pfade**. Fällt ein Dienst aus, meldet der
 Endpunkt einen Fehler, statt auszuweichen. Der Online-Shop steht daneben und ist
 getrennt geführt (5a).
 
@@ -129,8 +129,8 @@ getrennt geführt (5a).
 | **Microsoft** (Microsoft 365 / Graph API) | **E-Mail-Versand**: Zugangs- und Einladungslinks, Wiederaufnahme-Links, Tagesreport, Support-Antworten | M365-Tenant (EU) |
 | **Microsoft** (GitHub Actions + Azure Container Registry) | Auslieferung neuer Programmstände — **keine personenbezogenen Inhalte** | — |
 
-**Ein einziger Anbieter.** Nach dem Wegfall des externen QR-Dienstes (siehe unten)
-verlässt kein personenbezogenes Datum aus der Anwendung den Microsoft-Verbund.
+**Ein einziger Anbieter.** Kein personenbezogenes Datum verlässt aus der Anwendung
+den Microsoft-Verbund.
 
 ### 5a. Online-Shop (getrennte Verarbeitung)
 
@@ -148,15 +148,10 @@ Verantwortliche. Kundendaten aus dem Shop fließen **nicht** in Verarbeitungen e
 die wir Auftragsverarbeiterin eines Kunden sind; der Shop taucht deshalb in der
 Unterauftragnehmer-Anlage des Kunden-AVV bewusst **nicht** auf.
 
-**Entfallen** (Stand hier zuvor falsch, seit der Azure-Migration am 2026-07-13 ohne
-Funktion): *Supabase* (Datenbank/Bildspeicher) und *Vercel* (Hosting) sind aus der
-Produktion entfernt; im Repository verbliebene Artefakte sind Rollback-Referenzen.
-
-**Ebenfalls entfallen:** `api.qrserver.com` erzeugte bis zum 1. August 2026 die
-QR-Codes im Dashboard. Dabei ging die vollständige Einladungs-URL **samt Buch-Code**
-an einen Dritten — beim Lebenswerk ist dieser Code die gesamte Berechtigung des
-Endnutzers. QR-Codes entstehen seither im Browser (`qrCodeDataUrl` in
-`src/shared.js`); der Dienst ist aus dem Code entfernt.
+**Keine weiteren Empfänger.** Es sind keine Analyse-, Tracking- oder
+Schriftarten-Dienste Dritter eingebunden. Die QR-Codes für Einladungslinks entstehen
+im Browser und nicht bei einem fremden Dienst — sie enthalten den Buch-Code, und der
+ist beim Lebenswerk die gesamte Berechtigung des Endnutzers.
 
 > **Black Forest Labs (FLUX)** ist Modellanbieter, **erhält die Daten aber nicht** —
 > die Verarbeitung findet in Microsoft Azure statt. Kein eigener Datenfluss zu BFL.
@@ -185,7 +180,6 @@ Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR.
 | Microsoft (Azure, Microsoft 365, GitHub) | „Microsoft Products and Services Data Protection Addendum (DPA)" | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/`. Deckt Azure-Dienste, M365/Graph und GitHub ab. |
 | Ecwid / Lightspeed (Online-Shop) | „Data Processing Agreement" samt Standardvertragsklauseln | ✅ abgeschlossen, abgelegt in `DSGVO_AVV/` |
 | Black Forest Labs | kein eigener AVV nötig, solange die Verarbeitung in Azure bleibt | n/a |
-| ~~Supabase~~, ~~Vercel~~ | DPAs 2026-06-22 archiviert | historisch — Dienste nicht mehr im Einsatz |
 
 ### Ausgehender AVV (wir als Auftragsverarbeiter gegenüber unseren Kunden)
 
@@ -234,7 +228,7 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
   Rede (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in
   `memorials.purge_info` vermerkt.
 
-  > **Warum nicht schlicht „Anlage + 90 Tage" (Stand bis 2026-08-02):** Die Lizenz
+  > **Warum nicht schlicht „Anlage + 90 Tage":** Die Lizenz
   > läuft sechs Monate. Eine Löschung nach 90 Tagen hätte mitten in der bezahlten
   > Laufzeit die Eingangsdaten entfernt — der Kunde hätte noch Anspruch gehabt, aber
   > nichts mehr, woraus ein Buch entstehen könnte. Gegenüber Art. 5 Abs. 1 lit. e
@@ -277,5 +271,5 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
       nicht stillschweigend gelassen. Beim Abschluss zusätzlich prüfen: Ist Ecwid, Inc.
       in der DPF-Liste des US-Handelsministeriums noch als „Active" geführt?
 - [ ] DSB-Frage klären (bestellt? sonst Nicht-Bestellung begründen) und Abschnitt 1 vervollständigen.
-- [ ] Meldewege der Aufsichtsbehörde Sachsen-Anhalt in `BETRIEB-DSGVO.md` eintragen (Formular/Kontakt pruefen).
+- [x] Meldewege der Aufsichtsbehörde Sachsen-Anhalt in `BETRIEB-DSGVO.md` eingetragen (Online-Formular „Datenschutzverletzung", Anschrift und Telefon gegen die Behördenseite geprüft).
 - [ ] Gesamtes Dokument **juristisch prüfen** lassen.
