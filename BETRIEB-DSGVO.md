@@ -86,7 +86,7 @@ unvollständig melden als zu spät.
 - [ ] AVV mit allen aktiven Auftragsverarbeitern auf Aktualität prüfen: Microsoft
       (Azure OpenAI, AI Speech, Foundry/FLUX, Datenbank, Blob Storage, Container
       Apps, Microsoft 365/Graph, GitHub) sowie Ecwid/Lightspeed für den Online-Shop.
-      Kein Anbieter außerhalb der EU für die Anwendung.
+      Keine US-Pfade in der Anwendung.
 - [ ] `SICHERHEIT.md` (TOM) und dieses Runbook überprüfen.
 
 ---

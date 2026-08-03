@@ -14,7 +14,7 @@ Kurzdokumentation der technischen Schutzmaßnahmen der Lebensgeschichten-App
   - Microsoft Azure OpenAI (LLM, EU): `https://<resource>.services.ai.azure.com` (gpt-4.1, DataZone EU/westeurope)
   - Microsoft Azure AI Speech (TTS/STT, EU): `https://<region>.tts.speech.microsoft.com` bzw. `https://<region>.api.cognitive.microsoft.com`
   - Microsoft Azure Foundry – FLUX.2 [pro] (Bilderzeugung, EU): `https://<resource>.services.ai.azure.com`
-  - **Keine Ausweichanbieter außerhalb der EU.** Ist ein Azure-Dienst nicht erreichbar, meldet der jeweilige Endpunkt einen Fehler, statt auf einen anderen Anbieter auszuweichen. Im Code gibt es keinen Pfad zu einem Anbieter außerhalb der EU.
+  - **Keine US-Pfade mehr.** Ist ein Azure-Dienst nicht erreichbar, meldet der Endpunkt einen Fehler, statt auf einen Anbieter außerhalb der EU auszuweichen.
 - Keine unverschlüsselten (`http://`) Produktivverbindungen im Code.
 
 **At Rest (Speicherung)**
