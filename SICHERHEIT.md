@@ -1,54 +1,57 @@
 # Sicherheit & technische Maßnahmen (TOM)
 
-Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App
-(DSGVO Art. 32). Stand: 2026-08-02. Produktion: lebensgeschichten.ai.
+Kurzdokumentation der technischen Schutzmaßnahmen der Lebensgeschichten-App
+(DSGVO Art. 32). Stand: 2026-08-03. Produktion: lebensgeschichten.ai.
 
 ## 1. Verschlüsselung
 
 **In Transit (Übertragung)**
-- Die App wird ausschließlich über HTTPS/TLS ausgeliefert (von Vercel erzwungen).
+- Die Anwendung wird ausschließlich über HTTPS/TLS ausgeliefert; der Betrieb läuft
+  auf Azure Container Apps, das eingehende Verbindungen auf HTTPS zwingt und das
+  Zertifikat für `lebensgeschichten.ai` verwaltet.
+- Die Datenbankverbindung ist TLS-pflichtig (`sslmode=require`).
 - Alle Backend-Aufrufe an Drittanbieter laufen über HTTPS:
   - Microsoft Azure OpenAI (LLM, EU): `https://<resource>.services.ai.azure.com` (gpt-4.1, DataZone EU/westeurope)
   - Microsoft Azure AI Speech (TTS/STT, EU): `https://<region>.tts.speech.microsoft.com` bzw. `https://<region>.api.cognitive.microsoft.com`
   - Microsoft Azure Foundry – FLUX.2 [pro] (Bilderzeugung, EU): `https://<resource>.services.ai.azure.com`
-  - Supabase: TLS-gesicherte Verbindung
-  - **Keine US-Fallbacks mehr:** der Anthropic-LLM- und der OpenAI-Sprach-Fallback wurden am 2026-06-22 aus dem Code entfernt. Es gibt keinen Pfad zu `api.anthropic.com`/`api.openai.com` mehr; ist Azure nicht erreichbar, antwortet der jeweilige Endpunkt mit Fehler statt auf einen US-Anbieter auszuweichen.
+  - **Keine Ausweichanbieter außerhalb der EU.** Ist ein Azure-Dienst nicht erreichbar, meldet der jeweilige Endpunkt einen Fehler, statt auf einen anderen Anbieter auszuweichen. Im Code gibt es keinen Pfad zu einem Anbieter außerhalb der EU.
 - Keine unverschlüsselten (`http://`) Produktivverbindungen im Code.
 
 **At Rest (Speicherung)**
-- Supabase-Datenbank (Postgres) und Storage-Bucket `memorial-images`:
-  serverseitig AES-256-verschlüsselt (Supabase-Standard).
-- Vercel-Umgebungsvariablen (Secrets): verschlüsselt gespeichert.
+- Azure Database for PostgreSQL Flexible Server (North Europe) und Azure Blob
+  Storage: serverseitig AES-256-verschlüsselt (Azure-Standard).
+- Der Container für die Buchbilder und hochgeladenen Fotos ist **privat**;
+  Lesezugriffe laufen ausschließlich über kurzlebige signierte Links (SAS, 1 Stunde).
+- Secrets der Container-App: verschlüsselt gespeichert.
 
 ## 2. Secret-Management
 
-- Secrets liegen ausschließlich in Vercel-Umgebungsvariablen (Production), lokal
-  in einer nicht versionierten `.env`.
+- Secrets liegen als Container-App-Secrets in Azure und werden von den
+  Umgebungsvariablen nur referenziert; lokal in einer nicht versionierten `.env`.
 - `.gitignore` schließt `.env` / `.env.*` aus; eine `.env` wurde nie committet
   (Git-History geprüft).
 - **Das Frontend referenziert keine einzige Umgebungsvariable** — alle
-  Geheimnisse bleiben serverseitig in den `/api/*`-Functions. Der Browser
-  spricht nur die eigene API an, nie direkt Azure/Supabase.
-- Service-Role-Key: nur im Backend, umgeht RLS bewusst (siehe RLS unten).
+  Geheimnisse bleiben serverseitig. Der Browser spricht nur die eigene API an, nie
+  direkt Azure. Das gilt auch für das Live-Sprachgespräch (Abschnitt 5).
+- Die Datenbank hat **keinen öffentlichen Endpunkt** und ist nur aus dem Backend
+  mit einem eigenen Datenbankbenutzer erreichbar.
 - Pflicht-Secrets siehe `CLAUDE.md` → „Required environment variables".
 
 **Rotation (organisatorisch):** Bei Verdacht oder Personalwechsel die Keys beim
-jeweiligen Anbieter neu erzeugen und in Vercel (Production + Preview) ersetzen;
+jeweiligen Anbieter neu erzeugen und in der Container-App ersetzen;
 `ADMIN_TOKEN_SECRET`-Wechsel invalidiert alle laufenden Admin-Sessions.
 
 ## 3. Zugriffs-/Audit-Logging
 
-- Dauerhaftes Audit-Log in Supabase (`audit_log`, SQL: `supabase/audit.sql`),
-  da Vercel-Logs auf dem Hobby-Plan flüchtig sind.
+- Dauerhaftes Audit-Log in der Datenbank (`audit_log`) — die Laufzeit-Protokolle des
+  Containers sind flüchtig und als Nachweis ungeeignet.
 - Geschrieben über `api/_lib/audit.js` (fail-open: ein Logging-Fehler bricht
   nie die eigentliche Aktion ab). **PII-arm**: nur Akteur (uid), Aktion,
   Ziel-Code/-ID, IP, Zeitstempel — keine Inhalte, kein Passwort-Material.
-- Protokollierte Aktionen:
-  - `login.success`, `login.failure`
-  - `memorial.create`, `memorial.delete`, `memorial.update`
-  - `contribution.delete`
-  - `user.create`, `user.update`, `user.delete`
-- **Auswertung:** über das Supabase-Dashboard (Tabelle `audit_log`).
+- Protokollierte Aktionen: erfolgreiche und fehlgeschlagene Anmeldung; Anlegen,
+  Ändern und Löschen eines Buchprojekts; Löschen eines Beitrags; Anlegen, Ändern
+  und Löschen eines Benutzerkontos.
+- **Auswertung:** im Dashboard (Benutzerverwaltung).
 - **Aufbewahrung:** Einträge älter als 365 Tage werden vom täglichen
   Cron-Lauf (`api/cron/purge.js`) automatisch entfernt.
 
@@ -57,13 +60,17 @@ jeweiligen Anbieter neu erzeugen und in Vercel (Production + Preview) ersetzen;
 - Admin-Endpunkte: HMAC-signierter Bearer-Token mit 12 h Ablauf
   (`api/_lib/auth.js`), keine unsicheren Defaults.
 - Mehrbenutzer-Isolation: Nicht-Admins sehen/bearbeiten nur eigene
-  Gedenkbücher (`api/_lib/access.js`).
+  Buchprojekte (`api/_lib/access.js`). Fremde Projekte werden nicht als „gesperrt",
+  sondern als „nicht vorhanden" beantwortet, damit sich Zugangscodes nicht
+  durchprobieren lassen.
 - Öffentlicher Beitragenden-Flow: ein Beitrag nur per geheimer Beitrags-ID
-  (Capability); `/api/memorial` liefert nur eine Feld-Allowlist.
+  (Capability); der öffentliche Buch-Endpunkt liefert nur eine Feld-Allowlist.
 - Offene KI-Proxies an gültigen Code gebunden + Rate-Limiting
   (`api/_lib/ratelimit.js`), Login zusätzlich Brute-Force-gebremst.
-- RLS auf allen Tabellen aktiviert, keine Policies → nur `service_role`
-  (Backend) greift zu (`supabase/rls.sql`).
+- **Keine Row Level Security** — sie wäre wirkungslos: Die Datenbank ist nicht über
+  eine öffentliche Datenschnittstelle erreichbar, sondern ausschließlich aus dem
+  Backend mit einem eigenen Datenbankbenutzer. Der frühere RLS-Riegel stammte aus
+  der Zeit vor der Azure-Umstellung und wurde bewusst aufgegeben, nicht vergessen.
 
 ## 5. Live-Sprachgespräch (Azure Voice Live) — ergänzt 2026-08-02
 
@@ -109,8 +116,9 @@ Maßnahmen:
 - **Kostendeckel greift auch hier.** Jede Antwortrunde wird über `costRealtime` auf das
   Buch gebucht; die Budget-Obergrenze stoppt die Sitzung wie jede andere KI-Funktion.
 
-## Einzuspielende SQL-Skripte (Supabase SQL-Editor)
+## Einzuspielende SQL-Skripte
 
-Einmalig in Produktion auszuführen (idempotent):
-`schema.sql`, `users.sql`, `consent.sql`, `rls.sql`, `ratelimit.sql`,
-`audit.sql`.
+`db/schema.sql` ist das vollständige, idempotente Schema und kann jederzeit erneut
+gegen die Datenbank gefahren werden (`psql "$DATABASE_URL" -f db/schema.sql`).
+Spätere Zuwächse liegen als weitere Dateien in `db/`. Die alten Einzelmigrationen
+unter `supabase/` sind historisch und werden nicht mehr ausgeführt.

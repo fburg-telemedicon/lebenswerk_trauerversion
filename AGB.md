@@ -39,7 +39,7 @@ wählen Sie bei der Bestellung:
 
 | Anlass | Wer erzählt | Was entsteht |
 |---|---|---|
-| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter sowie Betreuungsverfügung und Vorsorgevollmacht als Entwurf (Absatz 4) |
+| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und Vorsorgevollmacht als Entwurf (Absatz 4). Eine Rede gehört nicht dazu — sie entsteht zum Gedenkbuch. |
 | **Gedenkbuch** | Angehörige und Weggefährten, über eine verstorbene Person | Gedenkbuch; auf Wunsch eine Trauerrede |
 | **Geburtstagsbuch** | Freunde und Familie | Geburtstagsbuch |
 | **Hochzeitsjubiläum** | Familie und Gäste, über das Paar | Jubiläumsbuch |
@@ -225,9 +225,14 @@ und Erfüllungsgehilfen.
 ## § 10 Datenschutz
 
 Einzelheiten stehen in der **Datenschutzerklärung** unter
-lebensgeschichten.ai/#datenschutz. Betreuen Sie als Einrichtung eigene Endkunden,
-sind **Sie** Verantwortliche und wir Auftragsverarbeiterin; dann gilt zusätzlich
-der Auftragsverarbeitungsvertrag nach Art. 28 DSGVO.
+lebensgeschichten.ai/#datenschutz.
+
+Betreuen Sie als Einrichtung, Unternehmen oder Behörde mit unserer Anwendung eigene
+Kundinnen, Kunden, Bewohnerinnen, Bewohner oder Patientinnen und Patienten, dann ist
+**die vertragschließende Einrichtung — also Sie — Verantwortliche** im Sinne von
+Art. 4 Nr. 7 DSGVO und **die Lebenswerk.AI GmbH Auftragsverarbeiterin** nach
+Art. 4 Nr. 8. In diesem Fall gilt zusätzlich der Auftragsverarbeitungsvertrag nach
+Art. 28 DSGVO.
 
 ---
 

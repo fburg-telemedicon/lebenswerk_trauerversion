@@ -113,8 +113,9 @@ sie bleibt es bei der hier beschriebenen Zweckbindung.
 
 Stand 2. August 2026, geprüft gegen den Code (alle ausgehenden Verbindungen in
 `api/`, `server.js` und `src/`). Sämtliche Dienste **der Anwendung** verarbeiten
-**in der EU**. Es gibt **keine US-Fallbacks** (Anthropic- und OpenAI-Fallbacks am
-2026-06-22 entfernt). Der Online-Shop steht daneben und ist getrennt geführt (5a).
+**in der EU**. Es gibt **keine Ausweichanbieter außerhalb der EU**: Fällt ein Dienst
+aus, meldet der jeweilige Endpunkt einen Fehler, statt anderswohin auszuweichen.
+Der Online-Shop steht daneben und ist getrennt geführt (5a).
 
 | Auftragsverarbeiter | Leistung | Region / Standort |
 |---|---|---|

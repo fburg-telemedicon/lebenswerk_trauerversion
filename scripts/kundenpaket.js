@@ -62,8 +62,8 @@ const DOC = {
 // Satzbau hängt. Die allgemeine Regel zerreißt sie („Geschrieben über der Anwendung",
 // „in api/ , und src/"); deshalb hier von Hand, VOR der allgemeinen Regel.
 const FIXUPS = [
-  [/Dauerhaftes Audit-Log in Supabase \(`audit_log`, SQL: `supabase\/audit\.sql`\),/,
-   'Dauerhaftes Audit-Log in der Datenbank,'],
+  [/Dauerhaftes Audit-Log in der Datenbank \(`audit_log`\)/,
+   'Dauerhaftes Audit-Log in der Datenbank'],
   [/Geschrieben über `api\/_lib\/audit\.js` \(fail-open:/,
    'Geschrieben über eine eigene Protokollfunktion (fail-open:'],
   [/\(alle ausgehenden Verbindungen in\s*\n?`api\/`, `server\.js` und `src\/`\)/,
@@ -158,8 +158,9 @@ auf weitere Kategorien bedarf einer Weisung in Textform.`],
     [`- Erstellung der daraus abgeleiteten Werke: Buch, Gedenkbuch, Trauerrede, Anamnesebogen,
   Kapitelbilder, Stammbaum und Lebensposter,`,
      `- Erstellung des daraus abgeleiteten Werkes: das Lebenswerk-Buch samt Kapitelbildern,
-  auf Wunsch zusätzlich Stammbaum, Lebensposter sowie Betreuungsverfügung und
-  Vorsorgevollmacht als Entwurf,`],
+  auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie
+  Betreuungsverfügung und Vorsorgevollmacht als Entwurf — **keine Rede**, die gehört
+  zum Gedenkbuch,`],
 
     [`| Erzählende Personen | Menschen, die ihre eigene Lebensgeschichte erzählen (Kategorie „Lebenswerk") |
 | Beitragende | Angehörige, Freundinnen, Weggefährten, die zu einem Gedenkbuch beitragen |
@@ -215,6 +216,22 @@ Person selbst.`],
      `| **Erzählende Person** (erzählt ihr eigenes Leben) | Name, Geschlecht, Anrede, Geburtsjahr; **Stimmaufnahme**; Interviewinhalt (Freitext); Einwilligungs-Zeitstempel + -Version; die Lebensgeschichte im fertigen Buchtext | \`contributions\`, \`memorials\`, \`book_v1/v2\` |`],
 
     ['Beitragende/r (Browser)', 'Erzählende Person (Browser)'],
+
+    // „Rede" gibt es beim Lebenswerk nicht — sie gehört zum Gedenkbuch.
+    ['4. **Synthese** von Buch/Rede aus den gesammelten Beiträgen (LLM).',
+     '4. **Synthese** des Buches aus dem Erzählten (LLM); auf Wunsch ebenso Stammbaum, Lebensposter, Pflegeexzerpt, Betreuungsverfügung und Vorsorgevollmacht.'],
+    ['**Keine wissenschaftliche Nutzung.** Beiträge, Bücher und Reden werden derzeit nicht',
+     '**Keine wissenschaftliche Nutzung.** Beiträge und Bücher werden derzeit nicht'],
+    ['| Interviewführung + Synthese Buch/Rede | EU |',
+     '| Interviewführung + Synthese des Buchtextes | EU |'],
+    ['Bücher, Reden, Fotos — zwischen Shop und Anwendung besteht keine Datenverbindung;',
+     'Bücher, Fotos — zwischen Shop und Anwendung besteht keine Datenverbindung;'],
+    ['**Anwendung (Interview, Buch, Rede, Bilder, Speicherung): keine Drittlandübermittlung.**',
+     '**Anwendung (Interview, Buch, Bilder, Speicherung): keine Drittlandübermittlung.**'],
+    [`vertragliche Lizenzlaufzeit). Erhalten bleiben dann nur noch das fertige Buch/die
+  Rede (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in`,
+     `vertragliche Lizenzlaufzeit). Erhalten bleibt dann nur noch das fertige Buch
+  (ohne Interview-Rohdaten); pro Beitrag wird ein Tombstone in`],
   ],
 
   'Datenschutz-Folgenabschätzung': [
@@ -231,11 +248,23 @@ Person selbst.`],
   (Buch, Rede bzw. Anamnesebogen); **elf Produktkategorien** in zwei Formen —
   Selbsterzählung (Lebenswerk, beide Anamnese-Kategorien) und Beiträge mehrerer
   Personen (VVT Abschnitt 2).
-- **Ablauf:** Beitragende/r bzw. erzählende Person ruft per 10-stelligem Code die App auf → optionales`,
+- **Ablauf:** Beitragende/r bzw. erzählende Person ruft per 10-stelligem Code die App
+  auf → optionales Einführungsvideo (nur beim Gedenkbuch) → Sprach- oder
+  Text-Interview → KI-Rückfragen → Speicherung → das Dashboard erzeugt das Werk
+  (LLM) und die Kapitelbilder (FLUX), beim Lebenswerk auf Wunsch zusätzlich
+  Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und
+  Vorsorgevollmacht als Entwurf → KI-gestützte Inhalts-/Datenschutzprüfung →
+  menschliche Endfreigabe → Export (DOCX/PDF).`,
      `- **Zweck:** Erstellung eines individuellen **Lebenswerks** — eines
   autobiographischen Buches aus dem, was die erzählende Person selbst berichtet
   (VVT Abschnitt 2).
-- **Ablauf:** Die erzählende Person ruft per 10-stelligem Code die App auf → optionales`],
+- **Ablauf:** Die erzählende Person ruft per 10-stelligem Code die App auf →
+  Sprach- oder Text-Interview → KI-Rückfragen → Speicherung → die Einrichtung
+  erzeugt im Dashboard das Buch (LLM) und die Kapitelbilder (FLUX), auf Wunsch
+  zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und
+  Vorsorgevollmacht als Entwurf → KI-gestützte Inhalts-/Datenschutzprüfung →
+  menschliche Endfreigabe → Export (DOCX/PDF). Eine Rede entsteht beim Lebenswerk
+  nicht — sie gehört zum Gedenkbuch.`],
 
     [`- **Speicherdauer:** automatische Löschung der Beiträge **90 Tage nach Ende der
   Nutzungsdauer** (Anlass-Termin, sonst Anlage + 6 Monate Lizenzlaufzeit); Anamnese
@@ -249,6 +278,9 @@ Person selbst.`],
     ['(90 Tage nach Ende der Nutzungsdauer; Anamnese 14 Tage vollständig) + Housekeeping',
      '(90 Tage nach Ende der Nutzungsdauer) + Housekeeping'],
 
+    ['| **Speicherbegrenzung** | Automatische Löschung der Interview-Rohdaten nach Frist; Buch/Rede bleibt ohne Rohdaten erhalten',
+     '| **Speicherbegrenzung** | Automatische Löschung der Interview-Rohdaten nach Frist; das Buch bleibt ohne Rohdaten erhalten'],
+
     [`- **R6 (Daten Dritter):** Beitragende können lebende Hinterbliebene namentlich/mit
   Anschrift erwähnen, ohne dass diese selbst eingewilligt haben.`,
      `- **R6 (Daten Dritter):** Wer sein Leben erzählt, nennt andere Menschen —
@@ -256,18 +288,7 @@ Person selbst.`],
   dass diese selbst eingewilligt haben.`],
   ],
 
-  'Sicherheitskonzept (TOM)': [
-    ['Kurzdokumentation der technischen Schutzmaßnahmen der Gedenkbuch-App',
-     'Kurzdokumentation der technischen Schutzmaßnahmen der Lebensgeschichten-App'],
-    [`- Mehrbenutzer-Isolation: Nicht-Admins sehen/bearbeiten nur eigene
-  Gedenkbücher (\`api/_lib/access.js\`).`,
-     `- Mehrbenutzer-Isolation: Nicht-Admins sehen/bearbeiten nur eigene
-  Buchprojekte (\`api/_lib/access.js\`).`],
-  ],
-
   'Betriebs-Runbook Datenschutz': [
-    ['Praktische Abläufe für den laufenden Betrieb der Gedenkbuch-App.',
-     'Praktische Abläufe für den laufenden Betrieb der Lebensgeschichten-App.'],
     [`  **90 Tage nach Ende der Nutzungsdauer** — Nutzungsdauer = \`funeral_date\`, sonst
   \`created_at\` + \`LICENSE_MONTHS\` (6). Anamnese-Projekte werden 14 Tage nach der
   Anlage vollständig gelöscht (Beiträge, Kosten-Events, Storage-Bilder, Zeile).`,
@@ -355,6 +376,19 @@ function run(key) {
 > drei Rechtstexte am Ende (AGB, Datenschutzerklärung, Impressum) sind unverändert:
 > Sie sind unsere veröffentlichten Fassungen und gelten für alle Anlässe.`
       : ''))
+  // „Sie" ist im Deckblatt an einer Stelle nicht eindeutig — der Absatz spricht in
+  // einem Satz über uns und über den Auftraggeber. In der Kundenfassung steht
+  // deshalb der Firmenname, nicht das Fürwort.
+  deck = deck.replace(
+    `Angebot, bei dem wir Verantwortliche sind — etwa gegenüber Besucherinnen unserer
+Website und Kundinnen unseres Shops. Für die Bücher **Ihrer** Endkundinnen und
+Endkunden sind **Sie** Verantwortliche; dort gilt die Betroffeneninformation in
+Teil A der beiliegenden Einwilligungsvorlage.`,
+    `Angebot der Lebenswerk.AI GmbH, bei dem **die Lebenswerk.AI GmbH** Verantwortliche
+ist — etwa gegenüber Besucherinnen unserer Website und Kundinnen unseres Shops.
+Für die Bücher der Bewohnerinnen und Bewohner der ${k.name} ist dagegen
+**die ${k.name} Verantwortliche** und die Lebenswerk.AI GmbH Auftragsverarbeiterin;
+dort gilt die Betroffeneninformation in Teil A der beiliegenden Einwilligungsvorlage.`)
   schreibe(`Deckblatt_${k.kurz}`, deck, 'Deckblatt')
 
   // ── Einwilligung ────────────────────────────────────────────────
@@ -426,9 +460,10 @@ Schrift- oder elektronische Form; beidseitig zeichnen, je ein Exemplar für beid
 | Datenschutzerklaerung.pdf | Die öffentliche Erklärung der Anwendung, unverändert aus dem Quelltext erzeugt |
 | Impressum.pdf | Anbieterkennzeichnung, Haftungsausschlüsse |
 
-Datenschutzerklärung und Impressum beschreiben **unser eigenes** Angebot, bei dem wir
-Verantwortliche sind. Für die Werke Ihrer Endkundinnen und Endkunden sind **Sie**
-Verantwortliche; dort gilt die Betroffeneninformation in Teil A der
+Datenschutzerklärung und Impressum beschreiben das **eigene Angebot der
+Lebenswerk.AI GmbH**, bei dem die Lebenswerk.AI GmbH Verantwortliche ist. Für die
+Werke der Bewohnerinnen und Bewohner der ${k.name} ist dagegen **die ${k.name}
+Verantwortliche**; dort gilt die Betroffeneninformation in Teil A der
 Einwilligungsvorlage. Beide Texte liegen bei, damit sich prüfen lässt, ob unsere
 öffentliche Erklärung zu den Zusagen des Auftragsverarbeitungsvertrags passt.
 

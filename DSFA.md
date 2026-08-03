@@ -15,7 +15,8 @@ Baut auf den bestehenden Dokumenten auf und wiederholt deren Inhalte nicht:
 
 Eine DSFA ist durchzuführen, wenn die Verarbeitung **voraussichtlich ein hohes Risiko**
 für die Rechte und Freiheiten natürlicher Personen zur Folge hat. Hier sind **mehrere**
-Auslöser erfüllt (es genügt regelmäßig die Erfüllung von zwei Kriterien der DSK-Liste):
+Auslöser erfüllt. Nach der Liste der Datenschutzkonferenz (DSK) genügen dafür
+regelmäßig **zwei** einschlägige Kriterien:
 
 | Kriterium | Trifft zu? | Begründung |
 |---|---|---|
@@ -25,7 +26,9 @@ Auslöser erfüllt (es genügt regelmäßig die Erfüllung von zwei Kriterien de
 | Daten **Dritter**, die nicht selbst einwilligen | **Ja** | In Beiträgen genannte lebende Hinterbliebene (Namen, ggf. Anschriften) |
 | Zusammenführung/Anreicherung aus mehreren Quellen | Teilweise | Mehrere Beitragende zu einer Person zu einem Werk verknüpft |
 
-**Ergebnis:** Eine DSFA ist **erforderlich** (mind. drei einschlägige Kriterien).
+**Ergebnis:** Eine DSFA ist **erforderlich**. Die Schwelle liegt bei **zwei**
+einschlägigen Kriterien; eindeutig erfüllt sind hier **vier**. Die Zahl in der
+Tabelle ist also der Befund, nicht die Schwelle.
 
 ---
 
@@ -37,10 +40,13 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
   (Buch, Rede bzw. Anamnesebogen); **elf Produktkategorien** in zwei Formen —
   Selbsterzählung (Lebenswerk, beide Anamnese-Kategorien) und Beiträge mehrerer
   Personen (VVT Abschnitt 2).
-- **Ablauf:** Beitragende/r bzw. erzählende Person ruft per 10-stelligem Code die App auf → optionales
-  Einführungsvideo (nur memorial) → Sprach- oder Text-Interview → KI-Rückfragen →
-  Speicherung → Admin generiert Buch/Rede (LLM) + Kapitelbilder (FLUX) → KI-gestützte
-  Inhalts-/Datenschutzprüfung → Export (DOCX/PDF).
+- **Ablauf:** Beitragende/r bzw. erzählende Person ruft per 10-stelligem Code die App
+  auf → optionales Einführungsvideo (nur beim Gedenkbuch) → Sprach- oder
+  Text-Interview → KI-Rückfragen → Speicherung → das Dashboard erzeugt das Werk
+  (LLM) und die Kapitelbilder (FLUX), beim Lebenswerk auf Wunsch zusätzlich
+  Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und
+  Vorsorgevollmacht als Entwurf → KI-gestützte Inhalts-/Datenschutzprüfung →
+  menschliche Endfreigabe → Export (DOCX/PDF).
 - **Datenarten:** siehe VVT Abschnitt 3 (inkl. Art.-9-Daten).
 - **Empfänger/Auftragsverarbeiter:** für die Anwendung ausschließlich EU (Microsoft
   Azure, North Europe/Westeuropa/Schweden); AVVs nach Art. 28 abgeschlossen
@@ -98,7 +104,7 @@ Intervenierbarkeit, Transparenz.
 | R1 | **Offenlegung von Art.-9-Daten** (Hack/Leak, fremder Zugriff) | hoch | mittel | **hoch** | TLS + AES-256; Datenbank ohne öffentlichen Endpunkt, nur aus dem Backend mit eigenem DB-Benutzer erreichbar; gehärtete Admin-Auth (HMAC-Token 12 h, keine Defaults); IDOR-/Mehrbenutzer-Isolation; beitragsgenauer Capability-Zugriff (14-stellige ID statt Code); Rate-Limiting/Brute-Force-Schutz; EU-only | **gering–mittel** |
 | R2 | **Verarbeitung ohne wirksame Einwilligung** | hoch | gering | mittel | Pflicht-Consent vor Interview; Protokollierung `consent_at`/`consent_version`; Art. 9 Abs. 2 lit. a | **gering** |
 | R3 | **Fehlerhafte/unangemessene KI-Ausgaben** im Werk (falsche, bloßstellende, sensible Inhalte) | mittel | mittel | mittel | KI-gestützte Inhalts-/Datenschutzprüfung (`runContentReview`); **menschliche Endfreigabe** vor Auslieferung; Korrekturmöglichkeit | **gering–mittel** |
-| R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; US-Fallbacks (Anthropic/OpenAI) am 2026-06-22 aus dem Code entfernt; AVVs mit EU-Verarbeitung | **gering** |
+| R4 | **Drittlandzugriff (US-Behörden)** | hoch | gering | mittel | **Vollständig EU**; keine Ausweichanbieter außerhalb der EU im Code; AVVs mit EU-Verarbeitung | **gering** |
 | R5 | **Über-Speicherung / unterlassene Löschung** | mittel | gering | gering | Automatischer Lösch-Cron (90 Tage nach Ende der Nutzungsdauer; Anamnese 14 Tage vollständig) + Housekeeping; sichtbare Vorwarnung 7 Tage vorher; manuelle Voll-Löschung jederzeit; Tombstones. Die Frist beginnt bewusst erst mit dem Ende der Lizenzlaufzeit — eine frühere Löschung würde die Leistung unmöglich machen, für die die Daten erhoben wurden | **gering** |
 | R6 | **Daten Dritter ohne deren Einwilligung** (in Beiträgen genannte lebende Personen) | mittel | mittel | mittel | **Datenminimierung im Interview-Prompt** (KI fragt Dritt-Daten nicht aktiv ab; `categories.js`, `THIRD_PARTY_RULE`); **KI-Inhaltsprüfung** Kategorie „Personenbezogene Daten Dritter" (`review.js`) + **menschliche Endfreigabe**; Löschung auf Anfrage; Fristlöschung | **gering–mittel** |
 | R7 | **Datenverlust / Nichtverfügbarkeit** | mittel | gering | gering | Managed Backups der Azure Database for PostgreSQL Flexible Server (Point-in-Time, EU); georedundanter Blob-Speicher; regelmäßige Restore-Stichprobe (Runbook) | **gering** |

@@ -1,8 +1,8 @@
 # Betriebs-Runbook DSGVO (Phase 5)
 
-Praktische Abläufe für den laufenden Betrieb der Gedenkbuch-App.
+Praktische Abläufe für den laufenden Betrieb der Lebensgeschichten-App.
 Verantwortlicher: **Lebenswerk.AI GmbH**, Seegebiet Mansfelder Land (GF Prof. Dr. med. Tobias D. Gantner).
-Stand: 2026-08-02.
+Stand: 2026-08-03.
 
 > Zuständige Aufsichtsbehörde (Unternehmenssitz Seegebiet Mansfelder Land,
 > Sachsen-Anhalt): **Landesbeauftragter für den Datenschutz Sachsen-Anhalt**,
@@ -26,10 +26,10 @@ unvollständig melden als zu spät.
 ### Sofortmaßnahmen (Stunde 0–4) — Eindämmen
 1. **Vorfall festhalten:** Wer hat wann was bemerkt? (Zeitstempel notieren.)
 2. **Eindämmen:** betroffene Zugänge sperren. Konkret möglich:
-   - `ADMIN_TOKEN_SECRET` in Vercel neu setzen → invalidiert **alle** Admin-Sessions.
+   - `ADMIN_TOKEN_SECRET` in der Container-App neu setzen → invalidiert **alle** Admin-Sessions.
    - Verdächtige `app_users` im Admin-Panel löschen/Passwort zurücksetzen.
-   - Bei Key-Verdacht: `AZURE_OPENAI_KEY` / `AZURE_SPEECH_KEY` / `AZURE_FLUX_KEY` / `SUPABASE_SERVICE_KEY` beim Anbieter rotieren und in Vercel ersetzen.
-3. **Beweise sichern:** Audit-Log (Admin → „Audit-Log") und Vercel-/Supabase-Logs sichten und exportieren, bevor sie rotieren.
+   - Bei Key-Verdacht: `AZURE_OPENAI_KEY` / `AZURE_SPEECH_KEY` / `AZURE_FLUX_KEY` / `AZURE_STORAGE_KEY` / `DATABASE_URL` beim Anbieter rotieren und als Container-App-Secret ersetzen.
+3. **Beweise sichern:** Audit-Log (Admin → „Audit-Log") sowie die Protokolle der Container-App und der Datenbank sichten und exportieren, bevor sie rotieren.
 
 ### Bewerten (Stunde 4–24)
 4. **Art & Umfang:** Welche Daten? (Hier potenziell Art.-9-Daten: Stimme,
@@ -79,13 +79,14 @@ unvollständig melden als zu spät.
 - [ ] Zugriffsrechte/Personal: ausgeschiedene Personen → Konten löschen,
       Secrets rotieren.
 - [ ] Abhängigkeiten aktualisieren (`npm outdated`), bekannte Lücken prüfen.
-- [ ] Backup-/Restore von Supabase stichprobenartig verifizieren.
+- [ ] Backup-/Restore der Datenbank (Point-in-Time-Wiederherstellung) stichprobenartig verifizieren.
 
 **Jährlich**
 - [ ] DSFA und Verzeichnis der Verarbeitungstätigkeiten (Art. 30) aktualisieren.
-- [ ] AVV mit allen aktiven Auftragsverarbeitern (Vercel, Supabase, Microsoft
-      Azure [Azure OpenAI + AI Speech + Foundry/FLUX], Black Forest Labs, GitHub)
-      auf Aktualität prüfen. (Keine US-Anbieter mehr: Anthropic-/OpenAI-Fallbacks am 2026-06-22 entfernt.)
+- [ ] AVV mit allen aktiven Auftragsverarbeitern auf Aktualität prüfen: Microsoft
+      (Azure OpenAI, AI Speech, Foundry/FLUX, Datenbank, Blob Storage, Container
+      Apps, Microsoft 365/Graph, GitHub) sowie Ecwid/Lightspeed für den Online-Shop.
+      Kein Anbieter außerhalb der EU für die Anwendung.
 - [ ] `SICHERHEIT.md` (TOM) und dieses Runbook überprüfen.
 
 ---
