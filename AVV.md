@@ -70,6 +70,9 @@ gegen die DSGVO verstößt.
 - Erstellung der daraus abgeleiteten Werke: Buch, Gedenkbuch, Trauerrede, Anamnesebogen,
   Kapitelbilder, Stammbaum und Lebensposter,
 - Bereitstellung der Werke als Word-Datei, Druck-PDF, E-Book und Umschlag,
+- **soweit beauftragt: Druck, Bindung und Versand des fertigen Buches** über die in
+  Anlage 2 genannte Druckerei, auf Wunsch unmittelbar an eine vom Verantwortlichen
+  benannte Lieferanschrift,
 - Versand notwendiger Nachrichten (Zugangs- und Wiederaufnahme-Links, Support),
 - Betrieb, Fehlerbehebung und Sicherheit der Anwendung.
 
@@ -324,6 +327,10 @@ Ausführlich in `SICHERHEIT.md`. Kurzfassung:
 Stand 3. August 2026. Sämtliche Verarbeitung findet in der EU statt; es besteht
 **keine Drittlandübermittlung**.
 
+Der Verantwortliche genehmigt diese Unterauftragnehmer mit Unterzeichnung. **Die
+Druckerei kommt nur zum Zug, wenn ein Druck beauftragt wird**; wer die Werke nur
+digital abruft, für den findet diese Verarbeitung nicht statt.
+
 | Unterauftragnehmer | Leistung | Region | Grundlage |
 |---|---|---|---|
 | Microsoft Ireland Operations Ltd. — Azure OpenAI (`gpt-4.1`) | Interviewführung, Erstellung von Buch- und Redetexten | EU | Microsoft DPA |
@@ -334,6 +341,7 @@ Stand 3. August 2026. Sämtliche Verarbeitung findet in der EU statt; es besteht
 | Microsoft — Azure Blob Storage | Bilder, hochgeladene Fotos, abgelegte PDFs | EU | Microsoft DPA |
 | Microsoft — Azure Container Apps | Betrieb der Anwendung und der Aufräum-Aufträge | EU | Microsoft DPA |
 | Microsoft — Microsoft 365 / Graph | Versand von Zugangs-, Wiederaufnahme- und Support-Nachrichten | EU | Microsoft DPA |
+| **WIRmachenDRUCK GmbH**, Backnang | **Druck, Bindung und Versand** des fertigen Buches; auf Wunsch Direktversand an eine vom Verantwortlichen benannte Anschrift. Übermittelt werden die Druckdatei (vollständiger Buchinhalt) und die Lieferanschrift — **nur bei beauftragtem Druck** | Deutschland | Auftragsverarbeitungsvertrag nach Art. 28 |
 
 **Modellanbieter Black Forest Labs** (FLUX) erhält keine Daten; das Modell läuft
 innerhalb von Azure.

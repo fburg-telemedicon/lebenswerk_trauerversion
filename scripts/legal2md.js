@@ -37,7 +37,9 @@ function jsxToMarkdown(jsx) {
   let s = jsx
 
   // JS-Ausdrücke, die wir kennen, vorher auflösen.
-  s = s.replace(/\{CONSENT_VERSION\}/g, require(path.join(ROOT, 'src', 'constants.js')).CONSENT_VERSION || '')
+  const K = require(path.join(ROOT, 'src', 'constants.js'))
+  s = s.replace(/\{CONSENT_VERSION\}/g, K.CONSENT_VERSION || '')
+       .replace(/\{CONSENT_DATE\}/g, K.CONSENT_DATE || '')
 
   // Alles vor dem eigentlichen Inhalt abschneiden (Layout-Kopf).
   const i = s.indexOf('>')

@@ -50,8 +50,9 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
 - **Datenarten:** siehe VVT Abschnitt 3 (inkl. Art.-9-Daten).
 - **Empfänger/Auftragsverarbeiter:** für die Anwendung ausschließlich EU (Microsoft
   Azure, North Europe/Westeuropa/Schweden); AVVs nach Art. 28 abgeschlossen
-  (VVT Abschnitt 6). Einzige Ausnahme außerhalb der Anwendung: der Online-Shop
-  (VVT Abschnitt 5a/6).
+  (VVT Abschnitt 6). Daneben zwei getrennte Verarbeitungen: der Online-Shop
+  (VVT Abschnitt 5a) und, nur bei beauftragtem Druck, die Druckerei in Deutschland
+  (VVT Abschnitt 5b, Risiko R13).
 - **Speicherdauer:** automatische Löschung der Beiträge **90 Tage nach Ende der
   Nutzungsdauer** (Anlass-Termin, sonst Anlage + 6 Monate Lizenzlaufzeit); Anamnese
   vollständig nach 14 Tagen; vollständige manuelle Löschung jederzeit möglich
@@ -79,7 +80,7 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
 
 | Prüfpunkt | Bewertung |
 |---|---|
-| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.7). Für Zugriffsprotokolle Art. 6 Abs. 1 lit. f, für Beschäftigtenkonten § 26 Abs. 1 BDSG. |
+| **Rechtsgrundlage** | Art. 6 Abs. 1 lit. a + **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung); protokolliert via `consent_at`/`consent_version` (aktuell `CONSENT_VERSION` 1.8). Für Zugriffsprotokolle Art. 6 Abs. 1 lit. f, für Beschäftigtenkonten § 26 Abs. 1 BDSG. |
 | **Zweckbindung** | Daten werden ausschließlich zur Erstellung des bestellten Werks und dessen Betrieb verarbeitet; keine Weiterverwendung, **kein KI-Training** durch die Anbieter. |
 | **Datenminimierung** | Nur freiwillig beigetragene Inhalte; keine Pflichtfelder zu sensiblen Daten; Sekundärdaten (IP/Audit/Kosten) PII-arm. |
 | **Speicherbegrenzung** | Automatische Löschung der Interview-Rohdaten nach Frist; Buch/Rede bleibt ohne Rohdaten erhalten (Tombstone in `purge_info`). |
@@ -113,6 +114,7 @@ Intervenierbarkeit, Transparenz.
 | R10 | **Live-Sprachgespräch: Verarbeitung außerhalb der EU** (durchgehender Audiostrom an Azure Voice Live) | hoch | gering | mittel | Eigene Ressource in **Sweden Central** (einzige Voice-Live-Region in der EU); **Cascaded**-Betrieb mit `gpt-4.1`, das dort als Deployment-Typ **Standard** = in-Region läuft (Microsoft-Doku, geprüft 2026-08-02) — die global verarbeiteten Speech-to-Speech-Modelle (`gpt-realtime`, `gpt-5*`) sind bewusst NICHT im Einsatz; **technische Allowlist** in `api/_lib/voicelive.js` schaltet den Dienst ab, wenn ein nicht-EU-Modell konfiguriert wird; **Server-Relay** statt des von Microsoft für Browser empfohlenen WebRTC-Pfads (dieser nutzt „global standard" und routet zur nächstgelegenen Region); Voice Live speichert selbst nichts | **gering** |
 | R11 | **Live-Sprachgespräch: unbeabsichtigte Aufnahme Dritter** (offenes Mikrofon nimmt Umstehende oder Hintergrundgespräche mit auf) | mittel | mittel | mittel | Modus ist **nie Voreinstellung** und wird nur auf ausdrückliche Auswahl der erzählenden Person aktiv (Voreinstellung bleibt die Mischform mit Beenden per Knopfdruck); Verbindung nur auf ausdrückliche Handlung, jederzeit beendbar; es entsteht **kein Audio-Mitschnitt** — gespeichert wird ausschließlich das Transkript in derselben Struktur wie im Mikrofon-Modus; `THIRD_PARTY_RULE` und Inhaltsprüfung greifen unverändert; Sitzungsgrenze 120 Min. | **gering–mittel** |
 | R12 | **Psychische Belastung durch die Biografiearbeit** (Erinnerung an Verlust, Krankheit, Krieg, Flucht; erhöhte Verletzlichkeit bei Trauernden, Hochbetagten, Menschen in Pflege) | mittel | mittel | mittel | Teilnahme und jede einzelne Frage sind **freiwillig**; Interview jederzeit abbrech- und fortsetzbar (Sitzung bleibt 60 Tage erhalten); der Interview-Prompt fragt nicht drängend nach und akzeptiert Ausweichen; **kein Heil- oder Diagnoseversprechen** und klarer Hinweis auf die mögliche Belastung in Impressum und Einwilligungstext; in Einrichtungen begleitet Personal des Verantwortlichen die Erzählenden (Anlage 1 des AVV: Auswahl und Betreuung der Erzählenden liegt beim Verantwortlichen); Beiträge lassen sich einzeln zurückziehen | **gering–mittel** |
+| R13 | **Druck und Versand** (die Druckdatei mit dem vollständigen Buchinhalt samt Art.-9-Daten verlässt den Microsoft-Verbund; körperliche Vervielfältigung; bei Direktversand zusätzlich die Lieferanschrift; ein falsch zugestelltes Buch ist eine Offenlegung, die sich nicht zurückholen lässt) | hoch | gering | mittel | Druckerei in **Deutschland**, keine Drittlandübermittlung; Auftragsverarbeitungsvertrag nach Art. 28 mit Löschpflicht für Druckdaten; Übermittlung **nur bei beauftragtem Druck** und nur der Druckdatei — keine Interview-Rohdaten, keine Stimmaufnahmen, keine Zugangscodes; die Lieferanschrift gibt der Verantwortliche vor und wird nicht aus dem Interview erhoben; Auflagenhöhe und Empfänger bestimmt der Verantwortliche | **gering–mittel** |
 
 ---
 
@@ -142,7 +144,11 @@ dokumentiert. Schwerpunkte:
   **Noch offen (DSB/Jurist:in):** Rechtsgrundlage für die dennoch genannten Dritt-Daten
   bestätigen (z. B. berechtigtes Interesse Art. 6 Abs. 1 lit. f).
 - **R3 (KI-Ausgaben):** menschliche Endfreigabe ist die zentrale Garantie — Prozess
-  organisatorisch absichern (nicht nur technisch).
+  organisatorisch absichern (nicht nur technisch). **Umfang der Prüfung:** Die
+  KI-Inhaltsprüfung **markiert Fundstellen**; die freigebende Person entscheidet über
+  die markierten Stellen und gibt das Werk frei. Ein vollständiges Gegenlesen Wort
+  für Wort ist damit nicht zugesichert — wo der Verantwortliche es für nötig hält,
+  ist es organisatorisch bei ihm anzusiedeln.
 - **R12 (psychische Belastung).** Das Risiko lässt sich technisch
   nicht ausschließen: Wer über sein Leben spricht, berührt Schweres. Die Anwendung
   drängt nicht, erzwingt keine Antwort und lässt sich jederzeit beenden — die

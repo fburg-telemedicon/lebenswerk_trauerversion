@@ -26,11 +26,6 @@ sprachgeführten Interview; daraus entsteht ein gedrucktes Buch.
 Daraus folgt: Es ist ein **Auftragsverarbeitungsvertrag nach Art. 28 DSGVO** zu
 schließen (beiliegend als `AVV.md`), **bevor** die erste Bewohnerin erzählt.
 
-> **Abweichende Konstellation.** Schließt die Einrichtung die Bücher nicht selbst ab,
-> sondern vermittelt sie nur und die Bewohner werden unmittelbar unsere Kunden, wären
-> wir selbst Verantwortliche und es bräuchte keinen AVV. Diese Frage ist **vor**
-> Vertragsschluss zu klären; die beiliegenden Unterlagen gehen vom Regelfall oben aus.
-
 ---
 
 ## 2. Was beiliegt
@@ -40,9 +35,10 @@ schließen (beiliegend als `AVV.md`), **bevor** die erste Bewohnerin erzählt.
 | `AVV.md` | Auftragsverarbeitungsvertrag samt drei Anlagen: TOM, genehmigte Unterauftragnehmer, Ansprechpartner | Art. 28 Abs. 3 |
 | `SICHERHEIT.md` | Technische und organisatorische Maßnahmen im Detail (Verschlüsselung, Zugriffskontrolle, Protokollierung, Live-Sprachgespräch) | Art. 32 |
 | `VERFAHRENSVERZEICHNIS.md` | Unser Verzeichnis der Verarbeitungstätigkeiten, Datenkategorien, Datenflusskarte, Empfänger, Löschfristen | Art. 30 |
-| `DSFA.md` | Unsere Datenschutz-Folgenabschätzung mit Risikoregister R1–R12 | Art. 35 |
+| `DSFA.md` | Unsere Datenschutz-Folgenabschätzung mit Risikoregister R1–R13 | Art. 35 |
 | `BETRIEB-DSGVO.md` | Meldeprozess bei Datenschutzverletzungen, wiederkehrende Kontrollen | Art. 33/34 |
-| `EINWILLIGUNG_PFLEGEEINRICHTUNG.md` | Vorlage für die Einwilligung der Bewohner (Papier) samt Betroffeneninformation | Art. 6 Abs. 1 lit. a, Art. 9 Abs. 2 lit. a, Art. 13 |
+| `EINWILLIGUNG_PFLEGEEINRICHTUNG.md` | Vorlage für die Einwilligung der Bewohner (Papier) samt Betroffeneninformation — zum Ausdrucken und Unterschreiben | Art. 6 Abs. 1 lit. a, Art. 9 Abs. 2 lit. a, Art. 13 |
+| `EINWILLIGUNG_HINWEIS_EINRICHTUNG.md` | Hinweise zur Verwendung der Vorlage — nur für die Einrichtung, nicht mitdrucken | — |
 | `AGB.md` | Allgemeine Geschäftsbedingungen samt Widerrufsbelehrung und Muster-Widerrufsformular — Leistungsumfang, Nutzungsdauer, Fristen, Haftung | — |
 | Datenschutzerklärung | Die öffentliche Erklärung der Anwendung, aus dem Quelltext erzeugt (identisch mit der veröffentlichten Fassung) | Art. 13/14 |
 | Impressum | Anbieterkennzeichnung und Haftungsausschlüsse | § 5 DDG, § 18 MStV |
@@ -104,7 +100,10 @@ frühere Kolleginnen, mitunter Mitbewohner oder Pflegekräfte. Diese Personen wi
 nicht ein. Wir mindern das technisch (die KI fragt Daten Dritter nicht aktiv ab; eine
 Inhaltsprüfung markiert sie vor der Freigabe), aber ausschließen lässt es sich nicht.
 Die **Endfreigabe des Buchtexts durch einen Menschen** ist deshalb keine Formalie,
-sondern die tragende Maßnahme — siehe R6 in unserer DSFA.
+sondern die tragende Maßnahme — siehe R6 in unserer DSFA. Wichtig für die Erwartung
+im Haus: Die Prüfung **markiert Fundstellen**, sie liest den Text nicht Wort für Wort
+gegen. Wer freigibt, entscheidet über die markierten Stellen; das vollständige
+Gegenlesen bleibt Sache der Einrichtung, wenn sie es für nötig hält.
 
 ---
 
@@ -121,7 +120,7 @@ sondern die tragende Maßnahme — siehe R6 in unserer DSFA.
 | Welche technischen Maßnahmen? | `AVV.md` Anlage 1, ausführlich `SICHERHEIT.md` |
 | Wird die Stimme biometrisch ausgewertet? | Nein — nur Transkription, siehe R9 in `DSFA.md` |
 | Was ist das „Live-Sprachgespräch"? | `SICHERHEIT.md` Abschnitt 5 — durchgehende Sprachverbindung, Verarbeitung in Schweden, ohne Audio-Mitschnitt; nie voreingestellt |
-| Gibt es eine DSFA? | `DSFA.md`, Risikoregister R1–R12 |
+| Gibt es eine DSFA? | `DSFA.md`, Risikoregister R1–R13 |
 
 ---
 

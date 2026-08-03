@@ -96,7 +96,7 @@ sie bleibt es bei der hier beschriebenen Zweckbindung.
   **Art. 9 Abs. 2 lit. a** (ausdrückliche Einwilligung).
 - **Protokollierung:** Pflicht-Häkchen vor dem Interview; gespeichert als
   `consent_at` + `consent_version` auf `contributions` (Migration `supabase/consent.sql`).
-  Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.7**).
+  Die jeweils gültige Textfassung steuert `CONSENT_VERSION` (aktuell **1.8**).
 - **Nicht auf Einwilligung gestützt:** Zugriffsprotokolle (Art. 6 Abs. 1 lit. f),
   Shop-Bestellungen (lit. b, steuerliche Aufbewahrung lit. c), Beschäftigtenkonten
   (§ 26 Abs. 1 BDSG).
@@ -129,8 +129,10 @@ getrennt geführt (5a).
 | **Microsoft** (Microsoft 365 / Graph API) | **E-Mail-Versand**: Zugangs- und Einladungslinks, Wiederaufnahme-Links, Tagesreport, Support-Antworten | M365-Tenant (EU) |
 | **Microsoft** (GitHub Actions + Azure Container Registry) | Auslieferung neuer Programmstände — **keine personenbezogenen Inhalte** | — |
 
-**Ein einziger Anbieter.** Kein personenbezogenes Datum verlässt aus der Anwendung
-den Microsoft-Verbund.
+**Innerhalb der Anwendung ein einziger Anbieter.** Solange ein Werk digital
+entsteht und liegt, verlässt kein personenbezogenes Datum den Microsoft-Verbund.
+Daneben stehen zwei getrennte Verarbeitungen: der Online-Shop (5a) und der Druck
+des fertigen Buches (5b).
 
 ### 5a. Online-Shop (getrennte Verarbeitung)
 
@@ -148,7 +150,28 @@ Verantwortliche. Kundendaten aus dem Shop fließen **nicht** in Verarbeitungen e
 die wir Auftragsverarbeiterin eines Kunden sind; der Shop taucht deshalb in der
 Unterauftragnehmer-Anlage des Kunden-AVV bewusst **nicht** auf.
 
-**Keine weiteren Empfänger.** Es sind keine Analyse-, Tracking- oder
+### 5b. Druck und Versand des fertigen Buches
+
+| Auftragsverarbeiter | Leistung | Region / Standort |
+|---|---|---|
+| **WIRmachenDRUCK GmbH**, Backnang | Druck und Bindung des fertigen Buches, Versand an die vom Verantwortlichen genannte Adresse | **Deutschland** (EU) |
+
+**Was übermittelt wird:** die fertige Druckdatei — also **der vollständige Buchinhalt**
+samt Namen, Lebensgeschichte und Fotos, mithin auch **besondere Kategorien nach
+Art. 9** — sowie die **Lieferanschrift** des Empfängers. Nicht übermittelt werden
+Interview-Rohdaten, Stimmaufnahmen, Zugangscodes oder Konten.
+
+**Warum das eine eigene Verarbeitung ist:** Bis zum Druck bleibt alles im
+Microsoft-Verbund. Mit dem Druckauftrag verlässt der Buchinhalt erstmals diesen Kreis
+und wird zusätzlich **körperlich** vervielfältigt und versendet. Für Bücher, die wir im
+Auftrag eines Kunden erstellen, ist die Druckerei **Unterauftragnehmerin** und
+entsprechend in Anlage 2 des Kunden-AVV geführt.
+
+**Direktversand.** Auf Wunsch liefert die Druckerei unmittelbar an die Einrichtung oder
+an die Endkundin bzw. den Endkunden. Dann verarbeitet sie zusätzlich deren Anschrift.
+Die Adresse gibt der Verantwortliche vor; wir erheben sie nicht aus dem Interview.
+
+**Keine weiteren Empfänger.** Darüber hinaus sind keine Analyse-, Tracking- oder
 Schriftarten-Dienste Dritter eingebunden. Die QR-Codes für Einladungslinks entstehen
 im Browser und nicht bei einem fremden Dienst — sie enthalten den Buch-Code, und der
 ist beim Lebenswerk die gesamte Berechtigung des Endnutzers.
@@ -161,7 +184,8 @@ ist beim Lebenswerk die gesamte Berechtigung des Endnutzers.
 ## 6. Übermittlung in Drittländer (Art. 30 Abs. 1 lit. e) + AVV-Checkliste
 
 **Anwendung (Interview, Buch, Rede, Bilder, Speicherung): keine Drittlandübermittlung.**
-Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR.
+Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR. Das gilt auch für den
+**Druck** (Abschnitt 5b): Die Druckerei sitzt und produziert in Deutschland.
 
 **Einzige Ausnahme: der Online-Shop.** Ecwid, Inc. verarbeitet die Bestelldaten in den
 **USA**. Gestützt auf:
@@ -179,6 +203,7 @@ Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR.
 |---|---|---|
 | Microsoft (Azure, Microsoft 365, GitHub) | „Microsoft Products and Services Data Protection Addendum (DPA)" | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/`. Deckt Azure-Dienste, M365/Graph und GitHub ab. |
 | Ecwid / Lightspeed (Online-Shop) | „Data Processing Agreement" samt Standardvertragsklauseln | ✅ abgeschlossen, abgelegt in `DSGVO_AVV/` |
+| WIRmachenDRUCK GmbH (Druck und Versand) | Auftragsverarbeitungsvertrag nach Art. 28 | ⬜ **angefordert** — kein öffentlicher Download verfügbar; Anfrage an datenschutz@wir-machen-druck.de. Bis zum Abschluss dürfen dort **keine Kundenbücher** gedruckt werden. |
 | Black Forest Labs | kein eigener AVV nötig, solange die Verarbeitung in Azure bleibt | n/a |
 
 ### Ausgehender AVV (wir als Auftragsverarbeiter gegenüber unseren Kunden)
@@ -234,6 +259,11 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
   > nichts mehr, woraus ein Buch entstehen könnte. Gegenüber Art. 5 Abs. 1 lit. e
   > gerechtfertigt: Solange erzählt werden darf, sind die Beiträge für den Zweck
   > erforderlich. Bücher mit Anlassdatum sind unverändert (Anlass + 90 Tage).
+- **Druckdaten bei der Druckerei (Abschnitt 5b):** Die Druckdatei und die
+  Lieferanschrift liegen für die Dauer der Auftragsabwicklung bei der Druckerei; die
+  dortigen Fristen und die Löschung nach Auftragsende richten sich nach dem
+  Auftragsverarbeitungsvertrag. Unsere eigenen Löschläufe erfassen sie **nicht** —
+  eine Löschung dort ist beim Auftragnehmer anzustoßen.
 - **`audit_log`** (Zugriffs-/Aktionsprotokoll inkl. IP): 365 Tage, danach automatisch
   gelöscht (Housekeeping im selben Cron).
 - **`rate_limits`:** kurzlebig, Ablauf am selben Tag (Housekeeping).
@@ -263,6 +293,12 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 - [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (2026-06-22, fortgeschrieben 2026-08-02).
 - [x] Eingehende AVVs archiviert — **2026-06-22** (Microsoft; Supabase/Vercel historisch). Alle in `DSGVO_AVV/`.
 - [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
+- [ ] **AVV mit der WIRmachenDRUCK GmbH abschließen** und in `DSGVO_AVV/` ablegen
+      (Anfrage an datenschutz@wir-machen-druck.de; kein öffentlicher Download).
+      **Dringlich:** Ohne diesen Vertrag darf dort kein Kundenbuch gedruckt werden —
+      die Druckdatei enthält den vollständigen Buchinhalt samt Art.-9-Daten. Beim
+      Abschluss zusätzlich klären: eigene Unterauftragnehmer der Druckerei
+      (Partnerdruckereien), Löschfrist für Druckdaten, Direktversand an Dritte.
 - [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
 - [ ] **AVV mit Ecwid/Lightspeed abschließen und in `DSGVO_AVV/` ablegen.** Abschnitt 5a
       und die AVV-Tabelle setzen ihn bereits als vorhanden voraus (Entscheidung vom

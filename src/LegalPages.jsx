@@ -2,7 +2,7 @@
 // Statische Rechtsseiten (Impressum/Datenschutz) + Footer. Aus App.jsx ausgelagert.
 
 import { useState, useEffect } from 'react'
-import { CONSENT_VERSION } from './constants.js'
+import { CONSENT_VERSION, CONSENT_DATE } from './constants.js'
 import { BOOK_DISCLAIMER } from './bookExport.js'
 // Die AGB kommen aus derselben Datei, aus der auch das Kunden-PDF gebaut wird.
 import agbMarkdown from '../AGB.md?raw'
@@ -200,7 +200,7 @@ export function Impressum() {
 export function Datenschutz() {
   return (
     <LegalLayout title="Datenschutzerklärung">
-      <p style={{ color:'#78716c' }}>Stand: 2. August 2026 · Fassung {CONSENT_VERSION}</p>
+      <p style={{ color:'#78716c' }}>Stand: {CONSENT_DATE} · Fassung {CONSENT_VERSION}</p>
 
       <h2 style={LH}>1. Verantwortlicher</h2>
       <p>
@@ -212,18 +212,45 @@ export function Datenschutz() {
 
       <h2 style={LH}>2. Worum es geht</h2>
       <p>
-        Mit dieser Anwendung erstellen wir ein persönliches Buch oder eine Rede zu einem besonderen
-        Anlass – etwa zum Gedenken an eine verstorbene Person, zu einem Geburtstag, Jubiläum,
-        Abschied oder zur Geburt eines Kindes. Dazu führen nahestehende Personen ein sprach- oder
-        textbasiertes Interview, aus dessen Inhalten ein persönlicher Text entsteht. Die erstellten
-        Bücher und Reden geben die persönlichen Schilderungen der Beitragenden wieder; ihre
-        inhaltliche Richtigkeit können wir nicht überprüfen (siehe Haftungsausschluss im Impressum).
+        Mit dieser Anwendung entsteht aus einem sprach- oder textgeführten Interview ein
+        persönliches Werk. Wer erzählt, hängt vom gewählten Anlass ab:
+      </p>
+      <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
+        <li>
+          <strong>Die Person selbst</strong> – beim <strong>Lebenswerk</strong> (die eigene
+          Lebensgeschichte als Buch) sowie bei den beiden <strong>Anamnese</strong>-Anlässen, bei
+          denen Patientinnen und Patienten vor einer Aufnahme selbst antworten.
+        </li>
+        <li>
+          <strong>Nahestehende Personen</strong> – beim Gedenkbuch für eine verstorbene Person und
+          bei den übrigen Anlässen (Geburtstag, Jubiläum, Abschied, Geburt, Mutmachbuch); dort
+          tragen mehrere Menschen ihre Erinnerungen zu einem gemeinsamen Werk bei.
+        </li>
+      </ul>
+      <p>
+        Die erstellten Werke geben die persönlichen Schilderungen der erzählenden Personen wieder;
+        ihre inhaltliche Richtigkeit können wir nicht überprüfen (siehe Haftungsausschluss im
+        Impressum).
+      </p>
+      <p>
+        Beim <strong>Lebenswerk</strong> entstehen auf Wunsch weitere Dokumente aus demselben
+        Interview: ein <strong>Stammbaum</strong>, ein <strong>Lebensposter</strong>, ein
+        <strong> Pflegeexzerpt</strong> (eine Zusammenfassung für Pflegende – keine fachliche
+        Beurteilung) sowie <strong>Betreuungsverfügung</strong> und
+        <strong> Vorsorgevollmacht</strong> als Entwurf zur eigenen Verwendung. Sie entstehen nur,
+        wenn sie angefordert werden, und ausschließlich aus dem, was Sie selbst erzählt haben.
+      </p>
+      <p>
+        Bei den Anlässen, bei denen Sie über sich selbst erzählen, ist Ihr
+        <strong> Zugangscode zugleich Ihr Zugang zum Werk</strong>. Wer ihn hat, kann Ihr Interview
+        fortsetzen. Bewahren Sie ihn deshalb wie ein Passwort auf.
       </p>
 
       <h2 style={LH}>3. Welche Daten wir verarbeiten</h2>
       <p>
-        Von Ihnen als beitragender Person: Name, Beziehung zu der Person, um die es geht, Geschlecht,
-        gewünschte Anrede, Ihre Stimmaufnahmen während des Interviews sowie deren Verschriftlichung
+        Von Ihnen als erzählender Person: Name, Geschlecht, gewünschte Anrede, bei den Anlässen mit
+        mehreren Beitragenden zusätzlich Ihre Beziehung zu der Person, um die es geht, Ihre
+        Stimmaufnahmen während des Interviews sowie deren Verschriftlichung
         und sämtliche Interview-Inhalte. Diese Inhalte können <strong>besondere Kategorien
         personenbezogener Daten</strong> enthalten (Art. 9 DSGVO), insbesondere Angaben zu Gesundheit,
         ggf. religiöse oder weltanschauliche Angaben und – je nach Anlass – Angaben zu den Umständen
@@ -264,7 +291,7 @@ export function Datenschutz() {
       <p>
         Wir verarbeiten diese Daten ausschließlich auf Grundlage Ihrer <strong>ausdrücklichen
         Einwilligung</strong> (Art. 6 Abs. 1 lit. a und Art. 9 Abs. 2 lit. a DSGVO). Die Einwilligung
-        ist freiwillig; ohne sie können wir das gewünschte Buch bzw. die Rede nicht erstellen. Sie können Ihre
+        ist freiwillig; ohne sie können wir das gewünschte Werk nicht erstellen. Sie können Ihre
         Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen, ohne dass die Rechtmäßigkeit
         der bis dahin erfolgten Verarbeitung berührt wird (siehe Abschnitt 11).
       </p>
@@ -275,16 +302,17 @@ export function Datenschutz() {
       </p>
       <ul style={{ margin:'0 0 1rem', paddingLeft:'1.2rem' }}>
         <li><strong>Microsoft Azure</strong> (Azure OpenAI) – KI-gestützte Interviewführung und Erstellung der Buch- und Redetexte; Verarbeitung in der EU.</li>
-        <li><strong>Microsoft Azure</strong> (Azure AI Speech) – Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU (Region Westeuropa). Für das optionale Live-Sprachgespräch, das nur nach ausdrücklicher Freischaltung zur Verfügung steht, in der Region Schweden.</li>
+        <li><strong>Microsoft Azure</strong> (Azure AI Speech) – Sprachausgabe (Text-to-Speech) und Spracherkennung (Transkription); Verarbeitung in der EU (Region Westeuropa). Wählen Sie das optionale Live-Sprachgespräch, findet die Verarbeitung in der Region Schweden statt; dieser Modus ist nie voreingestellt und lässt sich jederzeit wieder verlassen.</li>
         <li><strong>Black Forest Labs</strong> (FLUX) über Microsoft Azure – KI-gestützte Bilderzeugung; Verarbeitung in der EU. Der Modellanbieter selbst erhält keine Daten.</li>
         <li><strong>Microsoft Azure</strong> (Datenbank und Blob-Speicher) – Speicherung der Beiträge, Bücher, Bilder und hochgeladenen Fotos; EU (Nordeuropa).</li>
         <li><strong>Microsoft Azure</strong> (Container Apps) – Betrieb und Auslieferung der Anwendung; Verarbeitung in der EU.</li>
         <li><strong>Microsoft 365</strong> (Graph) – Versand der E-Mails (Zugangs- und Wiederaufnahme-Links, Antworten auf Anfragen); Verarbeitung in der EU.</li>
+        <li><strong>WIRmachenDRUCK GmbH</strong>, Backnang – <strong>nur wenn ein gedrucktes Buch bestellt wird</strong>: Druck, Bindung und Versand. Übermittelt werden dafür die fertige Druckdatei (also der Buchinhalt samt Namen, Text und Fotos) und die Lieferanschrift; Verarbeitung in Deutschland.</li>
       </ul>
       <p>
         Sämtliche KI-Verarbeitung (Interviewführung, Texterstellung, Sprachausgabe,
-        Spracherkennung und Bilderzeugung) sowie die Speicherung Ihrer Beiträge, Bücher und
-        Bilder erfolgen <strong>ausschließlich in der EU</strong>. Für diese Daten findet
+        Spracherkennung und Bilderzeugung), die Speicherung Ihrer Beiträge, Bücher und
+        Bilder sowie ein etwaiger Druck erfolgen <strong>ausschließlich in der EU</strong>. Für diese Daten findet
         keine Übermittlung in ein Drittland statt (zum Online-Shop siehe Abschnitt 8; er
         verarbeitet ausschließlich Bestelldaten und keine Interview-Inhalte). Mit den
         eingesetzten Auftragsverarbeitern bestehen Verträge zur Auftragsverarbeitung nach
@@ -315,17 +343,20 @@ export function Datenschutz() {
 
       <h2 style={LH}>9. Speicherdauer</h2>
       <p>
-        Die zu einem Buch gehörenden Eingangsdaten – Interviewbeiträge und hochgeladene
+        Die zum Werk gehörenden Eingangsdaten – Interviewbeiträge und hochgeladene
         Original-Fotos – löschen wir automatisch <strong>90 Tage nach Ende der Nutzungsdauer</strong>.
-        Die Nutzungsdauer endet mit dem hinterlegten Anlass-Termin (z. B. Bestattung, Feier oder
-        Verabschiedung); ist kein Termin hinterlegt, sechs Monate nach Anlage des Buchs. Auf Wunsch
-        löschen wir früher – dafür genügt eine Nachricht.
+        Die Nutzungsdauer endet <strong>sechs Monate nach Anlage</strong> des Werks; ist ein
+        Anlass-Termin hinterlegt (etwa Bestattung, Geburtstag, Jubiläum oder Verabschiedung),
+        endet sie mit diesem Termin. Beim <strong>Lebenswerk</strong> gibt es einen solchen Termin
+        in der Regel nicht, dort gelten also die sechs Monate. Auf Wunsch löschen wir früher –
+        dafür genügt eine Nachricht.
       </p>
       <p>
-        Das fertige Werk – Buch, Rede bzw. Exzerpt und die weiteren Ausgaben – bleibt erhalten; es ist
-        der Zweck der Sache. Für die Kategorie <strong>Anamnese</strong> gilt eine kürzere Frist: Dort
-        wird der gesamte Datensatz einschließlich des Bogens 14 Tage nach der Aufnahme vollständig
-        gelöscht. Zugriffsprotokolle laufen nach einem Jahr aus (Abschnitt 3), Rechnungen und
+        Das fertige Werk und die weiteren Ausgaben bleiben erhalten; das ist der Zweck der Sache.
+        Für die beiden <strong>Anamnese</strong>-Anlässe gilt eine kürzere Frist: Dort wird der
+        gesamte Datensatz einschließlich des Bogens 14 Tage nach der Aufnahme vollständig
+        gelöscht – dort bleibt also auch das Ergebnis nicht erhalten.
+        Zugriffsprotokolle laufen nach einem Jahr aus (Abschnitt 3), Rechnungen und
         Buchungsbelege unterliegen der gesetzlichen Aufbewahrung von zehn Jahren (Abschnitt 8).
       </p>
 

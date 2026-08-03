@@ -39,7 +39,7 @@ wählen Sie bei der Bestellung:
 
 | Anlass | Wer erzählt | Was entsteht |
 |---|---|---|
-| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und Vorsorgevollmacht als Entwurf (Absatz 4). Eine Rede gehört nicht dazu — sie entsteht zum Gedenkbuch. |
+| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und Vorsorgevollmacht als Entwurf (Absatz 4) |
 | **Gedenkbuch** | Angehörige und Weggefährten, über eine verstorbene Person | Gedenkbuch; auf Wunsch eine Trauerrede |
 | **Geburtstagsbuch** | Freunde und Familie | Geburtstagsbuch |
 | **Hochzeitsjubiläum** | Familie und Gäste, über das Paar | Jubiläumsbuch |

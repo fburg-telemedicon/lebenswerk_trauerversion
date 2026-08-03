@@ -194,18 +194,34 @@ function convert(mdPath) {
   // PDF-Datei mit 0 Byte. Genau das ist beim Stapellauf passiert.
   const profile = path.join(require('os').tmpdir(), `md2pdf-${process.pid}-${Math.random().toString(36).slice(2)}`)
 
+  // Zeitmarke VOR dem ersten Versuch. Die Prüfung unten verlangt eine Datei, die
+  // NACH dieser Marke geschrieben wurde — „existiert und ist ein gültiges PDF"
+  // genügt nicht: Lässt sich die alte Datei nicht löschen (etwa weil sie in einem
+  // PDF-Betrachter offen ist) und schreibt der Browser deshalb nichts, besteht das
+  // ALTE PDF alle inhaltlichen Prüfungen. Genau so sind zwei Dokumente mit
+  // Erfolgsmeldung im veralteten Stand liegen geblieben.
+  const start = Date.now()
+
   try {
     for (let versuch = 1; versuch <= 3; versuch++) {
-      try { fs.unlinkSync(pdf) } catch {}
+      try {
+        fs.unlinkSync(pdf)
+      } catch (e) {
+        if (e.code !== 'ENOENT') {
+          throw new Error(`${path.basename(pdf)} lässt sich nicht überschreiben (${e.code}) — ` +
+            'vermutlich in einem PDF-Betrachter geöffnet. Bitte schließen und erneut laufen lassen.')
+        }
+      }
       execFileSync(browser(), [
         '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
         '--no-pdf-header-footer', `--user-data-dir=${profile}`,
         `--print-to-pdf=${pdf}`, 'file:///' + tmp.replace(/\\/g, '/'),
       ], { stdio: 'ignore', timeout: 90000 })
-      // Nicht nur „existiert", sondern „ist ein PDF mit Inhalt".
+      // Nicht nur „existiert", sondern „ist ein frisch geschriebenes PDF mit Inhalt".
       if (fs.existsSync(pdf) && fs.statSync(pdf).size > 1000 &&
+          fs.statSync(pdf).mtimeMs >= start &&
           fs.readFileSync(pdf, { encoding: 'latin1', flag: 'r' }).slice(0, 5) === '%PDF-') return pdf
-      if (versuch < 3) console.warn(`    (leeres PDF, Versuch ${versuch + 1}: ${path.basename(pdf)})`)
+      if (versuch < 3) console.warn(`    (kein frisches PDF, Versuch ${versuch + 1}: ${path.basename(pdf)})`)
     }
     throw new Error(`PDF blieb leer nach drei Versuchen: ${pdf}`)
   } finally {

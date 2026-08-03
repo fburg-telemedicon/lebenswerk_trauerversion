@@ -3,18 +3,6 @@
 **Vorlage für Pflegeeinrichtungen.** Zum Ausdrucken und Unterschreiben.
 Stand: 2026-08-02 · Anwendung: lebensgeschichten.ai
 
-> **Hinweis für die Einrichtung (nicht mitdrucken).**
-> Die Einrichtung ist Verantwortliche; hier ist deshalb ihr Name einzusetzen. Teil A
-> ist die Information nach Art. 13, Teil B die Einwilligung nach Art. 6 Abs. 1 lit. a
-> und Art. 9 Abs. 2 lit. a. **Beide Teile gehören zusammen** — die Einwilligung ist nur
-> wirksam, wenn zuvor informiert wurde. Die unterschriebene Erklärung verbleibt bei
-> der Einrichtung; wir erhalten sie nicht.
->
-> Reihenfolge im Gespräch: vorlesen oder gemeinsam durchgehen, Fragen beantworten,
-> ausdrücklich sagen, dass eine Ablehnung nichts ändert, dann erst unterschreiben lassen.
-
----
-
 # Teil A — Was mit Ihren Angaben geschieht
 
 **Wer verarbeitet Ihre Daten?**
@@ -35,7 +23,9 @@ behalten. Sie bestimmen, was Sie erzählen — und was nicht.
 
 **Welche Angaben werden verarbeitet?**
 
-- Ihr Name und, wenn Sie möchten, Geburtsjahr und Anrede.
+- **Ihr Name.** Er wird für das Buch benötigt: Es ist Ihr Buch, es trägt Ihren Namen —
+  in der Regel auch auf dem Umschlag. Ohne Ihren Namen lässt es sich nicht erstellen.
+- Wenn Sie möchten, zusätzlich Geburtsjahr und Anrede.
 - Was Sie erzählen: Ihre Stimme wird in Text umgewandelt und dieser Text gespeichert.
 - Dabei können **besonders geschützte Angaben** vorkommen — etwa über Ihre Gesundheit,
   Ihren Glauben oder Ihre Herkunft. Das geschieht nur, wenn Sie selbst davon erzählen.
@@ -84,8 +74,11 @@ keine Diagnosen und gibt keine gesundheitlichen Empfehlungen.
 
 In einer Lebensgeschichte kommen andere Menschen vor — Angehörige, Freunde, frühere
 Kolleginnen. Das lässt sich nicht vermeiden und ist erlaubt. Bevor das Buch fertig
-wird, sieht ein Mensch den Text noch einmal durch und prüft, ob Angaben über andere
-darin stehen, die dort nicht hingehören.
+wird, sucht eine automatische Prüfung nach Angaben über andere Menschen, die dort
+nicht hingehören, und **markiert die betreffenden Stellen**. Diese markierten Stellen
+sieht ein Mensch durch und entscheidet, ob sie bleiben, umformuliert oder gestrichen
+werden; auch die Freigabe des Buches trifft ein Mensch. Der ganze Text wird dabei
+nicht Wort für Wort gegengelesen.
 
 ---
 
@@ -100,13 +93,15 @@ ausdrücklich auch auf **besondere Kategorien personenbezogener Daten** (Art. 9 
 soweit ich davon selbst erzähle — insbesondere Angaben über Gesundheit, Glauben oder
 Herkunft.
 
-    ☐  Ja, ich möchte mein Lebensgeschichten-Buch erstellen lassen.
+**Mein Name gehört dazu.** Er wird erfasst, verarbeitet und im Buch genannt — in der
+Regel auch auf dem Umschlag. Ohne meinen Namen entsteht kein Buch über mein Leben.
+
+    ☐  Ja, ich möchte mein Lebensgeschichten-Buch erstellen lassen —
+       einschließlich der Nennung meines Namens im Buch und auf dem Umschlag.
 
 Zusätzlich, jeweils freiwillig und unabhängig voneinander:
 
     ☐  Meine Fotos dürfen für das Buch verwendet werden.
-    ☐  Mein Name darf im Buch genannt werden.
-       (Ohne dieses Kreuz erscheint das Buch ohne Namensnennung.)
     ☐  Angehörige, die ich benenne, dürfen etwas zu meinem Buch beitragen.
 
 <br>

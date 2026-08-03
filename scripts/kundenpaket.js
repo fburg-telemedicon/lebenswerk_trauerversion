@@ -52,6 +52,7 @@ const DOC = {
   'DSFA.md':                           'Datenschutz-Folgenabschaetzung',
   'BETRIEB-DSGVO.md':                  'Betriebs-Runbook Datenschutz',
   'EINWILLIGUNG_PFLEGEEINRICHTUNG.md': 'Einwilligung der Bewohner',
+  'EINWILLIGUNG_HINWEIS_EINRICHTUNG.md': 'Hinweise zur Einwilligung',
   'KUNDENPAKET-DATENSCHUTZ.md':        'Deckblatt',
   'AGB.md':                            'Allgemeine Geschaeftsbedingungen',
 }
@@ -159,8 +160,7 @@ auf weitere Kategorien bedarf einer Weisung in Textform.`],
   Kapitelbilder, Stammbaum und Lebensposter,`,
      `- Erstellung des daraus abgeleiteten Werkes: das Lebenswerk-Buch samt Kapitelbildern,
   auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie
-  Betreuungsverfügung und Vorsorgevollmacht als Entwurf — **keine Rede**, die gehört
-  zum Gedenkbuch,`],
+  Betreuungsverfügung und Vorsorgevollmacht als Entwurf,`],
 
     [`| Erzählende Personen | Menschen, die ihre eigene Lebensgeschichte erzählen (Kategorie „Lebenswerk") |
 | Beitragende | Angehörige, Freundinnen, Weggefährten, die zu einem Gedenkbuch beitragen |
@@ -263,8 +263,7 @@ Person selbst.`],
   erzeugt im Dashboard das Buch (LLM) und die Kapitelbilder (FLUX), auf Wunsch
   zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und
   Vorsorgevollmacht als Entwurf → KI-gestützte Inhalts-/Datenschutzprüfung →
-  menschliche Endfreigabe → Export (DOCX/PDF). Eine Rede entsteht beim Lebenswerk
-  nicht — sie gehört zum Gedenkbuch.`],
+  menschliche Endfreigabe → Export (DOCX/PDF).`],
 
     [`- **Speicherdauer:** automatische Löschung der Beiträge **90 Tage nach Ende der
   Nutzungsdauer** (Anlass-Termin, sonst Anlage + 6 Monate Lizenzlaufzeit); Anamnese
@@ -405,6 +404,11 @@ dort gilt die Betroffeneninformation in Teil A der beiliegenden Einwilligungsvor
       `Sie können sich außerdem bei der zuständigen\nAufsichtsbehörde beschweren: ${k.aufsicht}.`)
   schreibe(`Einwilligung_${k.kurz}`, ein, 'Einwilligung der Bewohner')
 
+  // Die Bedienungshinweise stehen bewusst in einem EIGENEN Dokument: Die Vorlage wird
+  // ausgedruckt und der Bewohnerin vorgelegt — ein „nicht mitdrucken"-Kasten im selben
+  // PDF wird zuverlaessig mitgedruckt, weil niemand vor dem Druck das PDF bearbeitet.
+  schreibe('Hinweise_Einwilligung', read('EINWILLIGUNG_HINWEIS_EINRICHTUNG.md'), 'Hinweise zur Einwilligung')
+
   // ── Vertrags- und Rechtstexte ───────────────────────────────────
   schreibe('AGB', read('AGB.md'), 'Allgemeine Geschäftsbedingungen')
   // Datenschutzerklärung und Impressum werden AUS DEM QUELLTEXT erzeugt, nicht aus
@@ -455,7 +459,7 @@ Schrift- oder elektronische Form; beidseitig zeichnen, je ein Exemplar für beid
 | Deckblatt_${k.kurz}.pdf | Rollenverteilung, Dokumentenliste, Pflichten des Verantwortlichen, Prüfleitfaden |
 | Sicherheitskonzept_TOM.pdf | Technische und organisatorische Maßnahmen (Art. 32) |
 | Verzeichnis_Verarbeitungstaetigkeiten.pdf | Verarbeitungstätigkeiten, Datenflusskarte, Empfänger, Fristen (Art. 30) |
-| Datenschutz-Folgenabschaetzung.pdf | Risikoregister R1–R12 (Art. 35) |
+| Datenschutz-Folgenabschaetzung.pdf | Risikoregister R1–R13 (Art. 35) |
 | Betriebs-Runbook_Datenschutz.pdf | Meldeprozess bei Datenpannen (Art. 33/34), laufende Kontrollen |
 | Datenschutzerklaerung.pdf | Die öffentliche Erklärung der Anwendung, unverändert aus dem Quelltext erzeugt |
 | Impressum.pdf | Anbieterkennzeichnung, Haftungsausschlüsse |
@@ -480,10 +484,13 @@ mit der ${k.name} als Unternehmen gilt sie nicht.
 
 | Dokument | Inhalt |
 |---|---|
-| Einwilligung_${k.kurz}.pdf | Einwilligung der Bewohner samt Betroffeneninformation (Art. 13, Art. 9 Abs. 2 lit. a), mit Variante für gesetzliche Vertretung |
+| Einwilligung_${k.kurz}.pdf | Einwilligung der Bewohner samt Betroffeneninformation (Art. 13, Art. 9 Abs. 2 lit. a), mit Variante für gesetzliche Vertretung — **zum Ausdrucken und Unterschreiben** |
+| Hinweise_Einwilligung.pdf | Wie die Vorlage einzusetzen ist: Rollen, Reihenfolge im Gespräch, Einwilligungsfähigkeit, natürlicher Wille — **nur für die Einrichtung, nicht mitdrucken** |
 
-Diese Vorlage wird ausgedruckt und im Haus unterschrieben; die unterzeichneten
-Erklärungen verbleiben bei ${k.kurz} und werden uns nicht übermittelt.
+Die Vorlage wird ausgedruckt und im Haus unterschrieben; die unterzeichneten
+Erklärungen verbleiben bei ${k.kurz} und werden uns nicht übermittelt. Die Hinweise
+sind ein eigenes Dokument, damit sie nicht versehentlich mit auf dem Blatt landen,
+das der Bewohnerin oder dem Bewohner vorgelegt wird.
 
 ## Rückfragen
 
