@@ -158,18 +158,9 @@ Unterauftragnehmer-Anlage des Kunden-AVV bewusst **nicht** auf.
 
 **Was übermittelt wird:** die fertige Druckdatei — also **der vollständige Buchinhalt**
 samt Namen, Lebensgeschichte und Fotos, mithin auch **besondere Kategorien nach
-Art. 9** — sowie die **Lieferanschrift** des Empfängers. Nicht übermittelt werden
-Interview-Rohdaten, Stimmaufnahmen, Zugangscodes oder Konten.
-
-**Warum das eine eigene Verarbeitung ist:** Bis zum Druck bleibt alles im
-Microsoft-Verbund. Mit dem Druckauftrag verlässt der Buchinhalt erstmals diesen Kreis
-und wird zusätzlich **körperlich** vervielfältigt und versendet. Für Bücher, die wir im
-Auftrag eines Kunden erstellen, ist die Druckerei **Unterauftragnehmerin** und
-entsprechend in Anlage 2 des Kunden-AVV geführt.
-
-**Direktversand.** Auf Wunsch liefert die Druckerei unmittelbar an die Einrichtung oder
-an die Endkundin bzw. den Endkunden. Dann verarbeitet sie zusätzlich deren Anschrift.
-Die Adresse gibt der Verantwortliche vor; wir erheben sie nicht aus dem Interview.
+Art. 9** — sowie bei Direktversand die **Lieferanschrift** des Empfängers, die der
+Verantwortliche vorgibt und die nicht aus dem Interview stammt. Nicht übermittelt
+werden Interview-Rohdaten, Stimmaufnahmen, Zugangscodes oder Konten.
 
 **Keine weiteren Empfänger.** Darüber hinaus sind keine Analyse-, Tracking- oder
 Schriftarten-Dienste Dritter eingebunden. Die QR-Codes für Einladungslinks entstehen
