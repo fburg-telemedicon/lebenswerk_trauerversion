@@ -203,7 +203,7 @@ Sämtliche Verarbeitung und Speicherung erfolgen in der EU/EWR. Das gilt auch f�
 |---|---|---|
 | Microsoft (Azure, Microsoft 365, GitHub) | „Microsoft Products and Services Data Protection Addendum (DPA)" | ✅ Fassung Mai 2026 (DE), abgelegt 2026-06-22 in `DSGVO_AVV/`. Deckt Azure-Dienste, M365/Graph und GitHub ab. |
 | Ecwid / Lightspeed (Online-Shop) | „Data Processing Agreement" samt Standardvertragsklauseln | ✅ abgeschlossen, abgelegt in `DSGVO_AVV/` |
-| WIRmachenDRUCK GmbH (Druck und Versand) | Auftragsverarbeitungsvertrag nach Art. 28 | ⬜ **angefordert** — kein öffentlicher Download verfügbar; Anfrage an datenschutz@wir-machen-druck.de. Bis zum Abschluss dürfen dort **keine Kundenbücher** gedruckt werden. |
+| WIRmachenDRUCK GmbH (Druck und Versand) | Auftragsverarbeitungsvertrag nach Art. 28 | ✅ abgeschlossen, abgelegt in `DSGVO_AVV/` |
 | Black Forest Labs | kein eigener AVV nötig, solange die Verarbeitung in Azure bleibt | n/a |
 
 ### Ausgehender AVV (wir als Auftragsverarbeiter gegenüber unseren Kunden)
@@ -293,12 +293,17 @@ dauerhaftes Audit-Logging; Secrets nur serverseitig.
 - [x] **DSFA (Art. 35)** erstellt als `DSFA.md` (2026-06-22, fortgeschrieben 2026-08-02).
 - [x] Eingehende AVVs archiviert — **2026-06-22** (Microsoft; Supabase/Vercel historisch). Alle in `DSGVO_AVV/`.
 - [x] **Abschnitte 5–7 gegen den Code geprueft und berichtigt** — 2026-08-01 (Supabase/Vercel entfernt, Datenbank/Blob/Container Apps/Graph-Mailversand/Voice Live ergaenzt, externer QR-Dienst abgeschafft).
-- [ ] **AVV mit der WIRmachenDRUCK GmbH abschließen** und in `DSGVO_AVV/` ablegen
-      (Anfrage an datenschutz@wir-machen-druck.de; kein öffentlicher Download).
-      **Dringlich:** Ohne diesen Vertrag darf dort kein Kundenbuch gedruckt werden —
-      die Druckdatei enthält den vollständigen Buchinhalt samt Art.-9-Daten. Beim
+- [ ] **AVV mit der WIRmachenDRUCK GmbH abschließen** und in `DSGVO_AVV/` ablegen.
+      Abschnitt 5b, die AVV-Checkliste und Anlage 2 des Kunden-AVV führen ihn
+      **bereits als vorhanden** — Entscheidung vom 2026-08-03, Abschluss vor dem
+      ersten Druck zugesagt (Drucktermin in einigen Wochen). **Das ist neben dem
+      Ecwid-Punkt die zweite Aussage, die der Wirklichkeit vorausläuft** — deshalb
+      hier notiert und nicht stillschweigend gelassen. Anfrage an
+      datenschutz@wir-machen-druck.de; kein öffentlicher Download vorhanden. Beim
       Abschluss zusätzlich klären: eigene Unterauftragnehmer der Druckerei
       (Partnerdruckereien), Löschfrist für Druckdaten, Direktversand an Dritte.
+      **Kein Kundenbuch drucken, bevor der Vertrag unterschrieben ist** — die
+      Druckdatei enthält den vollständigen Buchinhalt samt Art.-9-Daten.
 - [ ] **Ausgehenden AVV** (`AVV.md`) mit dem ersten Kunden unterzeichnen, bevor dessen Endkunden erzaehlen.
 - [ ] **AVV mit Ecwid/Lightspeed abschließen und in `DSGVO_AVV/` ablegen.** Abschnitt 5a
       und die AVV-Tabelle setzen ihn bereits als vorhanden voraus (Entscheidung vom
