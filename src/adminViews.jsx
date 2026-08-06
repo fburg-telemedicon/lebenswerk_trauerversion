@@ -3044,8 +3044,12 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 // Anamnese kennt gar kein Buch (nur den Bogen).
                 // Variante bindet: Wurde bei der Anlage Variante 2 gewaehlt, gibt es hier
                 // keine Fassung mit namentlichen Einzelkapiteln — und umgekehrt.
-                ...((isLifework || isAnamnesis || normVariant(selected.book_variant) === 2) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
-                ...((isAnamnesis || normVariant(selected.book_variant) === 1) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                // ABER: Ein bereits erzeugtes Buch bleibt immer sichtbar. Solange
+                // book_variant als TEXT mit einer Zahl verglichen wurde, griff die
+                // Sperre nicht; die damals erzeugten Fassungen waeren sonst
+                // unerreichbar (Ansehen/Download weg). Neu erzeugen bleibt gesperrt.
+                ...((isLifework || isAnamnesis || (normVariant(selected.book_variant) === 2 && !selected.book_v1)) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
+                ...((isAnamnesis || (normVariant(selected.book_variant) === 1 && !selected.book_v2)) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
                   ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
                   : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') }]),
                 { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
@@ -3079,9 +3083,15 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                         // frei (edit_lock → null), ist Generieren wieder möglich —
                         // interview_closed allein sperrt NICHT dauerhaft.
                         const enduserLocked = selected.product_category === 'lifework' && (selected.book_finalized || enduserEditing || selected.edit_lock?.holder === 'enduser')
+                        // Karte nur sichtbar, WEIL das Buch schon existiert, die
+                        // Varianten-Sperre es aber sonst ausblenden wuerde: ansehen und
+                        // herunterladen ja, neu erzeugen nein (der Server lehnt es ab).
+                        const variantLocked = (key === 'book_v1' && normVariant(selected.book_variant) === 2)
+                                           || (key === 'book_v2' && normVariant(selected.book_variant) === 1)
                         return (
-                        <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0 || enduserLocked}
-                          title={enduserLocked ? t('Gesperrt: Der Endnutzer erstellt/bearbeitet die Endversion.', 'Locked: the end user is creating/editing the final version.') : ''}
+                        <button onClick={() => key === 'eulogy' ? setEulogyStyleModal(true) : requestGenerate(key)} disabled={busy || contributions.length === 0 || enduserLocked || variantLocked}
+                          title={enduserLocked ? t('Gesperrt: Der Endnutzer erstellt/bearbeitet die Endversion.', 'Locked: the end user is creating/editing the final version.')
+                            : variantLocked ? t('Dieses Buch wurde in der anderen Variante angelegt — die vorhandene Fassung bleibt ansehbar und herunterladbar, neu erzeugt werden kann sie hier nicht.', 'This book was created in the other variant — the existing version stays viewable and downloadable, but cannot be regenerated here.') : ''}
                           style={{ fontSize:13, padding:'8px 14px' }}>
                           {busy ? t('Wird generiert …', 'Generating …') : has ? t('↻ Neu generieren', '↻ Regenerate') : t('✨ Generieren', '✨ Generate')}
                         </button>
