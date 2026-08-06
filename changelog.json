@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-06",
+      "items": [
+        "Fertige Bücher, die durch die Varianten-Sperre unsichtbar geworden waren, sind wieder erreichbar. Seit die Sperre wirklich greift, verschwand in der Buch-Ansicht die Karte der jeweils anderen Variante — auch dann, wenn dort schon ein fertiges Buch lag. Betroffen waren 15 Bücher, darunter das Lutherhof-Jubiläumsbuch mit 22 Kapiteln.",
+        "Ein vorhandenes Buch wird jetzt immer angezeigt: Ansehen, Bearbeiten, Word-Datei, Druck-PDF, Umschlag und E-Book funktionieren wieder. Neu erzeugen bleibt bei der nicht gewählten Variante gesperrt — die Zusage an die Beitragenden, wie sie im Buch erscheinen, bleibt damit unverändert."
+      ]
+    },
+    {
       "date": "2026-08-03",
       "items": [
         "AGB und Widerrufsbelehrung stehen jetzt auf der Website (Fußbereich, /#agb und /#widerruf). Bisher gab es sie nur als PDF im Kundenpaket — für einen Shop, der an Verbraucher verkauft, zu wenig. Veröffentlichte Fassung und Kundenexemplar stammen aus derselben Datei und können nicht auseinanderlaufen.",
