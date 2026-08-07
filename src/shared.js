@@ -174,8 +174,10 @@ const COST_KIND_LABEL = {
   eulogy:     'Endtext (Rede) – Generierung',
   tree:       'Stammbaum – Generierung',
   poster:     'Lebensposter – Generierung',
+  // `care` entsteht nicht mehr neu (Betreuungsverfügung steckt seit 2026-08-07
+  // in der Vollmacht), die Bezeichnung bleibt für alte Kostenzeilen stehen.
   care:       'Betreuungsverfügung – Generierung',
-  poa:        'Vorsorgevollmacht – Generierung',
+  poa:        'Vorsorgemappe – Generierung',
   anamnese_section:   'Anamnesebogen – Generierung',
   anamnese_translate: 'Anamnesebogen – Übersetzung',
   anamnese_edit:      'Anamnesebogen – Korrektur',

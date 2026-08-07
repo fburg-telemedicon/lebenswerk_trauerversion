@@ -64,8 +64,9 @@ import { uploadPrintInfo, ImageStylePicker, BookLayoutPicker, TextStylePicker } 
 import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, passwordError, PASSWORD_RULES_TEXT, qrCodeDataUrl, formatCode, stripCode } from './shared.js'
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
-import { careDirectiveSystem, downloadCareDirectivePdf } from './careDirective.js'
-import { powerOfAttorneySystem, downloadPowerOfAttorneyPdf } from './powerOfAttorney.js'
+import { downloadCareDirectivePdf } from './careDirective.js'
+import { powerOfAttorneySystem } from './powerOfAttorney.js'
+import { downloadProvisionFolderPdf } from './provisionFolder.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { FairCodesView, AuditView, ReportsView, CostsView, SettingsView, BookDefaultsView, CreatedView, UsersView, CodesView, SupportView, CatalogsView, ListView, CreateCategoryView, CreateView, ContributionView, BookView, DetailView, QMView } from './adminViews.jsx'
@@ -88,14 +89,17 @@ const LIFEWORK_EXTRAS = {
     firstStep: 'Lebensstationen werden gesammelt', missing: 'Es gibt noch kein Lebensposter.',
     system: posterSystem,
   },
+  // Die Betreuungsverfuegung ist seit dem 2026-08-07 KEIN eigenes Erzeugnis mehr
+  // (sie steckt als Ziffer 7 in der Vollmacht). `legacy` heisst: nicht mehr
+  // erzeugbar, aber weiterhin herunterladbar — bereits erstellte Dokumente
+  // duerfen nicht unerreichbar werden, nur weil das Produkt sich geaendert hat.
   care: {
     field: 'care_directive', filename: 'Betreuungsverfuegung', article: 'Die Betreuungsverfügung',
-    firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Betreuungsverfügung.',
-    system: careDirectiveSystem,
+    missing: 'Es gibt keine Betreuungsverfügung.', legacy: true,
   },
   poa: {
-    field: 'power_of_attorney', filename: 'Vorsorgevollmacht', article: 'Die Vorsorgevollmacht',
-    firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Vorsorgevollmacht.',
+    field: 'power_of_attorney', filename: 'Vorsorgemappe', article: 'Die Vorsorgemappe',
+    firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Vorsorgemappe.',
     system: powerOfAttorneySystem,
   },
 }
@@ -2805,7 +2809,7 @@ Regeln:
   async function generateExtra(kind, posterStyles = POSTER_STYLES.map(s => s.key)) {
     if (!selected) return
     const ex = LIFEWORK_EXTRAS[kind]
-    if (!ex) return
+    if (!ex || ex.legacy) return
     const field = ex.field
     if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
     if (selected[field] && !window.confirm(`${ex.article} wird neu erzeugt und ersetzt die bisherige Fassung. Fortfahren?`)) return
@@ -2861,7 +2865,7 @@ Regeln:
     try {
       if (kind === 'tree') downloadTreePdf(`${base}.pdf`, data, mem)
       else if (kind === 'care') downloadCareDirectivePdf(`${base}.pdf`, data, mem)
-      else if (kind === 'poa') downloadPowerOfAttorneyPdf(`${base}.pdf`, data, mem)
+      else if (kind === 'poa') downloadProvisionFolderPdf(`${base}.pdf`, data, mem)
       // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.
       else if (Array.isArray(data.variants) && data.variants.length) {
         const v = data.variants.find(x => x.style === styleKey) || data.variants[0]

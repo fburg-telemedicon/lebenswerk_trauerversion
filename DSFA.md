@@ -44,8 +44,9 @@ Vollständig in `VERFAHRENSVERZEICHNIS.md` (Abschnitte 2, 3, 7). Kurzfassung:
   auf → optionales Einführungsvideo (nur beim Gedenkbuch) → Sprach- oder
   Text-Interview → KI-Rückfragen → Speicherung → das Dashboard erzeugt das Werk
   (LLM) und die Kapitelbilder (FLUX), beim Lebenswerk auf Wunsch zusätzlich
-  Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und
-  Vorsorgevollmacht als Entwurf → KI-gestützte Inhalts-/Datenschutzprüfung →
+  Stammbaum, Lebensposter, Pflegeexzerpt sowie die Vorsorgemappe als Entwurf
+  (Vorsorgevollmacht mit Betreuungsverfügung, Werteerklärung; ohne
+  Patientenverfügung) → KI-gestützte Inhalts-/Datenschutzprüfung →
   menschliche Endfreigabe → Export (DOCX/PDF).
 - **Datenarten:** siehe VVT Abschnitt 3 (inkl. Art.-9-Daten).
 - **Empfänger/Auftragsverarbeiter:** für die Anwendung ausschließlich EU (Microsoft

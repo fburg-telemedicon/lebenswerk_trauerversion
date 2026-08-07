@@ -166,11 +166,37 @@ export function newForm() {
     }
   }
 
+  // Fußzeile für eine MAPPE aus mehreren Urkunden. Jeder Teil zählt seine
+  // Seiten selbst („Teil 1 · Seite 2 von 4"), denn genau darauf kommt es an:
+  // Die Vollmacht wird der Bank einzeln vorgelegt, und eine Urkunde, deren
+  // Seitenzählung mitten im Dokument beginnt, sieht nach fehlenden Seiten aus.
+  // `sections` = [{ from, label }] mit `from` = erste Seite des Teils (1-basiert),
+  // aufsteigend. Seiten vor dem ersten Abschnitt (Deckblatt) bleiben ohne Zählung.
+  function footerSections(sections, leftText) {
+    const total = doc.getNumberOfPages()
+    const secs = [...sections].sort((a, b) => a.from - b.from)
+      .map((s, i, all) => ({ ...s, to: (all[i + 1]?.from ?? total + 1) - 1 }))
+    for (let p = 1; p <= total; p++) {
+      doc.setPage(p)
+      doc.setDrawColor(215); doc.setLineWidth(0.25)
+      doc.line(M, PH - 12, PW - M, PH - 12)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(140, 140, 140)
+      const sec = secs.find(s => p >= s.from && p <= s.to)
+      doc.text(sec ? `${sec.label}${leftText ? ` · ${leftText}` : ''}` : String(leftText || ''), M, PH - 8)
+      if (sec) doc.text(`Seite ${p - sec.from + 1} von ${sec.to - sec.from + 1}`, PW - M, PH - 8, { align: 'right' })
+    }
+  }
+
   return {
     doc, maxW, PW, PH, M,
     get y() { return y }, set y(v) { y = v },
     lh, ensure, gap: h => { y += h },
-    text, rule, h1, h2, bullet, field, blankLines, callout, yesNo, signatureRow, footer,
+    text, rule, h1, h2, bullet, field, blankLines, callout, yesNo, signatureRow, footer, footerSections,
+    // Neue Seite erzwingen — jede Urkunde der Mappe beginnt auf einem eigenen
+    // Blatt, sonst endet Teil 1 und beginnt Teil 2 auf derselben Seite und die
+    // Teile lassen sich nicht mehr getrennt vorlegen.
+    newPage() { doc.addPage(); y = M; return doc.getNumberOfPages() },
+    page() { return doc.getNumberOfPages() },
   }
 }
 

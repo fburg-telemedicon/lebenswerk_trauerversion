@@ -3261,25 +3261,27 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 )
               })}
 
-              {/* Grafische Nebenprodukte des Lebenswerks. Beide entstehen aus dem
-                  Interview als strukturierte Daten und werden daraus gezeichnet —
-                  erneutes Laden kostet deshalb keine KI. */}
+              {/* Nebenprodukte des Lebenswerks. Alle entstehen aus dem Interview als
+                  strukturierte Daten und werden daraus gezeichnet — erneutes Laden
+                  kostet deshalb keine KI. Karten mit `legacy` sind nicht mehr
+                  erzeugbar und erscheinen nur, wenn es das Dokument schon gibt. */}
               {isLifework && [
                 { kind:'tree',   field:'family_tree', icon:'🌳', title:t('Stammbaum', 'Family tree'),
                   sub:t('KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).', 'The AI reads the family from the interview; a family tree is created from it (PDF, A3 portrait).') },
                 { kind:'poster', field:'life_poster', icon:'🖼', title:t('Lebensposter', 'Life poster'),
                   sub:t('Ein illustriertes Blatt (A2 quer): Die Bild-KI malt den Lebensweg mit allen Szenen in einem Zug, die Beschriftung kommt als scharfer Vektortext darüber. Die Stile wählst du vor der Erzeugung.', 'An illustrated sheet (A2 landscape): the image AI paints the life path with all scenes in one go, the labels are added as crisp vector text on top. You choose the styles before generating.') },
-                // Rechtsdokument, kein Erzeugnis wie die anderen beiden: Der Hinweis
-                // unter der Karte gehört zwingend dazu (Entwurf, keine Rechtsberatung).
-                { kind:'care', field:'care_directive', icon:'⚖️', title:t('Betreuungsverfügung', 'Care directive'),
-                  sub:t('Die KI liest das Wertesystem aus der Lebensgeschichte und leitet daraus einen ausfüllfertigen Formular-Entwurf ab (A4): Wunschperson, Gesundheitssorge, Vermögenssorge, Wohnungsangelegenheiten, Aufenthaltsbestimmung — samt Arbeitshilfe mit allen Belegstellen.', 'The AI reads the value system from the life story and derives a ready-to-complete form draft (A4): preferred guardian, health care, financial affairs, housing matters, place of residence — plus a worksheet with all supporting quotes.'),
-                  note:t('Entwurf, keine Rechtsberatung. Die Wunschperson bleibt bewusst ein leeres Feld — nach § 1816 Abs. 2 BGB bindet dieser Vorschlag das Betreuungsgericht, er darf nicht aus einer KI-Schlussfolgerung stammen. Es fließt nur die Selbstauskunft ein, keine Gastbeiträge. Behandlungsentscheidungen sind nicht enthalten (das wäre eine Patientenverfügung). Das Dokument richtet sich nach deutschem Recht und muss eigenhändig unterschrieben werden.', 'Draft, not legal advice. The preferred guardian is deliberately left blank — under § 1816 (2) German Civil Code this proposal binds the court, so it must not come from an AI inference. Only the person’s own account is used, no guest contributions. Treatment decisions are excluded (that would be an advance healthcare directive). The document follows German law and must be signed by hand.') },
-                // Wirkt SOFORT und ohne gerichtliche Kontrolle — deshalb der
-                // deutlichere Hinweis als bei der Betreuungsverfügung.
-                { kind:'poa', field:'power_of_attorney', icon:'📜', title:t('Vorsorgevollmacht', 'Power of attorney'),
-                  sub:t('Aus demselben Wertesystem ein Vollmachts-Entwurf (A4): Gesundheitssorge, Aufenthalt und Wohnung, Vermögen, Behörden und Gericht, Post — mit Ankreuzfeldern für die drei Sonderbefugnisse, die nur ausdrücklich erteilt wirken, und Arbeitshilfe mit allen Belegstellen.', 'A power-of-attorney draft (A4) from the same value system: health care, residence and housing, finances, authorities and courts, mail — with tick boxes for the three special powers that only take effect when expressly granted, plus a worksheet with all supporting quotes.'),
-                  note:t('Entwurf, keine Rechtsberatung — und das schärfere der beiden Dokumente: Eine Vorsorgevollmacht wirkt SOFORT ab Unterschrift und ohne gerichtliche Kontrolle. Die bevollmächtigte Person bleibt deshalb erst recht ein leeres Feld. Die KI kreuzt nichts an: § 1829 (lebensgefährliche Eingriffe), § 1831 (freiheitsentziehende Maßnahmen) und Immobilien erteilt nur der Mensch selbst; für Immobilien ist zwingend ein Notar nötig. Nur Selbstauskunft, keine Gastbeiträge. Deutsches Recht, eigenhändig zu unterschreiben.', 'Draft, not legal advice — and the sharper of the two documents: a power of attorney takes effect IMMEDIATELY upon signature and without court supervision. The attorney-in-fact field is therefore left blank all the more. The AI ticks nothing: § 1829 (life-threatening procedures), § 1831 (measures restricting liberty) and real estate are granted by the person alone; real estate requires a notary. Only the person’s own account, no guest contributions. German law, to be signed by hand.') },
-              ].map(({ kind, field, icon, title, sub, note }) => {
+                // Nicht mehr erzeugbar (seit 2026-08-07 Ziffer 7 der Vorsorgevollmacht),
+                // aber bereits erstellte Dokumente bleiben abrufbar — die Karte
+                // erscheint nur noch, wenn es eine gibt (siehe filter unten).
+                { kind:'care', field:'care_directive', icon:'⚖️', legacy:true, title:t('Betreuungsverfügung (Altbestand)', 'Care directive (legacy)'),
+                  sub:t('Vor dem 7. August 2026 als eigenes Dokument erzeugt. Neue Betreuungsverfügungen entstehen nicht mehr einzeln — sie sind jetzt Ziffer 7 der Vorsorgevollmacht in der Vorsorgemappe. Dieses Dokument bleibt erhalten und herunterladbar.', 'Created as a separate document before 7 August 2026. New care directives are no longer produced separately — they are now clause 7 of the power of attorney in the provision folder. This document remains available for download.') },
+                // Die Vorsorgemappe: Vollmacht (mit Betreuungsverfügung als Ziffer 7),
+                // ausgewiesene Fehlstelle Patientenverfügung, Werteerklärung, Beiblatt.
+                // Wirkt SOFORT und ohne gerichtliche Kontrolle — daher der deutliche Hinweis.
+                { kind:'poa', field:'power_of_attorney', icon:'📜', title:t('Vorsorgemappe', 'Provision folder'),
+                  sub:t('Ein PDF mit drei getrennt unterschreibbaren Teilen: Vorsorgevollmacht (Gesundheit, Aufenthalt und Wohnung, Vermögen, Behörden, Post — mit Ankreuzfeldern für die drei Sonderbefugnisse und der Betreuungsverfügung als Ziffer 7), die ausgewiesene Fehlstelle Patientenverfügung und die Werteerklärung aus dem Wertesystem der Lebensgeschichte. Dazu ein Beiblatt mit allen Erläuterungen und Belegstellen.', 'One PDF with three separately signable parts: power of attorney (health, residence and housing, finances, authorities, mail — with tick boxes for the three special powers and the care directive as clause 7), the flagged gap where the advance healthcare directive belongs, and the statement of values drawn from the life story. Plus a worksheet with all explanations and supporting quotes.'),
+                  note:t('Entwurf, keine Rechtsberatung. Die Vollmacht wirkt SOFORT ab Unterschrift und ohne gerichtliche Kontrolle; die bevollmächtigte Person und die Wunsch-Betreuung bleiben deshalb leere Felder — die KI benennt niemanden. Sie kreuzt auch nichts an: § 1829 (lebensgefährliche Eingriffe), § 1831 (freiheitsentziehende Maßnahmen) und Immobilien erteilt nur der Mensch selbst; für Immobilien ist zwingend ein Notar nötig. Die Patientenverfügung ist NICHT enthalten und wird in der Mappe als fehlend ausgewiesen — sie verlangt konkrete Behandlungsfestlegungen, die sich aus einer Lebensgeschichte nicht ableiten lassen. Nur Selbstauskunft, keine Gastbeiträge. Deutsches Recht, jeder Teil eigenhändig zu unterschreiben.', 'Draft, not legal advice. The power of attorney takes effect IMMEDIATELY upon signature and without court supervision; the attorney-in-fact and the preferred guardian are therefore left blank — the AI names no one. It also ticks nothing: § 1829 (life-threatening procedures), § 1831 (measures restricting liberty) and real estate are granted by the person alone; real estate requires a notary. The advance healthcare directive is NOT included and is flagged as missing — it requires concrete treatment decisions that cannot be derived from a life story. Only the person’s own account, no guest contributions. German law, each part to be signed by hand.') },
+              ].filter(c => !c.legacy || selected[c.field]).map(({ kind, field, icon, title, sub, note, legacy }) => {
                 const has  = !!selected[field]
                 // Läuft serverseitig als Job — Fortschritt und Abbrechen wie beim Buch.
                 const busy = !!generating[kind] && genOwner[kind] === selected.id
@@ -3299,9 +3301,11 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                       {has && !busy && <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>{t('✓ Erzeugt', '✓ Created')}</span>}
                     </div>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      <button onClick={() => kind === 'poster' ? requestPoster() : generateExtra(kind)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
-                        {busy ? t('Wird erzeugt …', 'Creating …') : has ? t('↻ Neu erzeugen', '↻ Recreate') : t('✨ Erzeugen', '✨ Create')}
-                      </button>
+                      {!legacy && (
+                        <button onClick={() => kind === 'poster' ? requestPoster() : generateExtra(kind)} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+                          {busy ? t('Wird erzeugt …', 'Creating …') : has ? t('↻ Neu erzeugen', '↻ Recreate') : t('✨ Erzeugen', '✨ Create')}
+                        </button>
+                      )}
                       {/* Beim Poster hängt der Download an der einzelnen Stil-Vorschau unten. */}
                       {!hasVariants && (
                         <button onClick={() => downloadExtra(kind)} disabled={!has || busy || !!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>

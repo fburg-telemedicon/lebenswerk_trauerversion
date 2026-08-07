@@ -39,7 +39,7 @@ wählen Sie bei der Bestellung:
 
 | Anlass | Wer erzählt | Was entsteht |
 |---|---|---|
-| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie Betreuungsverfügung und Vorsorgevollmacht als Entwurf (Absatz 4) |
+| **Lebenswerk** | die Person selbst, über ihr eigenes Leben | autobiographisches Buch; auf Wunsch zusätzlich Stammbaum, Lebensposter, Pflegeexzerpt sowie eine Vorsorgemappe als Entwurf (Absatz 4) |
 | **Gedenkbuch** | Angehörige und Weggefährten, über eine verstorbene Person | Gedenkbuch; auf Wunsch eine Trauerrede |
 | **Geburtstagsbuch** | Freunde und Familie | Geburtstagsbuch |
 | **Hochzeitsjubiläum** | Familie und Gäste, über das Paar | Jubiläumsbuch |
@@ -69,10 +69,12 @@ einem Interview ein Bogen oder ein Exzerpt für Pflegende oder Behandelnde
 entsteht: Dabei handelt es sich um eine Zusammenfassung des Erzählten, nicht um
 eine fachliche Beurteilung.
 
-**(4)** Die zum Lebenswerk gehörenden Vorsorgedokumente — Betreuungsverfügung und
-Vorsorgevollmacht — sind **Entwürfe zur eigenen Verwendung** und **keine
-Rechtsberatung**. Sie sind vor der Unterschrift zu prüfen; bei
-Immobilienvollmachten ist eine notarielle Beurkundung erforderlich.
+**(4)** Die zum Lebenswerk gehörende **Vorsorgemappe** — Vorsorgevollmacht
+(einschließlich Betreuungsverfügung) und Werteerklärung — besteht aus **Entwürfen
+zur eigenen Verwendung** und ist **keine Rechtsberatung**. Sie sind vor der
+Unterschrift zu prüfen; bei Immobilienvollmachten ist eine notarielle Beurkundung
+erforderlich. Eine **Patientenverfügung ist nicht enthalten** und wird durch die
+Vollmacht nicht ersetzt; die Mappe weist diese Lücke ausdrücklich aus.
 
 **(5)** Wir entwickeln die Anwendung fortlaufend weiter. Änderungen, die den
 vereinbarten Leistungsumfang nicht wesentlich einschränken, bleiben vorbehalten.

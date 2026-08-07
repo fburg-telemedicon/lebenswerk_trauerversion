@@ -1,5 +1,21 @@
 // src/careDirective.js
-// Drittes Nebenprodukt des Lebenswerks: die BETREUUNGSVERFÜGUNG.
+// ALTBESTAND — die BETREUUNGSVERFÜGUNG als eigenes Dokument.
+//
+// Seit dem 2026-08-07 wird sie NICHT MEHR NEU ERZEUGT: Sie steckt jetzt als
+// Ziffer 7 in der Vorsorgevollmacht (src/powerOfAttorney.js), die ihrerseits
+// Teil 1 der Vorsorgemappe ist (src/provisionFolder.js). Grund war die
+// Rückmeldung aus der Vorsorgeberatung, die Unterlagen seien zu umfangreich;
+// als nachrangige Rückfallebene braucht die Betreuungsverfügung kein eigenes
+// Dokument.
+//
+// Diese Datei bleibt, damit die vor diesem Datum erzeugten Verfügungen
+// weiterhin als PDF geladen werden können — `downloadCareDirectivePdf` wird
+// aus App.jsx genau dafür noch aufgerufen. `careDirectiveSystem` (der Prompt)
+// wird nirgends mehr verwendet und steht nur noch als Beleg dafür, woraus die
+// gespeicherten Daten entstanden sind. Nichts hier anfassen, ohne zu prüfen,
+// ob bestehende `care_directive`-Daten weiter zeichenbar bleiben.
+//
+// Die ursprüngliche Beschreibung:
 //
 // Eine Betreuungsverfügung richtet sich an das Betreuungsgericht. Sie benennt
 // die WUNSCHPERSON für eine gesetzliche Betreuung und sagt, wie diese Person in
