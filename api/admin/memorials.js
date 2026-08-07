@@ -590,7 +590,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, micModeSwitch, guestEnabled, detailChoice, ownerUser } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, guestEnabled, detailChoice, ownerUser } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -735,8 +735,6 @@ module.exports = async function handler(req, res) {
         // Bestehende Bücher behalten ihre Einstellung (NULL wird weiter als „auto"
         // gelesen), damit sich mitten im Interview nichts unter den Füßen ändert.
         mic_manual_stop: micManualStop !== false,
-        // Darf der Nutzer den Mikrofon-Modus im Interview selbst umschalten? Default AN.
-        mic_mode_switch: micModeSwitch !== false,
         // Darf der Beitragende die Nachfrage-Tiefe im ☰-Menü selbst einstellen?
         // Default AUS — dann gilt allein die Vorgabe des Managers (followups).
         detail_choice: detailChoice === true,
@@ -987,7 +985,6 @@ module.exports = async function handler(req, res) {
         if ('gamification' in meta)  update.gamification = meta.gamification !== false
         if ('handsFree' in meta)     update.hands_free = meta.handsFree !== false
         if ('micManualStop' in meta) update.mic_manual_stop = meta.micManualStop === true
-        if ('micModeSwitch' in meta) update.mic_mode_switch = meta.micModeSwitch !== false
         if ('detailChoice' in meta)  update.detail_choice = meta.detailChoice === true
         // Nur der Superadmin (siehe Anlage oben). Bei allen anderen wird das Feld
         // stillschweigend ignoriert — ein Manager kann das Live-Gespräch weder

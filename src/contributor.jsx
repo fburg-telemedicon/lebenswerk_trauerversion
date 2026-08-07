@@ -407,9 +407,10 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
   // Der Buch-Standard kommt aus hands_free/mic_manual_stop; die Wahl der Person
   // (`micMode`) überschreibt ihn. `handsFree` = „Mikro öffnet automatisch"
   // (auto ODER hybrid); `micManualStop` = hybrid. Im Co-Interview bleibt es manuell.
-  // `mic_mode_switch` wird hier NICHT mehr gelesen: seit der Live-Modus allen
-  // offensteht, ist der Menüpunkt „Mikrofon-Modus" immer erreichbar — sonst wäre
-  // der vierte Modus unerreichbar. Der Schalter im Dashboard ist damit wirkungslos.
+  // Der Menüpunkt „Mikrofon-Modus" ist IMMER erreichbar — sonst wäre der vierte
+  // Modus unerreichbar, seit das Live-Gespräch allen offensteht. Die frühere
+  // Buch-Einstellung `mic_mode_switch` gibt es deshalb nicht mehr; die Spalte
+  // steht nur noch inert in der Datenbank und wird nirgends gelesen.
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
   const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid' || micMode === 'live') ? micMode : bookMode
   // Der Live-Modus steht allen offen; er ist nie Standard, sondern immer die

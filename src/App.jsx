@@ -241,7 +241,6 @@ const EMPTY_CREATE = {
   gamification: true,                // spürbar motivierender Interview-Modus (nur Anamnese; Default AN)
   handsFree: true,                   // Mikro öffnet automatisch (alle Produkte, Default AN)
   micManualStop: true,               // Mischform = STANDARD: Mikro öffnet automatisch, der Erzähler beendet selbst per Tippen (kein Stopp durch Sprechpause — man darf beliebig lange überlegen)
-  micModeSwitch: true,               // Nutzer darf den Mikrofon-Modus im Interview selbst umschalten (Default AN)
   detailChoice: false,               // Nutzer darf die Nachfrage-Tiefe selbst einstellen (Default AUS)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
@@ -957,7 +956,6 @@ function Dashboard() {
       gamification: m.gamification !== false,
       handsFree: m.hands_free !== false,
       micManualStop: m.mic_manual_stop === true,
-      micModeSwitch: m.mic_mode_switch !== false,
       detailChoice: m.detail_choice === true,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
@@ -1016,7 +1014,6 @@ function Dashboard() {
         gamification: d.gamification !== false,
         handsFree: d.handsFree !== false,
         micManualStop: d.micManualStop === true,
-        micModeSwitch: d.micModeSwitch !== false,
         detailChoice: d.detailChoice === true,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
@@ -1054,7 +1051,6 @@ function Dashboard() {
         gamification: d.gamification !== false,
         hands_free: d.handsFree !== false,
         mic_manual_stop: d.micManualStop === true,
-        mic_mode_switch: d.micModeSwitch !== false,
         detail_choice: d.detailChoice === true,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
@@ -1231,7 +1227,6 @@ function Dashboard() {
         gamification: createForm.gamification !== false,
         handsFree: createForm.handsFree !== false,
         micManualStop: createForm.micManualStop === true,
-        micModeSwitch: createForm.micModeSwitch !== false,
         detailChoice: createForm.detailChoice === true,
         proofEnabled: createForm.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(createForm.proofMax, 10)) ? parseInt(createForm.proofMax, 10) : 3,
