@@ -4,6 +4,7 @@
     {
       "date": "2026-08-07",
       "items": [
+        "Der Knopf „Bearbeiten\" bei den Auftragsdaten reagierte auf der Detailseite überhaupt nicht mehr — bei jedem Buch, seit dem 5. August. Beim Öffnen des Formulars wurde eine Hilfsfunktion für die Buch-Variante aufgerufen, die in dieser Datei gar nicht bekannt war; der Klick brach still ab, bevor irgendetwas passieren konnte. Die Auftragsdaten ließen sich seitdem nicht mehr ändern.",
         "Im Interview-Code stand noch, das Live-Sprachgespräch müsse pro Buch freigeschaltet werden — dieser Vorbehalt ist seit dem 2. August entfallen. Die Beschreibung ist richtiggestellt, ebenso die Angabe „drei Aufnahme-Modi\" (es sind vier: Tippen, Freisprechen, Mischform, Live-Gespräch).",
         "Dabei aufgefallen und festgehalten: Die Einstellung „Nutzer darf den Mikrofon-Modus selbst wechseln\" wirkt seither nicht mehr — der Menüpunkt muss immer erreichbar sein, sonst wäre das Live-Gespräch für niemanden wählbar. Ob der Schalter verschwindet, ist noch zu entscheiden."
       ]
