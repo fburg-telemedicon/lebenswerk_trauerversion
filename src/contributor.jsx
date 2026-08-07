@@ -399,16 +399,17 @@ function GamificationHud({ chapters, prog, round, lang }) {
 // ── Sprach-Interview ──────────────────────────────────────────────
 function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, hidePause = false, saveErr, initialMessages = [], showTx: showTxProp, setShowTx: setShowTxProp, companionOn = false, setCompanionOn, active = true, onMemorialPatch, micMode = null, onSoundTest }) {
   const t = uiText(lang)
-  // Drei Aufnahme-Modi (Expertenmodus, alle Produkte):
-  //  • Tipp-Modus       : manual → Mikro manuell an/aus.
-  //  • Freisprech (auto) : auto  → Mikro öffnet automatisch, Sprechpausen-Erkennung stoppt & sendet.
-  //  • Mischform (hybrid): hybrid → Mikro öffnet automatisch, Nutzer beendet SELBST (kein Auto-Stopp).
-  // Buch-Standard aus hands_free/mic_manual_stop; darf der Nutzer wechseln (mic_mode_switch),
-  // überschreibt seine Wahl (`micMode`) den Standard. `handsFree` = „Mikro öffnet automatisch"
+  // Vier Aufnahme-Modi (Expertenmodus, alle Produkte):
+  //  • Tipp-Modus        : manual → Mikro manuell an/aus.
+  //  • Freisprech (auto)  : auto  → Mikro öffnet automatisch, Sprechpausen-Erkennung stoppt & sendet.
+  //  • Mischform (hybrid) : hybrid → Mikro öffnet automatisch, Nutzer beendet SELBST (kein Auto-Stopp).
+  //  • Live-Gespräch      : live  → durchgehende Sprachverbindung (Azure Voice Live).
+  // Der Buch-Standard kommt aus hands_free/mic_manual_stop; die Wahl der Person
+  // (`micMode`) überschreibt ihn. `handsFree` = „Mikro öffnet automatisch"
   // (auto ODER hybrid); `micManualStop` = hybrid. Im Co-Interview bleibt es manuell.
-  //  • Live-Gespräch  : live  → durchgehende Sprachverbindung (Azure Voice Live),
-  //    nur wenn der Manager sie für dieses Buch freigeschaltet hat. NIE Standard:
-  //    `bookMode` kann nie 'live' werden, es braucht immer die Wahl der Person.
+  // `mic_mode_switch` wird hier NICHT mehr gelesen: seit der Live-Modus allen
+  // offensteht, ist der Menüpunkt „Mikrofon-Modus" immer erreichbar — sonst wäre
+  // der vierte Modus unerreichbar. Der Schalter im Dashboard ist damit wirkungslos.
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
   const effMode = (micMode === 'manual' || micMode === 'auto' || micMode === 'hybrid' || micMode === 'live') ? micMode : bookMode
   // Der Live-Modus steht allen offen; er ist nie Standard, sondern immer die
@@ -2033,9 +2034,9 @@ function SoundMicTest({ lang, onClose }) {
   )
 }
 
-// Auswahl-Dialog für den Aufnahme-Modus (Beitragender wechselt selbst, wenn der
-// Manager es erlaubt hat). Zeigt die drei Modi; aktueller ist markiert. Die Wahl
-// überschreibt den Buch-Standard und wird je Code gemerkt (localStorage).
+// Auswahl-Dialog für den Aufnahme-Modus (die erzählende Person wechselt selbst).
+// Zeigt die vier Modi; der aktuelle ist markiert. Die Wahl überschreibt den
+// Buch-Standard und wird je Code gemerkt (localStorage).
 function MicModeChooser({ lang, memorial, micMode, onPick, onClose }) {
   const en = String(lang || '').startsWith('en')
   const bookMode = memorial?.hands_free === false ? 'manual' : (memorial?.mic_manual_stop ? 'hybrid' : 'auto')
