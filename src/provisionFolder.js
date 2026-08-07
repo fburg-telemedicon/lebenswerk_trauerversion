@@ -36,7 +36,7 @@
 // erzwingen, immer alles herauszugeben.
 
 import { newForm, strList, SOFT, AMBER, BLUE } from './legalForms.js'
-import { drawPowerOfAttorney, poaWorksheet } from './powerOfAttorney.js'
+import { drawPowerOfAttorney, poaWorksheet, secondPersonHits } from './powerOfAttorney.js'
 
 // Haltungen („attitudes") normalisieren — die KI liefert sie als Objekte,
 // darf aber auch Strings schicken.
@@ -188,6 +188,18 @@ function drawWorksheet(t, data, memorial) {
     'Hier steht, was die Urkunden bewusst nicht enthalten: die Erklärungen zu jedem Punkt und die Stellen des Interviews, aus denen jeder Vorschlag stammt. So lässt sich prüfen, ob die Schlussfolgerung stimmt — und streichen, wenn nicht.',
     'Eine Urkunde soll nichts enthalten, was nicht Teil der Erklärung ist. Deshalb stehen diese Hinweise hier und nicht dort.',
   ], AMBER)
+
+  // Anrede-Pruefung: Die Urkunde darf die bevollmaechtigte Person nicht
+  // ansprechen — sie steht beim Unterschreiben noch gar nicht fest. Der Prompt
+  // verbietet es, aber im ersten Probelauf hielt sich das Modell bei einer von
+  // zwei Biographien nicht daran. Lieber sichtbar falsch als still falsch.
+  const duHits = secondPersonHits(d)
+  if (duHits.length) {
+    h1('Bitte vor der Unterschrift umformulieren')
+    text(`${duHits.length} ${duHits.length === 1 ? 'Satz spricht' : 'Sätze sprechen'} die bevollmächtigte Person direkt an („du"). In einer Vollmacht gehört sie in die dritte Person — beim Unterschreiben steht noch nicht fest, wer sie annimmt, das Feld ist leer. Die betroffenen Sätze:`, { size: 10, gapAfter: 2 })
+    for (const x of duHits) bullet(x, { box: true, size: 9.5 })
+    text('Am einfachsten neu erzeugen — der Fehler tritt nicht bei jedem Lauf auf.', { size: 9.5, color: SOFT })
+  }
 
   poaWorksheet(t, d, memorial)
 

@@ -128,7 +128,8 @@ REGELN — verbindlich:
 - ERFINDE NICHTS. Jeder Wunsch, jeder Wert, jeder Name muss sich auf eine Stelle der Erzählung stützen. Ohne Beleg kein Eintrag. "evidence" ist ein WÖRTLICHES Zitat, nicht deine Zusammenfassung.
 - ABLEITEN ist erlaubt und erwünscht, ERFINDEN nicht. Aus „Ich habe mein Leben lang jeden Monat ein Budget gemacht" darf „Ich möchte, dass mit meinem Geld weiterhin geplant und sparsam umgegangen wird" werden.
 - ICH-FORM für alles, was in eine Urkunde geht ("wishes", "usage_wishes", "consequence", "daily_life", "attitudes[].text"). "values_summary" bleibt in der dritten Person.
-- DU BENENNST NIEMANDEN ALS BEVOLLMÄCHTIGTEN. Wer hier eingetragen wird, kann am Tag darauf über Konten verfügen und über den Aufenthalt entscheiden — diese Wahl darf NIEMALS aus einer KI-Schlussfolgerung stammen. Dasselbe gilt für die Frage, wer im Fall einer gerichtlichen Betreuung Betreuerin oder Betreuer werden soll: Dieser Vorschlag bindet nach § 1816 Abs. 2 BGB das Gericht. "attorney_hints" sammelt ausschließlich Menschen, die die Erzählung als besondere Vertrauenspersonen ausweist, als Gedächtnisstütze für die Person selbst. Keine Rangfolge, keine Empfehlung, höchstens 4. Gibt die Erzählung niemanden her: leere Liste.
+- NIEMALS DIE BEVOLLMÄCHTIGTE PERSON ANSPRECHEN. „Ich" ist immer die vollmachtgebende Person. Über die bevollmächtigte Person wird in der DRITTEN PERSON geschrieben — „die bevollmächtigte Person" oder unpersönlich —, sie wird nie geduzt und nie gesiezt. FALSCH: „Ich möchte, dass du mich mitentscheiden lässt." RICHTIG: „Ich möchte, dass die bevollmächtigte Person mich mitentscheiden lässt." oder „Ich möchte so lange wie möglich selbst mitentscheiden." Grund: Die Urkunde wird unterschrieben, bevor feststeht, wer sie annimmt — das Feld ist leer, eine Anrede ginge ins Leere.
+- DU BENENNST NIEMANDEN ALS BEVOLLMÄCHTIGTEN. Wer hier eingetragen wird, kann am Tag darauf über Konten verfügen und über den Aufenthalt entscheiden — diese Wahl darf NIEMALS aus einer KI-Schlussfolgerung stammen. Dasselbe gilt für die Frage, wer im Fall einer gerichtlichen Betreuung Betreuerin oder Betreuer werden soll: Dieser Vorschlag bindet nach § 1816 Abs. 2 BGB das Gericht. "attorney_hints" sammelt ausschließlich Menschen, die die Erzählung als besondere Vertrauenspersonen ausweist, als Gedächtnisstütze für die Person selbst. Keine Rangfolge, keine Empfehlung, höchstens 4. Nur ECHTE EIGENNAMEN — keine Sammelbezeichnungen („meine Söhne", „die Kinder") und keine Platzhalter („nicht einzeln benannt"). Wer keinen Namen hat, gehört nicht in die Liste. Gibt die Erzählung niemanden her: leere Liste.
 - KEINE BEHANDLUNGSENTSCHEIDUNGEN — nirgends, auch nicht in "attitudes". Bei "gesundheit" geht es darum, WIE und mit wem entschieden wird und wie mit mir umgegangen werden soll — NIEMALS darum, welche Behandlung erfolgen oder unterbleiben soll (keine Wiederbelebung, keine künstliche Ernährung, keine Beatmung, keine Medikamente). Das ist Sache einer Patientenverfügung. Ebenso: keine Diagnosen, keine medizinischen Empfehlungen. Sprach die Person über Krankheit, Pflegebedürftigkeit oder Sterben, darf das als HALTUNG in "attitudes" stehen ("Ich möchte nicht allein sein", "Ich habe Angst davor, anderen zur Last zu fallen") — niemals als Anweisung, was zu tun oder zu unterlassen ist.
 - DU ERTEILST KEINE BEFUGNISSE. Die besonders eingriffsintensiven Punkte — ärztliche Maßnahmen mit Lebensgefahr (§ 1829 BGB), freiheitsentziehende Maßnahmen wie Fixierung oder geschlossene Unterbringung (§ 1831 BGB), Verfügungen über Immobilien — stehen als anzukreuzende Optionen im Formular und werden ausschließlich vom Menschen selbst erteilt. Schlage NICHT vor, sie zu erteilen. Erlaubt und wertvoll ist der umgekehrte Fall: Sagt die Erzählung etwas über die HALTUNG dazu (z. B. große Bedeutung von Bewegungsfreiheit oder der eigenen Wohnung), nimm das als Wunsch auf.
 - "exclusion_hints" nur bei einem AUSDRÜCKLICHEN Zerwürfnis oder einer klaren Ablehnung. Bloße Distanz reicht nicht. Im Zweifel: leere Liste.
@@ -336,6 +337,22 @@ export function drawPowerOfAttorney(t, data, memorial) {
 // (die inhaltlich unverzichtbar sind — ohne sie unterschreibt jemand eine
 // Immobilienvollmacht, die ohne Notar nichts wert ist), die KI-Hinweise auf
 // Vertrauenspersonen und die Belegstellen zu jedem Vorschlag.
+// Findet Saetze, die die bevollmaechtigte Person direkt ansprechen. Der Prompt
+// verbietet das; ob das Modell sich daran haelt, ist damit aber nicht bewiesen —
+// im ersten Probelauf duzten 20 von 24 Saetzen. Deshalb pruefen wir es beim
+// Zeichnen und schreiben die Funde ins Beiblatt.
+const DU_RE = /(^|[^\wäöüß])(du|dich|dir|dein|deine[mnrs]?)([^\wäöüß]|$)/i
+export function secondPersonHits(data) {
+  const d = data || {}
+  const texts = [
+    ...wishList(d, 'usage_wishes').map(w => w.text),
+    ...POA_AREAS.flatMap(a => wishList(pickByKey(d.areas, a.key)).map(w => w.text)),
+    ...(Array.isArray(d.values) ? d.values : []).map(v => String(v?.consequence ?? '')),
+    ...strList(d.daily_life),
+  ]
+  return texts.filter(x => DU_RE.test(String(x || '')))
+}
+
 export function poaWorksheet(t, data, _memorial) {
   const { maxW, M } = t
   const { text, h1, h2, bullet, callout } = t

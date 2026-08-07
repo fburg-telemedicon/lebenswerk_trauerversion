@@ -220,6 +220,23 @@ export function wishList(a, field = 'wishes') {
     .filter(w => w.text)
 }
 
+// Sammelbezeichnungen und Platzhalter, die als „Name" durchgehen wollen.
+// Aufgefallen im Probelauf mit zwei fertigen Biographien: „Söhne (nicht einzeln
+// benannt)" und „meine Schwester" standen in der Liste der Vertrauenspersonen.
+// Als Gedächtnisstütze ist das wertlos — gemeint ist eine Person, die man
+// ansprechen kann. Der Prompt verbietet es inzwischen; hier steht das Netz,
+// falls das Modell sich nicht daran hält.
+const NO_NAME = /^(meine|mein|unsere|unser|die|der|das)\s|[()]/i
+// Reine Verwandtschaftsbezeichnung STATT eines Namens („Schwester", „Ehefrau").
+// Nur bei exakter Übereinstimmung — „Schwester Anna" ist ein Name und bleibt.
+const KINSHIP = new Set([
+  'kind', 'kinder', 'sohn', 'söhne', 'tochter', 'töchter', 'enkel', 'enkelin', 'enkelkind',
+  'geschwister', 'schwester', 'bruder', 'familie', 'mutter', 'vater', 'eltern',
+  'ehefrau', 'ehemann', 'frau', 'mann', 'partner', 'partnerin', 'lebensgefährte', 'lebensgefährtin',
+  'nichte', 'neffe', 'schwager', 'schwägerin', 'schwiegertochter', 'schwiegersohn',
+  'nachbar', 'nachbarin', 'nachbarn', 'freund', 'freundin', 'freunde', 'angehörige', 'angehöriger',
+])
+
 // Personen-Hinweise (Vertrauenspersonen aus dem Interview) normalisieren.
 export function personList(v, limit = 4) {
   return (Array.isArray(v) ? v : [])
@@ -228,7 +245,7 @@ export function personList(v, limit = 4) {
       relation: String(h?.relation ?? '').trim(),
       evidence: String(h?.evidence ?? '').trim(),
     }))
-    .filter(h => h.name)
+    .filter(h => h.name && !NO_NAME.test(h.name) && !KINSHIP.has(h.name.toLowerCase()))
     .slice(0, limit)
 }
 export const personLine = h => (h.relation ? `${h.name} (${h.relation})` : h.name)
