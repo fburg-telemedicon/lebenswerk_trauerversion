@@ -35,7 +35,10 @@ const SKIP_COLS = new Set([
   'purge_info',      // Löschprotokoll des Originals
   'archived_at',
   'proof_used',      // Probedruck-Zähler beginnt bei 0
-  'lifework_no',     // fortlaufende Projektnummer wird eigenständig vergeben
+  // Fortlaufende Projektnummer: eigene Sequenz + UNIQUE-Index
+  // (memorials_project_no_uidx, siehe api/_lib/lifework.js). Mitkopieren
+  // verletzt den Index — die Kopie zieht ihre eigene Nummer aus der Sequenz.
+  'project_no',
   'book_v1_at', 'book_v2_at', 'eulogy_at',
 ])
 
