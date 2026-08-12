@@ -48,6 +48,13 @@ const contentTypeOf = (p) => {
     : 'application/octet-stream'
 }
 
+// Nur echte JSON-Objekte werden rekursiv durchlaufen. Wichtig: Der pg-Treiber
+// liefert Datumsspalten als Date-INSTANZ. Wuerde die Rekursion darauf laufen,
+// bliebe ein leeres Objekt uebrig — und der Insert scheiterte mit
+// "column is of type date but expression is of type jsonb".
+const isPlainObject = v => v !== null && typeof v === 'object'
+  && !Array.isArray(v) && !(v instanceof Date) && !Buffer.isBuffer(v)
+
 // Ersetzt in JEDEM String, der mit "<from>/" beginnt, das Präfix durch "<to>/".
 // Läuft rekursiv durch das ganze JSON, damit auch Felder erfasst werden, die
 // heute noch niemand kennt (neue Nebenprodukte, neue Bildfelder).
@@ -56,7 +63,7 @@ function rewritePaths(value, from, to) {
     return value.startsWith(`${from}/`) ? `${to}/${value.slice(from.length + 1)}` : value
   }
   if (Array.isArray(value)) return value.map(v => rewritePaths(v, from, to))
-  if (value && typeof value === 'object') {
+  if (isPlainObject(value)) {
     const out = {}
     for (const [k, v] of Object.entries(value)) out[k] = rewritePaths(v, from, to)
     return out
@@ -68,7 +75,7 @@ function rewritePaths(value, from, to) {
 // Stunde ab und werden bei jedem Laden neu erzeugt. Gespeichert gehören sie nie.
 function stripSignedUrls(value) {
   if (Array.isArray(value)) return value.map(stripSignedUrls)
-  if (value && typeof value === 'object') {
+  if (isPlainObject(value)) {
     const out = {}
     for (const [k, v] of Object.entries(value)) {
       if (/_url$/.test(k) && typeof v === 'string' && v.includes('blob.core.windows.net')) continue
