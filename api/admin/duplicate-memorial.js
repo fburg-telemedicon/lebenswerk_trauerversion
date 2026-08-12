@@ -12,7 +12,15 @@
 // Kopie muss ihre Bilder deshalb BESITZEN, nicht ausleihen.
 //
 // POST /api/admin/duplicate-memorial
-//   { code, name?, withContributions? }   withContributions: Standard true
+//   { code, name?, withContributions?, bookVariant? }
+//   withContributions: Standard true
+//   bookVariant: 1 | 2 — nur nötig, wenn die Kopie eine ANDERE Variante tragen
+//     soll als das Original. Die Variante ist nach der Anlage gesperrt (die
+//     Beitragenden haben ihre Einwilligung im Vertrauen auf die damals geltende
+//     Variante gegeben), lässt sich also nur BEI der Anlage bestimmen — und die
+//     Kopie wird hier angelegt. Gebraucht wird das bei Altbeständen, in denen
+//     Variante und tatsächlich vorhandenes Buch auseinanderlaufen: Ohne dieses
+//     Feld liesse sich das kopierte Buch in der Kopie nie wieder speichern.
 // → { code, name, images, contributions }
 
 const { createClient } = require('../_lib/store')
@@ -151,6 +159,8 @@ module.exports = async function handler(req, res) {
       row[k] = rewritePaths(stripSignedUrls(v), code, newCode)
     }
     if (req.body?.name) row.name = String(req.body.name).slice(0, 200)
+    const wantVariant = String(req.body?.bookVariant ?? '')
+    if (wantVariant === '1' || wantVariant === '2') row.book_variant = wantVariant
 
     const { error: insErr } = await supabase.from('memorials').insert(row)
     if (insErr) {
