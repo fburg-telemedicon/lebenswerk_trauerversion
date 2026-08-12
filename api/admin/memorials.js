@@ -1104,7 +1104,15 @@ module.exports = async function handler(req, res) {
           if (u?.path) protectedPaths.add(String(u.path).replace(/^\/+/, ''))
           if (u?.thumb_path) protectedPaths.add(String(u.thumb_path).replace(/^\/+/, ''))
         }
-        orphanPaths = [...new Set(oldPaths.filter(p => p && !newPaths.has(p) && !protectedPaths.has(String(p).replace(/^\/+/, ''))))]
+        // NUR im EIGENEN Ordner loeschen. Bildpfade beginnen mit dem Buchcode
+        // (`<CODE>/<uuid>.png`), aber die Waisen-Ermittlung arbeitet rein ueber
+        // Pfade — ohne diese Schranke loescht ein Buch Dateien, die einem
+        // ANDEREN Buch gehoeren, sobald zwei Buecher dasselbe Bild referenzieren
+        // (etwa eine Arbeitskopie eines fertigen Buchs). Der Ordner ist die
+        // Eigentumsgrenze; was ausserhalb liegt, geht dieses Buch nichts an.
+        const own = p => String(p).replace(/^\/+/, '').startsWith(`${code}/`)
+        orphanPaths = [...new Set(oldPaths.filter(p =>
+          p && own(p) && !newPaths.has(p) && !protectedPaths.has(String(p).replace(/^\/+/, ''))))]
       }
 
       // Generierungs-Zeitstempel mitschreiben (für den Tagesreport: "neu erzeugte
