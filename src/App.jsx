@@ -2535,7 +2535,14 @@ Regeln:
     setDlBusy(`${key}:docx`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}.docx`
-      if (gen.kind === 'book') await downloadStructuredDocx(filename, data, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      if (gen.kind === 'book') {
+        // Bild-Links sind SAS-signiert und laufen nach einer Stunde ab. Wer die
+        // Detailansicht länger offen hat, exportierte sonst ein Buch OHNE Bilder,
+        // ohne es zu merken — deshalb unmittelbar vor dem Export neu signieren.
+        const fresh = await freshBook(gen.field)
+        const out = await downloadStructuredDocx(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+        warnMissingImages(out)
+      }
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de', textExportOpts())
     } catch (e) { setErr(`Download fehlgeschlagen: ${e.message}`) }
     finally { setDlBusy('') }
@@ -2549,12 +2556,16 @@ Regeln:
     setDlBusy(`${key}:pdf`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_Druck.pdf`
-      const { pages, blob } = await downloadPrintPdf(filename, data, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      // Frische SAS-Links holen (siehe downloadGenerated) — sonst fehlen im
+      // Druck-PDF genau die Bilder, deren Signatur abgelaufen ist.
+      const fresh = await freshBook(gen.field)
+      const { pages, blob, missingImages } = await downloadPrintPdf(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      warnMissingImages({ missingImages })
       // Seitenzahl am Buch festhalten — sie bestimmt die Rückenstärke des Covers
       // und schaltet den Cover-Button frei.
       if (pages && pages !== data.print_pages) {
-        // Auch hier auf den frischen Stand schreiben (siehe freshBook).
-        const updated = { ...(await freshBook(gen.field)), print_pages: pages }
+        // Auf den frischen Stand schreiben, der oben schon geladen wurde.
+        const updated = { ...fresh, print_pages: pages }
         await adminSaveMemorialText(token, selected.id, gen.field, updated)
         setSelected(s => ({ ...s, [gen.field]: updated }))
         setMemorials(ms => ms.map(x => x.id === selected.id ? { ...x, [gen.field]: updated } : x))
@@ -2615,6 +2626,14 @@ Regeln:
   // Buchobjekt aus `selected` zurueckschreibt, macht daraus ein blindes
   // Ueberschreiben — so gingen schon einmal frisch gesetzte Kapitelbilder und
   // die Buchsprache verloren.
+  // Nach einem Export melden, wenn Bilder nicht geladen werden konnten. Vorher
+  // fielen sie kommentarlos aus der Datei — genau so entstand ein DOCX ohne ein
+  // einziges Bild, obwohl am Buch alle 22 Bilder hingen.
+  function warnMissingImages(out) {
+    const n = out?.missingImages || 0
+    if (n > 0) setErr(`Achtung: ${n} ${n === 1 ? 'Bild konnte' : 'Bilder konnten'} nicht geladen werden und ${n === 1 ? 'fehlt' : 'fehlen'} in der Datei. Bitte den Download wiederholen.`)
+  }
+
   async function freshBook(field) {
     const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
     if (!r.ok) throw new Error('Aktueller Buchstand konnte nicht geladen werden.')
@@ -2709,14 +2728,18 @@ Regeln:
     setDlBusy(`${key}:ebook`); setErr('')
     try {
       const filename = `${gen.filename}_${safeName(selected.name)}_eBook.pdf`
-      const { blob } = await downloadEbookPdf(filename, data, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), {
+      // Frische SAS-Links holen (siehe downloadGenerated) — das gilt auch für den
+      // Cover-Hintergrund, der genauso signiert ist wie die Kapitelbilder.
+      const fresh = await freshBook(gen.field)
+      const { blob, missingImages } = await downloadEbookPdf(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), {
         showContributors: selected.show_contributors !== false,
         selfNarrated: selected.product_category === 'lifework',
-        coverBgUrl: bgUrl,
-        coverBoxPos: data.cover_box_pos || 'auto',
-        coverTitle: data.title || selected.name,
-        coverSubtitle: data.subtitle || '',
+        coverBgUrl: fresh.cover_image_url || bgUrl,
+        coverBoxPos: fresh.cover_box_pos || data.cover_box_pos || 'auto',
+        coverTitle: fresh.title || data.title || selected.name,
+        coverSubtitle: fresh.subtitle || data.subtitle || '',
       })
+      warnMissingImages({ missingImages })
       if (store && blob) {
         setDlBusy(`${key}:ebook-store`)
         const variant = `ebook_${key}`

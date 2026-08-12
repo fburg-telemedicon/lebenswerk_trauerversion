@@ -273,6 +273,20 @@ function v2CoverageRule(n) {
   return `\n- ABDECKUNG: Aus JEDEM der ${n} Beiträge muss Stoff in mindestens einem Kapitel landen. Prüfe die fertige Gliederung vor der Ausgabe daraufhin — bleibt ein Beitrag komplett unberücksichtigt, fehlt ein Kapitel oder ein "themes" ist zu eng gefasst.`
 }
 
+// ── Motivverteilung: wer besitzt welche Anekdote? ─────────────────
+// Der Wiederholungsschutz steht und fällt damit, dass schon die GLIEDERUNG die
+// Eigentumsfrage klärt. Sonst sieht jeder Kapitelschreiber dasselbe Rohmaterial,
+// greift zu den stärksten Stellen — und dieselbe Anekdote, dasselbe Zitat, das
+// gleiche Bild stehen am Ende in jedem zweiten Kapitel. Genau so entstand im
+// Lutherhof-Jubiläumsbuch 13-mal dieselbe Begrüßungsformel und 12-mal dasselbe
+// Geschenk. Die Gliederung vergibt deshalb pro Kapitel eine "owns"-Liste; daraus
+// baut outlineBlock() für jedes Kapitel eine ausdrückliche Tabu-Liste.
+const OWNS_FIELD = `,
+      "owns": ["konkrete Anekdote, Zitat oder Detail, das AUSSCHLIESSLICH in diesem Kapitel vorkommt", "…"]`
+
+const OWNS_RULE = `- "owns": 2–6 Einträge, je in wenigen Worten benannt (z. B. "das gehäkelte Geschenk einer Bewohnerin", "die Studienreise nach Kopenhagen", "der Brand in der Haustechnik"). Verteile darauf ALLE konkreten Anekdoten, wörtlichen Zitate, wiederkehrenden Gegenstände, Orte, Tiere, Rituale und Redewendungen aus dem Material — jedes davon an GENAU EIN Kapitel. Dass ein Detail in vielen Beiträgen vorkommt, ist KEIN Grund, es mehrfach zu vergeben, sondern nur ein Hinweis darauf, dass es wichtig ist: Es wird an EINER Stelle ausführlich erzählt und sonst nirgends. Prüfe vor der Ausgabe, dass kein Eintrag in zwei "owns"-Listen steht.
+- ÜBERSCHNEIDUNGSVERBOT: Kapitel müssen sich inhaltlich klar unterscheiden. Zwei Kapitel, die im Kern dasselbe behandeln und sich nur in der Überschrift unterscheiden, sind ein Fehler — dann lieber ein Kapitel weniger. Achte besonders auf die üblichen Doppelungen: mehrere Kapitel über Ankommen/Willkommen, über Zusammenhalt/Team, über Wertschätzung/Menschlichkeit oder über Dank/Wünsche/Zukunft. Solche Themen bekommen JE EIN Kapitel, nicht drei.`
+
 // ── Umfang ist eine OBERGRENZE, kein Soll ─────────────────────────
 // Die Skalierung leitet aus der Materialmenge ab, wie lang ein Buch WERDEN DARF.
 // Für ein Sprachmodell ist eine Wort-Untergrenze aber eine Aufforderung, sie zu
@@ -297,20 +311,50 @@ const NO_FILLER_RULE = `KEIN FÜLLMATERIAL (wichtigste Regel, sie schlägt jede 
 // starke Anekdote deshalb in mehreren Kapiteln. Der Kapitelschreiber bekommt
 // darum die vollständige Gliederung: Er weiß, was die anderen Kapitel abdecken,
 // und hält sich strikt an seinen Abschnitt.
+// `owns` (aus der Gliederung) ist die eigentliche Sperre: Dort steht namentlich,
+// welche konkrete Anekdote, welches Zitat und welches Detail welchem Kapitel
+// gehört. Daraus wird für JEDES Kapitel eine ausdrückliche Verbotsliste gebaut —
+// eine allgemeine Regel („nicht wiederholen") reicht nachweislich nicht, wenn
+// alle Kapitel dasselbe Material sehen.
+function ownedList(c) {
+  const v = c?.owns
+  const arr = Array.isArray(v) ? v : (v ? String(v).split(/\s*[;•]\s*/) : [])
+  return arr.map(s => String(s).replace(/\s+/g, ' ').trim()).filter(Boolean)
+}
+
 function outlineBlock(outline, number) {
   const list = Array.isArray(outline) ? outline : []
   if (list.length === 0) return ''
   const lines = list.map(c => {
     const mark = Number(c.number) === Number(number) ? '►' : ' '
     const themes = String(c.themes || '').replace(/\s+/g, ' ').trim()
+    const owns = ownedList(c)
     return `${mark} Kapitel ${c.number}: ${c.heading || ''}${themes ? ` — ${themes}` : ''}`
+      + (owns.length ? `\n     gehört exklusiv hierhin: ${owns.join(' · ')}` : '')
   })
+
+  // Alles, was laut Gliederung anderen Kapiteln gehört, wird beim Namen genannt.
+  const foreign = list
+    .filter(c => Number(c.number) !== Number(number))
+    .flatMap(c => ownedList(c).map(o => `- ${o} (gehört Kapitel ${c.number})`))
+  const mine = ownedList(list.find(c => Number(c.number) === Number(number)))
+
   return `
 
 GESAMTGLIEDERUNG DES BUCHES (► = das Kapitel, das du JETZT schreibst):
 ${lines.join('\n')}
+${mine.length ? `
+DIR GEHÖRT (nur du erzählst das, dafür ausführlich und mit allen Details):
+${mine.map(o => `- ${o}`).join('\n')}
+` : ''}${foreign.length ? `
+TABU-LISTE — das steht in ANDEREN Kapiteln und darf hier NICHT vorkommen, auch nicht angedeutet, umformuliert oder „nur kurz erwähnt":
+${foreign.join('\n')}
+` : ''}
+ABGRENZUNG (wichtig): Schreibe AUSSCHLIESSLICH den Stoff deines eigenen Kapitels. Erinnerungen, Episoden, Bilder, Redewendungen und Zitate, die laut Gliederung zu einem ANDEREN Kapitel gehören, lässt du weg — sie werden dort erzählt. Greife nicht vor und fasse nicht zusammen, was vorher schon kam. Eine Anekdote gehört in GENAU EIN Kapitel.
 
-ABGRENZUNG (wichtig): Schreibe AUSSCHLIESSLICH den Stoff deines eigenen Kapitels. Erinnerungen, Episoden und Zitate, die laut Gliederung zu einem ANDEREN Kapitel gehören, lässt du weg — sie werden dort erzählt. Greife nicht vor und fasse nicht zusammen, was vorher schon kam. Eine Anekdote gehört in GENAU EIN Kapitel.`
+Zwei Fallen, in die Kapitel dieses Buchtyps regelmäßig laufen:
+1. WIEDERKEHRENDE BILDER. Ein wörtliches Zitat, ein Gegenstand, ein Tier, eine Begrüßungsformel, ein Ausflugsziel oder eine Anekdote wirkt beim ersten Mal stark und beim vierten Mal billig. Kommt so ein Detail in den Beiträgen häufig vor, heißt das NICHT, dass es in jedes Kapitel gehört — sondern nur in das eine, dem es laut Gliederung zugewiesen ist.
+2. ZUSAMMENFASSENDE SCHLUSSABSÄTZE. Beende das Kapitel NICHT mit einem allgemeinen Absatz über Respekt, Offenheit, Wertschätzung, Zusammenhalt oder „was bleibt". Solche Absätze sind in jedem Kapitel austauschbar und stehen dann zwanzigmal im Buch. Höre auf, wenn der Stoff erzählt ist — gern mitten im Konkreten.`
 }
 
 function addressRule(address) {
@@ -585,7 +629,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
   "title": "Gesamttitel des Buches",
   "subtitle": "Untertitel des Buches",
   "chapters": [
-    { "number": 1, "heading": "Kindheit", "themes": "2–4 Sätze: welche konkreten Aspekte/Erinnerungen aus den Beiträgen sollen in DIESES Kapitel — als Anweisung für das spätere Schreiben." }
+    { "number": 1, "heading": "Kindheit", "themes": "2–4 Sätze: welche konkreten Aspekte/Erinnerungen aus den Beiträgen sollen in DIESES Kapitel — als Anweisung für das spätere Schreiben."${OWNS_FIELD} }
   ]
 }
 
@@ -593,6 +637,7 @@ Regeln:
 - ${v2CountRule(sc, { sort: 'thematisch chronologisch sortiert (früh → spät)', material: 'Die Beiträge umfassen' })}${v2CoverageRule(contributions.length)}
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
+${OWNS_RULE}
 - "title" persönlich, würdevoll, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
 - Auf Deutsch
@@ -853,7 +898,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
   "title": "Gesamttitel des Buches",
   "subtitle": "Untertitel des Buches",
   "chapters": [
-    { "number": 1, "heading": "Überschrift", "themes": "2–4 Sätze: welche konkreten Aspekte/Erinnerungen aus den Beiträgen sollen in DIESES Kapitel — als Anweisung für das spätere Schreiben." }
+    { "number": 1, "heading": "Überschrift", "themes": "2–4 Sätze: welche konkreten Aspekte/Erinnerungen aus den Beiträgen sollen in DIESES Kapitel — als Anweisung für das spätere Schreiben."${OWNS_FIELD} }
   ]
 }
 
@@ -861,6 +906,7 @@ Regeln:
 - ${sortRule}
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen/Aspekte aus den Beiträgen hier behandelt werden sollen
+${OWNS_RULE}
 - "title" persönlich, ${p.titleTone}, bezogen auf ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
 - ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
@@ -1039,7 +1085,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown-Codeblock, keine Erklärungen):
   "title": "Gesamttitel des Buches",
   "subtitle": "Untertitel des Buches",
   "chapters": [
-    { "number": 1, "heading": "Überschrift", "themes": "2–4 Sätze: welche konkreten Erinnerungen aus dem Interview gehören in DIESES Kapitel — als Anweisung für das spätere Schreiben." }
+    { "number": 1, "heading": "Überschrift", "themes": "2–4 Sätze: welche konkreten Erinnerungen aus dem Interview gehören in DIESES Kapitel — als Anweisung für das spätere Schreiben."${OWNS_FIELD} }
   ]
 }
 
@@ -1047,6 +1093,7 @@ Regeln:
 - ${v2CountRule(sc, { sort: 'chronologisch sortiert (früh → spät); rein thematische Kapitel (Werte, Vermächtnis) dürfen ans Ende', material: 'Das Interview umfasst' })}
 - "heading": kurz und prägnant (1–3 Wörter)
 - "themes": 2–4 Sätze, beschreibt KONKRET, welche Erinnerungen hier behandelt werden
+${OWNS_RULE}
 - "title" persönlich und würdevoll, bezogen auf das Leben von ${memorial.name}
 - "subtitle" knapp, ergänzt den Titel
 - Auf Deutsch

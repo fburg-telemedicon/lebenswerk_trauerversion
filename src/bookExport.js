@@ -136,12 +136,21 @@ export function buildContributionPdf(c, memorial) {
   return doc.output('blob')
 }
 
+// Bilder liegen im privaten Blob-Container und werden über SAS-Links gelesen, die
+// nur EINE STUNDE gültig sind (signMemorialImages in api/admin/memorials.js). Läuft
+// ein Link ab, antwortet Azure mit 403 — früher verschwand das Bild dann kommentarlos
+// aus dem Export. Deshalb: Fehlschläge werden gezählt und vom Aufrufer gemeldet,
+// statt still ein Buch ohne Bilder auszuliefern. Die Aufrufer holen zusätzlich
+// unmittelbar vor dem Export frische Links (freshBook in App.jsx).
+let imageMisses = 0
+const resetImageMisses = () => { imageMisses = 0 }
+
 async function fetchImageBuffer(url) {
   try {
     const r = await fetch(url)
-    if (!r.ok) return null
+    if (!r.ok) { imageMisses++; console.warn('Bild nicht ladbar (HTTP ' + r.status + '):', url); return null }
     return await r.arrayBuffer()
-  } catch { return null }
+  } catch (e) { imageMisses++; console.warn('Bild nicht ladbar:', e.message); return null }
 }
 
 // Beitragende mit exakt gleichem Namen UND gleicher Beziehung nur einmal listen.
@@ -209,6 +218,7 @@ async function prepareLogoForExport(dataUrl) {
 // Die contributors-Liste wird unabhängig davon weiter gebraucht — aus ihr stammt
 // auch der Name unter der Kapitelüberschrift (Buch V1).
 export async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+  resetImageMisses()
   const showContributors = opts.showContributors !== false
   const bt = uiText(book.language)
   // Rechts-nach-links (Hebräisch/Arabisch): Word setzt die Absätze rechtsläufig,
@@ -312,6 +322,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
     sections,
   })
   downloadBlob(filename, await Packer.toBlob(doc))
+  return { missingImages: imageMisses }
 }
 
 // Lädt ein Bild als Data-URL inkl. natürlicher Pixelmaße (für die randlose
@@ -319,7 +330,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
 async function fetchImageForPdf(url) {
   try {
     const r = await fetch(url)
-    if (!r.ok) return null
+    if (!r.ok) { imageMisses++; console.warn('Bild nicht ladbar (HTTP ' + r.status + '):', url); return null }
     const blob = await r.blob()
     const dataUrl = await new Promise((res, rej) => {
       const fr = new FileReader()
@@ -334,7 +345,7 @@ async function fetchImageForPdf(url) {
       im.src = dataUrl
     })
     return { dataUrl, w: dim?.w || 3, h: dim?.h || 2 }
-  } catch { return null }
+  } catch (e) { imageMisses++; console.warn('Bild nicht ladbar:', e.message); return null }
 }
 
 // Ein per fetchImageForPdf geladenes Bild auf Bildschirmauflösung verkleinern und
@@ -712,11 +723,12 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
 
 // Druckfertiges Innenteil-PDF herunterladen. Endformat je Einzelseite 15,4 × 21,6 cm.
 export async function downloadPrintPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
+  resetImageMisses()
   const { doc, pages } = await buildInteriorPdf(book, contributors, logoDataUrl, layout, opts)
   const blob = doc.output('blob')
   downloadBlob(filename, blob)
   // `blob` für die optionale Server-Ablage (Checkbox in der Detailansicht).
-  return { pages, blob }
+  return { pages, blob, missingImages: imageMisses }
 }
 
 // E-Book-PDF: dasselbe Innenteil, aber eingefasst zwischen zwei Cover-Seiten —
@@ -725,6 +737,7 @@ export async function downloadPrintPdf(filename, book, contributors = [], logoDa
 // Cover-Hintergrund wie das Druck-Cover (opts.coverBgUrl).
 export async function downloadEbookPdf(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
   if (!opts.coverBgUrl) throw new Error('Cover-Hintergrund fehlt.')
+  resetImageMisses()
   // E-Mail-freundlich: Bilder auf Bildschirmauflösung (JPEG) + PDF-Streams deflaten.
   const imgMaxPx = opts.imageMaxPx || 1500
   const imgQuality = opts.imageQuality || 0.72
@@ -750,7 +763,7 @@ export async function downloadEbookPdf(filename, book, contributors = [], logoDa
 
   const blob = doc.output('blob')
   downloadBlob(filename, blob)
-  return { blob }
+  return { blob, missingImages: imageMisses }
 }
 
 // Einheitliches Aufzählungszeichen: ein kleiner Kreis. Die KI liefert je nach
