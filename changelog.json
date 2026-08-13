@@ -2,6 +2,28 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-13",
+      "items": [
+        "Nachgemessen, warum das Lutherhof-Buch trotz der Regel „ein Buch umfasst rund 115 % der eingesprochenen Antworten“ so viele Wiederholungen enthielt: Die Regel war nie ausgereizt — 21.885 beigetragene Wörter standen 17.700 Wörtern Buchtext gegenüber, also 81 %. Sie begrenzt die Textmenge, sagt aber nichts darüber, wie viel Verschiedenes darin steht: Eine zum zwölften Mal erzählte Anekdote zählt darin als frischer Text.",
+        "Die Dopplungen entstanden bei der Erstellung, nicht im Material. Die gehäkelten Topflappen hat genau eine Person erzählt — im Buch standen sie in zwölf von 22 Kapiteln. Umgekehrt blieb rund die Hälfte des erzählten Materials ungenutzt, während sich das Buch mit Wiederholungen füllte.",
+        "Die Kapitellänge richtet sich jetzt nach dem Stoff, der dem einzelnen Kapitel gehört, statt nach einem gleichmäßigen Durchschnitt. Bisher bekam jedes Kapitel dasselbe Wortbudget — auch eines, für das kaum erzählt wurde. Ein solches Kapitel hatte nur zwei Möglichkeiten, sein Budget zu füllen: erfinden (das ist streng verboten und ist auch nicht passiert) oder wiederholen.",
+        "Neu ist eine Wiederholungsprüfung, die ohne KI arbeitet und deshalb nichts kostet: Sie findet wortgleiche Passagen über Kapitel hinweg und Motive, die laut Gliederung in ein anderes Kapitel gehören. Gegenprobe an den beiden vorhandenen Fassungen des Lutherhof-Buchs: zehn Funde in der ursprünglichen, keiner in der von Hand bereinigten Fassung.",
+        "Gefundene Wiederholungen werden nicht mehr nur gemeldet, sondern beim Erstellen des Buches gleich ausgeräumt — vor der Bilderzeugung, damit keine Bilder für Text bezahlt werden, der wieder verschwindet. Über jede Streichung entscheidet ein Lektoratsschritt mit dem ganzen Kapitel vor Augen; er darf nur weglassen, niemals etwas hinzuerfinden, und lässt Stellen ausdrücklich stehen, die ein Thema nur berühren. Wird ein Kapitel dabei unplausibel kurz, wird die Überarbeitung verworfen und das Kapitel bleibt unverändert.",
+        "Was beim Erstellen entfernt wurde, erscheint im Prüfbericht als bereits erledigter Punkt: keine Arbeit für die Verwaltung, aber jederzeit nachvollziehbar, was geändert wurde.",
+        "Das Lutherhof-Jubiläumsbuch wurde mit der neuen Technik probeweise neu erstellt (ohne etwas am gespeicherten Projekt zu ändern): 21 Kapitel, 16.793 Wörter. Die Topflappen stehen jetzt in einem statt in zwölf Kapiteln, die Tiere in drei statt zwölf — bei rund 6.500 Wörtern mehr Inhalt als in der von Hand bereinigten Fassung."
+      ]
+    },
+    {
+      "date": "2026-08-12",
+      "items": [
+        "Kundenmeldung zum Lutherhof-Jubiläumsbuch („viel zu viele Wiederholungen“) bestätigt und ausgezählt: dieselbe Begrüßungsformel 13-mal, dasselbe Geschenk 12-mal. Eine bereinigte Fassung samt Bericht über jede Streichung wurde geliefert; 50 Absätze entfielen, 86 wurden gekürzt, der Umfang sank von 17.960 auf 10.534 Wörter.",
+        "Beim Herunterladen als Word-Datei fehlten alle Bilder. Verloren war nichts: Die Leseberechtigungen für die Bilddateien laufen nach einer Stunde ab, und wer die Buchansicht länger offen hatte, exportierte mit abgelaufenen Berechtigungen — die Bilder fielen kommentarlos aus der Datei. Word-Datei, Druck-PDF und E-Book holen die Berechtigungen jetzt unmittelbar vor dem Export neu und melden ausdrücklich, wenn ein Bild nicht geladen werden konnte.",
+        "Neue Funktion „Projekt duplizieren“: Ein Buchprojekt lässt sich vollständig kopieren — mit eigenem Zugangscode und eigenen Bilddateien, nicht mit geteilten. Schlägt eine Datei fehl, wird die halbfertige Kopie wieder aufgeräumt. Praktisch für Arbeitsfassungen, ohne das Original anzurühren.",
+        "Fehler behoben, der zwei Projekte auf denselben Bildern betraf: Beim Speichern eines Buches wurden nicht mehr benötigte Bilder aufgeräumt — dabei hätte eine Neuerstellung in der Kopie die Bilder des Originals gelöscht. Der eigene Projektordner ist jetzt die Grenze.",
+        "Vorbeugend: Die Buchgliederung weist jede Anekdote, jedes Zitat und jedes wiederkehrende Detail ausdrücklich genau einem Kapitel zu; alle anderen Kapitel bekommen sie als Tabu-Liste. Dazu kommen ein Verbot inhaltlich überlappender Kapitel und ein Verbot austauschbarer Schlussabsätze."
+      ]
+    },
+    {
       "date": "2026-08-07",
       "items": [
         "Aus Vorsorgevollmacht und Betreuungsverfügung ist eine VORSORGEMAPPE geworden — ein PDF mit getrennt unterschreibbaren Teilen. Anlass war die Rückmeldung eines Fachmanns: Die Unterlagen seien zu umfangreich, und aus der Vollmacht gehöre alles heraus, was nicht juristisch ist.",
