@@ -102,13 +102,13 @@ async function runReview(job, p, value) {
       checked_at: new Date().toISOString(), model: 'KI (serverseitig) + Textvergleich',
       summary: typeof parsed.summary === 'string' ? parsed.summary : '',
       findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-    }, value)
+    }, value, p.reviewContribContext)
     await genjobs.mergeContentReport(code, p.field, report)
   } catch (e) {
     console.warn('[generate] review', e.message)
     // Auch wenn die KI-Prüfung ausfällt: Der Textvergleich läuft ohne sie.
     try {
-      const fallback = repetition.withRepetitionCheck({ checked_at: new Date().toISOString(), error: e.message, findings: [] }, value)
+      const fallback = repetition.withRepetitionCheck({ checked_at: new Date().toISOString(), error: e.message, findings: [] }, value, p.reviewContribContext)
       await genjobs.mergeContentReport(code, p.field, fallback)
     } catch {}
   }

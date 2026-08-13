@@ -147,7 +147,13 @@ function repeatedPhrases(chapters) {
 }
 
 // ── 2. Verletzte Eigentumszuweisung (owns aus der Gliederung) ─────
-function ownershipBreaches(chapters, outline, df, n) {
+// `specific` entscheidet, ob ein Wort das Motiv wirklich kennzeichnet. Maßstab
+// sind die BEITRÄGE, nicht das Buch: „Topflappen" hat genau eine Quelle,
+// „Frühstück" erzählen fast alle. Am Buch selbst lässt sich das nicht messen —
+// je öfter ein Motiv leckt, desto mehr Kapitel enthalten es, ein Wort wäre also
+// umso „unauffälliger", je schlimmer der Fehler ist (erst falsch gebaut, an den
+// 12 Topflappen-Kapiteln des Originals aufgefallen).
+function ownershipBreaches(chapters, outline, df, n, specific) {
   const list = Array.isArray(outline) ? outline : []
   if (!list.length) return []
   const limit = Math.max(2, Math.floor(n * SPREAD))
@@ -168,6 +174,12 @@ function ownershipBreaches(chapters, outline, df, n) {
           const st = new Set(tokenize(sent).map(t => stem(t.w)))
           const hit = keys.filter(k => st.has(k))
           if (hit.length < 2) continue
+          // Mindestens EIN Wort muss das Motiv wirklich kennzeichnen. Ohne diese
+          // Bedingung meldet die Prüfung thematische Nachbarschaft statt
+          // Wiederholung: „das Gestalten des Frühstückstellers" und irgendein
+          // Satz über das Frühstück teilen zwei Allerweltswörter, erzählen aber
+          // nicht dieselbe Geschichte.
+          if (!hit.some(specific)) continue
           out.push({ ci, owner, motif: String(motif), quote: sent.trim() })
           break
         }
@@ -194,11 +206,36 @@ function ownershipBreaches(chapters, outline, df, n) {
 // SCHLUSSABSÄTZE") und die inhaltliche KI-Prüfung, nicht das Zählen.
 
 // ── Befunde bauen ─────────────────────────────────────────────────
-export function repetitionFindings(book, { maxFindings = MAX_FINDINGS } = {}) {
+// Die Beiträge als Vergleichsmaßstab: entweder als Liste von Texten oder als
+// der Quellen-Block, den review.js für die KI-Prüfung baut („[Beitrag 1] …").
+// Die Interviewfragen (Zeilen mit „F: ") gehören nicht dazu — sie wiederholen
+// die Antworten und würden seltene Wörter künstlich verbreiten.
+function sourceTexts(sources) {
+  if (Array.isArray(sources)) return sources.map(s => String(s || ''))
+  const s = String(sources || '')
+  if (!s.trim()) return []
+  return s.split(/\[Beitrag \d+\]/).slice(1)
+    .map(block => block.split('\n').filter(l => !/^\s*F:\s/.test(l)).join('\n'))
+}
+
+export function repetitionFindings(book, { maxFindings = MAX_FINDINGS, sources } = {}) {
   const chapters = prepare(book)
   const n = chapters.length
   if (n < 2) return []
   const { df } = stemStats(chapters)
+
+  const src = sourceTexts(sources)
+  const dfSrc = new Map()
+  for (const text of src) {
+    const seen = new Set()
+    for (const t of tokenize(text)) { const s = stem(t.w); if (s.length >= MIN_STEM) seen.add(s) }
+    for (const s of seen) dfSrc.set(s, (dfSrc.get(s) || 0) + 1)
+  }
+  const srcLimit = Math.max(2, Math.floor(src.length * 0.2))
+  // Ohne Beiträge (z. B. Nachprüfung eines alten Buches) gibt es keinen Maßstab
+  // für Spezifität — dann greift nur die Bedingung „zwei gemeinsame Wörter".
+  const specific = src.length ? (s => (dfSrc.get(s) || 0) <= srcLimit) : (() => true)
+
   const findings = []
 
   for (const g of repeatedPhrases(chapters)) {
@@ -221,13 +258,13 @@ export function repetitionFindings(book, { maxFindings = MAX_FINDINGS } = {}) {
     }
   }
 
-  for (const b of ownershipBreaches(chapters, book?.outline, df, n)) {
+  for (const b of ownershipBreaches(chapters, book?.outline, df, n, specific)) {
     findings.push({
       category: 'Wiederholung',
       severity: 'mittel',
       location: chapterLabel(chapters[b.ci]),
       quote: b.quote.slice(0, 400),
-      note: `Automatisch gefunden (Abgleich mit der Gliederung): „${b.motif}" gehört laut Gliederung ausschließlich in ${chapterLabel(chapters[b.owner])} und wird dort erzählt. Hier sollte es entfallen.`,
+      note: `Automatisch gefunden (Abgleich mit der Gliederung): „${b.motif}" gehört laut Gliederung ausschließlich in ${chapterLabel(chapters[b.owner])} und wird dort erzählt. Bitte prüfen: Wird hier dieselbe Geschichte ein zweites Mal erzählt, sollte sie entfallen — berührt der Satz das Thema nur, ist er in Ordnung.`,
       source_contributor: '', source_quote: '',
       auto: 'repetition', spread: 2,
     })
@@ -248,9 +285,9 @@ export function repetitionFindings(book, { maxFindings = MAX_FINDINGS } = {}) {
 // ── Einbau in den Prüfbericht ─────────────────────────────────────
 // Die KI-Prüfung meldet dieselbe Stelle manchmal auch; dann gewinnt ihr Befund
 // (bessere Begründung) und der automatische entfällt.
-export function withRepetitionCheck(report, value) {
+export function withRepetitionCheck(report, value, sources) {
   let auto = []
-  try { auto = repetitionFindings(value) } catch { auto = [] }
+  try { auto = repetitionFindings(value, { sources }) } catch { auto = [] }
   const llm = Array.isArray(report?.findings) ? report.findings : []
   if (!auto.length) return report
   const known = llm.map(f => String(f?.quote || '')).filter(Boolean)

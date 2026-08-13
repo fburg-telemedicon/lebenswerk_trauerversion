@@ -1942,7 +1942,7 @@ function Dashboard() {
         model: 'KI (serverseitig gewählt) + Textvergleich',
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
         findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-      }, value)
+      }, value, bookContribs.map(c => (c.messages || []).filter(m => m.role === 'user').map(m => m.content).join('\n')))
       await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: report })
       return report
     } catch (e) {
