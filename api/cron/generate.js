@@ -88,9 +88,16 @@ async function runLLMStep(job, kind, system, user) {
 // System-Prompt + Beitrags-Kontext kommen aus dem Job (Browser hat sie mit
 // review.js gebaut); den Buchtext baut der Worker aus dem Ergebnis. Läuft IMMER,
 // unabhängig davon, ob der Browser noch verbunden ist. Fehler sind nicht fatal.
-async function runReview(job, p, value) {
+async function runReview(job, p, value, repairs = []) {
   if (!p.reviewSystem) return
   const code = p.memorialCode || job.memorial_id
+  // Was beim Erzeugen schon entfernt wurde, steht als ERLEDIGTER Befund im
+  // Bericht: keine Arbeit für den Manager, aber nachvollziehbar, was die
+  // Maschine am Text geändert hat.
+  const done = Array.isArray(repairs) ? repairs : []
+  const withRepairs = (report) => done.length
+    ? { ...report, summary: [report.summary, `${done.length} ${done.length === 1 ? 'Wiederholung wurde' : 'Wiederholungen wurden'} bereits bei der Erstellung entfernt (unten grün markiert).`].filter(Boolean).join(' '), findings: [...(report.findings || []), ...done] }
+    : report
   try {
     const user = `BUCHTEXT:\n${genprompts.extractReviewText(value)}\n\n${p.reviewContribContext || ''}`
     const raw = await runLLMStep(job, 'review', p.reviewSystem, user)
@@ -103,13 +110,13 @@ async function runReview(job, p, value) {
       summary: typeof parsed.summary === 'string' ? parsed.summary : '',
       findings: Array.isArray(parsed.findings) ? parsed.findings : [],
     }, value, p.reviewContribContext)
-    await genjobs.mergeContentReport(code, p.field, report)
+    await genjobs.mergeContentReport(code, p.field, withRepairs(report))
   } catch (e) {
     console.warn('[generate] review', e.message)
     // Auch wenn die KI-Prüfung ausfällt: Der Textvergleich läuft ohne sie.
     try {
       const fallback = repetition.withRepetitionCheck({ checked_at: new Date().toISOString(), error: e.message, findings: [] }, value, p.reviewContribContext)
-      await genjobs.mergeContentReport(code, p.field, fallback)
+      await genjobs.mergeContentReport(code, p.field, withRepairs(fallback))
     } catch {}
   }
 }
@@ -211,6 +218,80 @@ async function computeAssignments(job, p, result) {
   result.faceRefGlobal = faceRefGlobal
 }
 
+// ── Wiederholungen beim Erzeugen ausräumen, nicht bloß melden ──────────
+// Die deterministische Prüfung (repetition.js) findet, WO etwas doppelt steht;
+// ein Lektorats-Aufruf je betroffenem Kapitel entscheidet, ob es wirklich
+// dieselbe Geschichte ist, und streicht sie. Läuft NACH den Kapiteln und VOR
+// den Bildern: Bilder sind der teure Teil, und der Text soll stehen, bevor
+// dafür bezahlt wird.
+//
+// Sicherungen: Der Lektor darf nur WEGLASSEN. Wird der Kapiteltext kürzer als
+// 40 % oder länger als das Original, wird die Antwort verworfen und das Kapitel
+// bleibt, wie es war — lieber eine Wiederholung im Buch als ein zerstörtes
+// Kapitel. Jede Streichung wird protokolliert und erscheint im Prüfbericht als
+// bereits erledigter Befund, damit die Änderung nachvollziehbar bleibt.
+async function repairRepetitions(job, p, result, deadline) {
+  if (!Array.isArray(result.chapters) || result.chapters.length < 2) return 'done'
+  if (!Array.isArray(result.repairedChapters)) result.repairedChapters = []
+  if (!Array.isArray(result.repairFindings)) result.repairFindings = []
+
+  const book = { chapters: result.chapters, ...(Array.isArray(p.outline) && p.outline.length ? { outline: p.outline } : {}) }
+  let findings = []
+  try { findings = repetition.repetitionFindings(book, { sources: p.reviewContribContext, maxFindings: 60 }) }
+  catch (e) { console.warn('[generate] repetition', e.message); return 'done' }
+
+  const byChapter = new Map()
+  for (const f of findings) {
+    const num = Number((f.location || '').match(/Kapitel (\d+)/)?.[1])
+    const ch = result.chapters.find(c => Number(c.number) === num)
+    if (!ch || !String(ch.body || '').includes(f.quote)) continue
+    if (result.repairedChapters.includes(num)) continue
+    if (!byChapter.has(num)) byChapter.set(num, [])
+    byChapter.get(num).push({ quote: f.quote, reason: String(f.note || '').replace(/^Automatisch gefunden \([^)]*\): /, '') })
+  }
+  if (!byChapter.size) return 'done'
+
+  let done = 0
+  for (const [num, items] of byChapter) {
+    if (Date.now() > deadline) {
+      await genjobs.releaseJob(job.id, { progress: { phase: 'repair', cursor: done, total: byChapter.size, message: 'Wiederholungen ausräumen' }, result })
+      return 'paused'
+    }
+    if (await canceled(job.id)) return 'canceled'
+    const ch = result.chapters.find(c => Number(c.number) === num)
+    const before = String(ch.body || '')
+    try {
+      const raw = await runLLMStep(job, `${p.kind}_dedupe`, genprompts.repetitionFixSystem(ch, items) + (p.dir || ''), 'Überarbeite das Kapitel jetzt und gib das JSON aus.')
+      const parsed = genprompts.tryParseJSON(raw) || {}
+      const after = String(parsed.body || '').trim()
+      const ok = after && after.length >= before.length * 0.4 && after.length <= before.length * 1.02
+      if (ok && after !== before) {
+        ch.body = after
+        for (const it of items) {
+          // Nur die Stellen protokollieren, die tatsächlich verschwunden sind.
+          if (after.includes(it.quote)) continue
+          result.repairFindings.push({
+            category: 'Wiederholung', severity: 'mittel',
+            location: `Kapitel ${num}${ch.heading ? `: ${ch.heading}` : ''}`,
+            quote: it.quote, note: `${it.reason} — bei der Erstellung automatisch entfernt.`,
+            source_contributor: '', source_quote: '',
+            status: 'resolved', resolution: 'delete', resolved_at: new Date().toISOString(),
+            auto: 'repetition',
+          })
+        }
+      } else if (!ok) {
+        result.errors.push(`Kapitel ${num}: Entdopplung verworfen (unplausibles Ergebnis), Kapitel unverändert.`)
+      }
+    } catch (e) {
+      console.warn('[generate] dedupe', num, e.message)
+    }
+    result.repairedChapters.push(num)
+    done++
+    await genjobs.saveProgress(job.id, { progress: { phase: 'repair', cursor: done, total: byChapter.size, message: `Wiederholungen ausräumen ${done}/${byChapter.size}` }, result })
+  }
+  return 'done'
+}
+
 async function processBook(job, deadline) {
   const p = job.params || {}
   const steps = Array.isArray(p.chapterSteps) ? p.chapterSteps : []
@@ -234,8 +315,9 @@ async function processBook(job, deadline) {
   }
   if (!Array.isArray(result.errors)) result.errors = []
   // Initial ist progress.phase 'queued' → als Kapitelphase behandeln. Nur ein
-  // ausdrückliches 'images' (Wiederaufnahme nach den Kapiteln) überspringt sie.
-  let phase = job.progress?.phase === 'images' ? 'images' : 'chapters'
+  // ausdrückliches 'repair'/'images' (Wiederaufnahme nach den Kapiteln)
+  // überspringt sie.
+  let phase = job.progress?.phase === 'images' ? 'images' : (job.progress?.phase === 'repair' ? 'repair' : 'chapters')
 
   // ── Phase 1: Kapitel schreiben (Cursor = Anzahl bereits geschriebener Kapitel) ──
   if (phase === 'chapters') {
@@ -261,7 +343,17 @@ async function processBook(job, deadline) {
         : { number: meta.number, heading: meta.heading || `Kapitel ${meta.number}`, body: '', image_prompt: '', generate_error: 'Kapitel konnte nicht erzeugt werden', ...extra })
       await genjobs.saveProgress(job.id, { progress: { phase: 'chapters', cursor: result.chapters.length, total: steps.length, message: `Kapitel ${result.chapters.length}/${steps.length}` }, result })
     }
-    // Kapitel fertig → Bildzuordnung + Referenzfotos (einmalig), dann Bildphase.
+    // Kapitel fertig → erst Wiederholungen ausräumen (der Text soll stehen,
+    // bevor Bilder dafür bezahlt werden).
+    phase = 'repair'
+    await genjobs.saveProgress(job.id, { progress: { phase: 'repair', cursor: 0, total: result.chapters.length, message: 'Wiederholungen ausräumen' }, result })
+  }
+
+  // ── Phase 1b: Wiederholungen ausräumen ──
+  if (phase === 'repair') {
+    const state = await repairRepetitions(job, p, result, deadline)
+    if (state !== 'done') return state
+    // Danach Bildzuordnung + Referenzfotos (einmalig), dann Bildphase.
     await computeAssignments(job, p, result)
     phase = 'images'
     await genjobs.saveProgress(job.id, { progress: { phase: 'images', cursor: 0, total: result.chapters.length }, result })
@@ -340,7 +432,7 @@ async function processBook(job, deadline) {
   try { await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value) }
   catch (e) { await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`); return 'error' }
   await genjobs.saveProgress(job.id, { progress: { phase: 'review', total: result.chapters.length, message: 'Inhaltsprüfung' }, result })
-  await runReview(job, p, value)
+  await runReview(job, p, value, result.repairFindings)
   await genjobs.finishJob(job.id, { progress: { phase: 'done', total: result.chapters.length, errors: result.errors.length, firstError: result.errors[0] || null }, result: { saved: true, errors: result.errors } })
   return 'done'
 }

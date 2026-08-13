@@ -75,6 +75,40 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
 }`
 }
 
+// Lektorat gegen Wiederholungen, VOR dem Speichern des Buches.
+// Die Fundstellen kommen aus der deterministischen Prüfung (repetition.js) —
+// die findet zuverlässig, WO etwas doppelt steht, kann aber nicht beurteilen,
+// ob es sich um dieselbe Geschichte oder nur um eine thematische Berührung
+// handelt. Genau diese Entscheidung trifft dieser Aufruf, mit dem ganzen
+// Kapitel vor Augen. Deshalb darf und soll er Fundstellen auch STEHEN LASSEN.
+function repetitionFixSystem(chapter, items) {
+  const list = items.map((it, i) => `${i + 1}. ${it.reason}\n   STELLE: „${it.quote}"`).join('\n')
+  return `Du bist eine sorgfältige Lektorin. Du bekommst EIN fertiges Kapitel eines Buches und eine Liste von Stellen, die laut maschineller Prüfung anderswo im selben Buch schon vorkommen. Deine Aufgabe: das Kapitel so zu überarbeiten, dass nichts zweimal erzählt wird.
+
+KAPITEL ${chapter.number}${chapter.heading ? `: ${chapter.heading}` : ''}
+"""
+${chapter.body}
+"""
+
+GEMELDETE STELLEN:
+${list}
+
+Regeln — in dieser Reihenfolge:
+1. PRÜFE JEDE STELLE EINZELN. Erzählt sie WIRKLICH dieselbe Episode, dieselbe Anekdote, dasselbe Zitat noch einmal, das laut Meldung woandershin gehört? Dann streiche sie — ersatzlos oder auf den Rest des Satzes zurückgeschnitten, je nachdem, was den Text lesbar hält.
+2. BERÜHRT sie das Thema nur (dasselbe Stichwort, aber ein anderer Gedanke, eine andere Szene, eine Abgrenzung oder ein Vergleich), dann LASS SIE UNVERÄNDERT. Eine maschinelle Meldung ist ein Verdacht, kein Urteil. Lieber eine Stelle zu wenig gestrichen als ein eigenständiger Gedanke vernichtet.
+3. ERFINDE NICHTS. Kein Ersatzinhalt, keine Überleitung mit neuen Fakten, keine Umdeutung. Du darfst ausschließlich WEGLASSEN und das Nötigste glätten, damit die Sätze weiterlaufen.
+4. Alles andere am Kapitel bleibt, wie es ist: Reihenfolge, Absatzgliederung (\\n\\n), Ton, Anrede, Zeitform. Kürze NICHT „zur Sicherheit" mit.
+5. Wird dadurch ein Absatz inhaltsleer, lass ihn ganz weg.
+
+Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
+{
+  "body": "der überarbeitete Kapiteltext, Absätze durch \\n\\n getrennt",
+  "removed": ["in wenigen Worten, was du gestrichen hast — je Streichung ein Eintrag"],
+  "kept": ["Nummer und Grund für jede Stelle, die du bewusst STEHEN gelassen hast"]
+}
+Ist keine der Meldungen berechtigt, gib das Kapitel unverändert zurück, "removed": [] und begründe unter "kept".`
+}
+
 // Baut aus einem generierten Wert (Buch-Objekt oder String) den zu prüfenden
 // Fließtext mit Abschnitts-Markern. Wörtliche Kopie aus src/review.js – bei
 // Änderungen dort HIER mitziehen.
@@ -99,4 +133,4 @@ function extractReviewText(value) {
   return parts.join('\n\n')
 }
 
-module.exports = { tryParseJSON, imageAssignSystem, faceRefSystem, extractReviewText }
+module.exports = { tryParseJSON, imageAssignSystem, faceRefSystem, extractReviewText, repetitionFixSystem }
