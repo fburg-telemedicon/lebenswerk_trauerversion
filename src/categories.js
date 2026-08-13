@@ -241,9 +241,48 @@ function v2Scale(contributions, chapterTarget = 1100) {
   }
 
   const per = chapters ? Math.round(target / chapters) : 0
+  return { words, chapters, target, ...bandFrom(per) }
+}
+
+// Kapitelband aus einer angestrebten Kapitellänge. Einmal zentral, weil die
+// Länge nicht mehr nur aus dem Durchschnitt kommt (siehe v2Band).
+function bandFrom(per) {
   const min = Math.min(3000, Math.max(500, Math.round(per * 0.85)))
   const max = Math.min(3600, Math.max(800, Math.round(per * 1.3)))
-  return { words, chapters, min, max: Math.max(max, min + 150) }
+  return { min, max: Math.max(max, min + 150) }
+}
+
+// ── Kapitellänge aus dem ZUGEWIESENEN Stoff, nicht aus dem Durchschnitt ──
+// v2Scale teilt das Gesamtbudget gleichmäßig durch die Kapitelzahl. Das
+// unterstellt, dass sich der Stoff gleichmäßig auf die Kapitel verteilt — und
+// genau das tut er nie: Im Lutherhof-Jubiläumsbuch reichten die 22 Beiträge von
+// 5 bis 2.221 Wörtern, und Themen wie „Wertschätzung" hatten praktisch keinen
+// eigenen Stoff. Ein Kapitel mit wenig Material und einem großen Fach hat dann
+// nur zwei Ventile: erfinden (verboten) oder wiederholen. Gemessen am fertigen
+// Buch war das Ergebnis 81 % des Wortbudgets, aber 41 % davon streichbar.
+//
+// Maßstab für „wie viel Stoff gehört diesem Kapitel" ist die owns-Liste aus der
+// Gliederung: Dort steht namentlich, welche Anekdoten das Kapitel exklusiv
+// erzählt. Kein owns (ältere Bücher, oder die Gliederung hat es weggelassen)
+// ⇒ alle Gewichte gleich ⇒ exakt das bisherige Verhalten.
+function chapterMaterialWeight(c) {
+  return Math.max(1, ownedList(c).length)
+}
+
+function v2Band(sc, outline, number) {
+  const list = Array.isArray(outline) ? outline : []
+  const i = list.findIndex(c => Number(c.number) === Number(number))
+  if (i < 0 || list.length < 2 || !sc.target) return { min: sc.min, max: sc.max, fromMaterial: false }
+  const w = list.map(chapterMaterialWeight)
+  const sum = w.reduce((a, b) => a + b, 0)
+  if (!sum) return { min: sc.min, max: sc.max, fromMaterial: false }
+  const flat = sc.target / list.length
+  // Die owns-Zahl ist ein grobes Maß (2–6 Einträge je Kapitel), deshalb wird der
+  // Ausschlag gedeckelt: kein Kapitel bekommt weniger als 55 % oder mehr als
+  // 160 % des Durchschnitts. Die Spanne bleibt eine OBERGRENZE (chapterLengthRule).
+  const factor = Math.min(1.6, Math.max(0.55, (w[i] / sum) * list.length))
+  const band = bandFrom(Math.round(flat * factor))
+  return { ...band, fromMaterial: w.some(x => x !== w[0]) }
 }
 
 // ── Kapitelzahl ist eine ZIELSPANNE, keine bloße Obergrenze ───────
@@ -294,8 +333,8 @@ const OWNS_RULE = `- "owns": 2–6 Einträge, je in wenigen Worten benannt (z. B
 // nie passieren: Ein Gedenk-/Lebensbuch, das Ereignisse erfindet, ist wertlos.
 // Deshalb bekommt jeder Kapitel-Prompt die Länge ausdrücklich als Spanne MIT
 // Vorrang der Wahrheit, plus ein explizites Verbot von Füllmaterial.
-function chapterLengthRule(min, max) {
-  return `Zielumfang ca. ${min}–${max} Wörter. Diese Spanne ist ein RICHTWERT und eine OBERGRENZE, KEIN Soll: Sie gilt nur, soweit das Material sie trägt. Gibt der Stoff dieses Kapitels weniger her, schreibe kürzer — auch deutlich kürzer. Ein kurzes, dichtes Kapitel ist RICHTIG; ein aufgeblähtes ist FALSCH.`
+function chapterLengthRule(min, max, fromMaterial = false) {
+  return `Zielumfang ca. ${min}–${max} Wörter. Diese Spanne ist ein RICHTWERT und eine OBERGRENZE, KEIN Soll: Sie gilt nur, soweit das Material sie trägt. Gibt der Stoff dieses Kapitels weniger her, schreibe kürzer — auch deutlich kürzer. Ein kurzes, dichtes Kapitel ist RICHTIG; ein aufgeblähtes ist FALSCH.${fromMaterial ? ` Die Spanne ist eigens für DIESES Kapitel aus dem Stoff berechnet, der ihm laut Gliederung gehört — nicht aus einem gleichmäßigen Durchschnitt. Sie zu erreichen, indem du Material aus anderen Kapiteln heranziehst, ist deshalb ausdrücklich FALSCH.` : ''}`
 }
 
 const NO_FILLER_RULE = `KEIN FÜLLMATERIAL (wichtigste Regel, sie schlägt jede Längenangabe):
@@ -649,6 +688,7 @@ Beiträge:\n\n${blocks(contributions)}`
 function memorialV2Chapter(memorial, contributions, plan, outline) {
   const g = genderNote(memorial)
   const sc = v2Scale(contributions)
+  const band = v2Band(sc, outline, plan.number)
   return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel einer Lebensgeschichte von ${memorial.name}${g} (Variante 2: Lebensstationen).${outlineBlock(outline, plan.number)}
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
@@ -667,7 +707,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - ${NO_FILLER_RULE}
-- "body": warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}
+- "body": warme literarische Sprache, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(band.min, band.max, band.fromMaterial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Lebensabschnitts bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Abschnitts — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Lebensabschnitt
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
@@ -921,6 +961,7 @@ function makeV2Chapter(p) {
   return (memorial, contributions, plan, outline) => {
     const g = genderNote(memorial)
     const sc = v2Scale(contributions)
+    const band = v2Band(sc, outline, plan.number)
     return `Du bist ${p.v2Role}. Du schreibst EIN Kapitel ${p.v2NounGen} für ${memorial.name}${g} (Variante 2).${outlineBlock(outline, plan.number)}
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
@@ -939,7 +980,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - ${NO_FILLER_RULE}
-- "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
+- "body": ${p.v2Voice}, mehrere Absätze (durch \\n\\n getrennt); schöpfe die relevanten Erinnerungen aus den Beiträgen aus; keine "X sagte …"-Zitate, keine Quellenangaben. ${chapterLengthRule(band.min, band.max, band.fromMaterial)}${textStyleRule(memorial)}
 - ${aliveRule(p, memorial)}${coupleTextRule(memorial)}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt BEVORZUGT die Person(en) dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten dieser Zeit; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil (also nicht „photo", „painting", „illustration", „watercolor", „sketch", „render", „cinematic", „3D" o. Ä.); der Grafikstil wird zentral vorgegeben; warm und würdevoll; passt zum jeweiligen Kapitel
 - Alles auf Deutsch (außer image_prompt)
@@ -1108,6 +1149,7 @@ function lifeworkV2Chapter(memorial, allContributions, plan, outline) {
   const contributions = selfOnly(allContributions)
   const voices = guestVoiceParts(allContributions, memorial)
   const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
+  const band = v2Band(sc, outline, plan.number)
   return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel der Autobiographie von ${memorial.name}.${outlineBlock(outline, plan.number)}
 
 Dieses Kapitel: Nummer ${plan.number}, Überschrift "${plan.heading}".
@@ -1124,7 +1166,7 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
 
 Regeln:
 - ${NO_FILLER_RULE}
-- "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(sc.min, sc.max)}${textStyleRule(memorial)}
+- "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(band.min, band.max, band.fromMaterial)}${textStyleRule(memorial)}
 - Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"${voices.rules}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
 - Alles auf Deutsch (außer image_prompt)

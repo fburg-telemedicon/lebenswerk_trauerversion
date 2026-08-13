@@ -24,6 +24,7 @@ import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } fro
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
+import { withRepetitionCheck } from './repetition.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, FORM_DISCLAIMER, FORM_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
@@ -1933,12 +1934,15 @@ function Dashboard() {
         { memorialCode: selected.id, kind: 'review', token }
       )
       const parsed = tryParseJSON(reportRaw) || {}
-      const report = {
+      // Zusätzlich der deterministische Textvergleich (repetition.js): Er findet
+      // wortgleiche Wiederholungen über Kapitel hinweg, die dem Modell beim
+      // Lesen am Stück entgehen, und kostet nichts.
+      const report = withRepetitionCheck({
         checked_at: new Date().toISOString(),
-        model: 'KI (serverseitig gewählt)',
+        model: 'KI (serverseitig gewählt) + Textvergleich',
         summary: typeof parsed.summary === 'string' ? parsed.summary : '',
         findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-      }
+      }, value)
       await adminSaveMemorialText(token, selected.id, 'content_reports', { [field]: report })
       return report
     } catch (e) {
@@ -2315,6 +2319,14 @@ function Dashboard() {
           title: outline.title, subtitle: outline.subtitle || '',
           dir, skipImages, imageStyle: selected.image_style || DEFAULT_IMAGE_STYLE,
           uploads, oldChapters, chapterSteps,
+          // Die Gliederung wird am Buch mitgespeichert: Nur mit ihr kann die
+          // Wiederholungsprüfung nachhalten, ob ein Motiv im Kapitel steht, dem
+          // es laut owns-Liste gehört (repetition.js). Ohne sie greift nur der
+          // Textvergleich. Klein genug, um im Buch-JSON zu leben.
+          outline: (key === 'book_v2' ? chapterPlans : []).map(p => ({
+            number: p.number, heading: p.heading || '', themes: p.themes || '',
+            owns: Array.isArray(p.owns) ? p.owns : [],
+          })),
           reviewSystem: reviewSystemPrompt(selected), reviewContribContext: contributionsContext(bookContribs),
         })
         genJobRef.current[key] = jobId

@@ -19,6 +19,7 @@ const { recordHeartbeat } = require('../_lib/heartbeat')
 const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
 const genprompts = require('../_lib/genprompts')
+const repetition = require('../_lib/repetition')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '240000', 10))
@@ -94,14 +95,22 @@ async function runReview(job, p, value) {
     const user = `BUCHTEXT:\n${genprompts.extractReviewText(value)}\n\n${p.reviewContribContext || ''}`
     const raw = await runLLMStep(job, 'review', p.reviewSystem, user)
     const parsed = genprompts.tryParseJSON(raw) || {}
-    await genjobs.mergeContentReport(code, p.field, {
-      checked_at: new Date().toISOString(), model: 'KI (serverseitig)',
+    // Deterministische Wiederholungsprüfung obendrauf: Ein Modell, das den
+    // ganzen Buchtext am Stück liest, zählt Motive über 22 Kapitel hinweg nicht
+    // zuverlässig — Zählen ist Maschinenarbeit (siehe repetition.js).
+    const report = repetition.withRepetitionCheck({
+      checked_at: new Date().toISOString(), model: 'KI (serverseitig) + Textvergleich',
       summary: typeof parsed.summary === 'string' ? parsed.summary : '',
       findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-    })
+    }, value)
+    await genjobs.mergeContentReport(code, p.field, report)
   } catch (e) {
     console.warn('[generate] review', e.message)
-    try { await genjobs.mergeContentReport(code, p.field, { checked_at: new Date().toISOString(), error: e.message }) } catch {}
+    // Auch wenn die KI-Prüfung ausfällt: Der Textvergleich läuft ohne sie.
+    try {
+      const fallback = repetition.withRepetitionCheck({ checked_at: new Date().toISOString(), error: e.message, findings: [] }, value)
+      await genjobs.mergeContentReport(code, p.field, fallback)
+    } catch {}
   }
 }
 
@@ -324,7 +333,10 @@ async function processBook(job, deadline) {
 
   // ── Phase 3: Speichern ──
   const chapters = result.chapters.map(c => { const { image_done, ...rest } = c; return rest })
-  const value = { title: p.title, subtitle: p.subtitle || '', language: p.language, chapters }
+  // Die Gliederung (owns-Listen) wandert mit ins Buch — die Wiederholungs-
+  // prüfung braucht sie, um Motive ihrem Kapitel zuordnen zu können.
+  const outline = Array.isArray(p.outline) && p.outline.length ? p.outline : undefined
+  const value = { title: p.title, subtitle: p.subtitle || '', language: p.language, chapters, ...(outline ? { outline } : {}) }
   try { await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value) }
   catch (e) { await genjobs.failJob(job.id, `Speichern fehlgeschlagen: ${e.message}`); return 'error' }
   await genjobs.saveProgress(job.id, { progress: { phase: 'review', total: result.chapters.length, message: 'Inhaltsprüfung' }, result })
