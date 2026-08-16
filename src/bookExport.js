@@ -3,7 +3,7 @@
 // Reine Modul-Funktionen ohne React-State/Hooks - 1:1 aus App.jsx verschoben.
 
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType, BorderStyle } from 'docx'
-import jsPDF from 'jspdf'
+import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
 import { getCategory, chapterVoices } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
 import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
@@ -75,9 +75,10 @@ function contributionQAPairs(messages = []) {
 }
 
 // Baut ein gut lesbares PDF mit den Daten EINES Beitragenden (DSGVO Art. 15).
-// Gibt einen Blob zurück.
-export function buildContributionPdf(c, memorial) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+// Gibt einen Blob zurück. Async allein wegen der Schriften (siehe pdfFonts.js).
+export async function buildContributionPdf(c, memorial) {
+  await loadPdfFonts()
+  const doc = newPdfDoc({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const margin = 20
@@ -509,8 +510,13 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
   // opts.compress: PDF-Streams deflaten (fürs E-Book an → kleinere Datei; fürs
   // Druck-PDF aus → unverändert). opts.imageMaxPx/imageQuality: Kapitelbilder auf
   // Bildschirmauflösung verkleinern + als JPEG einbetten (nur E-Book).
-  const doc = new jsPDF({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H], compress: opts.compress === true })
+  await loadPdfFonts()
+  const doc = newPdfDoc({ unit: 'mm', format: [PDF_PAGE_W, PDF_PAGE_H], compress: opts.compress === true })
 
+  // 'times'/'helvetica' zeigen jetzt auf eingebettete Liberation-Schriften
+  // (pdfFonts.js). Die decken auch Latin Extended-A ab; der DejaVu-Zweig unten
+  // bleibt als erprobter Sonderweg für Bücher mit solchen Zeichen bestehen.
+  // Der folgende Kommentar beschreibt, warum es ihn gibt:
   // jsPDF-Standardfonts (times/helvetica) können nur Latin-1 – polnische u. a.
   // Sonderzeichen (ł, ż, ś, ć, ą, ę, ź) fehlen → falsche Breite/Umbruch (Text läuft
   // über den Rand) und falsche Glyphen. Enthält der Buchtext solche Zeichen, laden
@@ -864,7 +870,8 @@ async function resolveLogoDataUrl(src) {
 // opts.disclaimerTitle/-Text: überschreiben den Buch-Hinweis am Ende (Anamnesebogen).
 export async function downloadTextPdf(filename, title, text, lang = 'de', opts = {}) {
   const bt = uiText(lang)
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  await loadPdfFonts()
+  const doc = newPdfDoc({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const margin = 22

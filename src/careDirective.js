@@ -55,6 +55,7 @@
 // Maße in mm, Ursprung oben links (wie lifeworkExtras.js).
 
 import { selfOnly, contributionBlocks } from './categories.js'
+import { loadPdfFonts } from './pdfFonts.js'
 import { newForm, pickByKey, strList, wishList, personList, personLine, INK, SOFT, AMBER } from './legalForms.js'
 
 // Die vier rechtlichen Aufgabenbereiche. Reihenfolge = Reihenfolge im Formular;
@@ -398,6 +399,8 @@ export function buildCareDirectiveDoc(data, memorial) {
   return doc
 }
 
-export function downloadCareDirectivePdf(filename, data, memorial) {
+// Async allein wegen der Schriften — wie downloadProvisionFolderPdf.
+export async function downloadCareDirectivePdf(filename, data, memorial) {
+  await loadPdfFonts()
   buildCareDirectiveDoc(data, memorial).save(filename)
 }

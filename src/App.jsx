@@ -1689,7 +1689,7 @@ function Dashboard() {
       const base = safeName(c.contributor_name)
       const zip = new JSZip()
       zip.file(`${base}_daten.json`, JSON.stringify(bundle, null, 2))
-      zip.file(`${base}_auskunft.pdf`, buildContributionPdf(c, selected))
+      zip.file(`${base}_auskunft.pdf`, await buildContributionPdf(c, selected))
       const blob = await zip.generateAsync({ type: 'blob' })
       downloadBlob(`dsgvo-export_${base}.zip`, blob)
     } catch (e) { setErr(`Export fehlgeschlagen: ${e.message}`) }
@@ -2768,7 +2768,7 @@ Regeln:
     if (!coverModal) return
     const key = coverModal.key
     try {
-      downloadCoverPdf(coverModal.filename, coverModal.prep, posKey)
+      await downloadCoverPdf(coverModal.filename, coverModal.prep, posKey)
       setCoverModal(null)
       // Gewählte Kastenlage am Buch merken → das E-Book übernimmt sie (gleiche
       // Vorderseite wie das gerade erzeugte Druck-Cover). Fehlschlag hier ist
@@ -2898,9 +2898,9 @@ Regeln:
     const base = `${ex.filename}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
     setExtraDl(styleKey ? `poster:${styleKey}` : kind); setErr('')
     try {
-      if (kind === 'tree') downloadTreePdf(`${base}.pdf`, data, mem)
-      else if (kind === 'care') downloadCareDirectivePdf(`${base}.pdf`, data, mem)
-      else if (kind === 'poa') downloadProvisionFolderPdf(`${base}.pdf`, data, mem)
+      if (kind === 'tree') await downloadTreePdf(`${base}.pdf`, data, mem)
+      else if (kind === 'care') await downloadCareDirectivePdf(`${base}.pdf`, data, mem)
+      else if (kind === 'poa') await downloadProvisionFolderPdf(`${base}.pdf`, data, mem)
       // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.
       else if (Array.isArray(data.variants) && data.variants.length) {
         const v = data.variants.find(x => x.style === styleKey) || data.variants[0]

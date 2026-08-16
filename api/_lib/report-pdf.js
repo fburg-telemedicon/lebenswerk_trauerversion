@@ -277,7 +277,11 @@ async function buildReportPdf(d) {
   const { jsPDF } = require('jspdf')
   const pages = assemblePages(d)
   const total = pages.length
-  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
+  // putOnlyUsedFonts: Die Seiten sind fertige PNGs, es wird KEIN Text über jsPDF
+  // gesetzt. Ohne den Schalter schreibt jsPDF trotzdem alle 14 PostScript-
+  // Standardschriften in die Ressourcen jeder Seite — nicht eingebettet und hier
+  // schlicht überflüssig (vgl. src/pdfFonts.js).
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', putOnlyUsedFonts: true })
   const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight()
   for (let i = 0; i < pages.length; i++) {
     const svg = pages[i] + footer(i + 1, total)

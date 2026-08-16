@@ -13,7 +13,7 @@
 //
 // Maße in mm, Ursprung oben links (wie coverExport.js).
 
-import { jsPDF } from 'jspdf'
+import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
 import { selfOnly, guestOnly, guestSourceNote, contributionBlocks } from './categories.js'
 
 // ════════════════════════════════════════════════════════════════
@@ -420,11 +420,12 @@ function pdfDraw(doc) {
   }
 }
 
-export function downloadTreePdf(filename, data, memorial) {
+export async function downloadTreePdf(filename, data, memorial) {
+  await loadPdfFonts()
   const layout = layoutTree(data)
   if (!layout) throw new Error('Der Stammbaum enthält keine Personen — das Interview gibt (noch) keine Familie her.')
   // Hochformat (A3): Ein Stammbaum wächst nach unten, nicht in die Breite.
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [TREE.W, TREE.H] })
+  const doc = newPdfDoc({ orientation: 'portrait', unit: 'mm', format: [TREE.W, TREE.H] })
   paintTree(pdfDraw(doc), layout, memorial)
   doc.save(filename)
 }
@@ -885,13 +886,14 @@ function paintPosterOrganic(d, data, images, st) {
 // `urls` = { "si:ti": signierte URL }. Ein fehlendes Bild ist nicht fatal — die
 // Station bekommt dann einen leeren Kreis in ihrer Abschnittsfarbe.
 export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
+  await loadPdfFonts()
   const st = getPosterStyle(styleKey || data?.style)
   const images = {}
   await Promise.all(Object.entries(urls).map(async ([k, url]) => {
     if (!url) return
     try { images[k] = await loadImage(url) } catch { /* Station bleibt ohne Bild */ }
   }))
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   paintPosterOrganic(pdfDraw(doc), data || {}, images, st)
   doc.save(filename)
 }
@@ -1139,13 +1141,14 @@ function prepareSvg(svgText, images, doc) {
 
 // Rendert das KI-SVG als Vektor-PDF (A2 quer). `urls` = { "si:ti": signierte URL }
 export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
+  await loadPdfFonts()
   const images = {}
   await Promise.all(Object.entries(urls).map(async ([k, url]) => {
     if (!url) return
     try { const im = await loadImage(url); images[k] = im.data } catch { /* Bild fällt weg */ }
   }))
 
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   const { svg, placed, paper } = prepareSvg(svgText, images, doc)
 
   // Reihenfolge: Papier, dann die Illustrationen (Pixel), dann die Vektorebene
@@ -1817,6 +1820,7 @@ function paintPosterScene(d, data, bg, st) {
 
 // `sceneUrl` = signierte URL des Gesamtbildes.
 export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey) {
+  await loadPdfFonts()
   const st = getPosterStyle(styleKey || data?.style)
   const img = await loadImage(sceneUrl)
   const el = await new Promise((res, rej) => {
@@ -1830,7 +1834,7 @@ export async function downloadPosterScenePdf(filename, data, sceneUrl, styleKey)
   const grid2 = densityGrid(el, SCENE.cols, SCENE.rows)
   const colors = colorMap(el)
   const cards = detectCards(el)
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   paintPosterScene(pdfDraw(doc), data || {}, { data: img.data, w: img.w, h: img.h, grid, grid2, colors, cards }, st)
   doc.save(filename)
 }
@@ -2040,9 +2044,10 @@ export async function renderPosterPreview(data, variant, styleKey, pxPerMm = 2.6
 }
 
 export async function downloadPosterVariantPdf(filename, data, variant, styleKey) {
+  await loadPdfFonts()
   const st = getPosterStyle(styleKey || variant?.style || data?.style)
   const sheet = await loadSheet(data, variant)
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
+  const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
   paintPosterScene(pdfDraw(doc), sheet.data, sheet.bg, st)
   doc.save(filename)
 }

@@ -2,6 +2,16 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-16",
+      "items": [
+        "Die Druckerei hat die Druckdaten des Lutherhof-Buchs beanstandet: „In Ihrem PDF-Dokument sind einige Schriften nicht eingebettet.\" Nachgemessen: Unsere PDFs verwiesen auf 14 Schriften, eingebettet war keine einzige. Ursache ist die PDF-Bibliothek, die wir im Browser benutzen — sie greift auf die 14 PostScript-Standardschriften zurück. Die liegen in jedem Anzeigeprogramm vor, stehen aber nicht in der Datei; eine Druckerei prüft genau das und lehnt ab.",
+        "Zweiter Teil derselben Ursache: Die Bibliothek schrieb in jede Seite alle 14 Standardschriften — auch die nie benutzten (Courier, Symbol, ZapfDingbats). Auch die wären beanstandet worden.",
+        "Behoben für ALLE unsere PDFs (Buch-Innenteil, Umschlag, E-Book, Pflegeexzerpt/Rede/Anamnesebogen, Stammbaum, Lebensposter, Vorsorgemappe, Messeblatt, DSGVO-Auskunft): Die Schriften werden jetzt als echte Schriftdateien in die PDF eingebettet, und nur noch die tatsächlich benutzten. Druckdaten aus dem System sind damit ohne Nacharbeit druckfähig.",
+        "Als Schriften kommen Liberation Serif und Liberation Sans zum Einsatz. Sie sind maßgleich zu Times New Roman und Arial, das Schriftbild bleibt also praktisch unverändert; sie stehen unter einer freien Lizenz und dürfen deshalb an Druckereien weitergegeben werden. Weil die bisherigen eingebauten Breitentabellen um 0,2–0,75 % abwichen, verschieben sich Zeilenenden minimal — Umfang und Aufbau eines Buches bleiben gleich (am Lutherhof-Buch gegengeprüft: weiterhin 124 Seiten, alle Kapitel auf denselben Seiten).",
+        "Für den Lutherhof neue Druckdaten ohne die beiden Lebensgeschichten-Logos auf Buchrücken und Rückseite erzeugt (Innenteil, Umschlag, E-Book); die vorherige Fassung bleibt daneben erhalten."
+      ]
+    },
+    {
       "date": "2026-08-13",
       "items": [
         "Nachgemessen, warum das Lutherhof-Buch trotz der Regel „ein Buch umfasst rund 115 % der eingesprochenen Antworten“ so viele Wiederholungen enthielt: Die Regel war nie ausgereizt — 21.885 beigetragene Wörter standen 17.700 Wörtern Buchtext gegenüber, also 81 %. Sie begrenzt die Textmenge, sagt aber nichts darüber, wie viel Verschiedenes darin steht: Eine zum zwölften Mal erzählte Anekdote zählt darin als frischer Text.",

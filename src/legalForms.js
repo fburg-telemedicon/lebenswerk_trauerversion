@@ -13,7 +13,7 @@
 //
 // Maße in mm, Ursprung oben links (wie lifeworkExtras.js).
 
-import { jsPDF } from 'jspdf'
+import { newPdfDoc } from './pdfFonts.js'
 
 export const INK   = [35, 35, 35]
 export const SOFT  = [110, 110, 110]
@@ -27,7 +27,7 @@ export const PAGE = { PW: 210, PH: 297, M: 20, FOOT: 15 }
 // gehört dem Werkzeugkasten; wer von Hand zeichnet (Unterschriftszeilen),
 // liest und setzt ihn über `t.y`.
 export function newForm() {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const doc = newPdfDoc({ unit: 'mm', format: 'a4' })
   const { PW, PH, M, FOOT } = PAGE
   const maxW = PW - 2 * M
   let y = M

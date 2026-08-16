@@ -2,7 +2,12 @@
 // Buchlayouts (Typografie/Design). Gleiches Format, nur Schriften/Überschriften
 // unterscheiden sich. Pro Layout die Schrift je Renderer:
 //   css  – Browser-Leseansicht           (font-family)
-//   pdf  – Druck-PDF (jsPDF-Standardfont) 'times' | 'helvetica' | 'courier'
+//   pdf  – Druck-PDF: 'times' | 'helvetica'. Diese Namen zeigen NICHT mehr auf die
+//          nicht eingebetteten jsPDF-Standardschriften, sondern auf maßgleiche
+//          eingebettete Schriften (src/pdfFonts.js) — Druckereien verlangen das.
+//          'courier' wäre möglich, ist dort aber noch nicht hinterlegt: erst die
+//          vier LiberationMono-Dateien nach public/fonts/ legen und in pdfFonts.js
+//          eintragen, sonst landet er uneingebettet im Druck-PDF.
 //   docx – DOCX-Export (Word-Schriftname, Office-sicher)
 // heading.upper = Überschriften in Versalien; heading.track = CSS letter-spacing.
 

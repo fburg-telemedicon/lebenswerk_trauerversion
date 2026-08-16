@@ -35,6 +35,7 @@
 // trägt seine eigene Unterschrift. Ein einziges durchlaufendes Dokument würde
 // erzwingen, immer alles herauszugeben.
 
+import { loadPdfFonts } from './pdfFonts.js'
 import { newForm, strList, SOFT, AMBER, BLUE } from './legalForms.js'
 import { drawPowerOfAttorney, poaWorksheet, secondPersonHits } from './powerOfAttorney.js'
 
@@ -256,6 +257,9 @@ export function buildProvisionFolderDoc(data, memorial) {
   return t.doc
 }
 
-export function downloadProvisionFolderPdf(filename, data, memorial) {
+// Async allein wegen der Schriften: buildProvisionFolderDoc() zeichnet synchron,
+// die eingebetteten Schriften müssen davor geladen sein (siehe pdfFonts.js).
+export async function downloadProvisionFolderPdf(filename, data, memorial) {
+  await loadPdfFonts()
   buildProvisionFolderDoc(data, memorial).save(filename)
 }

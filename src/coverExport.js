@@ -23,7 +23,7 @@
 // deshalb erst erzeugt werden, wenn das Druck-PDF einmal gebaut wurde
 // (book.print_pages, gesetzt von downloadPrintPdf).
 
-import { jsPDF } from 'jspdf'
+import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
 
 // ── Maße ────────────────────────────────────────────────────────────
 export const COVER = {
@@ -346,6 +346,11 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxP
   const H = COVER.height                              // 245
   let HF = layout?.heading?.pdf || 'times'
   let BF = layout?.body?.pdf || 'times'
+  // Die eingebetteten Standardschriften (pdfFonts.js) hier laden: downloadCoverPdf
+  // arbeitet synchron und kann nicht selbst nachladen, läuft aber immer nach
+  // prepareCover. Ohne das würde der Umschlag mit nicht eingebetteten Schriften
+  // ausgeliefert — genau das, was die Druckerei beanstandet.
+  await loadPdfFonts()
   // Font einmal laden und im prep mitgeben: downloadCoverPdf/drawCoverPreview
   // arbeiten synchron und können nicht selbst nachladen.
   let fonts = null
@@ -388,7 +393,9 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxP
   const spineTextLen = spineTextBottom - spineTextTop
 
   // Textumbruch + Schriftgrade über eine jsPDF-Instanz messen (identisch zum PDF).
-  const m = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [W, H] })
+  // Muss dieselben eingebetteten Schriften haben wie das spätere Dokument, sonst
+  // wird mit anderen Breiten gemessen als gesetzt wird.
+  const m = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [W, H] })
   if (fonts) registerUnicodeFont(m, fonts)
   const textX = COVER.textStartX + B
   const textW = (COVER.textEndX + B) - textX
@@ -544,7 +551,7 @@ export function drawCoverPreview(canvasEl, p, boxYKey) {
 // ── Speichern ───────────────────────────────────────────────────────
 export function downloadCoverPdf(filename, p, boxYKey) {
   const boxY = p.boxYByPos[boxYKey] ?? p.boxYByPos.auto
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [p.W, p.H] })
+  const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [p.W, p.H] })
   // Font auch auf DIESER Instanz registrieren — prepareCover hat ihn nur auf der
   // Mess-Instanz. Ohne das faellt jsPDF auf times zurueck und setzt Falschglyphen.
   if (p.fonts) registerUnicodeFont(doc, p.fonts)
@@ -581,6 +588,7 @@ function downscaleImageToJpeg(imgEl, maxPx, quality) {
 // Druck-Cover (dort im Dialog gewählt), damit E-Book und Cover übereinstimmen.
 // maxPx/quality: Hintergrund verkleinert als JPEG einbetten (kleine Dateigröße).
 export async function prepareEbookCoverPage({ bgUrl, side, title, subtitle, layout, boxPos, maxPx, quality }) {
+  await loadPdfFonts()
   let HF = layout?.heading?.pdf || 'times'
   let BF = layout?.body?.pdf || 'times'
   // Wie beim Druck-Cover (prepareCover): die jsPDF-Standardfonts koennen kein

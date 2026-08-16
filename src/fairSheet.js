@@ -12,7 +12,7 @@
 // Schnittmarken sind abschaltbar: Auf vorgestanztem Papier stören sie, auf
 // weißem Papier braucht man sie.
 
-import { jsPDF } from 'jspdf'
+import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
 import { qrCodeDataUrl } from './shared.js'
 
 const PW = 210, PH = 297
@@ -106,6 +106,7 @@ function cutMarks(doc, cells) {
 // codes: [{ code, display }] — QR-Codes werden hier erzeugt (Browser, kein
 // fremder Dienst; siehe qrCodeDataUrl in shared.js).
 export async function buildFairSheetPdf(codes, opts = {}) {
+  await loadPdfFonts()
   const o = { ...SHEET_DEFAULTS, ...opts }
   const cols = Math.max(1, Math.min(parseInt(o.cols, 10) || 1, 8))
   const rows = Math.max(1, Math.min(parseInt(o.rows, 10) || 1, 12))
@@ -134,7 +135,7 @@ export async function buildFairSheetPdf(codes, opts = {}) {
     withQr.push({ ...c, qr })
   }
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const doc = newPdfDoc({ unit: 'mm', format: 'a4' })
   for (let i = 0; i < withQr.length; i++) {
     const posOnPage = i % perPage
     if (i > 0 && posOnPage === 0) doc.addPage()
