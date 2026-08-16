@@ -3,7 +3,7 @@
 // Reine Modul-Funktionen ohne React-State/Hooks - 1:1 aus App.jsx verschoben.
 
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType, BorderStyle } from 'docx'
-import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
+import { loadPdfFonts, newPdfDoc, registerUnicodeSerif } from './pdfFonts.js'
 import { getCategory, chapterVoices } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
 import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
@@ -531,12 +531,7 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
   // koennen sie nicht. Deutsch (Umlaute/ss) und Typo-Zeichen sind in WinAnsi.
   if (/[Ā-ɏ]/.test(allText)) {
     const f = await import('./fonts/dejavuSerif.js')
-    doc.addFileToVFS('DejaVuSerif.ttf', f.DEJAVU_SERIF)
-    doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'normal')
-    doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'italic')
-    doc.addFileToVFS('DejaVuSerif-Bold.ttf', f.DEJAVU_SERIF_BOLD)
-    doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bold')
-    doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bolditalic')
+    registerUnicodeSerif(doc, { regular: f.DEJAVU_SERIF, bold: f.DEJAVU_SERIF_BOLD })
     HF = 'DejaVuSerif'; BF = 'DejaVuSerif'
   }
   let page = 1 // jsPDF hat Seite 1 bereits angelegt; recto = ungerade

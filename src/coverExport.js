@@ -23,7 +23,7 @@
 // deshalb erst erzeugt werden, wenn das Druck-PDF einmal gebaut wurde
 // (book.print_pages, gesetzt von downloadPrintPdf).
 
-import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
+import { loadPdfFonts, newPdfDoc, registerUnicodeSerif } from './pdfFonts.js'
 
 // ── Maße ────────────────────────────────────────────────────────────
 export const COVER = {
@@ -330,15 +330,11 @@ const ASC = 0.75, DESC = 0.25   // Ober-/Unterlänge der Standardfonts, in em
 // „Osiemnaıſcie … najbliı̇szych" — und zusätzlich falsch vermessen, weil die
 // Breiten nicht stimmen. Der Innenteil löst das längst so (bookExport.js);
 // der Umschlag hat es bisher nicht getan. Gleiche Lösung, gleicher Font.
+// Registrierung liegt in pdfFonts.js (registerUnicodeSerif) — dieselbe Stelle wie
+// fürs Innenteil, damit Umschlag und Buchblock identisch benannte Schriften
+// einbetten. Der Aufruf ist idempotent, doppelte Aufrufe legen keine zweite
+// Teilmenge an.
 const NEEDS_UNICODE = /[Ā-ɏ]/
-function registerUnicodeFont(doc, fonts) {
-  doc.addFileToVFS('DejaVuSerif.ttf', fonts.regular)
-  doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'normal')
-  doc.addFont('DejaVuSerif.ttf', 'DejaVuSerif', 'italic')
-  doc.addFileToVFS('DejaVuSerif-Bold.ttf', fonts.bold)
-  doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bold')
-  doc.addFont('DejaVuSerif-Bold.ttf', 'DejaVuSerif', 'bolditalic')
-}
 
 export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxPos }) {
   const B = spineWidthMm(pages)
@@ -396,7 +392,7 @@ export async function prepareCover({ bgUrl, pages, title, subtitle, layout, boxP
   // Muss dieselben eingebetteten Schriften haben wie das spätere Dokument, sonst
   // wird mit anderen Breiten gemessen als gesetzt wird.
   const m = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [W, H] })
-  if (fonts) registerUnicodeFont(m, fonts)
+  if (fonts) registerUnicodeSerif(m, fonts)
   const textX = COVER.textStartX + B
   const textW = (COVER.textEndX + B) - textX
   m.setFont(HF, 'bold'); m.setFontSize(TITLE_SIZE)
@@ -554,7 +550,7 @@ export function downloadCoverPdf(filename, p, boxYKey) {
   const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [p.W, p.H] })
   // Font auch auf DIESER Instanz registrieren — prepareCover hat ihn nur auf der
   // Mess-Instanz. Ohne das faellt jsPDF auf times zurueck und setzt Falschglyphen.
-  if (p.fonts) registerUnicodeFont(doc, p.fonts)
+  if (p.fonts) registerUnicodeSerif(doc, p.fonts)
   drawCoverPdf(doc, p, boxY)
   doc.save(filename)
   return { spineMm: p.B, widthMm: p.W, heightMm: p.H }
@@ -630,7 +626,8 @@ export function drawEbookCoverPage(doc, p) {
   const W = EB_PAGE_W, H = EB_PAGE_H
   // Das Innenteil-Dokument hat den Unicode-Font nur dann schon, wenn der BUCHTEXT
   // Sonderzeichen enthaelt — beim Cover-Titel muss er ggf. nachgereicht werden.
-  if (p.fonts && !doc.getFontList()?.DejaVuSerif) registerUnicodeFont(doc, p.fonts)
+  // registerUnicodeSerif merkt sich das am Dokument und tut beim zweiten Mal nichts.
+  if (p.fonts) registerUnicodeSerif(doc, p.fonts)
   const bgFmt = /^data:image\/jpe?g/i.test(p.bgData) ? 'JPEG' : 'PNG'
   doc.addImage(p.bgData, bgFmt, p.baseX, p.offY, p.dw, p.dh, undefined, 'FAST')
 

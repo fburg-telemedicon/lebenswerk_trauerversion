@@ -7,7 +7,9 @@
 //          eingebettete Schriften (src/pdfFonts.js) — Druckereien verlangen das.
 //          'courier' wäre möglich, ist dort aber noch nicht hinterlegt: erst die
 //          vier LiberationMono-Dateien nach public/fonts/ legen und in pdfFonts.js
-//          eintragen, sonst landet er uneingebettet im Druck-PDF.
+//          eintragen, sonst landet er uneingebettet im Druck-PDF. Wer es vergisst,
+//          bekommt beim ersten Erzeugen eine Warnung aus dem setFont-Wächter
+//          (newPdfDoc) — stillschweigend durchrutschen kann es nicht mehr.
 //   docx – DOCX-Export (Word-Schriftname, Office-sicher)
 // heading.upper = Überschriften in Versalien; heading.track = CSS letter-spacing.
 
