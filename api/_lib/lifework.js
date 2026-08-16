@@ -217,7 +217,8 @@ async function ensureLifeworkSchema() {
       add column if not exists detail_choice boolean,
       add column if not exists realtime_enabled boolean,
       add column if not exists guest_enabled boolean,
-      add column if not exists guest_code varchar(16)
+      add column if not exists guest_code varchar(16),
+      add column if not exists extra_questions jsonb
   `)
   // Fortlaufende Projektnummer: eine kurze, sprechbare Kennung fürs Dashboard und
   // für Rückfragen („Projekt 42"). Der Buch-Code taugt dafür nicht — er ist ein

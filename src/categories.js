@@ -175,6 +175,176 @@ function guestVoiceParts(contributions, memorial) {
   }
 }
 
+// ── Zusatzfragen zum Schluss (nur Lebenswerk) ─────────────────────
+// Der Manager kann ans ENDE des Interviews weitere Fragen hängen: eigene
+// (Freitext, eine je Zeile) und/oder fertige Themenblöcke (unten). Standard ist
+// AUS — ohne Einschaltung ändert sich am Interview und an den Prompts kein Zeichen.
+//
+// „Im Anschluss" ist wörtlich gemeint: Läuft das Interview an einem Fragenkatalog
+// entlang (beim Lebenswerk der Regelfall), werden die Zusatzfragen als LETZTES
+// KAPITEL an den Katalog gehängt — dadurch greifen Fortschritts-Marker,
+// Fortschrittsanzeige und der [[ENDE]]-Abschluss unverändert. Nur im freien
+// Interview ohne Katalog braucht es eine eigene Prompt-Regel.
+//
+// Die Antworten gehören NICHT in den Fließtext der Kapitel: „Mein Lieblingsessen
+// war Rouladen" mitten in einem Kapitel über die Berufsjahre liest sich wie ein
+// Fremdkörper. Sie werden stattdessen als KASTEN ans Kapitelende gesetzt — wie
+// die Gast-Stimmen, nur ohne fremden Sprecher und mit eigener Überschrift.
+// Erzeugt werden sie über extraBoxParts(), gezeichnet über chapterBoxes().
+
+// Themenblöcke zum Ankreuzen. `questions` sind die Fragen, die die KI stellt —
+// im Du (wie der Standard-Fragenkatalog); die Anrede-Regel des Interviews stellt
+// sie bei Bedarf auf „Sie" um.
+export const EXTRA_QUESTION_PRESETS = [
+  {
+    key: 'musik',
+    label: 'Musik des Lebens',
+    hint: 'Welche Musik hat dich begleitet?',
+    questions: [
+      'Welche Musik hast du als junger Mensch gehört — und gibt es ein Lied, das dich sofort in diese Zeit zurückholt?',
+      'Gibt es ein Lied oder ein Musikstück, das für dich untrennbar mit einem bestimmten Menschen oder einem bestimmten Moment verbunden ist?',
+    ],
+  },
+  {
+    key: 'speisen',
+    label: 'Lieblingsspeisen',
+    hint: 'Was kam auf den Tisch, was wurde gefeiert?',
+    questions: [
+      'Was war dein Lieblingsessen, und mit wem oder mit welchem Anlass verbindest du es?',
+      'Gibt es ein Gericht, das es nur zu besonderen Gelegenheiten gab — und wer hat es gekocht?',
+    ],
+  },
+  {
+    key: 'sprichwoerter',
+    label: 'Lieblings-Sprichwörter',
+    hint: 'Sätze, die in der Familie weitergegeben wurden.',
+    questions: [
+      'Gibt es einen Spruch oder ein Sprichwort, das du oft benutzt oder das dich durchs Leben begleitet hat?',
+      'Welchen Satz hast du von deinen Eltern oder Großeltern so oft gehört, dass du ihn heute noch im Ohr hast?',
+    ],
+  },
+  {
+    key: 'zeitgeschehen',
+    label: 'Zeitgeschehen („Wo warst du, als …")',
+    hint: 'Markante Momente der Zeitgeschichte — einzeln auswählbar.',
+    // Aus dem Stamm und `of` wird je Ereignis eine Frage gebaut. So ist die
+    // Formulierung überall gleich und eine Änderung wirkt auf alle Ereignisse.
+    stem: 'Erinnerst du dich noch, wo du warst, was du gerade getan und was du gefühlt hast, als du %s erfahren hast?',
+    events: [
+      { key: 'kriegsende',   year: 1945, label: 'Kriegsende (8. Mai 1945)',              of: 'vom Ende des Zweiten Weltkriegs' },
+      { key: 'wunderbern',   year: 1954, label: '„Wunder von Bern" (1954)',              of: 'vom Gewinn der Fußball-Weltmeisterschaft 1954' },
+      { key: 'mauerbau',     year: 1961, label: 'Mauerbau (13. August 1961)',            of: 'vom Bau der Berliner Mauer' },
+      { key: 'kennedy',      year: 1963, label: 'Kennedy-Attentat (22. November 1963)',  of: 'vom Attentat auf John F. Kennedy' },
+      { key: 'mondlandung',  year: 1969, label: 'Mondlandung (21. Juli 1969)',           of: 'von der ersten Mondlandung' },
+      { key: 'muenchen72',   year: 1972, label: 'Olympia-Attentat München (1972)',       of: 'vom Attentat bei den Olympischen Spielen in München' },
+      { key: 'challenger',   year: 1986, label: 'Challenger-Unglück (Januar 1986)',      of: 'vom Absturz der Raumfähre Challenger' },
+      { key: 'tschernobyl',  year: 1986, label: 'Tschernobyl (April 1986)',              of: 'von der Reaktorkatastrophe in Tschernobyl' },
+      { key: 'mauerfall',    year: 1989, label: 'Mauerfall (9. November 1989)',          of: 'vom Fall der Berliner Mauer' },
+      { key: 'einheit',      year: 1990, label: 'Deutsche Einheit (3. Oktober 1990)',    of: 'von der deutschen Wiedervereinigung' },
+      { key: 'ladydi',       year: 1997, label: 'Tod von Lady Di (31. August 1997)',     of: 'vom tödlichen Unfall von Prinzessin Diana' },
+      { key: 'wtc',          year: 2001, label: 'World Trade Center (11. September 2001)', of: 'vom Anschlag auf das World Trade Center' },
+      { key: 'tsunami',      year: 2004, label: 'Tsunami (26. Dezember 2004)',           of: 'vom Tsunami im Indischen Ozean' },
+      { key: 'sommermaerchen', year: 2006, label: 'Sommermärchen (WM 2006)',             of: 'von der Fußball-Weltmeisterschaft im eigenen Land' },
+      { key: 'fukushima',    year: 2011, label: 'Fukushima (11. März 2011)',             of: 'von der Reaktorkatastrophe in Fukushima' },
+      { key: 'corona',       year: 2020, label: 'Erster Corona-Lockdown (März 2020)',    of: 'vom ersten Corona-Lockdown' },
+      { key: 'ukraine',      year: 2022, label: 'Beginn des Ukraine-Kriegs (2022)',      of: 'vom Beginn des Kriegs in der Ukraine' },
+    ],
+  },
+]
+
+export const getExtraPreset = key => EXTRA_QUESTION_PRESETS.find(p => p.key === key) || null
+
+// Die gespeicherte Einstellung in eine feste Form bringen. Alles Unbekannte fällt
+// weg — die Spalte ist jsonb und käme sonst irgendwann als halbes Objekt zurück.
+export function normalizeExtraQuestions(v) {
+  const o = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}
+  const known = new Set(EXTRA_QUESTION_PRESETS.map(p => p.key))
+  const knownEvents = new Set((getExtraPreset('zeitgeschehen')?.events || []).map(e => e.key))
+  return {
+    enabled: o.enabled === true,
+    own: (Array.isArray(o.own) ? o.own : []).map(s => String(s || '').trim()).filter(Boolean).slice(0, 30),
+    presets: (Array.isArray(o.presets) ? o.presets : []).filter(k => known.has(k)),
+    events: (Array.isArray(o.events) ? o.events : []).filter(k => knownEvents.has(k)),
+  }
+}
+
+// Die tatsächlich zu stellenden Fragen als flache Liste. Leer, sobald die
+// Einstellung aus ist, die Kategorie nicht das Lebenswerk ist oder nichts
+// ausgewählt wurde — dann bleibt jeder Prompt unverändert.
+export function extraQuestionList(memorial) {
+  if (memorial?.product_category && memorial.product_category !== 'lifework') return []
+  const cfg = normalizeExtraQuestions(memorial?.extra_questions)
+  if (!cfg.enabled) return []
+  const out = []
+  for (const p of EXTRA_QUESTION_PRESETS) {
+    if (!cfg.presets.includes(p.key)) continue
+    if (p.key === 'zeitgeschehen') {
+      for (const ev of p.events) {
+        if (cfg.events.includes(ev.key)) out.push(p.stem.replace('%s', ev.of))
+      }
+    } else {
+      out.push(...p.questions)
+    }
+  }
+  out.push(...cfg.own)
+  return out
+}
+
+// Überschrift des angehängten Katalogkapitels. Sie erscheint dem Erzähler in der
+// Fortschrittsanzeige, deshalb bewusst freundlich und nicht technisch.
+export const EXTRA_CHAPTER_TITLE = 'Zum Schluss: ein paar Extras'
+
+// Das Buch mit den Zusatzfragen anreichern: Sie werden als letztes Kapitel an den
+// Fragenkatalog gehängt. EINE Stelle für alles, was danach kommt — Interview-
+// Prompt, Fortschrittsanzeige und Gamification lesen alle `memorial.catalog`.
+// Ohne Zusatzfragen (oder ohne Katalog) kommt das Buch unverändert zurück.
+export function withExtraQuestions(memorial) {
+  const list = extraQuestionList(memorial)
+  if (!list.length) return memorial
+  const chapters = Array.isArray(memorial?.catalog?.chapters) ? memorial.catalog.chapters : null
+  if (!chapters) return memorial          // freies Interview → Regel im Prompt statt Kapitel
+  if (chapters.some(ch => ch?.title === EXTRA_CHAPTER_TITLE)) return memorial   // schon dran
+  return {
+    ...memorial,
+    catalog: { ...memorial.catalog, chapters: [...chapters, { title: EXTRA_CHAPTER_TITLE, questions: list }] },
+  }
+}
+
+// Nur fürs FREIE Interview (ohne Katalog): dort gibt es kein Kapitel, an das man
+// die Fragen hängen könnte, und auch kein definiertes Ende. Also als Regel.
+function extraQuestionsRule(memorial, name) {
+  const list = extraQuestionList(memorial)
+  if (!list.length) return ''
+  if (Array.isArray(memorial?.catalog?.chapters) && memorial.catalog.chapters.length) return ''
+  return `
+- ZUSATZFRAGEN ZUM SCHLUSS: Wenn das eigentliche Gespräch rund ist und du es sonst beenden würdest, stelle vorher noch die folgenden Fragen — einzeln, eine pro Nachricht, in dieser Reihenfolge, und kündige den Übergang kurz an („Zum Schluss noch ein paar Kleinigkeiten …"). Zu jeder höchstens EINE Nachfrage. Passt eine Frage zeitlich nicht zu ${name}s Leben (z. B. ein Ereignis vor der Geburt oder in früher Kindheit), überspringe sie kommentarlos. Erst wenn alle durch sind, schließe das Gespräch ab.
+${list.map((q, i) => `  ${i + 1}. ${q}`).join('\n')}`
+}
+
+// Der Kasten-Stoff EINES Kapitels, bereinigt — Gegenstück zu chapterVoices().
+// Alle Render-Stellen (Bildschirm, Korrekturabzug, DOCX, Druck-PDF, E-Book)
+// gehen durch diesen Filter, damit sie sich nicht auseinanderentwickeln.
+export function chapterBoxes(ch) {
+  return (Array.isArray(ch?.boxes) ? ch.boxes : []).filter(b => String(b?.text || '').trim())
+}
+
+// Prompt-Teile für die Kapitelerzeugung. Ohne Zusatzfragen bleibt alles leer —
+// die Prompts bestehender Bücher ändern sich dadurch um kein Zeichen.
+function extraBoxParts(memorial) {
+  const list = extraQuestionList(memorial)
+  if (!list.length) return { schema: '', rules: '' }
+  return {
+    schema: `,\n  "boxes": [ { "title": "kurze Überschrift des Kastens", "text": "der Inhalt: 1–4 Sätze oder eine kurze Aufzählung" } ]`,
+    rules: `
+- "boxes": abgesetzte Kästen am Kapitelende, KEIN Teil des Fließtextes. Sie enthalten das, was am Schluss des Interviews auf die ZUSATZFRAGEN geantwortet wurde (Musik, Essen, Sprüche, „wo warst du, als …" und ähnliche Extras). Strikte Regeln:
+  • Dieser Stoff darf NICHT in "body" landen — er würde die Erzählung zerreißen. Umgekehrt gehört in "boxes" nichts, was schon im Fließtext steht.
+  • Setze einen Kasten NUR in das Kapitel, in das er thematisch und zeitlich wirklich passt (Musik der Jugend → Jugendkapitel; „wo warst du beim Mauerfall" → das Kapitel, das 1989 abdeckt). Passt nichts, gib "boxes": [] zurück — das ist der Normalfall.
+  • Höchstens 2 Kästen je Kapitel, und JEDER Inhalt nur EINMAL im ganzen Buch (die Gliederung oben zeigt dir die übrigen Kapitel).
+  • "title": kurz und sprechend, aus dem Inhalt heraus („Die Musik meiner Jugend", „Was bei uns auf den Tisch kam", „Der 9. November 1989").
+  • "text": in der Ich-Form des Erzählers, dicht am Gesagten. Nichts hinzuerfinden, nichts ausschmücken. Wurde eine Zusatzfrage nicht beantwortet, gibt es dazu keinen Kasten.`,
+  }
+}
+
 // ── Buchumfang an die beigetragene Textmenge koppeln ──────────────
 // Ziel: Bei vielen/ausführlichen Beiträgen soll ein "ganzes Buch" entstehen
 // (mehr Kapitel und längere Kapitel), bei wenigen/kurzen Beiträgen bleibt es
@@ -1051,7 +1221,7 @@ Regeln:
 - ${THIRD_PARTY_RULE}
 ${interviewGreetingRule(name)}
 ${interviewScopeRule(name)}
-${flow}
+${flow}${extraQuestionsRule(memorial, name)}
 - Schreibe auf Deutsch`
 }
 
@@ -1148,6 +1318,9 @@ function lifeworkV2Chapter(memorial, allContributions, plan, outline) {
   // freigegebene Gastbeiträge liefern die Stimmen-Kästen am Kapitelende.
   const contributions = selfOnly(allContributions)
   const voices = guestVoiceParts(allContributions, memorial)
+  // Die Antworten auf die Zusatzfragen stecken im selben Interview, gehören aber
+  // in Kästen statt in den Fließtext (siehe extraBoxParts).
+  const boxes = extraBoxParts(memorial)
   const sc = v2Scale(contributions, LIFEWORK_CHAPTER_WORDS)
   const band = v2Band(sc, outline, plan.number)
   return `Du bist ein erfahrener Biograph. Du schreibst EIN Kapitel der Autobiographie von ${memorial.name}.${outlineBlock(outline, plan.number)}
@@ -1161,13 +1334,13 @@ Gib REINES, GÜLTIGES JSON für GENAU DIESES EINE KAPITEL aus (kein Markdown-Cod
   "number": ${plan.number},
   "heading": ${JSON.stringify(plan.heading || '')},
   "body": "Fließtext …",
-  "image_prompt": "English image description; the person in a scene from this chapter, set in the correct historical period"${voices.schema}
+  "image_prompt": "English image description; the person in a scene from this chapter, set in the correct historical period"${voices.schema}${boxes.schema}
 }
 
 Regeln:
 - ${NO_FILLER_RULE}
 - "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(band.min, band.max, band.fromMaterial)}${textStyleRule(memorial)}
-- Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"${voices.rules}
+- Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"${voices.rules}${boxes.rules}
 - "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
 - Alles auf Deutsch (außer image_prompt)
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare

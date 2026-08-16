@@ -93,6 +93,10 @@ create table if not exists memorials (
   -- Berechtigung des Endnutzers (Einstellungen, Korrekturabzug, Buchbearbeitung).
   guest_enabled    boolean,
   guest_code       varchar(16),
+  -- Zusatzfragen ans Interview-Ende (nur Lebenswerk, Standard aus):
+  -- { enabled, own: [Freitext-Fragen], presets: [Themenbloecke], events: [Zeitgeschehen] }
+  -- Siehe EXTRA_QUESTION_PRESETS in src/categories.js.
+  extra_questions  jsonb,
   -- Fortlaufende Projektnummer fuers Dashboard und fuer Rueckfragen ("Projekt 42").
   -- Global aufsteigend aus einer Sequenz; eine Nummer gehoert dauerhaft zu genau
   -- einem Projekt (nach Loeschungen entstehen Luecken, das ist gewollt).

@@ -12,7 +12,7 @@ import { proofT } from './proofI18n.js'
 import { xt } from './uiExtra.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, chapterVoices, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, detailFollowups, detailLevelOf } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, detailFollowups, detailLevelOf } from './categories.js'
 import { GENDERS, CONSENT_VERSION, normVariant } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -2260,6 +2260,13 @@ function BookRead({ book, imgUrl }) {
               ))}
             </div>
           )}
+          {/* Zusatzfragen-Kästen: eigene Überschrift statt Zuschreibung. */}
+          {chapterBoxes(c).map((b, bi) => (
+            <div key={bi} style={{ marginTop:14, padding:'12px 16px', background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8 }}>
+              {b.title && <div style={{ fontSize:11, letterSpacing:1, textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>{b.title}</div>}
+              <p style={{ fontSize:15, lineHeight:1.7, margin:0, whiteSpace:'pre-wrap' }}>{b.text}</p>
+            </div>
+          ))}
         </section>
       ))}
     </article>
@@ -2668,6 +2675,10 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
         const by = [v.name, v.relationship].filter(Boolean).join(', ')
         parts.push(by ? `${v.text} — ${by}` : String(v.text))
       }
+      // Zusatzfragen-Kästen ebenso — sie stehen im Buch und gehören mit vorgelesen.
+      for (const b of chapterBoxes(c)) {
+        parts.push(b.title ? `${b.title}: ${b.text}` : String(b.text))
+      }
     }
     const chunks = []
     for (const raw of parts) {
@@ -3063,6 +3074,26 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
                 ))}
               </div>
             )}
+            {/* Zusatzfragen-Kästen: Überschrift und Text bearbeitbar, einzeln
+                entfernbar — es ist das Buch des Erzählers. */}
+            {chapterBoxes(c).length > 0 && (
+              <div style={{ marginTop: 12, paddingLeft: 12, borderLeft: '3px solid #e7e5e4' }}>
+                {chapterBoxes(c).map((b, bi) => (
+                  <div key={bi} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <input value={b.title || ''}
+                        onChange={e => setChapter(i, { boxes: chapterBoxes(c).map((x, k) => k === bi ? { ...x, title: e.target.value } : x) })}
+                        style={{ flex: 1, fontSize: 12.5, padding: '3px 6px' }} />
+                      <button className="ghost" onClick={() => setChapter(i, { boxes: chapterBoxes(c).filter((_, k) => k !== bi) })}
+                        style={{ fontSize: 12, color: '#dc2626', padding: '2px 8px' }}>🗑</button>
+                    </div>
+                    <AutoGrowTextarea value={b.text || ''}
+                      onChange={e => setChapter(i, { boxes: chapterBoxes(c).map((x, k) => k === bi ? { ...x, text: e.target.value } : x) })}
+                      style={{ width: '100%', minHeight: 60, fontSize: 14, lineHeight: 1.6, fontFamily: 'Georgia, serif', padding: 10, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )
       })}
@@ -3333,11 +3364,16 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // Obergrenze an Nachfragen im Katalog-Modus, `detail_level` steuert die
   // Zusatzanweisung im freien Interview (beides in categories.js). Ohne eigene
   // Wahl bleibt das Buch unverändert — dann gilt weiter die Vorgabe des Managers.
-  const memorialForInterview = useMemo(() => (
-    (memorial && detailLevel && memorial.detail_choice === true)
+  // Zusatzfragen (nur Lebenswerk, Standard aus) hängen als letztes Katalogkapitel
+  // dran — dadurch greifen Fortschritts-Marker, Fortschrittsanzeige und Abschluss
+  // unverändert. withExtraQuestions() gibt das Buch unverändert zurück, wenn keine
+  // Zusatzfragen eingeschaltet sind.
+  const memorialForInterview = useMemo(() => {
+    const m = (memorial && detailLevel && memorial.detail_choice === true)
       ? { ...memorial, followups: detailFollowups(detailLevel), detail_level: detailLevel }
       : memorial
-  ), [memorial, detailLevel])
+    return m ? withExtraQuestions(m) : m
+  }, [memorial, detailLevel])
   const saveQueueRef                          = useRef(Promise.resolve())
   // Die Einstiegs-Entscheidung (fortsetzen / Info-Maske / Interview) darf NUR
   // EINMAL fallen. Sonst triggert sie ein späterer `setMemorial(...)` erneut — z. B.

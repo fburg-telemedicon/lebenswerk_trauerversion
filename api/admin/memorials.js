@@ -31,7 +31,7 @@ const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, 
 // family_tree/life_poster/care_directive: die Nebenprodukte des Lebenswerks.
 // Fehlen die Spalten (Migration noch nicht gelaufen), fällt der GET auf
 // SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -283,6 +283,24 @@ function sanitizeFollowups(v) {
   const n = parseInt(v, 10)
   if (!Number.isFinite(n) || n < 0) return 2
   return Math.min(n, 30)
+}
+
+// Zusatzfragen ans Interview-Ende (nur Lebenswerk). Hier wird nur die FORM
+// geprüft und begrenzt; welche preset-/event-Schlüssel es gibt, weiß allein
+// src/categories.js — unbekannte Schlüssel ignoriert die Auswertung dort
+// ohnehin. Null (= nie gesetzt) bleibt null, damit bestehende Bücher unberührt
+// bleiben und die Spalte nicht mit leeren Objekten volläuft.
+const STR_LIST = (v, max, len) => (Array.isArray(v) ? v : [])
+  .map(s => String(s ?? '').trim()).filter(Boolean).slice(0, max).map(s => s.slice(0, len))
+function sanitizeExtraQuestions(v) {
+  if (v === null || v === undefined) return null
+  if (typeof v !== 'object' || Array.isArray(v)) return null
+  return {
+    enabled: v.enabled === true,
+    own: STR_LIST(v.own, 30, 500),
+    presets: STR_LIST(v.presets, 20, 40),
+    events: STR_LIST(v.events, 40, 40),
+  }
 }
 
 // Kapitel-/Fragen-Struktur eines Katalogs säubern:
@@ -590,7 +608,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, guestEnabled, detailChoice, ownerUser } = req.body || {}
+      const { name, organizer, gender, bookVariant, funeralDate, cutoffDays, showIntroVideo, showTranscript, showContributors, photoUploadTab, productCategory, intake, languages, note, pickupAddress, catalogId, followups, imageStyle, bookLayout, textStyle, interviewTimerSeconds, companionMode, proofEnabled, proofMax, enduserEmail, showOnboarding, ttsVoice, gamification, handsFree, micManualStop, guestEnabled, detailChoice, extraQuestions, ownerUser } = req.body || {}
       const category = isValidCategory(productCategory) ? productCategory : DEFAULT_CATEGORY
       // Endnutzer-Kategorien: EIN Endnutzer/Patient spricht selbst und bekommt einen
       // eigenen Zugang (E-Mail-Einladung oder ?code-Link). Kein Organisator, Name
@@ -752,11 +770,13 @@ module.exports = async function handler(req, res) {
         ...(category === LIFEWORK && guestEnabled === true
           ? { guest_enabled: true, guest_code: genCode() }
           : {}),
+        // Zusatzfragen ans Interview-Ende: nur beim Lebenswerk, Standard aus.
+        extra_questions: category === LIFEWORK ? sanitizeExtraQuestions(extraQuestions) : null,
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
       // Spalten → ohne sie erneut anlegen (Buch-Anlage darf nie an einer Migration hängen).
-      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|detail_choice|realtime_enabled|guest_enabled|guest_code|column/i.test(error.message || '')) {
+      if (error && /image_style|book_layout|show_contributors|text_style|interview_timer_seconds|companion_mode|proof_enabled|proof_max|proof_used|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|detail_choice|realtime_enabled|guest_enabled|guest_code|extra_questions|column/i.test(error.message || '')) {
         delete insertRow.image_style
         delete insertRow.book_layout
         delete insertRow.text_style
@@ -775,6 +795,7 @@ module.exports = async function handler(req, res) {
         delete insertRow.show_onboarding
         delete insertRow.guest_enabled
         delete insertRow.guest_code
+        delete insertRow.extra_questions
         delete insertRow.tts_voice
         ;({ error } = await supabase.from('memorials').insert(insertRow))
       }
@@ -1003,6 +1024,12 @@ module.exports = async function handler(req, res) {
             if (!cur?.guest_code) update.guest_code = genCode()
           }
         }
+        // Zusatzfragen ans Interview-Ende (nur Lebenswerk). Greift ab der nächsten
+        // Frage — das laufende Interview muss dafür nicht neu gestartet werden.
+        if ('extraQuestions' in meta && meta.productCategory === LIFEWORK) {
+          await ensureLifeworkSchema()
+          update.extra_questions = sanitizeExtraQuestions(meta.extraQuestions)
+        }
         if ('proofMax' in meta)      update.proof_max = sanitizeProofMax(meta.proofMax)
         if ('showOnboarding' in meta) update.show_onboarding = meta.showOnboarding !== false
         // Verbrauchte Probedrucke zurücksetzen (Admin gewährt neue Versuche).
@@ -1014,9 +1041,10 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|detail_choice|realtime_enabled|guest_enabled|guest_code|column/i.test(error.message || '')) {
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|detail_choice|realtime_enabled|guest_enabled|guest_code|extra_questions|column/i.test(error.message || '')) {
           delete update.guest_enabled
           delete update.guest_code
+          delete update.extra_questions
           delete update.image_style
           delete update.book_layout
           delete update.text_style

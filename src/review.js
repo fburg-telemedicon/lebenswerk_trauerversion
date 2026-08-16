@@ -124,6 +124,10 @@ export function extractReviewText(value) {
     for (const v of (Array.isArray(ch?.voices) ? ch.voices : [])) {
       if (v?.text) parts.push(`[Stimme${v.name ? ' ' + v.name : ''}] ${v.text}`)
     }
+    // Zusatzfragen-Kaesten stehen genauso im fertigen Buch — mitpruefen.
+    for (const b of (Array.isArray(ch?.boxes) ? ch.boxes : [])) {
+      if (b?.text) parts.push(`[Kasten${b.title ? ' ' + b.title : ''}] ${b.text}`)
+    }
   })
   return parts.join('\n\n')
 }

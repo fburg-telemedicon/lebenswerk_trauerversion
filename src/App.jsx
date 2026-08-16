@@ -18,7 +18,7 @@ import {
   getInvite, redeemInvite, requestPasswordReset, registerLifework, setRegistrationFeatures,
   storeMemorialPdf,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -237,6 +237,9 @@ const EMPTY_CREATE = {
   pickupAddress: { ...EMPTY_PICKUP },
   catalogId: '', followups: 2,
   guestEnabled: false,               // Gastbeitraege (nur Lebenswerk): zweiter Link fuer Angehoerige/Freunde
+  // Zusatzfragen ans Interview-Ende (nur Lebenswerk). Standard AUS — ohne
+  // Einschaltung aendert sich am Interview nichts.
+  extraQuestions: { enabled: false, own: [], presets: [], events: [] },
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   ttsVoice: defaultTtsVoice(DEFAULT_CATEGORY),   // deutsche Sprachausgabe-Stimme; je Kategorie in freshCreateForm gesetzt
@@ -965,6 +968,9 @@ function Dashboard() {
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       guestEnabled: m.guest_enabled === true,
+      // Zusatzfragen ans Interview-Ende (nur Lebenswerk). normalizeExtraQuestions
+      // macht aus „nie gesetzt" die feste Form mit enabled:false.
+      extraQuestions: normalizeExtraQuestions(m.extra_questions),
       showOnboarding: m.show_onboarding !== false,
       // Fragebogen (nur Anamnese im Detail editierbar): gespeicherte catalog_id auf
       // die UI-Werte abbilden — keiner → '__free__' (freie Fragen), ein in der
@@ -1025,6 +1031,8 @@ function Dashboard() {
         showOnboarding: d.showOnboarding !== false,
         // Gastbeiträge (nur Lebenswerk; das Backend ignoriert das Feld sonst).
         guestEnabled: d.guestEnabled === true,
+        // Zusatzfragen ans Interview-Ende (ebenfalls nur Lebenswerk).
+        extraQuestions: d.extraQuestions,
         // Fragebogen NUR bei der Anamnese mitschicken (dort gibt es den Detail-Picker).
         // Bei anderen Kategorien nicht senden → deren catalog_id/followups bleiben unberührt.
         ...(isAnamnesis(selected.product_category) ? { catalogId: d.catalogId, followups: d.followups } : {}),
@@ -1061,6 +1069,7 @@ function Dashboard() {
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
         guest_enabled: d.guestEnabled === true,
+        extra_questions: d.extraQuestions,
         // Beim ERSTEN Einschalten erzeugt das Backend den Gast-Code und gibt ihn
         // zurück; danach bleibt der bestehende erhalten.
         ...(saved && saved.guestCode ? { guest_code: saved.guestCode } : {}),
@@ -1238,6 +1247,7 @@ function Dashboard() {
         showOnboarding: createForm.showOnboarding !== false,
         // Gastbeiträge (nur Lebenswerk; der Server ignoriert das Feld sonst).
         guestEnabled: createForm.guestEnabled === true,
+        extraQuestions: createForm.extraQuestions,
         // Lebenswerk: Endnutzer-Konto + Einladung (Server legt beides an) und die
         // Wahl, ob statt des Standardkatalogs frei generierte KI-Fragen laufen.
         enduserEmail: createForm.enduserEmail?.trim() || null,

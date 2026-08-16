@@ -4,7 +4,7 @@
 
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType, BorderStyle } from 'docx'
 import { loadPdfFonts, newPdfDoc, registerUnicodeSerif } from './pdfFonts.js'
-import { getCategory, chapterVoices } from './categories.js'
+import { getCategory, chapterVoices, chapterBoxes } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
 import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
 import { prepareEbookCoverPage, drawEbookCoverPage } from './coverExport.js'
@@ -283,6 +283,21 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
           children: [new TextRun({ text: `— ${[v.name, v.relationship].filter(Boolean).join(', ')}`, font: BF, size: 20, color: '78716c' })],
         }),
       ]),
+      // Zusatzfragen-Kästen (Musik, Lieblingsessen, „wo warst du, als …"). Optisch
+      // wie die Stimmen abgesetzt, aber mit eigener Überschrift statt Zuschreibung —
+      // hier spricht der Erzähler selbst, nur eben neben der Erzählung.
+      ...chapterBoxes(ch).flatMap(b => [
+        new Paragraph({
+          bidirectional: rtl, indent: { left: 340 }, spacing: { before: 300, after: 60 },
+          border: { left: { style: BorderStyle.SINGLE, size: 12, space: 10, color: 'd6d3d1' } },
+          children: [new TextRun({ text: String(b.title || '').trim(), font: HF, size: 22, bold: true, color: '78716c' })],
+        }),
+        new Paragraph({
+          bidirectional: rtl, indent: { left: 340 }, spacing: { after: 200 },
+          border: { left: { style: BorderStyle.SINGLE, size: 12, space: 10, color: 'd6d3d1' } },
+          children: [new TextRun({ text: String(b.text).trim(), font: BF, size: 22, color: '44403c' })],
+        }),
+      ]),
     ]
     sections.push(docxSection(content, SectionType.EVEN_PAGE))
   }
@@ -525,7 +540,11 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
     // Die Gaststimmen gehören mit in die Zeichenprüfung — sonst wählt ein Buch,
     // dessen Sonderzeichen NUR in einem Stimmen-Kasten vorkommen, den falschen
     // Font und setzt dort Platzhalter.
-    ...((book.chapters || []).flatMap(c => [c?.heading, c?.body, ...chapterVoices(c).flatMap(v => [v.text, v.name, v.relationship])])),
+    ...((book.chapters || []).flatMap(c => [c?.heading, c?.body,
+      ...chapterVoices(c).flatMap(v => [v.text, v.name, v.relationship]),
+      // Auch die Zusatzfragen-Kästen zählen — ein Buch, dessen Sonderzeichen NUR
+      // dort vorkommen, bekäme sonst den falschen Font und dort Platzhalter.
+      ...chapterBoxes(c).flatMap(b => [b.title, b.text])])),
     ...((contributors || []).flatMap(c => [c?.contributor_name, c?.relationship]))].join(' ')
   // Latin Extended-A/B (u. a. polnische Sonderzeichen) -> jsPDF-Standardfonts
   // koennen sie nicht. Deutsch (Umlaute/ss) und Typo-Zeichen sind in WinAnsi.
@@ -661,6 +680,15 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
         const by = [v.name, v.relationship].filter(Boolean).join(', ')
         if (by) flow(`— ${by}`, { size: 10, color: [120, 113, 108], indent: 10, gapAfter: 0.7 })
       }
+    }
+    // Zusatzfragen-Kästen: eigene Überschrift statt Zuschreibung, aufrecht statt
+    // kursiv — hier spricht der Erzähler selbst, nur neben der Erzählung.
+    for (const b of chapterBoxes(ch)) {
+      if (y > PDF_PAGE_H - MB - 30) { newPage(); y = MT }   // nicht als Waise ans Seitenende
+      y += 4
+      const title = String(b.title || '').trim()
+      if (title) flow(title, { size: 11, style: 'bold', color: [120, 113, 108], indent: 10, gapAfter: 0.3 })
+      flow(String(b.text).trim(), { size: 11, color: [68, 64, 60], indent: 10, gapAfter: 0.7 })
     }
   }
 

@@ -6,7 +6,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
@@ -1087,6 +1087,90 @@ function lastWorkedLabel(m, t) {
   return t(`zuletzt vor ${days} Tagen`, `last edited ${days} days ago`)
 }
 
+// Zusatzfragen ans Interview-Ende (nur Lebenswerk). EINE Komponente für die
+// Anlage-Maske UND die Auftragsdaten — die beiden Masken sind in der
+// Vergangenheit mehrfach auseinandergelaufen (eine Einstellung nur beim Anlegen,
+// die andere nur im Detail), und das ist bei diesem Feld besonders ärgerlich:
+// Der Nutzen entsteht erst, wenn man Fragen nachträglich ergänzen kann.
+//
+// `value` ist die gespeicherte Form { enabled, own[], presets[], events[] },
+// `onChange` bekommt die vollständige neue Form.
+function ExtraQuestionsSetting({ value, onChange }) {
+  const v = normalizeExtraQuestions(value)
+  const set = patch => onChange({ ...v, ...patch })
+  const toggle = (list, key) => list.includes(key) ? list.filter(k => k !== key) : [...list, key]
+  const zeit = EXTRA_QUESTION_PRESETS.find(p => p.key === 'zeitgeschehen')
+  const zeitOn = v.presets.includes('zeitgeschehen')
+  const box = { width: 18, height: 18, cursor: 'pointer', accentColor: '#1c1917', flexShrink: 0 }
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <Lbl>Zusatzfragen zum Schluss</Lbl>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+        <input type="checkbox" checked={v.enabled} onChange={e => set({ enabled: e.target.checked })} style={box} />
+        <span style={{ fontSize: 14 }}>Nach dem eigentlichen Interview noch weitere Fragen stellen</span>
+      </label>
+      <p style={{ fontSize: 12, color: '#78716c', marginTop: 6, marginLeft: 28 }}>
+        Standard: aus. Eingeschaltet hängt das Interview die ausgewählten Fragen als letztes Kapitel an —
+        erst wenn der reguläre Fragenkatalog durch ist. Die Antworten kommen nicht in den Fließtext, sondern
+        als eigener <b>Kasten ans Ende des passenden Kapitels</b> (die KI ordnet sie thematisch zu).
+        Änderungen greifen ab der nächsten Frage; ein laufendes Interview muss nicht neu gestartet werden.
+      </p>
+      {v.enabled && (
+        <div style={{ marginTop: 12, marginLeft: 28, paddingLeft: 14, borderLeft: '3px solid #e7e5e4' }}>
+          {EXTRA_QUESTION_PRESETS.map(p => (
+            <div key={p.key} style={{ marginBottom: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={v.presets.includes(p.key)}
+                  onChange={() => set({ presets: toggle(v.presets, p.key) })} style={box} />
+                <span style={{ fontSize: 14 }}>{p.label}</span>
+              </label>
+              {p.hint && <p style={{ fontSize: 12, color: '#a8a29e', margin: '2px 0 0 28px' }}>{p.hint}</p>}
+            </div>
+          ))}
+          {/* Die Ereignisse einzeln — was ein Mensch erlebt hat, hängt vom Jahrgang
+              ab; „wo warst du beim Mauerbau" ist für einen 1975 Geborenen sinnlos. */}
+          {zeitOn && zeit && (
+            <div style={{ margin: '4px 0 14px 28px' }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+                <button type="button" className="ghost" style={{ fontSize: 12, padding: '2px 8px' }}
+                  onClick={() => set({ events: zeit.events.map(e => e.key) })}>alle</button>
+                <button type="button" className="ghost" style={{ fontSize: 12, padding: '2px 8px' }}
+                  onClick={() => set({ events: [] })}>keine</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 6 }}>
+                {zeit.events.map(ev => (
+                  <label key={ev.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={v.events.includes(ev.key)}
+                      onChange={() => set({ events: toggle(v.events, ev.key) })}
+                      style={{ ...box, width: 16, height: 16 }} />
+                    <span style={{ fontSize: 13 }}>{ev.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: '#a8a29e', margin: '8px 0 0' }}>
+                Gefragt wird jeweils: „Erinnerst du dich noch, wo du warst, was du gerade getan und was du
+                gefühlt hast, als du davon erfahren hast?" Ereignisse, die zeitlich nicht zum Leben der
+                erzählenden Person passen, überspringt die KI von selbst.
+              </p>
+            </div>
+          )}
+          <div style={{ marginTop: 14 }}>
+            <Lbl>Eigene Fragen (eine je Zeile)</Lbl>
+            <textarea rows={4} value={v.own.join('\n')}
+              onChange={e => set({ own: e.target.value.split('\n') })}
+              placeholder={'Welches Werkzeug hast du am liebsten benutzt?\nWas würdest du deinem 20-jährigen Ich raten?'}
+              style={{ width: '100%', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.6, resize: 'vertical' }} />
+            <p style={{ fontSize: 12, color: '#78716c', marginTop: 4 }}>
+              Leere Zeilen werden verworfen. Die KI formuliert jede Frage warm ins Gespräch eingebettet und
+              stellt sie einzeln, mit höchstens einer Nachfrage.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Aufnahme-Modus als 3-Wege-Radio (alle Produkte). Zwei Flags (handsFree,
 // micManualStop) bilden drei Modi: Tippen / Auto (Sprechpausen) / Mischform.
 function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
@@ -1966,6 +2050,10 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
         </div>
         )}
         {createForm.productCategory === 'lifework' && (
+          <ExtraQuestionsSetting value={createForm.extraQuestions}
+            onChange={eq => setCreateForm({ ...createForm, extraQuestions: eq })} />
+        )}
+        {createForm.productCategory === 'lifework' && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Probedruck-Tab (Buchvorschau für den Endnutzer)</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2397,6 +2485,28 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                         ))}
                       </div>
                     )}
+                    {/* Zusatzfragen-Kästen: Überschrift und Text bearbeitbar,
+                        einzeln entfernbar — wie die Stimmen darüber. */}
+                    {chapterBoxes(ch).length > 0 && (
+                      <div style={{ marginTop:12, paddingLeft:12, borderLeft:'3px solid #e7e5e4' }}>
+                        <Lbl>Kästen (Zusatzfragen)</Lbl>
+                        {chapterBoxes(ch).map((b, bi) => (
+                          <div key={bi} style={{ marginBottom:10 }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:4 }}>
+                              <input value={b.title || ''} placeholder="Überschrift des Kastens"
+                                onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, boxes: chapterBoxes(c).map((x, k) => k === bi ? { ...x, title: e.target.value } : x) } : c) }))}
+                                style={{ flex:1, fontSize:12.5, padding:'3px 6px' }} />
+                              <button className="ghost" title="Diesen Kasten aus dem Kapitel entfernen"
+                                onClick={() => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, boxes: chapterBoxes(c).filter((_, k) => k !== bi) } : c) }))}
+                                style={{ fontSize:12, color:'#dc2626', padding:'2px 8px' }}>🗑</button>
+                            </div>
+                            <textarea value={b.text || ''} rows={3}
+                              onChange={e => setEditDraft(d => ({ ...d, chapters: d.chapters.map((c, idx) => idx === i ? { ...c, boxes: chapterBoxes(c).map((x, k) => k === bi ? { ...x, text: e.target.value } : x) } : c) }))}
+                              style={{ width:'100%', fontFamily:'inherit', fontSize:13.5, lineHeight:1.6, resize:'vertical' }} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </>
@@ -2492,6 +2602,15 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                     ))}
                   </div>
                 )}
+                {/* Zusatzfragen-Kästen (Musik, Lieblingsessen, Zeitgeschehen …):
+                    ebenfalls abgesetzt, aber mit eigener Überschrift statt
+                    Zuschreibung — hier spricht der Erzähler selbst. */}
+                {chapterBoxes(ch).map((b, bi) => (
+                  <div key={bi} style={{ marginTop:'1.5rem', padding:'14px 18px', background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8 }}>
+                    {b.title && <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', margin:'0 0 8px' }}>{b.title}</p>}
+                    <p style={{ fontSize:16, lineHeight:1.75, color:'#44403c', ...bodyFont, margin:0, whiteSpace:'pre-wrap' }}>{b.text}</p>
+                  </div>
+                ))}
               </div>
             ))}
             {/* Mitwirkenden-Liste: NICHT beim Lebenswerk (dort erzählt nur der
@@ -3646,6 +3765,10 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     Wiedereinschalten gilt derselbe Link weiter.
                   </p>
                 </div>
+                )}
+                {selected.product_category === 'lifework' && (
+                  <ExtraQuestionsSetting value={od.extraQuestions}
+                    onChange={eq => setOd({ extraQuestions: eq })} />
                 )}
                 {selected.product_category === 'lifework' && (
                 <div style={{ marginBottom:14 }}>
