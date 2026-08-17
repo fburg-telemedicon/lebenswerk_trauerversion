@@ -2,6 +2,26 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-17",
+      "items": [
+        "Aus dem Lutherhof-Jubiläumsbuch ist ein vorgelesenes Hörbuch entstanden: 23 MP3-Dateien (Titel, 21 Kapitel, Anhang), zusammen 126 Minuten, gelesen von der Stimme „Mia\". Die Stimme wurde nicht nach Beschreibung gewählt, sondern über sechs echte Hörproben.",
+        "Vorlesetext bewusst aus der überarbeiteten Kunden-Word-Datei gezogen, nicht aus dem Druck-PDF: aus dem PDF käme der Text silbengetrennt, zeilenumbrochen und mit Seitenzahlen durchsetzt zurück. Gegenprobe: Von 759 Sätzen des PDF-Textes fehlt im Vorlesetext kein einziger inhaltlicher.",
+        "Vollständigkeit nicht vertraut, sondern gerechnet: Zeichen je Kapitel gegen Spieldauer — alle 22 Kapitel liegen im erwarteten Band, kein abgeschnittener Aufruf.",
+        "Ohne ffmpeg gelöst (das gibt es auf dieser Maschine nicht): Die Kapitel lassen sich binär aneinanderhängen, weil die Sprachausgabe reine MPEG-Frames ohne Kopfdaten liefert. Die Kapiteltitel wurden als Datei-Angaben von Hand vorangestellt.",
+        "Auf Wunsch daraus ein Produktbaustein geworden: An jeder Buchkarte im Dashboard steht jetzt „Hörbuch\". Vorgelesen wird genau der gespeicherte Buchtext — Titel, alle Kapitel samt der abgesetzten Kästen, am Ende die Mitwirkenden und der Entstehungshinweis. Es ist ausdrücklich KEIN KI-Aufruf beteiligt, es entsteht also keine neue Textfassung.",
+        "Stimmenwahl im Erzeugen-Fenster: weiblich, männlich oder gemischt. Gemischt liest die Kapitel abwechselnd und setzt die Kästen mit fremden Stimmen jeweils in die andere Stimme. Beim Trauerbuch mit namentlichen Einzelkapiteln folgt die Stimme stattdessen dem Geschlecht des Beitragenden — dort gehört ein Kapitel ja einer Person.",
+        "Vor dem Start steht die gerechnete Schätzung im Fenster: Anzahl Tonspuren, Zeichen, Spielzeit, Kosten und Dateigröße. So ist vorher klar, was der Lauf kostet.",
+        "Erzeugt wird serverseitig als Auftrag mit Zeitbudget und Wiederaufnahme zwischen den Kapiteln — den Browser zu schließen bricht nichts ab. Je Kapitel entsteht eine MP3, die Kosten werden je Stimme auf das Buch gebucht.",
+        "Heruntergeladen werden kann dreifach: Kapitel einzeln, alle Kapitel als ZIP mit nummerierten Dateinamen (damit ein Hörbuch-Player am Handy die Reihenfolge hält und sich die Stelle merkt) oder als eine einzige Datei.",
+        "Auf Wunsch zusätzlich wie bei den Druck-PDFs: Eine Checkbox fragt beim Erzeugen, ob die Gesamtdatei auf dem Server liegen soll. Danach zeigt die Karte einen kurzen, dauerhaften Download-Link zum Weitergeben. Für bereits erzeugte Hörbücher gibt es einen eigenen Knopf, der den Link nachrüstet — bewusst getrennt, weil ein neuer Durchlauf das Buch erneut sprechen lassen und damit echtes Geld kosten würde.",
+        "Die Gesamtdatei wird auf dem Server aus den Kapiteln zusammengesetzt, nicht im Browser hochgeladen: Die Spuren liegen dort schon, es wären sonst rund 90 MB ohne Nutzen durch die Leitung.",
+        "Der Teil-Link führt nicht auf eine Dauer-URL der Speicherung, sondern auf eine jeweils frisch signierte, die nach einer Stunde verfällt. Beim Löschen eines Buchs verschwinden die Tonspuren mit — geprüft, nicht angenommen.",
+        "Zwei Annahmen nachträglich gegen die echte Sprachdienst-Ressource geprüft, ohne Kosten zu verursachen: Die Auszeichnung des Vorlesetextes wird akzeptiert, und die gelieferten Dateien sind tatsächlich reine MPEG-Frames ohne Kopfdaten. Ebenso geprüft, dass die neue Datenbankspalte in der Produktion angelegt ist — hätte sie gefehlt, wäre das Hörbuch im Dashboard unsichtbar geblieben, ohne Fehlermeldung.",
+        "Eine frühere eigene Messung korrigiert: Wie lang die Pause zwischen zwei Absätzen ausfällt, lässt sich bei den neuesten Stimmen an der Spieldauer NICHT ablesen. Fünf Wiederholungen desselben Textes ergaben 7,97 bis 12,82 Sekunden — die Streuung ist größer als der gesuchte Effekt. Für die Beurteilung von Sprechpausen bleibt Hören das einzige belastbare Mittel. Am ausgelieferten Verhalten wurde deshalb nichts geändert: Es ist genau das, mit dem das fertige 126-Minuten-Hörbuch entstanden ist.",
+        "Offen und ausdrücklich noch nicht erprobt: Im Produkt selbst ist noch kein Hörbuch erzeugt worden. Der erste Durchlauf sollte an einem kurzen Testbuch beginnen."
+      ]
+    },
+    {
       "date": "2026-08-16",
       "items": [
         "Die Druckerei hat die Druckdaten des Lutherhof-Buchs beanstandet: „In Ihrem PDF-Dokument sind einige Schriften nicht eingebettet.\" Nachgemessen: Unsere PDFs verwiesen auf 14 Schriften, eingebettet war keine einzige. Ursache ist die PDF-Bibliothek, die wir im Browser benutzen — sie greift auf die 14 PostScript-Standardschriften zurück. Die liegen in jedem Anzeigeprogramm vor, stehen aber nicht in der Datei; eine Druckerei prüft genau das und lehnt ab.",
