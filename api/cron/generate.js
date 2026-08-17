@@ -25,6 +25,7 @@ const genjobs = require('../_lib/genjobs')
 const genprompts = require('../_lib/genprompts')
 const repetition = require('../_lib/repetition')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
+const { storeFullAudiobook } = require('../_lib/audiobook')
 
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '240000', 10))
 const MAX_CHAIN = 60
@@ -862,14 +863,31 @@ async function processAudiobook(job, deadline) {
   if (!done.length) { await genjobs.failJob(job.id, 'Es konnte keine Tonspur erzeugt werden.'); return 'error' }
 
   if (await canceled(job.id)) return 'canceled'
-  await genjobs.saveAudiobook(code, variant, {
+  const record = {
     voice_mode: p.voiceMode || 'f',
     voices: { f: speak.f.voice, m: speak.m.voice },
     language: p.language || 'de', title: p.title || '',
     created_at: new Date().toISOString(),
     chars: done.reduce((n, t) => n + (t.chars || 0), 0),
     tracks: done.map(t => ({ index: t.index, title: t.title, path: t.path, chars: t.chars, bytes: t.bytes })),
-  })
+  }
+  // War „auf Server ablegen" angekreuzt, entsteht die Sammeldatei gleich mit —
+  // scheitert sie, ist das NICHT fatal: die Kapitelspuren sind das Ergebnis, und
+  // sie kosten Geld. Der Knopf an der Buchkarte kann es später nachholen.
+  if (p.storeFull) {
+    await genjobs.saveProgress(job.id, { progress: { phase: 'audio', cursor: total, total, message: 'Gesamtdatei wird abgelegt' }, result })
+    try {
+      const prev = await genjobs.audiobookRecord(code, variant)
+      record.full = await storeFullAudiobook(genjobs.supabase, code, variant, record.tracks, {
+        prevSlug: prev?.full?.slug,
+        filename: p.fullFilename,
+      })
+    } catch (e) {
+      console.warn('[generate] Hörbuch-Gesamtdatei:', e.message)
+      record.full_error = e.message
+    }
+  }
+  await genjobs.saveAudiobook(code, variant, record)
   await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: total, total }, result: { saved: true } })
   return 'done'
 }

@@ -109,6 +109,14 @@ async function saveMemorialField(memorialCode, field, value) {
   if (error) throw error
 }
 
+// Das gespeicherte Hörbuch einer Buchfassung lesen (für den stabilen Slug der
+// Sammeldatei bei einem Neu-Ablegen).
+async function audiobookRecord(memorialCode, variant) {
+  const { data } = await supabase.from('memorials').select('audiobooks').eq('id', memorialCode).maybeSingle()
+  const ab = (data?.audiobooks && typeof data.audiobooks === 'object') ? data.audiobooks : {}
+  return ab[variant] || null
+}
+
 // Hörbuch je Buchfassung in memorials.audiobooks einmischen (read-merge-write).
 // Getrennt von saveMemorialField, weil dort das ganze Feld überschrieben würde —
 // das Hörbuch zu Fassung 2 darf das zu Fassung 1 nicht löschen.
@@ -154,5 +162,5 @@ async function triggerWorker() {
 module.exports = {
   supabase, enqueue, getJob, publicJob, claimNext, patchJob, saveProgress,
   finishJob, failJob, releaseJob, saveMemorialField, countPending, triggerWorker, jobStatus, mergeContentReport,
-  saveAudiobook,
+  saveAudiobook, audiobookRecord,
 }

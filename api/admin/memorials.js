@@ -198,6 +198,8 @@ function audiobookPaths(audiobooks) {
     for (const t of (Array.isArray(ab?.tracks) ? ab.tracks : [])) {
       if (t?.path) out.push(String(t.path).replace(/^\/+/, ''))
     }
+    // Die optional abgelegte Gesamtdatei (siehe api/admin/store-audiobook.js).
+    if (ab?.full?.path) out.push(String(ab.full.path).replace(/^\/+/, ''))
   }
   return out
 }
@@ -208,6 +210,10 @@ function applyAudiobookUrls(audiobooks, urlMap) {
       if (!t?.path) continue
       const key = String(t.path).replace(/^\/+/, '')
       if (urlMap[key]) t.url = urlMap[key]
+    }
+    if (ab?.full?.path) {
+      const key = String(ab.full.path).replace(/^\/+/, '')
+      if (urlMap[key]) ab.full.url = urlMap[key]
     }
   }
 }

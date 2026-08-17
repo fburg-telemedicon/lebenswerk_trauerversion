@@ -90,6 +90,19 @@ export async function storeMemorialPdf(token, code, { variant, filename, blob })
   return parseResponse(res) // { ok, variant, url, stored_pdfs }
 }
 
+// Hörbuch-Gesamtdatei auf dem Server ablegen und die dauerhafte Download-URL
+// bekommen. Hier geht NICHTS hoch: die Kapitelspuren liegen schon im Storage, der
+// Server setzt sie zusammen (api/_lib/audiobook.js). Deshalb rüstet dieser Aufruf
+// einen Link auch nachträglich nach, ohne erneut Sprachkosten auszulösen.
+export async function storeAudiobookFull(token, code, variant, filename) {
+  const res = await fetch('/api/admin/store-audiobook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ code, variant, filename }),
+  })
+  return parseResponse(res) // { ok, variant, full: { path, slug, filename, size, at, url } }
+}
+
 // Sprachwahl des Endnutzers festschreiben: Beim Lebenswerk wird das Buch fest auf
 // die gewählte Sprache gepinnt, damit die Sprachauswahl nicht bei jedem Start
 // erneut erscheint. Nur beim Lebenswerk erlaubt; Code genügt (kein Login nötig).

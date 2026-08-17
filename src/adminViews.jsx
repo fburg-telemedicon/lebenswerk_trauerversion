@@ -2792,7 +2792,7 @@ function GuestActions({ c, setGuestStatus }) {
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3385,7 +3385,38 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                                   title={t('Alle Kapitel als ZIP, nummeriert benannt — zum Auf-das-Handy-Legen (Hörbuch-Player spielt sie in dieser Reihenfolge).', 'All chapters as a ZIP with numbered names — for putting on a phone (an audiobook player keeps this order).')}>
                             {audiobookDl === `${key}:zip` ? t('⏳ ZIP wird gepackt …', '⏳ Packing ZIP …') : t('⬇ Kapitel als ZIP', '⬇ Chapters as ZIP')}
                           </button>
+                          {!audio.full && (
+                            <button onClick={() => storeAudiobookOnServer(key)} disabled={!!audiobookDl} className="secondary" style={{ fontSize:12, padding:'4px 10px' }}
+                                    title={t('Die Gesamtdatei auf dem Server ablegen und einen dauerhaften Download-Link erzeugen. Kostet nichts — die Kapitel sind schon gesprochen.', 'Store the single file on the server and create a permanent download link. Costs nothing — the chapters are already recorded.')}>
+                              {audiobookDl === `${key}:store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : t('⬆ Auf Server ablegen', '⬆ Store on server')}
+                            </button>
+                          )}
                         </div>
+                        {audio.full_error && !audio.full && (
+                          <p style={{ fontSize:12, color:'#b45309', margin:'0 0 8px' }}>
+                            {t('⚠ Die Gesamtdatei konnte beim Erzeugen nicht abgelegt werden:', '⚠ The single file could not be stored during generation:')} {audio.full_error}
+                          </p>
+                        )}
+                        {audio.full?.slug && (() => {
+                          const shareUrl = `${window.location.origin}/api/audio?code=${selected.id}&v=${key}&s=${audio.full.slug}`
+                          const ak = `audio_${key}`
+                          return (
+                            <div style={{ marginBottom:8, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12.5 }}>
+                              <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#86198f', fontWeight:600, textDecoration:'underline' }}>
+                                {t('Abgelegtes Hörbuch öffnen', 'Open stored audiobook')}
+                              </a>
+                              <button className="secondary" onClick={() => { navigator.clipboard?.writeText(shareUrl); setPdfCopied(ak); setTimeout(() => setPdfCopied(c => c === ak ? null : c), 2000) }}
+                                      style={{ fontSize:12, padding:'4px 10px' }}>
+                                {pdfCopied === ak ? t('✓ Kopiert', '✓ Copied') : t('📋 Link kopieren', '📋 Copy link')}
+                              </button>
+                              {audio.full.size != null && <span style={{ color:'#86198f' }}>· {Math.round(audio.full.size / 1048576)} MB</span>}
+                              <button className="ghost" onClick={() => storeAudiobookOnServer(key)} disabled={!!audiobookDl} style={{ fontSize:12, padding:'4px 6px', textDecoration:'underline', color:'#a8a29e' }}
+                                      title={t('Die abgelegte Datei aus den aktuellen Kapiteln neu zusammensetzen. Der Link bleibt derselbe.', 'Rebuild the stored file from the current chapters. The link stays the same.')}>
+                                {audiobookDl === `${key}:store` ? t('⏳ …', '⏳ …') : t('↻ neu ablegen', '↻ rebuild')}
+                              </button>
+                            </div>
+                          )
+                        })()}
                         <div style={{ display:'grid', gap:4, maxHeight:180, overflowY:'auto' }}>
                           {audio.tracks.slice().sort((a, b) => a.index - b.index).map(tr => (
                             <div key={tr.index} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12.5 }}>

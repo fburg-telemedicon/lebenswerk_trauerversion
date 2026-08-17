@@ -17,6 +17,7 @@ import {
   getSettings, saveSettings, changeOwnPassword, saveOwnLang,
   getInvite, redeemInvite, requestPasswordReset, registerLifework, setRegistrationFeatures,
   storeMemorialPdf,
+  storeAudiobookFull,
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
@@ -599,6 +600,7 @@ function Dashboard() {
   // Hörbuch: Stimmenwahl vor dem Erzeugen ({ key } | null) und die Sammel-Datei
   const [audiobookModal, setAudiobookModal] = useState(null)
   const [audiobookMode, setAudiobookMode]   = useState('f')  // 'f' | 'm' | 'mixed'
+  const [audiobookStore, setAudiobookStore] = useState(true)  // Gesamtdatei auf Server ablegen
   const [audiobookDl, setAudiobookDl]       = useState('')
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
@@ -2965,7 +2967,7 @@ Regeln:
     return { book, voices, blocks, tracks }
   }
 
-  async function generateAudiobook(key, voiceMode) {
+  async function generateAudiobook(key, voiceMode, storeFull = true) {
     if (!selected) return
     const plan = buildAudiobookPlan(key, voiceMode)
     if (!plan) { setErr('Es gibt noch kein Buch zum Vorlesen.'); return }
@@ -2988,6 +2990,9 @@ Regeln:
         memorialCode: selected.id,
         language: book.language || selected.languages?.[0] || 'de',
         voiceMode, voices, title: book.title || '',
+        // Gesamtdatei gleich mit ablegen (Checkbox). Der Server setzt sie aus den
+        // Kapiteln zusammen; scheitert das, bleiben die Kapitelspuren erhalten.
+        storeFull, fullFilename: `Hoerbuch_${safeName(book.title || selected.name || 'Buch')}.mp3`,
         blocks,
         tracks: tracks.map(tr => ({ ...tr, file: trackFileName(tr) })),
       }
@@ -3027,6 +3032,25 @@ Regeln:
         parts.push(await r.blob())
       }
       downloadBlob(`Hoerbuch_${safeName(ab.title || selected.name || 'Buch')}.mp3`, new Blob(parts, { type: 'audio/mpeg' }))
+    } catch (e) { setErr(e.message) }
+    finally { setAudiobookDl('') }
+  }
+
+  // Gesamtdatei nachträglich auf dem Server ablegen — für Hörbücher, die ohne die
+  // Checkbox erzeugt wurden. Bewusst ein eigener Knopf: Ein neuer Durchlauf würde
+  // das ganze Buch erneut sprechen lassen und echtes Geld kosten.
+  async function storeAudiobookOnServer(key) {
+    const ab = selected?.audiobooks?.[key]
+    if (!(ab?.tracks || []).length) { setErr('Es gibt noch kein Hörbuch zu dieser Buchfassung.'); return }
+    setAudiobookDl(`${key}:store`); setErr('')
+    try {
+      await storeAudiobookFull(token, selected.id, key, `Hoerbuch_${safeName(ab.title || selected.name || 'Buch')}.mp3`)
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      }
     } catch (e) { setErr(e.message) }
     finally { setAudiobookDl('') }
   }
@@ -3346,6 +3370,15 @@ Regeln:
               )
             })}
           </div>
+          <label title="Die Kapitel werden zusätzlich zu EINER Datei zusammengesetzt und auf dem Server abgelegt. Danach steht hier ein dauerhafter Download-Link, den Sie weitergeben können. Er wird beim Löschen des Buchs mitgelöscht."
+                 style={{ display:'flex', alignItems:'flex-start', gap:8, fontSize:12.5, color:'#57534e', cursor:'pointer', marginBottom:12 }}>
+            <input type="checkbox" checked={audiobookStore} onChange={e => setAudiobookStore(e.target.checked)}
+                   style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917', flexShrink:0, marginTop:2 }} />
+            <span>
+              Gesamtdatei auf dem Server ablegen und einen Download-Link anzeigen
+              {est.chars > 0 && <span style={{ color:'#a8a29e' }}> (etwa {Math.max(1, Math.round(est.chars / 16 * 12 / 1024 / 1024))} MB)</span>}
+            </span>
+          </label>
           <p style={{ fontSize:12.5, color:'#78716c', marginBottom:12 }}>
             {est.chars === 0
               ? 'Dieses Buch enthält noch keinen vorlesbaren Text.'
@@ -3355,7 +3388,7 @@ Regeln:
             <button className="ghost" onClick={() => setAudiobookModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
             <button
               disabled={est.chars === 0}
-              onClick={() => { setAudiobookModal(null); generateAudiobook(key, audiobookMode) }}
+              onClick={() => { setAudiobookModal(null); generateAudiobook(key, audiobookMode, audiobookStore) }}
               style={{ fontSize:14 }}
             >
               🎧 Vorlesen lassen
@@ -3945,7 +3978,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
+    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
