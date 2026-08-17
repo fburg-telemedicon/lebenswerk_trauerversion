@@ -3376,7 +3376,8 @@ Regeln:
                    style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917', flexShrink:0, marginTop:2 }} />
             <span>
               Gesamtdatei auf dem Server ablegen und einen Download-Link anzeigen
-              {est.chars > 0 && <span style={{ color:'#a8a29e' }}> (etwa {Math.max(1, Math.round(est.chars / 16 * 12 / 1024 / 1024))} MB)</span>}
+              {/* 96 kbit/s mono ≈ 12 KB je Sekunde Spielzeit */}
+              {est.chars > 0 && <span style={{ color:'#a8a29e' }}> (etwa {Math.max(1, Math.round(est.seconds * 12 / 1024))} MB)</span>}
             </span>
           </label>
           <p style={{ fontSize:12.5, color:'#78716c', marginBottom:12 }}>
