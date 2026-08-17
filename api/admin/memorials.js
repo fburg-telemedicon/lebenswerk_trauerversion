@@ -31,7 +31,7 @@ const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, 
 // family_tree/life_poster/care_directive: die Nebenprodukte des Lebenswerks.
 // Fehlen die Spalten (Migration noch nicht gelaufen), fällt der GET auf
 // SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions, audiobooks`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -146,6 +146,8 @@ async function signMemorialImages(memorials) {
     for (const v of Object.values(m.stored_pdfs || {})) {
       if (v?.path) paths.add(String(v.path).replace(/^\/+/, ''))
     }
+    // Hörbuch-Spuren (memorials.audiobooks) – MP3 je Kapitel im selben Container.
+    for (const p of audiobookPaths(m.audiobooks)) paths.add(p)
   }
   if (paths.size === 0) return
   const pathList = [...paths]
@@ -181,6 +183,31 @@ async function signMemorialImages(memorials) {
         if (key && urlMap[key]) links[variant] = { url: urlMap[key], slug: v.slug || null, filename: v.filename || null, at: v.at || null }
       }
       if (Object.keys(links).length) m.stored_pdf_urls = links
+    }
+    applyAudiobookUrls(m.audiobooks, urlMap)
+  }
+}
+
+// Pfade aller Hörbuch-Spuren (je Buchfassung eine Liste). `path` ist die
+// gespeicherte Referenz, `url` wird — wie bei den Bildern — bei jedem Laden
+// frisch signiert und nie gespeichert.
+function audiobookPaths(audiobooks) {
+  const out = []
+  if (!audiobooks || typeof audiobooks !== 'object') return out
+  for (const ab of Object.values(audiobooks)) {
+    for (const t of (Array.isArray(ab?.tracks) ? ab.tracks : [])) {
+      if (t?.path) out.push(String(t.path).replace(/^\/+/, ''))
+    }
+  }
+  return out
+}
+function applyAudiobookUrls(audiobooks, urlMap) {
+  if (!audiobooks || typeof audiobooks !== 'object') return
+  for (const ab of Object.values(audiobooks)) {
+    for (const t of (Array.isArray(ab?.tracks) ? ab.tracks : [])) {
+      if (!t?.path) continue
+      const key = String(t.path).replace(/^\/+/, '')
+      if (urlMap[key]) t.url = urlMap[key]
     }
   }
 }

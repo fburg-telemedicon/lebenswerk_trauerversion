@@ -14,7 +14,11 @@ const genjobs = require('../_lib/genjobs')
 
 // 'tree' = Stammbaum, 'poster' = Lebensposter, 'care' = Betreuungsverfügung
 // (Lebenswerk-Nebenprodukte; laufen seit dem Umbau ebenfalls serverseitig als Job).
-const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa'])
+// Das Hörbuch hat je Buchfassung eine eigene Art — so gilt „nur EIN aktiver Job
+// pro (Buch, Art)" getrennt für die beiden Fassungen, und das Dashboard zeigt den
+// Fortschritt an der richtigen Karte.
+const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa',
+  'audiobook_book_v1', 'audiobook_book_v2'])
 
 // Prüft Zugriff auf das Buchprojekt (Admin = alles; sonst eigenes Buch der
 // erlaubten Kategorien). Rückgabe: memorial-Row (id) oder null.
@@ -60,13 +64,15 @@ module.exports = async function handler(req, res) {
       // Kosten-Obergrenze je Buch erschöpft → keine neue Generierung starten (402).
       if (!(await enforceBudget(res, code.toUpperCase()))) return
       // Rede nutzt params.steps, Buch params.chapterSteps, Stammbaum/Poster einen
-      // einzelnen params.system-Prompt — eines davon muss da sein.
+      // einzelnen params.system-Prompt, das Hörbuch die fertigen Vorlese-Blöcke —
+      // eines davon muss da sein.
       const hasWork = params && (
         (Array.isArray(params.steps) && params.steps.length > 0) ||
         (Array.isArray(params.chapterSteps) && params.chapterSteps.length > 0) ||
+        (Array.isArray(params.blocks) && params.blocks.length > 0) ||
         (typeof params.system === 'string' && params.system.trim().length > 0)
       )
-      if (!hasWork) return res.status(400).json({ error: 'params.steps/chapterSteps/system fehlt.' })
+      if (!hasWork) return res.status(400).json({ error: 'params.steps/chapterSteps/blocks/system fehlt.' })
       // Nur EIN aktiver Job pro (Buch, Art): laufende zuerst abbrechen.
       await genjobs.supabase.from('generation_jobs')
         .update({ status: 'canceled', locked_at: null })

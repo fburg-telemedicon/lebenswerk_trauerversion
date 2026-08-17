@@ -109,6 +109,17 @@ async function saveMemorialField(memorialCode, field, value) {
   if (error) throw error
 }
 
+// Hörbuch je Buchfassung in memorials.audiobooks einmischen (read-merge-write).
+// Getrennt von saveMemorialField, weil dort das ganze Feld überschrieben würde —
+// das Hörbuch zu Fassung 2 darf das zu Fassung 1 nicht löschen.
+async function saveAudiobook(memorialCode, variant, value) {
+  const { data } = await supabase.from('memorials').select('audiobooks').eq('id', memorialCode).maybeSingle()
+  const ab = (data?.audiobooks && typeof data.audiobooks === 'object') ? data.audiobooks : {}
+  ab[variant] = value
+  const { error } = await supabase.from('memorials').update({ audiobooks: ab }).eq('id', memorialCode)
+  if (error) throw error
+}
+
 // Inhaltsprüfungs-Bericht je Feld in memorials.content_reports einmischen
 // (read-merge-write, damit andere Felder erhalten bleiben).
 async function mergeContentReport(code, field, report) {
@@ -143,4 +154,5 @@ async function triggerWorker() {
 module.exports = {
   supabase, enqueue, getJob, publicJob, claimNext, patchJob, saveProgress,
   finishJob, failJob, releaseJob, saveMemorialField, countPending, triggerWorker, jobStatus, mergeContentReport,
+  saveAudiobook,
 }

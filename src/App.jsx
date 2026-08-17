@@ -28,6 +28,7 @@ import { withRepetitionCheck } from './repetition.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, FORM_DISCLAIMER, FORM_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
+import { audiobookBlocks, audiobookEstimate, audiobookVoices, AUDIOBOOK_VOICE_MODES, trackFileName } from './audiobook.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
 // hochzählen — dann werden bereits gespeicherte Cover-Hintergründe beim nächsten
@@ -595,6 +596,10 @@ function Dashboard() {
   const [posterZoom, setPosterZoom] = useState(null)   // { url, label } — Poster groß
   const [posterStyleModal, setPosterStyleModal] = useState(false)
   const [posterStyleSel, setPosterStyleSel] = useState(new Set())
+  // Hörbuch: Stimmenwahl vor dem Erzeugen ({ key } | null) und die Sammel-Datei
+  const [audiobookModal, setAudiobookModal] = useState(null)
+  const [audiobookMode, setAudiobookMode]   = useState('f')  // 'f' | 'm' | 'mixed'
+  const [audiobookDl, setAudiobookDl]       = useState('')
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
   const [generating, setGenerating]   = useState({}) // { book_v1: true, ... }
   const [genProgress, setGenProgress] = useState({}) // { book_v1: 'Bild 3/7 …' }
@@ -2933,6 +2938,119 @@ Regeln:
     finally { setExtraDl('') }
   }
 
+  // ── Hörbuch: das fertige Buch vorgelesen (Azure TTS, je Kapitel eine MP3) ──
+  // Die Vorlese-Blöcke baut der Browser (src/audiobook.js) — dort liegen i18n und
+  // die Beitragendenliste; der Worker spricht sie nur noch. Kein KI-Aufruf, also
+  // keine neue Fassung des Textes: Es wird genau das gelesen, was im Buch steht.
+  function requestAudiobook(key) {
+    if (!selected) return
+    const book = selected[GENERATORS[key]?.field]
+    if (!book) { setErr('Es gibt noch kein Buch zum Vorlesen.'); return }
+    // Vorausgewählt ist das Geschlecht der Interview-Stimme dieses Buchs.
+    setAudiobookMode(/Klaus|Florian|Conrad|Bernd|Christoph/i.test(selected.tts_voice || '') ? 'm' : 'f')
+    setAudiobookModal({ key })
+  }
+
+  // Die Blöcke einmal bauen — das Fenster rechnet damit die Schätzung, der Job
+  // bekommt genau dieselben. Reine Funktion über Buch + Beiträge + Modus.
+  function buildAudiobookPlan(key, voiceMode) {
+    const book = selected?.[GENERATORS[key]?.field]
+    if (!book) return null
+    const voices = audiobookVoices(selected.tts_voice)
+    const { blocks, tracks } = audiobookBlocks(book, bookContribs, {
+      voiceMode,
+      showContributors: selected.show_contributors !== false,
+      selfNarrated: selected.product_category === 'lifework',
+    })
+    return { book, voices, blocks, tracks }
+  }
+
+  async function generateAudiobook(key, voiceMode) {
+    if (!selected) return
+    const plan = buildAudiobookPlan(key, voiceMode)
+    if (!plan) { setErr('Es gibt noch kein Buch zum Vorlesen.'); return }
+    if (selected.audiobooks?.[key] && !window.confirm('Das Hörbuch wird neu erzeugt und ersetzt die bisherigen Tonspuren. Fortfahren?')) return
+
+    // Eigene Job-Art je Buchfassung: der Fortschritt hängt damit an der richtigen
+    // Karte, und die beiden Fassungen behindern sich nicht.
+    const kind = `audiobook_${key}`
+    setErr('')
+    setGenErr(p => ({ ...p, [kind]: '' }))
+    setGenOwner(o => ({ ...o, [kind]: selected.id }))
+    setGenerating(g => ({ ...g, [kind]: true }))
+    setGenProgress(p => ({ ...p, [kind]: 'Tonspuren werden gesprochen …' }))
+    setGenPct(p => ({ ...p, [kind]: 0 }))
+    cancelGenRef.current[kind] = false
+    try {
+      const { book, voices, blocks, tracks } = plan
+      const params = {
+        resultType: 'audiobook', field: 'audiobooks', variant: key, kind,
+        memorialCode: selected.id,
+        language: book.language || selected.languages?.[0] || 'de',
+        voiceMode, voices, title: book.title || '',
+        blocks,
+        tracks: tracks.map(tr => ({ ...tr, file: trackFileName(tr) })),
+      }
+      const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
+      genJobRef.current[kind] = jobId
+      await pollGeneration(kind, jobId)
+
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      }
+      setGenPct(p => ({ ...p, [kind]: 100 }))
+    } catch (e) {
+      setGenErr(p => ({ ...p, [kind]: e.message === '__CANCELLED__' ? 'Abgebrochen.' : e.message }))
+    } finally {
+      setGenerating(g => ({ ...g, [kind]: false }))
+      setGenProgress(p => ({ ...p, [kind]: '' }))
+    }
+  }
+
+  // Gesamtdatei: die Kapitelspuren werden IM BROWSER aneinandergehängt. Azure
+  // liefert reine MPEG-Frames ohne ID3, das Ergebnis ist eine gültige MP3 (am
+  // Lutherhof-Hörbuch belegt). So spart sich der Server eine zweite, fast 90 MB
+  // große Kopie im Storage.
+  async function downloadAudiobookFull(key) {
+    const ab = selected?.audiobooks?.[key]
+    const tracks = (ab?.tracks || []).filter(t => t.url)
+    if (!tracks.length) { setErr('Es liegen keine Tonspuren vor — bitte die Seite neu laden.'); return }
+    setAudiobookDl(`${key}:full`); setErr('')
+    try {
+      const parts = []
+      for (const t of tracks.slice().sort((a, b) => a.index - b.index)) {
+        const r = await fetch(t.url)
+        if (!r.ok) throw new Error(`Tonspur ${t.index} nicht ladbar (HTTP ${r.status}) — bitte die Seite neu laden.`)
+        parts.push(await r.blob())
+      }
+      downloadBlob(`Hoerbuch_${safeName(ab.title || selected.name || 'Buch')}.mp3`, new Blob(parts, { type: 'audio/mpeg' }))
+    } catch (e) { setErr(e.message) }
+    finally { setAudiobookDl('') }
+  }
+
+  // Alle Kapitel als ZIP, mit sprechenden Dateinamen („03_Kapitel_3_….mp3"). Das
+  // ist der Weg auf ein Handy: entpacken, in einen Hörbuch-Player legen — der
+  // spielt sie in der Nummern-Reihenfolge und merkt sich die Stelle.
+  async function downloadAudiobookZip(key) {
+    const ab = selected?.audiobooks?.[key]
+    const tracks = (ab?.tracks || []).filter(t => t.url)
+    if (!tracks.length) { setErr('Es liegen keine Tonspuren vor — bitte die Seite neu laden.'); return }
+    setAudiobookDl(`${key}:zip`); setErr('')
+    try {
+      const zip = new JSZip()
+      for (const t of tracks.slice().sort((a, b) => a.index - b.index)) {
+        const r = await fetch(t.url)
+        if (!r.ok) throw new Error(`Tonspur ${t.index} nicht ladbar (HTTP ${r.status}) — bitte die Seite neu laden.`)
+        zip.file(t.file || trackFileName(t), await r.blob())
+      }
+      downloadBlob(`Hoerbuch_${safeName(ab.title || selected.name || 'Buch')}.zip`, await zip.generateAsync({ type: 'blob' }))
+    } catch (e) { setErr(e.message) }
+    finally { setAudiobookDl('') }
+  }
+
   // ── Bilder überarbeiten: gezielt einzelne Kapitelbilder neu generieren ──
   function openImgEdit(key) {
     setImgEditSel(new Set())
@@ -3185,6 +3303,62 @@ Regeln:
               style={{ fontSize:14 }}
             >
               ✨ Erzeugen
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  })() : null
+
+  // Stimmenwahl vor dem Hörbuch. Anders als beim Poster gibt es hier nichts zu
+  // konfigurieren außer der Stimme — Umfang und Dauer stehen durch das Buch fest,
+  // deshalb steht die gerechnete Schätzung (Zeichen, Spielzeit, Kosten) gleich mit
+  // im Fenster. Vorausgewählt ist die Interview-Stimme dieses Buchs: Wer dem Buch
+  // beim Erzählen zugehört hat, soll es auch vorlesen.
+  const audiobookOverlay = audiobookModal ? (() => {
+    const key = audiobookModal.key
+    const plan = buildAudiobookPlan(key, audiobookMode)
+    const est = audiobookEstimate(plan?.blocks || [], plan?.voices)
+    const eur = est.costEur.toFixed(2).replace('.', ',')
+    return (
+      <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+        <div style={{ ...S.card, maxWidth: 560, width:'100%' }}>
+          <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Wer soll das Buch vorlesen?</h2>
+          <p style={{ ...S.muted, marginBottom:16 }}>
+            Vorgelesen wird genau der Buchtext — Titel, alle Kapitel samt Kästen, am Ende die Mitwirkenden
+            und der Entstehungshinweis. Es entsteht je Kapitel eine MP3-Datei; die Gesamtdatei wird beim
+            Herunterladen daraus zusammengesetzt.
+          </p>
+          <div style={{ display:'grid', gap:10, marginBottom:14 }}>
+            {AUDIOBOOK_VOICE_MODES.map(m => {
+              const on = audiobookMode === m.key
+              return (
+                <label key={m.key}
+                       style={{ ...S.card, cursor:'pointer', padding:'12px 14px', display:'flex', alignItems:'flex-start', gap:12,
+                                borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}>
+                  <input type="radio" name="ab-voice" checked={on} onChange={() => setAudiobookMode(m.key)}
+                         style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0, marginTop:2 }} />
+                  <div>
+                    <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>{m.label}</div>
+                    <div style={{ fontSize:12.5, color:'#78716c', lineHeight:1.5 }}>{m.description}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          <p style={{ fontSize:12.5, color:'#78716c', marginBottom:12 }}>
+            {est.chars === 0
+              ? 'Dieses Buch enthält noch keinen vorlesbaren Text.'
+              : `${est.tracks} Tonspuren · ${est.chars.toLocaleString('de-DE')} Zeichen · etwa ${est.minutes} Minuten Spielzeit · ca. ${eur} €.`}
+          </p>
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:8, borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+            <button className="ghost" onClick={() => setAudiobookModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
+            <button
+              disabled={est.chars === 0}
+              onClick={() => { setAudiobookModal(null); generateAudiobook(key, audiobookMode) }}
+              style={{ fontSize:14 }}
+            >
+              🎧 Vorlesen lassen
             </button>
           </div>
         </div>
@@ -3771,7 +3945,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
+    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

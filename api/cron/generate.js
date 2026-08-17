@@ -12,9 +12,13 @@
 //   Buch:  { resultType:'book', field, variant, kind, memorialCode, language, title, subtitle,
 //            dir, skipImages, imageStyle, uploads:[…], oldChapters:[…],
 //            chapterSteps:[{system,user,meta:{number,heading?,contribution_id?,contributor_name?,relationship?}}] }
+//   Hörbuch: { resultType:'audiobook', field:'audiobooks', variant, memorialCode, language,
+//              voiceMode:'f'|'m'|'mixed', voices:{f,m}, title,
+//              blocks:[{kind,track,speaker,text}], tracks:[{index,title,file}] }
 
 const { callAzure } = require('../_lib/llm')
-const { costLLM, recordCost, budgetExceeded, BUDGET_MESSAGE } = require('../_lib/cost')
+const { costLLM, costTTS, recordCost, budgetExceeded, BUDGET_MESSAGE } = require('../_lib/cost')
+const tts = require('../_lib/tts')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
@@ -714,6 +718,163 @@ async function processPoster(job, deadline) {
 }
 
 
+// ─────────────────────────── Hörbuch ────────────────────────────
+// Job-Plan: { resultType:'audiobook', field:'audiobooks', variant:'book_v1'|'book_v2',
+//             memorialCode, language, voice, title,
+//             blocks:[{kind,track,text}], tracks:[{index,title,file}] }
+// Die Blöcke baut der BROWSER (src/audiobook.js) — dort liegen i18n und die
+// Beitragendenliste, genau wie bei den Prompts.
+//
+// Je Spur EINE MP3 unter <CODE>/audio/<variant>-NN.mp3. Innerhalb einer Spur wird
+// in Stücke à ~2200 Zeichen zerlegt (ein Azure-Aufruf hat ein Zeitlimit) und die
+// Ergebnisse werden binär aneinandergehängt: Azure liefert reine MPEG-Frames ohne
+// ID3, das ergibt eine gültige Datei (am Lutherhof-Hörbuch belegt).
+const AUDIO_CHUNK_CHARS = 2200
+
+// Blöcke einer Spur zu Aufruf-Paketen bündeln. Ein Block wird NICHT zerschnitten,
+// solange er allein unter der Grenze bleibt — sonst risse die Absatzpause mitten
+// im Satz. Nur ein einzelner überlanger Block wird an Satzenden geteilt.
+function chunkNarration(texts, limit = AUDIO_CHUNK_CHARS) {
+  const out = []
+  let cur = []
+  let len = 0
+  const flush = () => { if (cur.length) { out.push(cur); cur = []; len = 0 } }
+  for (const raw of texts) {
+    const t = String(raw || '').trim()
+    if (!t) continue
+    if (t.length > limit) {
+      flush()
+      let rest = t
+      while (rest.length > limit) {
+        // Satzende möglichst nah an der Grenze; notfalls hartes Leerzeichen.
+        const window = rest.slice(0, limit)
+        let cut = Math.max(window.lastIndexOf('. '), window.lastIndexOf('! '), window.lastIndexOf('? '))
+        if (cut < limit * 0.5) cut = window.lastIndexOf(' ')
+        if (cut < limit * 0.5) cut = limit - 1
+        out.push([rest.slice(0, cut + 1).trim()])
+        rest = rest.slice(cut + 1).trim()
+      }
+      if (rest) out.push([rest])
+      continue
+    }
+    if (len + t.length > limit) flush()
+    cur.push(t); len += t.length
+  }
+  flush()
+  return out
+}
+
+async function processAudiobook(job, deadline) {
+  const p = job.params || {}
+  const code = p.memorialCode || job.memorial_id
+  const variant = String(p.variant || 'book_v2')
+  const blocks = Array.isArray(p.blocks) ? p.blocks : []
+  const trackList = Array.isArray(p.tracks) && p.tracks.length
+    ? p.tracks
+    : [...new Set(blocks.map(b => b.track))].sort((a, b) => a - b).map(index => ({ index, title: `Spur ${index}` }))
+  if (!blocks.length) { await genjobs.failJob(job.id, 'Es gibt keinen Vorlesetext.'); return 'error' }
+
+  // Zwei Sprecherrollen: jeder Block sagt über `speaker` ('f'/'m'), wer ihn liest.
+  // Bei einstimmiger Lesung tragen alle Blöcke dieselbe Rolle, dann fällt das hier
+  // auf einen einzigen Lauf je Spur zusammen.
+  const voices = (p.voices && p.voices.f) ? p.voices : { f: p.voice, m: p.voice }
+  const speak = {}
+  for (const sp of ['f', 'm']) {
+    const { voice, locale } = tts.pickVoiceAndLocale(p.language, voices[sp])
+    speak[sp] = { voice, locale, model: tts.ttsModelKey(voice) }
+  }
+
+  const result = job.result && typeof job.result === 'object' ? job.result : {}
+  if (!Array.isArray(result.tracks)) result.tracks = []
+  const total = trackList.length
+
+  while (result.tracks.length < total) {
+    if (await canceled(job.id)) return 'canceled'
+    const idx = result.tracks.length
+    // Wiederaufnahme ZWISCHEN den Spuren: eine angefangene Spur wird immer zu Ende
+    // gesprochen, sonst müsste der halbe Puffer zwischengelagert werden.
+    if (Date.now() > deadline) {
+      await genjobs.releaseJob(job.id, { progress: { phase: 'audio', cursor: idx, total }, result })
+      return 'paused'
+    }
+    const track = trackList[idx]
+    const own = blocks.filter(b => b.track === track.index)
+    if (!own.length) { result.tracks.push({ index: track.index, title: track.title, skipped: true }); continue }
+
+    await genjobs.saveProgress(job.id, {
+      progress: { phase: 'audio', cursor: idx, total, message: `${idx + 1}/${total}: ${track.title}` }, result,
+    })
+
+    // Aufeinanderfolgende Blöcke derselben Stimme in EINEM Lauf — sonst zerfiele
+    // ein Kapitel in Dutzende Aufrufe, nur weil zwischendurch ein Zitat steht.
+    const runs = []
+    for (const b of own) {
+      const sp = b.speaker === 'm' ? 'm' : 'f'
+      const last = runs[runs.length - 1]
+      if (last && last.speaker === sp) last.texts.push(b.text)
+      else runs.push({ speaker: sp, texts: [b.text] })
+    }
+
+    const parts = []
+    let chars = 0
+    const charsBySpeaker = { f: 0, m: 0 }
+    for (const run of runs) {
+      const s = speak[run.speaker]
+      for (const chunk of chunkNarration(run.texts)) {
+        let buf = null
+        let lastErr = null
+        for (let attempt = 1; attempt <= 3 && !buf; attempt++) {
+          try { buf = await tts.synthNarration(s.voice, s.locale, chunk) }
+          catch (e) { lastErr = e; if (attempt < 3) await sleep(2000 * attempt) }
+        }
+        if (!buf) throw new Error(`Sprachausgabe fehlgeschlagen (${track.title}): ${lastErr?.message || 'unbekannt'}`)
+        parts.push(buf)
+        const n = chunk.join(' ').length
+        chars += n
+        charsBySpeaker[run.speaker] += n
+      }
+    }
+
+    const audio = Buffer.concat(parts)
+    const path = `${code}/audio/${variant}-${String(track.index).padStart(2, '0')}.mp3`
+    // upsert: eine erneute Erzeugung ersetzt die alte Spur, statt Müll anzuhäufen.
+    const { error: upErr } = await genjobs.supabase.storage.from(IMAGE_BUCKET).upload(path, audio, {
+      contentType: 'audio/mpeg', upsert: true,
+    })
+    if (upErr) throw new Error(`Storage-Upload fehlgeschlagen: ${upErr.message}`)
+
+    // Je Stimme eine Buchung: die Preisklassen können sich unterscheiden (HD/MAI
+    // gegen Standard), und cost.js rechnet nach Modellschlüssel.
+    for (const sp of ['f', 'm']) {
+      const n = charsBySpeaker[sp]
+      if (!n) continue
+      await recordCost({
+        memorial_id: job.memorial_id, kind: 'tts', provider: 'azure', model: speak[sp].model,
+        characters: n, cost_usd: costTTS(speak[sp].model, n),
+      }).catch(() => {})
+    }
+
+    result.tracks.push({ index: track.index, title: track.title, file: track.file || null, path, chars, bytes: audio.length })
+    await genjobs.saveProgress(job.id, { progress: { phase: 'audio', cursor: idx + 1, total }, result })
+  }
+
+  const done = result.tracks.filter(t => t.path)
+  if (!done.length) { await genjobs.failJob(job.id, 'Es konnte keine Tonspur erzeugt werden.'); return 'error' }
+
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveAudiobook(code, variant, {
+    voice_mode: p.voiceMode || 'f',
+    voices: { f: speak.f.voice, m: speak.m.voice },
+    language: p.language || 'de', title: p.title || '',
+    created_at: new Date().toISOString(),
+    chars: done.reduce((n, t) => n + (t.chars || 0), 0),
+    tracks: done.map(t => ({ index: t.index, title: t.title, path: t.path, chars: t.chars, bytes: t.bytes })),
+  })
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: total, total }, result: { saved: true } })
+  return 'done'
+}
+
+
 async function processJob(job, deadline) {
   // Kosten-Obergrenze je Buch erschöpft → Job nicht ausführen, sondern mit klarer
   // Meldung als fehlgeschlagen markieren (das Dashboard zeigt den Grund an).
@@ -726,6 +887,7 @@ async function processJob(job, deadline) {
   if (rt === 'book') return processBook(job, deadline)
   if (rt === 'json') return processJson(job, deadline)
   if (rt === 'poster') return processPoster(job, deadline)
+  if (rt === 'audiobook') return processAudiobook(job, deadline)
   await genjobs.failJob(job.id, `Unbekannter resultType: ${rt}`)
   return 'error'
 }

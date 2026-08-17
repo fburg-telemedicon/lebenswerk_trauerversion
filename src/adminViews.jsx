@@ -2792,7 +2792,7 @@ function GuestActions({ c, setGuestStatus }) {
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3179,6 +3179,12 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 // keine arabischen Ligaturen); DOCX geht dort weiter.
                 const pdfOk = canPrintPdf(selected[gen.field]?.language)
                 const busy  = !!generating[key] && genOwner[key] === selected.id
+                // Hörbuch: eigener Job je Buchfassung ('audiobook_book_v2'), also ein
+                // eigener busy-Zustand neben dem der Buch-Generierung.
+                const abKind = `audiobook_${key}`
+                const abBusy = !!generating[abKind] && genOwner[abKind] === selected.id
+                const audio = selected.audiobooks?.[key]
+                const hasAudio = !!(audio?.tracks || []).length
                 const report = selected.content_reports?.[gen.field]
                 const totalFindings = report?.findings?.length || 0
                 const openFindings = report?.findings?.filter(f => f.status !== 'resolved').length || 0
@@ -3280,6 +3286,17 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                           {t('🖼 Bilder überarbeiten', '🖼 Rework images')}
                         </button>
                       )}
+                      {/* Hörbuch: der Buchtext vorgelesen (Azure TTS), je Kapitel eine
+                          MP3. Läuft als eigener Job — deshalb der eigene busy-Zustand
+                          („audiobook"), nicht der der Buch-Generierung. */}
+                      {gen.kind === 'book' && (
+                        <button onClick={() => requestAudiobook(key)}
+                                disabled={!has || busy || abBusy}
+                                className="secondary" style={{ fontSize:13, padding:'8px 14px' }}
+                                title={t('Das Buch von einer Stimme vorlesen lassen — je Kapitel eine MP3-Datei.', 'Have the book read aloud by a voice — one MP3 file per chapter.')}>
+                          {abBusy ? t('🎧 Wird gesprochen …', '🎧 Recording …') : hasAudio ? t('🎧 Hörbuch neu', '🎧 New audiobook') : t('🎧 Hörbuch', '🎧 Audiobook')}
+                        </button>
+                      )}
                       <button onClick={() => recheck(key)} disabled={!has || busy || reviewingKey === key} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
                         {reviewingKey === key ? t('Prüft …', 'Checking …') : t('🛡 Prüfung wiederholen', '🛡 Repeat check')}
                       </button>
@@ -3325,6 +3342,63 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                       </div>
                       )
                     })()}
+                    {/* Hörbuch: Fortschritt und, wenn es fertig ist, die Spuren zum
+                        Anhören/Herunterladen. Die SAS-Links gelten eine Stunde und
+                        werden bei jedem Laden der Seite neu gezogen. */}
+                    {abBusy && (
+                      <div style={{ marginTop:10 }}>
+                        {genPct[abKind] != null && (
+                          <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                            <div style={{ width:`${genPct[abKind]}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+                          </div>
+                        )}
+                        <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+                          🎧 {genPct[abKind] != null ? `${genPct[abKind]} % · ` : ''}{genProgress[abKind] || t('Wird gesprochen …', 'Recording …')}
+                        </p>
+                        <button onClick={() => cancelGenerate(abKind)} disabled={!!cancelGenRef.current[abKind]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+                          {t('✕ Abbrechen', '✕ Cancel')}
+                        </button>
+                      </div>
+                    )}
+                    {!abBusy && genErr[abKind] && genOwner[abKind] === selected.id && (
+                      <div style={{ marginTop:10 }}><Err msg={genErr[abKind]} /></div>
+                    )}
+                    {hasAudio && !abBusy && (
+                      <div style={{ marginTop:10, fontSize:13, background:'#fdf4ff', border:'1px solid #f0abfc', borderRadius:8, padding:'10px 12px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:8 }}>
+                          <span aria-hidden="true">🎧</span>
+                          <strong style={{ color:'#86198f' }}>
+                            {t(`Hörbuch: ${audio.tracks.length} Spuren`, `Audiobook: ${audio.tracks.length} tracks`)}
+                          </strong>
+                          {audio.chars != null && (
+                            <span style={{ color:'#86198f', fontSize:12 }}>
+                              · {t(`etwa ${Math.round(audio.chars / 16 / 60)} Minuten`, `about ${Math.round(audio.chars / 16 / 60)} minutes`)}
+                            </span>
+                          )}
+                          {audio.created_at && (
+                            <span style={{ color:'#86198f', fontSize:12 }}>· {new Date(audio.created_at).toLocaleString('de-DE')}</span>
+                          )}
+                          <button onClick={() => downloadAudiobookFull(key)} disabled={!!audiobookDl} className="secondary" style={{ fontSize:12, padding:'4px 10px' }}>
+                            {audiobookDl === `${key}:full` ? t('⏳ Wird zusammengesetzt …', '⏳ Assembling …') : t('⬇ Als eine Datei', '⬇ As one file')}
+                          </button>
+                          <button onClick={() => downloadAudiobookZip(key)} disabled={!!audiobookDl} className="secondary" style={{ fontSize:12, padding:'4px 10px' }}
+                                  title={t('Alle Kapitel als ZIP, nummeriert benannt — zum Auf-das-Handy-Legen (Hörbuch-Player spielt sie in dieser Reihenfolge).', 'All chapters as a ZIP with numbered names — for putting on a phone (an audiobook player keeps this order).')}>
+                            {audiobookDl === `${key}:zip` ? t('⏳ ZIP wird gepackt …', '⏳ Packing ZIP …') : t('⬇ Kapitel als ZIP', '⬇ Chapters as ZIP')}
+                          </button>
+                        </div>
+                        <div style={{ display:'grid', gap:4, maxHeight:180, overflowY:'auto' }}>
+                          {audio.tracks.slice().sort((a, b) => a.index - b.index).map(tr => (
+                            <div key={tr.index} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12.5 }}>
+                              <span style={{ color:'#a21caf', fontVariantNumeric:'tabular-nums', flexShrink:0 }}>{String(tr.index).padStart(2, '0')}</span>
+                              <span style={{ flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tr.title}</span>
+                              {tr.url
+                                ? <a href={tr.url} target="_blank" rel="noopener noreferrer" download style={{ color:'#86198f', textDecoration:'underline', flexShrink:0 }}>{t('anhören', 'listen')}</a>
+                                : <span style={{ color:'#a8a29e', flexShrink:0 }}>{t('Link abgelaufen', 'link expired')}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {busy && (
                       <div style={{ marginTop:10 }}>
                         {genPct[key] != null && (
@@ -3947,7 +4021,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
         {eulogyStyleOverlay}
         {genLangOverlay}
         {dlLangOverlay}
-        {posterZoomOverlay}{posterStyleOverlay}
+        {posterZoomOverlay}{posterStyleOverlay}{audiobookOverlay}
         {imgEditOverlay}
         {coverOverlay}
         {imgZoomOverlay}
