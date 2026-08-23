@@ -2,6 +2,33 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-23",
+      "items": [
+        "Kundenmeldung zum englischen Interview: Die App liest Texte auf Deutsch vor, nur englisch ausgesprochen. Der deutsche Text kam nicht aus dem Wörterbuch – das englische war vollständig – sondern aus dem Prompt. Drei Ursachen gefunden und behoben.",
+        "Erstens das Live-Sprachgespräch: Die Sprachregel stand VOR einem 1.073 Zeichen langen deutschen Regelblock für das Vorlesen. Sie ist ausdrücklich als letzte Instruktion gebaut („gilt vor jeder früheren Anweisung\") – jetzt steht sie auch dort.",
+        "Zweitens die Längenbegrenzung der Anweisungen im Live-Gespräch: Sie kürzte bei 24.000 Zeichen vom ENDE her und warf damit bei langen Fragenkatalogen genau die Sprachregel weg. Jetzt fällt die Mitte weg, der Schluss bleibt erhalten; mit einem Test abgesichert.",
+        "Drittens die feste Anrede der Reden: Der Wortlaut „Liebe Gäste, …\" war der Sprachausgabe wörtlich vorgegeben und landete so auch in englischen oder türkischen Reden. Jetzt ist es ein Muster, das in der Sprache des Textes formuliert wird.",
+        "An drei weiteren Stellen stand die Sprachregel am Prompt-ANFANG statt am Ende (Lektor beim Bearbeiten per Sprache, Übersetzung und Überarbeitung des Anamnesebogens). Auch dort ans Ende geschoben.",
+        "Daraufhin alle Texte in allen 14 Sprachen durchgezählt, statt nur den gemeldeten Fall zu reparieren: 256 Oberflächentexte fehlten in elf Sprachen und fielen still auf Deutsch zurück – Zeitlimit, Freischaltcode, Mikrofon-Meldungen, Namenshinweis, Mail-Dialog.",
+        "Die kategoriespezifischen Texte der Beitragenden gab es überhaupt nur auf Deutsch, Polnisch und Englisch. Für die zehn im Juli ergänzten Sprachen existierte nur das Lebenswerk; alle acht Beitragskategorien liefen dort auf Deutsch. Rund 640 Texte ergänzt.",
+        "Der Entstehungshinweis des Buches fehlte auf Französisch, Rumänisch, Türkisch, Russisch und Ukrainisch. Der wird im Hörbuch VORGELESEN – dort war es also deutscher Text mit fremdsprachiger Stimme.",
+        "Stammbaum und Lebensposter druckten ihre Beschriftungen („Stammbaum\", „Name nicht genannt\", „WERTE\", „ORTE\") fest auf Deutsch ins PDF, in jeder Sprache. Sie kommen jetzt aus dem Wörterbuch in der Sprache des Buches.",
+        "Die Probedruck-Ansicht war entgegen ihrem eigenen Kommentar längst vollständig übersetzt; nur Schweizer Hochdeutsch fehlte und zeigte als einzige Ansicht „schließen\" statt „schliessen\". Wird jetzt wie überall sonst aus dem Deutschen abgeleitet.",
+        "Vier Beanstandungen am Lutherhof-Hörbuch nachgegangen. „Kapitel fünftens\" statt „Kapitel fünf\" war der Vorlesetext selbst: Ein Punkt hinter der Ziffer ist im Deutschen die Ordinalzahl. Gesprochen wird jetzt „Kapitel 5 – Der Umbau\", der Spurtitel behält die Buchschreibweise.",
+        "Verschluckte Silben am Anfang eines Absatzes stammen von den Nähten: Jedes Stück ist ein eigener MP3-Strom, und der Decoder braucht am Beginn ein paar Frames. Jetzt 300 ms führende Stille je Stück, damit das Einschwingen in die Stille fällt.",
+        "Zusätzlich weniger Nähte: 4.000 statt 2.200 Zeichen je Aufruf (gut vier Minuten Ton, erlaubt sind zehn). Beim Lutherhof-Umfang sind das rund 19 statt 34 Übergänge.",
+        "Der „Frühstücks-Teller\" wurde als „Frühstück-Steller\" gesprochen – die Sprachausgabe zieht das Fugen-s ans folgende Wort. Der Bindestrich wird für die Sprachausgabe zum Leerzeichen, aber nur zwischen Klein- und Großbuchstabe, damit „E-Mail\" und Jahreszahlbereiche unberührt bleiben.",
+        "Dabei aufgefallen: Der Vorlesetext des Hörbuchs lief bisher gar nicht durch die Textsäuberung, die das Interview-Vorlesen seit jeher benutzt. Emojis und Gendersternchen hätte die Stimme mitgelesen.",
+        "Ersetzte Wörter dagegen sind kein Fehler im Code, sondern eine Eigenschaft der generativen Stimmen: Sie klingen am menschlichsten, verschlucken aber Silben, schieben welche ein und ersetzen gelegentlich ein Wort. Im Erzeugen-Fenster gibt es deshalb jetzt die Wahl zwischen „wortgetreu\" (klassische Neural-Stimmen) und „natürlich\".",
+        "Nach einem Hörvergleich an zwei eigens erzeugten Proben sind die wortgetreuen Stimmen Katja und Conrad der neue Standard. Sie sind mit 15 statt 22 USD je Million Zeichen nebenbei günstiger.",
+        "Eine eigene Vermutung widerlegt: Der auffällige Satz „Mit jedem Sommerfest wurde die Routine gewachsen\" ist kein Vorlesefehler – er steht wortgleich im E-Book. Bleibt auf Kundenwunsch unverändert.",
+        "Das Lutherhof-Hörbuch aus der entdoppelten Buchfassung neu erzeugt: 24 Spuren, 75 Minuten, Katja und Conrad kapitelweise abwechselnd, 1,04 Euro. Die Gesamtdatei liegt auf dem Server.",
+        "Für abgelegte Hörbücher gibt es jetzt ZWEI Links auf dieselbe Datei: einer spielt im Browser ab, der andere lädt die MP3 herunter. Die Content-Disposition wird dafür in die zeitlich befristete Leseberechtigung hineinsigniert; im Speicher liegt weiterhin nur eine Datei.",
+        "Die interne Funktionsübersicht ist ein pflegbares Skript im Repo geworden (scripts/funktionsuebersicht.js): drei Seiten, 82 Funktionen in elf Abschnitten, Neues seit dem 1. August rot markiert. Die Kundenfassung vom 1. August lag nur im Sitzungsverzeichnis und war nach Änderungen nicht mehr nachzuziehen.",
+        "Offen und ausdrücklich noch nicht am Ohr geprüft: ob die generativen Stimmen die führende Stille tatsächlich einhalten (die abschließende halten sie, Pausenmarken ignorieren sie) und ob die Bindestrich-Aufbereitung die Aussprache wirklich geraderückt. Beides zeigt erst der Hörtest am neuen Hörbuch."
+      ]
+    },
+    {
       "date": "2026-08-17",
       "items": [
         "Aus dem Lutherhof-Jubiläumsbuch ist ein vorgelesenes Hörbuch entstanden: 23 MP3-Dateien (Titel, 21 Kapitel, Anhang), zusammen 126 Minuten, gelesen von der Stimme „Mia\". Die Stimme wurde nicht nach Beschreibung gewählt, sondern über sechs echte Hörproben.",
