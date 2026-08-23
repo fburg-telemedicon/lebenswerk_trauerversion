@@ -29,7 +29,7 @@ import { withRepetitionCheck } from './repetition.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, FORM_DISCLAIMER, FORM_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
-import { audiobookBlocks, audiobookEstimate, audiobookVoices, AUDIOBOOK_VOICE_MODES, trackFileName } from './audiobook.js'
+import { audiobookBlocks, audiobookEstimate, audiobookVoices, AUDIOBOOK_VOICE_MODES, AUDIOBOOK_VOICE_SETS, trackFileName } from './audiobook.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
 // hochzählen — dann werden bereits gespeicherte Cover-Hintergründe beim nächsten
@@ -600,6 +600,9 @@ function Dashboard() {
   // Hörbuch: Stimmenwahl vor dem Erzeugen ({ key } | null) und die Sammel-Datei
   const [audiobookModal, setAudiobookModal] = useState(null)
   const [audiobookMode, setAudiobookMode]   = useState('f')  // 'f' | 'm' | 'mixed'
+  // Stimmen-Generation: 'natural' = MAI (klingt am besten, erfindet gelegentlich),
+  // 'stable' = klassische Neural-Stimmen (wortgetreu). Siehe src/audiobook.js.
+  const [audiobookVoiceSet, setAudiobookVoiceSet] = useState('natural')
   const [audiobookStore, setAudiobookStore] = useState(true)  // Gesamtdatei auf Server ablegen
   const [audiobookDl, setAudiobookDl]       = useState('')
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)
@@ -2955,10 +2958,10 @@ Regeln:
 
   // Die Blöcke einmal bauen — das Fenster rechnet damit die Schätzung, der Job
   // bekommt genau dieselben. Reine Funktion über Buch + Beiträge + Modus.
-  function buildAudiobookPlan(key, voiceMode) {
+  function buildAudiobookPlan(key, voiceMode, voiceSet = audiobookVoiceSet) {
     const book = selected?.[GENERATORS[key]?.field]
     if (!book) return null
-    const voices = audiobookVoices(selected.tts_voice)
+    const voices = audiobookVoices(selected.tts_voice, voiceSet)
     const { blocks, tracks } = audiobookBlocks(book, bookContribs, {
       voiceMode,
       showContributors: selected.show_contributors !== false,
@@ -2967,9 +2970,9 @@ Regeln:
     return { book, voices, blocks, tracks }
   }
 
-  async function generateAudiobook(key, voiceMode, storeFull = true) {
+  async function generateAudiobook(key, voiceMode, storeFull = true, voiceSet = audiobookVoiceSet) {
     if (!selected) return
-    const plan = buildAudiobookPlan(key, voiceMode)
+    const plan = buildAudiobookPlan(key, voiceMode, voiceSet)
     if (!plan) { setErr('Es gibt noch kein Buch zum Vorlesen.'); return }
     if (selected.audiobooks?.[key] && !window.confirm('Das Hörbuch wird neu erzeugt und ersetzt die bisherigen Tonspuren. Fortfahren?')) return
 
@@ -2989,7 +2992,7 @@ Regeln:
         resultType: 'audiobook', field: 'audiobooks', variant: key, kind,
         memorialCode: selected.id,
         language: book.language || selected.languages?.[0] || 'de',
-        voiceMode, voices, title: book.title || '',
+        voiceMode, voiceSet, voices, title: book.title || '',
         // Gesamtdatei gleich mit ablegen (Checkbox). Der Server setzt sie aus den
         // Kapiteln zusammen; scheitert das, bleiben die Kapitelspuren erhalten.
         storeFull, fullFilename: `Hoerbuch_${safeName(book.title || selected.name || 'Buch')}.mp3`,
@@ -3341,7 +3344,7 @@ Regeln:
   // beim Erzählen zugehört hat, soll es auch vorlesen.
   const audiobookOverlay = audiobookModal ? (() => {
     const key = audiobookModal.key
-    const plan = buildAudiobookPlan(key, audiobookMode)
+    const plan = buildAudiobookPlan(key, audiobookMode, audiobookVoiceSet)
     const est = audiobookEstimate(plan?.blocks || [], plan?.voices)
     const eur = est.costEur.toFixed(2).replace('.', ',')
     return (
@@ -3370,6 +3373,26 @@ Regeln:
               )
             })}
           </div>
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:12.5, fontWeight:600, color:'#57534e', marginBottom:6 }}>Stimmen-Generation</div>
+            <div style={{ display:'grid', gap:8 }}>
+              {AUDIOBOOK_VOICE_SETS.map(vs => {
+                const on = audiobookVoiceSet === vs.key
+                return (
+                  <label key={vs.key}
+                         style={{ ...S.card, cursor:'pointer', padding:'10px 12px', display:'flex', alignItems:'flex-start', gap:10,
+                                  borderColor: on ? '#1c1917' : '#e7e5e4', borderWidth: on ? 2 : 1 }}>
+                    <input type="radio" name="ab-voiceset" checked={on} onChange={() => setAudiobookVoiceSet(vs.key)}
+                           style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917', flexShrink:0, marginTop:2 }} />
+                    <div>
+                      <div style={{ fontWeight:600, fontSize:13, marginBottom:2 }}>{vs.label}</div>
+                      <div style={{ fontSize:12, color:'#78716c', lineHeight:1.5 }}>{vs.description}</div>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
           <label title="Die Kapitel werden zusätzlich zu EINER Datei zusammengesetzt und auf dem Server abgelegt. Danach steht hier ein dauerhafter Download-Link, den Sie weitergeben können. Er wird beim Löschen des Buchs mitgelöscht."
                  style={{ display:'flex', alignItems:'flex-start', gap:8, fontSize:12.5, color:'#57534e', cursor:'pointer', marginBottom:12 }}>
             <input type="checkbox" checked={audiobookStore} onChange={e => setAudiobookStore(e.target.checked)}
@@ -3389,7 +3412,7 @@ Regeln:
             <button className="ghost" onClick={() => setAudiobookModal(null)} style={{ fontSize:14 }}>Abbrechen</button>
             <button
               disabled={est.chars === 0}
-              onClick={() => { setAudiobookModal(null); generateAudiobook(key, audiobookMode, audiobookStore) }}
+              onClick={() => { setAudiobookModal(null); generateAudiobook(key, audiobookMode, audiobookStore, audiobookVoiceSet) }}
               style={{ fontSize:14 }}
             >
               🎧 Vorlesen lassen

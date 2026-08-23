@@ -727,10 +727,16 @@ async function processPoster(job, deadline) {
 // Beitragendenliste, genau wie bei den Prompts.
 //
 // Je Spur EINE MP3 unter <CODE>/audio/<variant>-NN.mp3. Innerhalb einer Spur wird
-// in Stücke à ~2200 Zeichen zerlegt (ein Azure-Aufruf hat ein Zeitlimit) und die
-// Ergebnisse werden binär aneinandergehängt: Azure liefert reine MPEG-Frames ohne
-// ID3, das ergibt eine gültige Datei (am Lutherhof-Hörbuch belegt).
-const AUDIO_CHUNK_CHARS = 2200
+// in Stücke zerlegt (ein Azure-Aufruf hat ein Zeitlimit) und die Ergebnisse werden
+// binär aneinandergehängt: Azure liefert reine MPEG-Frames ohne ID3, das ergibt
+// eine gültige Datei (am Lutherhof-Hörbuch belegt).
+//
+// JEDE Naht ist hörbares Risiko: Dort beginnt ein neuer MP3-Strom, und der Decoder
+// braucht ein paar Frames, bis er eingeschwungen ist. Deshalb zwei Massnahmen —
+// führende Stille je Stück (narrationInner in api/_lib/tts.js) und möglichst
+// WENIGE Nähte. 4000 Zeichen sind bei ~16 Zeichen/Sekunde gut vier Minuten Ton und
+// liegen damit klar unter Azures Grenze von 10 Minuten Audio je Anfrage.
+const AUDIO_CHUNK_CHARS = 4000
 
 // Blöcke einer Spur zu Aufruf-Paketen bündeln. Ein Block wird NICHT zerschnitten,
 // solange er allein unter der Grenze bleibt — sonst risse die Absatzpause mitten

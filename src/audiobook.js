@@ -36,6 +36,18 @@ const isHdVoice = v => /:(?:DragonHD|MAI-Voice)/i.test(String(v || ''))
 export const AUDIOBOOK_VOICE_F = 'de-DE-Mia:MAI-Voice-2'
 export const AUDIOBOOK_VOICE_M = 'de-DE-Klaus:MAI-Voice-2'
 
+// Klassische Neural-Stimmen als stabile Alternative. Die MAI- und DragonHD-Stimmen
+// sind generativ: Sie klingen am natürlichsten, verschlucken aber gelegentlich eine
+// Silbe, schieben eine ein oder ersetzen ein Wort („war" → „wurde") — am
+// Lutherhof-Hörbuch mehrfach gehört. Die klassischen Stimmen erfinden nichts.
+export const AUDIOBOOK_VOICE_F_STABLE = 'de-DE-KatjaNeural'
+export const AUDIOBOOK_VOICE_M_STABLE = 'de-DE-ConradNeural'
+
+export const AUDIOBOOK_VOICE_SETS = [
+  { key: 'natural', label: 'Natürlich (Mia & Klaus)', description: 'Neueste KI-Generation, klingt am menschlichsten. Kann in seltenen Fällen eine Silbe verschlucken oder ein Wort ersetzen.' },
+  { key: 'stable',  label: 'Wortgetreu (Katja & Conrad)', description: 'Klassische Sprachausgabe: etwas maschineller im Klang, liest dafür genau das, was im Buch steht. Auch günstiger.' },
+]
+
 // Auswahl im Erzeugen-Fenster. „gemischt" liest den Buchtext kapitelweise
 // abwechselnd und setzt fremde Stimmen (die Stimmen-Kästen) jeweils in die
 // andere Stimme — beim Trauerbuch V1, wo ein Kapitel EINER Person gehört, folgt
@@ -49,7 +61,10 @@ export const AUDIOBOOK_VOICE_MODES = [
 // Konkrete Stimme je Sprecherrolle. Hat das Buch eine eigene Interview-Stimme
 // (memorials.tts_voice), tritt sie an die Stelle der Standardstimme ihres
 // Geschlechts — wer dem Buch beim Erzählen zugehört hat, soll es vorlesen.
-export function audiobookVoices(bookVoice) {
+export function audiobookVoices(bookVoice, voiceSet = 'natural') {
+  // „Wortgetreu" schlägt auch die Buchstimme — sonst käme über memorials.tts_voice
+  // doch wieder eine generative Stimme herein.
+  if (voiceSet === 'stable') return { f: AUDIOBOOK_VOICE_F_STABLE, m: AUDIOBOOK_VOICE_M_STABLE }
   const v = String(bookVoice || '')
   const male = /Klaus|Florian|Conrad|Bernd|Christoph/i.test(v)
   return {
@@ -93,7 +108,13 @@ export function audiobookBlocks(book, contributors = [], opts = {}) {
   const chapters = Array.isArray(book?.chapters) ? book.chapters : []
   chapters.forEach((ch, i) => {
     const track = i + 1
-    const heading = `${bt.chapterLabel} ${ch.number}. ${String(ch.heading || '').trim()}`
+    const chTitle = String(ch.heading || '').trim()
+    const heading = `${bt.chapterLabel} ${ch.number}. ${chTitle}`
+    // GESPROCHEN ohne den Punkt hinter der Zahl: „Kapitel 5." ist im Deutschen eine
+    // Ordinalzahl, die Sprachausgabe liest folgerichtig „Kapitel fünftens" vor. Der
+    // Gedankenstrich trennt genauso deutlich und lässt die Grundzahl stehen.
+    // Der Spurtitel oben behält die Buchschreibweise — der wird gelesen, nicht gehört.
+    const spokenHeading = `${bt.chapterLabel} ${ch.number}${chTitle ? ` – ${chTitle}` : ''}`
     tracks.push({ index: track, title: heading })
 
     // V1: Name + Beziehung des Beitragenden (Fallback über contribution_id).
@@ -110,7 +131,7 @@ export function audiobookBlocks(book, contributors = [], opts = {}) {
     // Fremde Stimmen wechseln gegen die Erzählstimme des Kapitels.
     const guest = mode === 'mixed' ? other(speaker) : mode
 
-    push('chapter', track, speaker, heading)
+    push('chapter', track, speaker, spokenHeading)
     // Beim Vorlesen ohne den Gedankenstrich des Drucks, der nichts beiträgt.
     if (chName) push('para', track, speaker, chRel ? `${chName}, ${chRel}` : chName)
 

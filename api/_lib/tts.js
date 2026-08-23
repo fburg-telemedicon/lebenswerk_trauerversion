@@ -151,18 +151,35 @@ const NARRATION_FORMAT = 'audio-24khz-96kbitrate-mono-mp3'
 // ist dagegen der Absatz: jeder Vorlese-Block wird ein eigenes <p> (≈ +1,2 s).
 // `mstts:silence type='Tailing'` schließt die Naht zwischen zwei Aufrufen —
 // ohne sie klebt der nächste Absatz unmittelbar am vorigen.
+// Vorlese-Text aufbereiten. Zwei Dinge, die /api/speak schon lange macht bzw.
+// braucht, im Hörbuch aber fehlten:
+//   • stripForSpeech — Emojis und Gendersternchen. Ohne das liest die Stimme im
+//     Anhang eines Buches „lächelndes Gesicht" mit vor.
+//   • Komposita-Bindestrich zu Leerzeichen: „Frühstücks-Teller" wurde als
+//     „Frühstück-Steller" gesprochen — die Sprachausgabe zieht das Fugen-s ans
+//     folgende Wort. Nur zwischen Klein- und GROSSbuchstabe ersetzt, damit
+//     „E-Mail", „S-Bahn" und Zahlenbereiche unangetastet bleiben.
+function narrationText(s) {
+  return stripForSpeech(String(s || '')).replace(/(\p{Ll})-(\p{Lu})/gu, '$1 $2')
+}
+
 function narrationInner(voice, locale, texts, opts = {}) {
   const rate = process.env.AZURE_SPEECH_TTS_RATE || '+6%'
   const tail = opts.tailingMs == null ? 700 : Math.max(0, opts.tailingMs)
+  // Führende Stille: Jedes Stück ist ein eigener MP3-Strom, und die Ströme werden
+  // binär aneinandergehängt. Ein MP3-Decoder braucht am Beginn eines Stroms ein
+  // paar Frames, bis er eingeschwungen ist — beginnt dort sofort Sprache, fällt
+  // die erste Silbe weg oder es knackt hörbar. Mit Vorlauf trifft das die Stille.
+  const lead = opts.leadingMs == null ? 300 : Math.max(0, opts.leadingMs)
   const body = (texts || [])
-    .map(t => String(t || '').trim()).filter(Boolean)
+    .map(t => narrationText(t)).filter(Boolean)
     .map(t => `<p><prosody rate='${rate}'>${xmlEscape(t)}</prosody></p>`)
     .join('')
   // Spricht die Stimme eine andere Sprache als ihre eigene, muss die Zielsprache
   // ausgezeichnet werden (wie in speechInner) — sonst deutsche Aussprache.
   const needLang = voice.includes('Multilingual') || voice.slice(0, 5).toLowerCase() !== String(locale).slice(0, 5).toLowerCase()
   const inner = needLang ? `<lang xml:lang='${locale}'>${body}</lang>` : body
-  return `<mstts:silence type='Tailing' value='${tail}ms'/>${inner}`
+  return `<mstts:silence type='Leading' value='${lead}ms'/><mstts:silence type='Tailing' value='${tail}ms'/>${inner}`
 }
 
 // Ein Stück Hörbuch: mehrere Absätze in EINEM Aufruf. Liefert reine MPEG-Frames
@@ -198,6 +215,6 @@ async function speakAzure(text, language, requestedVoice) {
 
 module.exports = {
   xmlEscape, stripForSpeech, TTS_VOICES, SPEECH_LOCALE,
-  pickVoiceAndLocale, ttsModelKey, synth, synthSSML, speechInner, speakAzure,
+  pickVoiceAndLocale, ttsModelKey, synth, synthSSML, speechInner, speakAzure, narrationText,
   NARRATION_FORMAT, narrationInner, synthNarration,
 }
