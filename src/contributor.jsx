@@ -568,9 +568,14 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
       // Marker-PFLICHT herausnehmen statt sie zu überstimmen: Eine angehängte
       // Gegenregel verliert gegen die Pflicht weiter oben im Prompt (gemessen —
       // das Modell setzte den Marker trotzdem, und er wurde vorgelesen).
+      // Die Sprachregel kommt GANZ zum Schluss — nach LIVE_SPEECH_RULE. Sie ist als
+      // letzte Instruktion gebaut („gilt vor JEDER früheren Anweisung“, siehe
+      // langDirective in i18n.js). Stand sie davor, folgte ihr ein langer deutscher
+      // Regelblock — und das Live-Gespräch fiel in fremden Sprachen immer wieder ins
+      // Deutsche zurück, vorgelesen mit der fremdsprachigen Stimme.
       const sys = withoutMarkerRule(
         interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship, contribForm.address, contribForm.gender)
-      ) + langDirective(lang) + LIVE_SPEECH_RULE
+      ) + LIVE_SPEECH_RULE + langDirective(lang)
       const stopWith = (note) => {
         if (cancelled) return
         liveRef.current = null
@@ -2940,12 +2945,14 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
     const segment = hasSel ? text.slice(t.start, t.end) : text
     const isHeading = t.kind !== 'body'
     // Anweisungen im SYSTEM-Prompt (Azure-Prompt-Shield lehnt Imperative im User-Turn ab).
-    const sys = `${langDirective(lang)} Du bist ein einfühlsamer Lektor einer Autobiografie in der Ich-Form. `
+    // langDirective GEHÖRT ans Ende (letzte Instruktion gewinnt) – siehe i18n.js.
+    const sys = `Du bist ein einfühlsamer Lektor einer Autobiografie in der Ich-Form. `
       + (isHeading
           ? `Überarbeite die bereitgestellte ÜBERSCHRIFT gemäß der Anweisung — kurz und prägnant, ohne abschließenden Punkt. `
           : `Überarbeite AUSSCHLIESSLICH den bereitgestellten Abschnitt gemäß der Anweisung. Behalte Ich-Perspektive, Zeitform und den warmen, persönlichen Ton bei. `)
       + `Behalte die Sprache bei. Erfinde keine neuen Fakten. Gib NUR den überarbeiteten Text zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar. `
       + `Soll der Text laut Anweisung entfernt werden oder leer bleiben, antworte AUSSCHLIESSLICH mit dem Wort LEER (nichts sonst) – schreibe KEINE Platzhalter, keine Klammern und keine Erklärung.`
+      + langDirective(lang)
     let revised = String(await askLLM(sys, [{ role: 'user', content: `${isHeading ? 'ÜBERSCHRIFT' : 'ABSCHNITT'}:\n${segment}\n\nANWEISUNG:\n${instruction}` }], { memorialCode: code, token, kind: 'edit' }) || '').trim()
     if (!revised) return   // KI-Aussetzer (leere Antwort) → Text unverändert lassen
     // Soll der Abschnitt leer sein: das Sentinel „LEER" ODER ein von der KI trotzdem

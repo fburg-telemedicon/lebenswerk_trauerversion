@@ -15,6 +15,9 @@
 
 import { loadPdfFonts, newPdfDoc } from './pdfFonts.js'
 import { selfOnly, guestOnly, guestSourceNote, contributionBlocks } from './categories.js'
+// Beschriftungen von Stammbaum und Poster in der Sprache des Buches (sie werden
+// mitgedruckt und standen vorher fest auf Deutsch).
+import { uiText } from './i18n.js'
 
 // ════════════════════════════════════════════════════════════════
 // 1) STAMMBAUM
@@ -145,6 +148,7 @@ function cardColors(p, layout) {
 }
 
 function paintTree(d, layout, memorial) {
+  const bt = uiText(memorial?.languages?.[0] || 'de')
   const { W, H, margin, frame, boxW, boxH, gapX, gapY } = TREE
   const rows = layout.rows
 
@@ -156,10 +160,10 @@ function paintTree(d, layout, memorial) {
 
   // Kopf
   const top = margin + frame + 6
-  d.text('Stammbaum', W / 2, top + 4, { size: 9, align: 'center', color: TREE.gold, font: 'times', bold: true })
+  d.text(bt.treeTitle, W / 2, top + 4, { size: 9, align: 'center', color: TREE.gold, font: 'times', bold: true })
   d.text(memorial.name || '', W / 2, top + 14, { size: 19, bold: true, align: 'center', color: TREE.ink, font: 'times', maxW: W - 2 * (margin + frame), maxLines: 1 })
-  d.text('Auf Grundlage der erzählten Beziehungen.', W / 2, top + 21, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
-  d.text('Fehlende Namen sind als „Name nicht genannt" markiert.', W / 2, top + 25, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
+  d.text(bt.treeBasis, W / 2, top + 21, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
+  d.text(bt.treeMissingNote, W / 2, top + 25, { size: 7, italic: true, align: 'center', color: TREE.soft, font: 'times' })
   d.line(W / 2 - 26, top + 30, W / 2 + 26, top + 30, TREE.goldSoft)
 
   // Zeilen (Generationen) vertikal verteilen
@@ -216,7 +220,7 @@ function paintTree(d, layout, memorial) {
       const col = cardColors(p, layout)
       d.card(at.x, at.y, at.w, boxH, col.fill, col.edge, col.lw)
 
-      const name = String(p.name || '').trim() || 'Name nicht genannt'
+      const name = String(p.name || '').trim() || bt.treeNoName
       const unnamed = !String(p.name || '').trim()
       const years = [p.born ? `* ${p.born}` : '', p.died ? `† ${p.died}` : ''].filter(Boolean).join('   ')
 
@@ -601,7 +605,8 @@ function layoutPoster(data, st) {
 }
 
 // `images` = { "si:ti": { data, w, h } }
-function paintPoster(d, data, images, st) {
+function paintPoster(d, data, images, st, lang) {
+  const bt = uiText(lang || 'de')
   const L = layoutPoster(data, st)
   if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
   const { W, H, margin } = P
@@ -684,12 +689,12 @@ function paintPoster(d, data, images, st) {
   const colW = (W - 2 * margin) / 3 - 8
 
   if (values.length) {
-    d.text('WERTE', margin, fy, { size: 7, bold: true, color: st.accents[0], font: st.heading })
+    d.text(bt.posterValues, margin, fy, { size: 7, bold: true, color: st.accents[0], font: st.heading })
     d.text(values.join('  ·  '), margin, fy + 6, { size: 9, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
   }
   if (places.length) {
     const x = margin + colW + 12
-    d.text('ORTE', x, fy, { size: 7, bold: true, color: st.accents[1 % st.accents.length], font: st.heading })
+    d.text(bt.posterPlaces, x, fy, { size: 7, bold: true, color: st.accents[1 % st.accents.length], font: st.heading })
     d.text(places.join('  ·  '), x, fy + 6, { size: 9, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
   }
   if (data.quote) {
@@ -807,7 +812,8 @@ function layoutOrganic(data, st) {
   return { stations, lanes }
 }
 
-function paintPosterOrganic(d, data, images, st) {
+function paintPosterOrganic(d, data, images, st, lang) {
+  const bt = uiText(lang || 'de')
   const L = layoutOrganic(data, st)
   if (!L) throw new Error('Das Poster enthält keine Stationen — das Interview gibt (noch) zu wenig her.')
   const { W, H, margin } = P
@@ -868,12 +874,12 @@ function paintPosterOrganic(d, data, images, st) {
   const places = (Array.isArray(data.places) ? data.places : []).slice(0, 6)
   const colW = (W - 2 * margin) / 3 - 8
   if (values.length) {
-    d.text('WERTE', margin, fy, { size: 6.5, bold: true, color: st.accents[0], font: st.heading })
+    d.text(bt.posterValues, margin, fy, { size: 6.5, bold: true, color: st.accents[0], font: st.heading })
     d.text(values.join('  ·  '), margin, fy + 5.5, { size: 8.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
   }
   if (places.length) {
     const x = margin + colW + 12
-    d.text('ORTE', x, fy, { size: 6.5, bold: true, color: st.accents[1 % st.accents.length], font: st.heading })
+    d.text(bt.posterPlaces, x, fy, { size: 6.5, bold: true, color: st.accents[1 % st.accents.length], font: st.heading })
     d.text(places.join('  ·  '), x, fy + 5.5, { size: 8.5, color: st.ink, font: st.body, maxW: colW, maxLines: 2 })
   }
   if (data.quote) {
@@ -885,7 +891,7 @@ function paintPosterOrganic(d, data, images, st) {
 
 // `urls` = { "si:ti": signierte URL }. Ein fehlendes Bild ist nicht fatal — die
 // Station bekommt dann einen leeren Kreis in ihrer Abschnittsfarbe.
-export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
+export async function downloadPosterPdf(filename, data, urls = {}, styleKey, lang) {
   await loadPdfFonts()
   const st = getPosterStyle(styleKey || data?.style)
   const images = {}
@@ -894,7 +900,7 @@ export async function downloadPosterPdf(filename, data, urls = {}, styleKey) {
     try { images[k] = await loadImage(url) } catch { /* Station bleibt ohne Bild */ }
   }))
   const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  paintPosterOrganic(pdfDraw(doc), data || {}, images, st)
+  paintPosterOrganic(pdfDraw(doc), data || {}, images, st, lang)
   doc.save(filename)
 }
 

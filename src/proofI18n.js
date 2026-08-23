@@ -1,8 +1,8 @@
 // src/proofI18n.js
 // Übersetzungen der „Probedruck"-Ansicht (ProofTab). Deutsch berücksichtigt die
-// Anredeform (Du/Sie); Englisch ist neutral. Für andere Sprachen fällt es auf
-// Deutsch (Sie) zurück — die Interview-Inhalte selbst laufen weiter in der
-// gewählten Sprache, nur die Bedien-Beschriftungen der Vorschau sind hier gebündelt.
+// Anredeform (Du/Sie); Englisch ist neutral. Alle übrigen Sprachen stehen in
+// proofI18nLangs.js; Schweizer Hochdeutsch wird aus dem Deutschen abgeleitet
+// (swissify, kein ß). Fehlt ein Schlüssel, greift der deutsche Rückfall.
 
 function de(du) {
   const you = du ? 'du' : 'Sie'
@@ -152,6 +152,7 @@ function en() {
 // {i} eingesetzt — die Funktionen unten bauen daraus wieder Funktionen. Fehlt ein
 // Schlüssel, bleibt der deutsche Wert stehen.
 import { PROOF_LANGS } from './proofI18nLangs.js'
+import { swissify } from './i18nLangs.js'
 
 // Welche Bausteine sind Funktionen — und in welcher Reihenfolge kommen ihre Werte?
 const ARGS = {
@@ -203,5 +204,9 @@ function ausUebersetzung(lang, du) {
 // lang: 'de'|'en'|… (Fallback de). du: nur im Deutschen relevant (Anredeform).
 export function proofT(lang, du) {
   if (lang === 'en') return en()
+  // Schweiz: kein eigenes Wörterbuch — deutscher Text ohne ß, genau wie uiText()
+  // es macht. Ohne das stand hier als einziger Ansicht der Oberfläche „schließen"
+  // statt „schliessen".
+  if (lang === 'de-CH') return swissify(de(du))
   return ausUebersetzung(lang, du) || de(du)
 }

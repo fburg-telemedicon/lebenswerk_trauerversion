@@ -2934,7 +2934,7 @@ Regeln:
         ;(data.sections || []).forEach((sec, si) => {
           ;(sec.stations || []).forEach((st, ti) => { if (st?.image_url) urls[`${si}:${ti}`] = st.image_url })
         })
-        await downloadPosterPdf(`${base}.pdf`, data, urls, data.style)
+        await downloadPosterPdf(`${base}.pdf`, data, urls, data.style, mem?.languages?.[0])
       }
     } catch (e) { setErr(e.message) }
     finally { setExtraDl('') }

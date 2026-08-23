@@ -262,7 +262,18 @@ const POSITION_TOOL = {
 }
 
 function buildSessionUpdate({ instructions, language, voice }) {
-  const text = String(instructions || '').slice(0, MAX_INSTRUCTIONS)
+  // Kürzen, ohne den SCHLUSS zu verlieren: ganz am Ende der Anweisungen stehen
+  // die Vorlese-Regeln und die SPRACHREGEL (langDirective, bewusst als letzte
+  // Instruktion gebaut). Ein einfaches slice(0, MAX) hätte bei langen
+  // Fragenkatalogen genau sie abgeschnitten — das Live-Gespräch wäre auf Deutsch
+  // gelaufen, vorgelesen mit der fremdsprachigen Stimme. Deshalb fällt die MITTE
+  // weg statt des Endes.
+  const raw = String(instructions || '')
+  const TAIL = 2000
+  const CUT = ' […] '
+  const text = raw.length <= MAX_INSTRUCTIONS
+    ? raw
+    : raw.slice(0, MAX_INSTRUCTIONS - TAIL - CUT.length) + CUT + raw.slice(-TAIL)
   return {
     type: 'session.update',
     session: {

@@ -1168,7 +1168,10 @@ function makeFinalSection(p) {
       ? `\nSTIL-VORGABE FÜR DEN GESAMTEN TEXT (verbindlich umsetzen):\n${styleInstruction}\n`
       : ''
     const greetRule = section.greets
-      ? `- Beginne diesen Abschnitt mit „${greeting}"`
+      // Die Anrede ist als deutsche Formel hinterlegt („Liebe Gäste, …"). Wörtlich
+      // übernommen landete sie auch in fremdsprachigen Reden — deutscher Satz,
+      // fremde Stimme. Deshalb als MUSTER vorgeben, nicht als Wortlaut.
+      ? `- Beginne diesen Abschnitt mit einer Anrede nach dem Muster „${greeting}" — formuliert in der Sprache des Textes und dort idiomatisch (bei deutschem Text genau dieser Wortlaut)`
       : '- KEINE einleitende Anrede — dieser Abschnitt schließt sich nahtlos an einen vorhergehenden Teil an'
     return `Du bist ${p.finalRole}. Du schreibst EINEN Abschnitt ${p.finalNounGen} ${p.finalAbout} ${memorial.name}${g}, basierend auf den Beiträgen von ${contributions.length} nahestehenden Menschen. ${p.finalContext}
 

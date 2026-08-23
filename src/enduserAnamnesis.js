@@ -63,12 +63,12 @@ function splitLabelText(raw, fallbackLabel, fallbackText) {
 // Einen deutschen Abschnitt (+ Überschrift) originalgetreu in die Anzeigesprache
 // übersetzen — nur fürs Patienten-Review. Nichts ändern/ergänzen/weglassen.
 async function translateForReview(deText, deLabel, lang, memorialCode) {
-  const sys = `Du bist ein medizinischer Fachübersetzer. Übersetze einen Abschnitt eines Anamnesebogens originalgetreu.${langDirective(lang)}
+  const sys = `Du bist ein medizinischer Fachübersetzer. Übersetze einen Abschnitt eines Anamnesebogens originalgetreu.
 Regeln:
 - Übersetze AUSSCHLIESSLICH; ändere NICHTS inhaltlich, füge nichts hinzu, lass nichts weg.
 - Behalte Markierungen wie „⚠ ROTE FLAGGE:" und „Fremdanamnese (Begleitperson):" sinngemäß bei.
 - Behalte Absätze und Stichpunkte („• ") bei.
-- Gib GENAU dieses Format zurück: zuerst die übersetzte Überschrift, dann eine Zeile mit nur „---", danach der übersetzte Text. Sonst nichts.`
+- Gib GENAU dieses Format zurück: zuerst die übersetzte Überschrift, dann eine Zeile mit nur „---", danach der übersetzte Text. Sonst nichts.${langDirective(lang)}`
   const raw = await askLLM(
     sys,
     [{ role: 'user', content: `ÜBERSCHRIFT:\n${deLabel}\n\nTEXT:\n${deText}` }],
@@ -95,13 +95,13 @@ Regeln:
 // arbeitet in der Anzeigesprache. Anweisung steht im SYSTEM-Prompt (Azure-Prompt-
 // Shield lehnt Imperative im User-Turn ab), wie im Probedruck-Flow.
 export async function reviseAnamnesisSection({ segment, instruction, lang, memorialCode, isHeading = false }) {
-  const sys = `${langDirective(lang)} Du bearbeitest einen Abschnitt eines medizinischen Anamnesebogens (Patientenselbstauskunft) im Auftrag der Patientin/des Patienten.
+  const sys = `Du bearbeitest einen Abschnitt eines medizinischen Anamnesebogens (Patientenselbstauskunft) im Auftrag der Patientin/des Patienten.
 - Überarbeite ${isHeading ? 'die bereitgestellte ÜBERSCHRIFT — kurz und prägnant, ohne abschließenden Punkt' : 'AUSSCHLIESSLICH den bereitgestellten Abschnitt'} gemäß der Anweisung.
 - Bleib sachlich und knapp (nüchterne Dokumentationssprache). Behalte die Sprache bei.
 - Erfinde KEINE medizinischen Fakten, ergänze nichts aus Allgemeinwissen, stelle KEINE Diagnosen und bewerte nichts.
 - Behalte vorhandene Markierungen („⚠"/Rote Flagge, „Fremdanamnese") bei, sofern zutreffend.
 - Gib NUR den überarbeiteten Text zurück – ohne Anführungszeichen, ohne Vorbemerkung, ohne Kommentar.
-- Soll der Text laut Anweisung entfernt werden oder leer bleiben, antworte AUSSCHLIESSLICH mit dem Wort LEER (nichts sonst).`
+- Soll der Text laut Anweisung entfernt werden oder leer bleiben, antworte AUSSCHLIESSLICH mit dem Wort LEER (nichts sonst).${langDirective(lang)}`
   let revised = String(await askLLM(
     sys,
     [{ role: 'user', content: `${isHeading ? 'ÜBERSCHRIFT' : 'ABSCHNITT'}:\n${segment}\n\nANWEISUNG:\n${instruction}` }],
