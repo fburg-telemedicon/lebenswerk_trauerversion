@@ -14,6 +14,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `psql "$DATABASE_URL" -f db/schema.sql` — idempotent schema apply (see Database).
 - Deploy: **push to `main`** — `.github/workflows/deploy.yml` builds the image in ACR (`lebenswerkacr0713`) via OIDC and updates the Container App *and* all cron jobs to the same image. Manual/first-time provisioning: `infra/provision.sh`, then `infra/deploy.sh` (that script also owns the env vars/secrets — the GitHub Action deliberately does not touch them).
 
+**Working agreement on commits (standing, since the start of the project):** finished work is committed and pushed to `main` **immediately** — no feature branches, no waiting to be asked. `main` is the deploy branch, so every push goes live; that is intended. Do not ask for permission per change. Commit messages are German with transliterated umlauts (`Hoerbuch`, `Groessenschaetzung`).
+
 There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail. `npm run dev` is still wired to `vercel dev` in `package.json` but is vestigial and not the way this project runs; use `node server.js`.
 
 All user-facing text is German; keep new strings German unless asked otherwise.
