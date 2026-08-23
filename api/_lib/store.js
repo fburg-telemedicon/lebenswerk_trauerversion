@@ -391,8 +391,11 @@ function storageFrom(container) {
       } catch (e) { return { data: null, error: { message: e.message } } }
     },
 
-    // createSignedUrls(paths[], expiresInSeconds) → { data: [{ path, signedUrl, error }], error }
-    async createSignedUrls(paths, expiresIn) {
+    // createSignedUrls(paths[], expiresInSeconds, opts) → { data: [{ path, signedUrl, error }], error }
+    // opts.contentDisposition / opts.contentType werden als rscd/rsct MIT SIGNIERT.
+    // Damit entscheidet der Link, ob der Browser die Datei abspielt (inline) oder
+    // herunterlädt (attachment) — ohne die Datei doppelt abzulegen.
+    async createSignedUrls(paths, expiresIn, opts = {}) {
       try {
         blobService() // init _sharedKey
         const now = new Date()
@@ -408,6 +411,8 @@ function storageFrom(container) {
               startsOn,
               expiresOn,
               protocol: SASProtocol.Https,
+              ...(opts.contentDisposition ? { contentDisposition: opts.contentDisposition } : {}),
+              ...(opts.contentType ? { contentType: opts.contentType } : {}),
             }, _sharedKey).toString()
             return { path, signedUrl: `${blob.url}?${sas}`, error: null }
           } catch (e) {

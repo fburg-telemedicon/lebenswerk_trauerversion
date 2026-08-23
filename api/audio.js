@@ -1,5 +1,10 @@
 // api/audio.js
-// GET /api/audio?code=ABC123&v=book_v2&s=<slug>
+// GET /api/audio?code=ABC123&v=book_v2&s=<slug>        → im Browser ABSPIELEN
+// GET /api/audio?code=ABC123&v=book_v2&s=<slug>&dl=1   → MP3 HERUNTERLADEN
+//
+// Ein Blob, zwei Verhaltensweisen: Die Content-Disposition wird in die SAS-URL
+// hineinsigniert (rscd), Azure gibt sie als Antwort-Header aus. Es liegt also
+// weiterhin nur EINE Datei im Storage.
 //
 // Kurze, dauerhafte Download-URL auf der EIGENEN Domain für eine auf dem Server
 // abgelegte Hörbuch-Gesamtdatei (siehe api/admin/store-audiobook.js). Gegenstück
@@ -20,6 +25,8 @@ const { enforce } = require('./_lib/ratelimit')
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const IMAGE_BUCKET = 'memorial-images'
 const SIGNED_URL_TTL = 60 * 60
+const BAD_IN_HEADER = /[\r\n"\\]/g
+const NON_ASCII = /[^\x20-\x7E]/g
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -36,7 +43,17 @@ module.exports = async function handler(req, res) {
     const full = m?.audiobooks?.[v]?.full
     if (!full || !full.path || full.slug !== s) return res.status(404).send('Hörbuch nicht gefunden.')
 
-    const { data: signed } = await supabase.storage.from(IMAGE_BUCKET).createSignedUrls([full.path], SIGNED_URL_TTL)
+    // Dateiname für den Speichern-Dialog. `filename*` (RFC 5987) trägt Umlaute
+    // korrekt, das schlichte `filename` bleibt als ASCII-Rückfall daneben stehen.
+    const name = String(full.filename || 'Hoerbuch.mp3').replace(BAD_IN_HEADER, '').slice(0, 160)
+    const ascii = name.replace(NON_ASCII, '_')
+    const download = req.query.dl !== undefined && String(req.query.dl) !== '0'
+    const disposition = download
+      ? `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`
+      : `inline; filename="${ascii}"`
+
+    const { data: signed } = await supabase.storage.from(IMAGE_BUCKET)
+      .createSignedUrls([full.path], SIGNED_URL_TTL, { contentDisposition: disposition, contentType: 'audio/mpeg' })
     const url = signed?.[0]?.signedUrl
     if (!url) return res.status(502).send('Link konnte nicht erstellt werden.')
 

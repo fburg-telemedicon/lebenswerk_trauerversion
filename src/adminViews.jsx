@@ -3398,16 +3398,34 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                           </p>
                         )}
                         {audio.full?.slug && (() => {
-                          const shareUrl = `${window.location.origin}/api/audio?code=${selected.id}&v=${key}&s=${audio.full.slug}`
+                          // ZWEI Links auf dieselbe abgelegte Datei. Der Unterschied steckt
+                          // allein in der Content-Disposition, die api/audio.js in die
+                          // SAS-URL signiert: ohne `dl` spielt der Browser ab (inline),
+                          // mit `dl=1` landet die MP3 im Download-Ordner (attachment).
+                          const playUrl = `${window.location.origin}/api/audio?code=${selected.id}&v=${key}&s=${audio.full.slug}`
+                          const dlUrl = `${playUrl}&dl=1`
+                          const kopieren = (url, marke) => {
+                            navigator.clipboard?.writeText(url)
+                            setPdfCopied(marke)
+                            setTimeout(() => setPdfCopied(c => c === marke ? null : c), 2000)
+                          }
                           const ak = `audio_${key}`
+                          const dk = `audiodl_${key}`
                           return (
                             <div style={{ marginBottom:8, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12.5 }}>
-                              <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#86198f', fontWeight:600, textDecoration:'underline' }}>
-                                {t('Abgelegtes Hörbuch öffnen', 'Open stored audiobook')}
+                              <a href={playUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#86198f', fontWeight:600, textDecoration:'underline' }}
+                                 title={t('Öffnet die Datei im Browser-Player — zum Reinhören, ohne sie zu speichern.', 'Opens the file in the browser player — for listening without saving.')}>
+                                {t('▶ Abspielen', '▶ Play')}
                               </a>
-                              <button className="secondary" onClick={() => { navigator.clipboard?.writeText(shareUrl); setPdfCopied(ak); setTimeout(() => setPdfCopied(c => c === ak ? null : c), 2000) }}
-                                      style={{ fontSize:12, padding:'4px 10px' }}>
-                                {pdfCopied === ak ? t('✓ Kopiert', '✓ Copied') : t('📋 Link kopieren', '📋 Copy link')}
+                              <button className="secondary" onClick={() => kopieren(playUrl, ak)} style={{ fontSize:12, padding:'4px 10px' }}>
+                                {pdfCopied === ak ? t('✓ Kopiert', '✓ Copied') : t('📋 Abspiel-Link', '📋 Play link')}
+                              </button>
+                              <a href={dlUrl} style={{ color:'#86198f', fontWeight:600, textDecoration:'underline' }}
+                                 title={t('Lädt die MP3 herunter, statt sie abzuspielen.', 'Downloads the MP3 instead of playing it.')}>
+                                {t('⬇ Herunterladen', '⬇ Download')}
+                              </a>
+                              <button className="secondary" onClick={() => kopieren(dlUrl, dk)} style={{ fontSize:12, padding:'4px 10px' }}>
+                                {pdfCopied === dk ? t('✓ Kopiert', '✓ Copied') : t('📋 Download-Link', '📋 Download link')}
                               </button>
                               {audio.full.size != null && <span style={{ color:'#86198f' }}>· {Math.round(audio.full.size / 1048576)} MB</span>}
                               <button className="ghost" onClick={() => storeAudiobookOnServer(key)} disabled={!!audiobookDl} style={{ fontSize:12, padding:'4px 6px', textDecoration:'underline', color:'#a8a29e' }}
