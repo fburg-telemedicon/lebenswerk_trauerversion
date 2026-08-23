@@ -600,9 +600,10 @@ function Dashboard() {
   // Hörbuch: Stimmenwahl vor dem Erzeugen ({ key } | null) und die Sammel-Datei
   const [audiobookModal, setAudiobookModal] = useState(null)
   const [audiobookMode, setAudiobookMode]   = useState('f')  // 'f' | 'm' | 'mixed'
-  // Stimmen-Generation: 'natural' = MAI (klingt am besten, erfindet gelegentlich),
-  // 'stable' = klassische Neural-Stimmen (wortgetreu). Siehe src/audiobook.js.
-  const [audiobookVoiceSet, setAudiobookVoiceSet] = useState('natural')
+  // Stimmen-Generation: 'stable' = klassische Neural-Stimmen (wortgetreu, Standard
+  // seit dem Lutherhof-Hörbuch), 'natural' = MAI (klingt besser, erfindet
+  // gelegentlich). Siehe src/audiobook.js.
+  const [audiobookVoiceSet, setAudiobookVoiceSet] = useState('stable')
   const [audiobookStore, setAudiobookStore] = useState(true)  // Gesamtdatei auf Server ablegen
   const [audiobookDl, setAudiobookDl]       = useState('')
   const [catalogForm, setCatalogForm] = useState(null)  // Editor-State (null = kein Editor offen)

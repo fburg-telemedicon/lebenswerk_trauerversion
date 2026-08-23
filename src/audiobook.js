@@ -43,9 +43,12 @@ export const AUDIOBOOK_VOICE_M = 'de-DE-Klaus:MAI-Voice-2'
 export const AUDIOBOOK_VOICE_F_STABLE = 'de-DE-KatjaNeural'
 export const AUDIOBOOK_VOICE_M_STABLE = 'de-DE-ConradNeural'
 
+// Vorbelegt ist „wortgetreu": Am Lutherhof-Hörbuch hat die generative Generation
+// Silben verschluckt, welche eingeschoben und Komposita falsch getrennt. Wer den
+// natürlicheren Klang will, kann weiterhin umschalten.
 export const AUDIOBOOK_VOICE_SETS = [
-  { key: 'natural', label: 'Natürlich (Mia & Klaus)', description: 'Neueste KI-Generation, klingt am menschlichsten. Kann in seltenen Fällen eine Silbe verschlucken oder ein Wort ersetzen.' },
-  { key: 'stable',  label: 'Wortgetreu (Katja & Conrad)', description: 'Klassische Sprachausgabe: etwas maschineller im Klang, liest dafür genau das, was im Buch steht. Auch günstiger.' },
+  { key: 'stable',  label: 'Wortgetreu (Katja & Conrad)', description: 'Klassische Sprachausgabe: etwas maschineller im Klang, liest dafür genau das, was im Buch steht. Auch günstiger (15 statt 22 USD je Mio. Zeichen).' },
+  { key: 'natural', label: 'Natürlich (Mia & Klaus)', description: 'Neueste KI-Generation, klingt menschlicher. Verschluckt gelegentlich eine Silbe, schiebt eine ein oder ersetzt ein Wort.' },
 ]
 
 // Auswahl im Erzeugen-Fenster. „gemischt" liest den Buchtext kapitelweise
@@ -53,15 +56,15 @@ export const AUDIOBOOK_VOICE_SETS = [
 // andere Stimme — beim Trauerbuch V1, wo ein Kapitel EINER Person gehört, folgt
 // die Stimme statt des Wechsels dem Geschlecht dieser Person.
 export const AUDIOBOOK_VOICE_MODES = [
-  { key: 'f',     label: 'Weibliche Stimme (Mia)',   description: 'Das ganze Buch von einer Stimme gelesen.' },
-  { key: 'm',     label: 'Männliche Stimme (Klaus)', description: 'Das ganze Buch von einer Stimme gelesen.' },
-  { key: 'mixed', label: 'Gemischt (Mia & Klaus)',   description: 'Kapitel abwechselnd; fremde Stimmen jeweils in der anderen Stimme. Beim Trauerbuch mit Einzelkapiteln: die Stimme passend zum Geschlecht des Beitragenden.' },
+  { key: 'f',     label: 'Weibliche Stimme', description: 'Das ganze Buch von einer Stimme gelesen.' },
+  { key: 'm',     label: 'Männliche Stimme', description: 'Das ganze Buch von einer Stimme gelesen.' },
+  { key: 'mixed', label: 'Gemischt',         description: 'Kapitel abwechselnd; fremde Stimmen jeweils in der anderen Stimme. Beim Trauerbuch mit Einzelkapiteln: die Stimme passend zum Geschlecht des Beitragenden.' },
 ]
 
 // Konkrete Stimme je Sprecherrolle. Hat das Buch eine eigene Interview-Stimme
 // (memorials.tts_voice), tritt sie an die Stelle der Standardstimme ihres
 // Geschlechts — wer dem Buch beim Erzählen zugehört hat, soll es vorlesen.
-export function audiobookVoices(bookVoice, voiceSet = 'natural') {
+export function audiobookVoices(bookVoice, voiceSet = 'stable') {
   // „Wortgetreu" schlägt auch die Buchstimme — sonst käme über memorials.tts_voice
   // doch wieder eine generative Stimme herein.
   if (voiceSet === 'stable') return { f: AUDIOBOOK_VOICE_F_STABLE, m: AUDIOBOOK_VOICE_M_STABLE }
