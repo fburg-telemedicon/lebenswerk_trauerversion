@@ -6,7 +6,7 @@
 // bekommt die fertigen Blöcke in `params` und muss nichts davon nachbauen.
 // Vorbild für Aufbau und Reihenfolge ist `downloadStructuredDocx` in
 // `src/bookExport.js` — was dort gedruckt wird, wird hier gelesen. Nur die
-// Bilder fallen weg.
+// Bilder fallen weg, samt der Bildhinweise im Entstehungshinweis.
 //
 // Ein Block ist { kind, track, speaker, text }:
 //   • kind    – 'title' (Buchtitel), 'chapter' (Kapitelüberschrift), 'para' (Absatz)
@@ -19,7 +19,7 @@
 // gemessen am 2026-08-17).
 
 import { chapterVoices, chapterBoxes } from './categories.js'
-import { uiText, bookDisclaimer, imageFacts } from './i18n.js'
+import { uiText, bookDisclaimer } from './i18n.js'
 import { dedupeContributors, safeName } from './bookExport.js'
 
 // Zeichen je Sekunde Spieldauer — am fertigen Lutherhof-Hörbuch gemessen
@@ -164,7 +164,9 @@ export function audiobookBlocks(book, contributors = [], opts = {}) {
     }
   }
   endBlocks.push(bt.aiDisclaimerTitle)
-  endBlocks.push(bookDisclaimer(book?.language || 'de', { ...imageFacts(book), selfNarrated: opts.selfNarrated === true }))
+  // Ohne Bildhinweise (noImages): welche Bilder im Buch stehen und wie sie
+  // entstanden sind, kann man im Hoerbuch weder sehen noch nachvollziehen.
+  endBlocks.push(bookDisclaimer(book?.language || 'de', { noImages: true, selfNarrated: opts.selfNarrated === true }))
   tracks.push({ index: last, title: bt.contributorsHeading })
   for (const t of endBlocks) push('para', last, frame, t)
 

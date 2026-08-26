@@ -735,9 +735,14 @@ Object.assign(DISCLAIMER, {
 })
 
 // `facts` = { selfNarrated, hasAiImages, hasReferenceImages, hasRealPhotos }
+// `facts.noImages` laesst jeden Bildhinweis weg — fuer das Hoerbuch, in dem die
+// Bilder des Buchs gar nicht vorkommen; dort waere jeder Satz darueber (auch
+// „Das Buch enthaelt keine Bilder.") nur verwirrend. Der uebrige Hinweis auf
+// die KI-Erstellung und der Haftungssatz werden weiterhin vorgelesen.
 export function bookDisclaimer(lang, facts = {}) {
   const t = DISCLAIMER[lang] || DISCLAIMER.de
   const parts = [facts.selfNarrated ? t.textSelf : t.textOthers, t.liability]
+  if (facts.noImages) return parts.join(' ')
   if (facts.hasAiImages) parts.push(facts.hasReferenceImages ? t.imgAiRef : t.imgAi)
   if (facts.hasRealPhotos) parts.push(t.imgPhotos)
   if (!facts.hasAiImages && !facts.hasRealPhotos) parts.push(t.imgNone)
