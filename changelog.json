@@ -2,6 +2,16 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-26",
+      "items": [
+        "Hörtest am fertigen Lutherhof-Hörbuch verwirft die Stimmen vom 23. August: Über eine Stunde Vorlesezeit klingen die klassischen Neural-Stimmen (Katja & Conrad) zu maschinell. Vorgelesen wird ab jetzt immer von MAI-Voice-2 (Mia & Klaus) — am 26.08. gegen die Stimmenliste der Azure-Region geprüft die neueste Generation für Deutsch; DragonHD und die klassischen Stimmen sind die Vorgänger.",
+        "Die Auswahl der Stimmen-Generation ist aus dem Erzeugen-Fenster entfernt; es bleibt weiblich / männlich / gemischt. Auch die Hintertür ist zu: Eine ältere Interview-Stimme des Buchs (memorials.tts_voice) schlägt nicht mehr aufs Hörbuch durch.",
+        "Lutherhof-Hörbuch (entdoppelte Fassung GVL82BNVGN, Buch V2) mit den neuen Stimmen neu produziert: 24 Spuren, 75.002 Zeichen, 78,6 Minuten, ca. 1,51 €. Die Gesamtdatei liegt wieder auf dem Server (56,6 MB), der Download-Link an der Buchkarte ist erneuert.",
+        "Vollständigkeitsprüfung statt Vertrauen: jede der 24 Spuren einzeln abgerufen — alle liegen bei 14,6–17,3 Zeichen/Sekunde, kein abgeschnittener Aufruf; die Gesamtdatei ist auf das Byte genau die Summe der Spuren (0 Byte Differenz).",
+        "Ausgerollt und live: Revision lebenswerk-web--0000401 auf ee7b95c, 100 % Traffic."
+      ]
+    },
+    {
       "date": "2026-08-23",
       "items": [
         "Kundenmeldung zum englischen Interview: Die App liest Texte auf Deutsch vor, nur englisch ausgesprochen. Der deutsche Text kam nicht aus dem Wörterbuch – das englische war vollständig – sondern aus dem Prompt. Drei Ursachen gefunden und behoben.",
