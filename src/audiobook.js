@@ -30,26 +30,19 @@ const CHARS_PER_SECOND = 16
 const USD_PER_M_CHARS = { hd: 22.0, neural: 15.0 }
 const isHdVoice = v => /:(?:DragonHD|MAI-Voice)/i.test(String(v || ''))
 
-// Die beiden Stimmen des Hörbuchs. Werte identisch zu den MAI-Defaults in
-// api/_lib/ttsvoices.js — dieselbe Generation, die für das Lutherhof-Hörbuch
-// nach echten Hörproben gewählt wurde.
+// Die beiden Stimmen des Hörbuchs: MAI-Voice-2, Microsofts neueste Generation
+// und das Beste, was Azure für Deutsch anbietet (am 2026-08-26 gegen die
+// Stimmenliste der Region geprüft: alles andere — DragonHD, Multilingual, die
+// klassischen Neural-Stimmen — ist eine Generation älter).
+//
+// Es gibt hier BEWUSST keine Auswahl mehr. Am 23. August waren kurzzeitig die
+// klassischen Stimmen (Katja/Conrad) vorbelegt, weil die generative Generation
+// gelegentlich eine Silbe verschluckt oder ein Wort ersetzt. Der Hörtest am
+// fertigen Lutherhof-Hörbuch hat das verworfen: Über eine Stunde Vorlesezeit
+// klingen die klassischen Stimmen zu maschinell. Ältere Generationen sind
+// deshalb weder vorbelegt noch wählbar.
 export const AUDIOBOOK_VOICE_F = 'de-DE-Mia:MAI-Voice-2'
 export const AUDIOBOOK_VOICE_M = 'de-DE-Klaus:MAI-Voice-2'
-
-// Klassische Neural-Stimmen als stabile Alternative. Die MAI- und DragonHD-Stimmen
-// sind generativ: Sie klingen am natürlichsten, verschlucken aber gelegentlich eine
-// Silbe, schieben eine ein oder ersetzen ein Wort („war" → „wurde") — am
-// Lutherhof-Hörbuch mehrfach gehört. Die klassischen Stimmen erfinden nichts.
-export const AUDIOBOOK_VOICE_F_STABLE = 'de-DE-KatjaNeural'
-export const AUDIOBOOK_VOICE_M_STABLE = 'de-DE-ConradNeural'
-
-// Vorbelegt ist „wortgetreu": Am Lutherhof-Hörbuch hat die generative Generation
-// Silben verschluckt, welche eingeschoben und Komposita falsch getrennt. Wer den
-// natürlicheren Klang will, kann weiterhin umschalten.
-export const AUDIOBOOK_VOICE_SETS = [
-  { key: 'stable',  label: 'Wortgetreu (Katja & Conrad)', description: 'Klassische Sprachausgabe: etwas maschineller im Klang, liest dafür genau das, was im Buch steht. Auch günstiger (15 statt 22 USD je Mio. Zeichen).' },
-  { key: 'natural', label: 'Natürlich (Mia & Klaus)', description: 'Neueste KI-Generation, klingt menschlicher. Verschluckt gelegentlich eine Silbe, schiebt eine ein oder ersetzt ein Wort.' },
-]
 
 // Auswahl im Erzeugen-Fenster. „gemischt" liest den Buchtext kapitelweise
 // abwechselnd und setzt fremde Stimmen (die Stimmen-Kästen) jeweils in die
@@ -63,16 +56,17 @@ export const AUDIOBOOK_VOICE_MODES = [
 
 // Konkrete Stimme je Sprecherrolle. Hat das Buch eine eigene Interview-Stimme
 // (memorials.tts_voice), tritt sie an die Stelle der Standardstimme ihres
-// Geschlechts — wer dem Buch beim Erzählen zugehört hat, soll es vorlesen.
-export function audiobookVoices(bookVoice, voiceSet = 'stable') {
-  // „Wortgetreu" schlägt auch die Buchstimme — sonst käme über memorials.tts_voice
-  // doch wieder eine generative Stimme herein.
-  if (voiceSet === 'stable') return { f: AUDIOBOOK_VOICE_F_STABLE, m: AUDIOBOOK_VOICE_M_STABLE }
+// Geschlechts — wer dem Buch beim Erzählen zugehört hat, soll es vorlesen. Das
+// gilt aber nur, wenn diese Stimme selbst aus der neuesten Generation stammt:
+// Über ein altes `tts_voice` käme sonst durch die Hintertür wieder eine ältere
+// Stimme ins Hörbuch.
+export function audiobookVoices(bookVoice) {
   const v = String(bookVoice || '')
+  if (!/:MAI-Voice/i.test(v)) return { f: AUDIOBOOK_VOICE_F, m: AUDIOBOOK_VOICE_M }
   const male = /Klaus|Florian|Conrad|Bernd|Christoph/i.test(v)
   return {
-    f: (v && !male) ? v : AUDIOBOOK_VOICE_F,
-    m: (v && male)  ? v : AUDIOBOOK_VOICE_M,
+    f: male ? AUDIOBOOK_VOICE_F : v,
+    m: male ? v : AUDIOBOOK_VOICE_M,
   }
 }
 
