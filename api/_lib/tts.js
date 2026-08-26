@@ -9,6 +9,12 @@
 // Nötige Env: AZURE_SPEECH_KEY, AZURE_SPEECH_REGION (z. B. westeurope).
 
 const { ALLOWED_TTS_VOICES, voiceGender, MULTILINGUAL_VOICE, MAI_SECONDARY_LANGS, isMaiVoice, VOICE_FEMALE_HD } = require('./ttsvoices')
+const { respellLoanwords } = require('./loanwords')
+
+// Fremdwoerter lautnah umschreiben — aber nur, wenn wirklich DEUTSCH gesprochen
+// wird. In einem franzoesischen oder englischen Buch steht „Chance" richtig da
+// und muss unangetastet bleiben.
+const deSpeech = locale => /^de/i.test(String(locale || ''))
 
 function xmlEscape(s) {
   return String(s)
@@ -131,9 +137,10 @@ async function synthSSML(region, key, voice, locale, inner, opts = {}) {
 // ausgezeichnet werden — sonst wird der Text mit deutscher Aussprache gelesen.
 function speechInner(voice, locale, text) {
   const rate = process.env.AZURE_SPEECH_TTS_RATE || '+6%' // Sprechtempo, per Env feinjustierbar
+  const t = deSpeech(locale) ? respellLoanwords(text) : text
   return (voice.includes('Multilingual') || voice.slice(0, 5).toLowerCase() !== String(locale).slice(0, 5).toLowerCase())
-    ? `<lang xml:lang='${locale}'><prosody rate='${rate}'>${xmlEscape(text)}</prosody></lang>`
-    : `<prosody rate='${rate}'>${xmlEscape(text)}</prosody>`
+    ? `<lang xml:lang='${locale}'><prosody rate='${rate}'>${xmlEscape(t)}</prosody></lang>`
+    : `<prosody rate='${rate}'>${xmlEscape(t)}</prosody>`
 }
 
 async function synth(region, key, voice, locale, text, opts = {}) {
@@ -159,8 +166,12 @@ const NARRATION_FORMAT = 'audio-24khz-96kbitrate-mono-mp3'
 //     „Frühstück-Steller" gesprochen — die Sprachausgabe zieht das Fugen-s ans
 //     folgende Wort. Nur zwischen Klein- und GROSSbuchstabe ersetzt, damit
 //     „E-Mail", „S-Bahn" und Zahlenbereiche unangetastet bleiben.
-function narrationText(s) {
-  return stripForSpeech(String(s || '')).replace(/(\p{Ll})-(\p{Lu})/gu, '$1 $2')
+//   • respellLoanwords — Fremdwoerter wie „Charme" oder „Engagement", die die
+//     Sprachausgabe sonst buchstabengetreu deutsch liest (siehe loanwords.js).
+//     Nur bei deutscher Zielsprache.
+function narrationText(s, locale = 'de-DE') {
+  const t = stripForSpeech(String(s || '')).replace(/(\p{Ll})-(\p{Lu})/gu, '$1 $2')
+  return deSpeech(locale) ? respellLoanwords(t) : t
 }
 
 function narrationInner(voice, locale, texts, opts = {}) {
@@ -172,7 +183,7 @@ function narrationInner(voice, locale, texts, opts = {}) {
   // die erste Silbe weg oder es knackt hörbar. Mit Vorlauf trifft das die Stille.
   const lead = opts.leadingMs == null ? 300 : Math.max(0, opts.leadingMs)
   const body = (texts || [])
-    .map(t => narrationText(t)).filter(Boolean)
+    .map(t => narrationText(t, locale)).filter(Boolean)
     .map(t => `<p><prosody rate='${rate}'>${xmlEscape(t)}</prosody></p>`)
     .join('')
   // Spricht die Stimme eine andere Sprache als ihre eigene, muss die Zielsprache
