@@ -156,7 +156,12 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { username, allowed_categories, is_admin, demo, lang } = req.body || {}
+      // sendInvite: false legt das Konto an, OHNE die Einladungsmail zu verschicken.
+      // Gebraucht, wenn der Zugang persönlich übergeben wird (Kundenkonto, das der
+      // Betreiber selbst einrichtet und dessen Passwort er direkt setzt) — dann darf
+      // keine Mail an eine Adresse gehen, die vielleicht gar niemand liest.
+      // Der Einladungs-Token entsteht trotzdem und kommt in der Antwort zurück.
+      const { username, allowed_categories, is_admin, demo, lang, sendInvite } = req.body || {}
       const email = String(username || '').trim()
       // Dashboard-Sprache optional vorbelegen (de/en). Fehlt sie, wählt der Manager
       // sie beim ersten Login selbst.
@@ -202,7 +207,10 @@ module.exports = async function handler(req, res) {
 
       // Einladungs-E-Mail an den neuen Benutzer (best effort; Fehler soll die
       // Anlage NICHT scheitern lassen – der Admin kann den Link zusätzlich kopieren).
-      try {
+      if (sendInvite === false) {
+        result.email_sent = false
+        result.email_skipped = true
+      } else try {
         await sendAccessMail({ to: data.username, url: inviteLink(req, invite_token), kind: 'invite' })
         result.email_sent = true
         await audit(req, { actor: req.auth, action: 'user.invite_sent', target: data.id, detail: { to: data.username } })
