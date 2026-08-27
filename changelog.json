@@ -31,7 +31,8 @@
         "Zweiter Teil desselben Problems: Der Menüpunkt „Anderes Interview / das bin nicht ich“ stand bisher nur bereit, wenn das Interview aus dem gemerkten Code kam. Auf Stationstablets scannt aber jede Person ihren eigenen QR-Code, das Interview kommt also über den Link — und danach führte kein sichtbarer Weg mehr aus dem fremden Buch heraus. Der Ausweg steht jetzt immer bereit und verwirft dabei den gemerkten Code.",
         "Die Valuvita-Blätter nennen jetzt die Kurzadresse lebensgeschichten.ai/zugang statt der Suche nach einem Knopf auf der Startseite. Sie führt direkt auf die Code-Eingabe. Nebenbefund: Den Knopf gibt es sehr wohl, er steht im Hero neben „Kostenlos ausprobieren“; nur der gleichnamige Link in der Navigation wird unter 820 Pixel Bildschirmbreite ausgeblendet — auf Tablet und Handy sieht man ihn oben also nicht.",
         "Auf Kundenwunsch von allen Zugangsblättern entfernt: der Satz „Rufen Sie einfach an — wir begleiten Sie auch beim ersten Gespräch.“ Die Kontaktzeile bleibt.",
-        "Ausgerollt und live: Revision lebenswerk-web--0000415 auf c28c247. Am ausgelieferten Bundle nachgeprüft, dass beide Änderungen wirklich drin sind (die Weiche prüft jetzt fünf statt vier Bedingungen, und der Ausweg ist unbedingt)."
+        "Ausgerollt und live: Revision lebenswerk-web--0000415 auf c28c247. Am ausgelieferten Bundle nachgeprüft, dass beide Änderungen wirklich drin sind (die Weiche prüft jetzt fünf statt vier Bedingungen, und der Ausweg ist unbedingt).",
+        "Nachgezogen: „Anderes Interview / das bin nicht ich“ war zu breit gesetzt und erschien auch bei Endnutzern mit eigenem Login — die haben oben rechts längst einen festen Abmelden-Knopf, ein zweiter Ausstieg zur Code-Eingabe wäre dort irreführend. Sichtbar bleibt der Punkt für alle, die ein Buch über einen Code öffnen (Link, QR oder gemerkter Code). Live auf Revision lebenswerk-web--0000417 (6425939)."
       ]
     },
     {
