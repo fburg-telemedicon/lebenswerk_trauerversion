@@ -4480,10 +4480,19 @@ export default function App() {
   }, [])
   // Ohne ?code/Invite/Register UND ohne Manager-/Endnutzer-Sitzung: das gemerkte
   // Interview direkt öffnen (mit „das bin nicht ich"-Ausweg im ☰-Menü).
+  //
+  // `?zugang` MUSS hier ausgenommen sein: Wer auf „Ich habe einen Zugangscode"
+  // tippt, will ausdrücklich einen ANDEREN Code eingeben. Ohne die Ausnahme
+  // landete er stattdessen im zuletzt geöffneten Interview — auf einem geteilten
+  // Stationstablet also in der Lebensgeschichte der vorigen Person, und die
+  // Eingabemaske war überhaupt nicht erreichbar.
   let rememberedCode = ''
-  if (!codeFromURL && !inviteFromURL && !registerFromURL && !fairFromURL) {
+  if (!codeFromURL && !inviteFromURL && !registerFromURL && !fairFromURL && !codeEntryFromURL) {
     try { if (!readAdminToken()) rememberedCode = (localStorage.getItem('lw_last_code') || '').trim() } catch { /* ignore */ }
   }
+  // Und der gemerkte Code wird dabei gleich verworfen: Sonst führte der nächste
+  // Aufruf der blanken Adresse wieder ins fremde Interview zurück.
+  if (codeEntryFromURL) { try { localStorage.removeItem('lw_last_code') } catch { /* privater Modus */ } }
 
   const route = hash.replace(/^#/, '')
   if (route === 'impressum')  return <Impressum />

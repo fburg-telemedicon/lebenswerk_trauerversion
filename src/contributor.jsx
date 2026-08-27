@@ -2201,8 +2201,8 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
                 <span style={{ fontSize:19 }}>✉️</span><span>{t.supportButton || 'Support kontaktieren'}</span>
               </button>
             </>)}
-            {/* Nur wenn dieses Interview aus dem gemerkten Code geöffnet wurde: Ausweg,
-                um den gemerkten Code zu verwerfen (z. B. auf einem geteilten Gerät). */}
+            {/* Ausweg auf geteilten Geräten (Stationstablet): raus aus diesem Buch,
+                gemerkten Code verwerfen, zurück zur Code-Eingabe. */}
             {onSwitchInterview && (<>
               <div style={sep} />
               <button onClick={() => { setOpen(false); onSwitchInterview() }} style={row}>
@@ -3312,12 +3312,19 @@ function OnboardingCarousel({ memorial, lang = 'de', onClose }) {
 // erzählt sein EIGENES Leben (keine Beziehungsangabe), kann Fotos hochladen und
 // bekommt einen Einstellungs-Tab für Grafik- und Textstil seines Buchs.
 export function ContributorFlow({ code, endUserToken = null, onLogout = null, fromRemembered = false }) {
-  // Wurde dieses Interview aus dem auf dem Gerät gemerkten Code geöffnet (nicht über
-  // einen ?code-Link), bieten wir im ☰-Menü einen Ausweg „Anderes Interview" an:
-  // gemerkten Code verwerfen und zurück zur Startseite (wichtig auf geteilten Geräten).
-  const switchInterview = fromRemembered
-    ? () => { try { localStorage.removeItem('lw_last_code') } catch { /* ignore */ } window.location.href = '/zugang' }
-    : null
+  // Ausweg „Anderes Interview" im ☰-Menü: gemerkten Code verwerfen und zur
+  // Code-Eingabe zurück.
+  //
+  // Früher gab es ihn NUR, wenn das Interview aus dem gemerkten Code geöffnet
+  // wurde. Auf einem geteilten Stationstablet ist das die falsche Bedingung: Dort
+  // scannt jede Person ihren eigenen QR-Code, das Interview kommt also über
+  // `?code=` — und danach führte kein sichtbarer Weg mehr aus dem fremden Buch
+  // heraus. Der Ausweg steht deshalb jetzt immer zur Verfügung; wer ihn nicht
+  // braucht, sieht nur einen zusätzlichen Menüpunkt.
+  const switchInterview = () => {
+    try { localStorage.removeItem('lw_last_code') } catch { /* privater Modus */ }
+    window.location.href = '/zugang'
+  }
   const [view, setView]                       = useState('loading') // loading | info | interview | done | error
   const [memorial, setMemorial]               = useState(null)
   const [contribForm, setContribForm]         = useState({ name:'', gender:'', relationship:'', address:'Sie' })
