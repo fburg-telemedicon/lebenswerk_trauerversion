@@ -544,6 +544,35 @@ export function drawCoverPreview(canvasEl, p, boxYKey) {
   }
 }
 
+// ── Vorderseite als Bild ────────────────────────────────────────────
+// Für Dateien, die ein Titelbild tragen können — derzeit das Hörbuch im
+// M4B-Format, wo der Player es als Umschlag anzeigt.
+//
+// Bewusst KEINE zweite Rechnung: Es wird genau die Vorschau gezeichnet und daraus
+// die beschnittene Vorderseite ausgeschnitten (ohne Beschnitt-Wickel, ohne Rücken).
+// Titel, Umbruch, Farben und die Lage des Titelkastens stimmen damit zwangsläufig
+// mit dem gedruckten Umschlag überein; ein eigener Renderer würde über kurz oder
+// lang auseinanderlaufen.
+export function renderFrontCoverJpeg(p, boxYKey, { px = 1000, quality = 0.82 } = {}) {
+  const s = px / COVER.panelW                     // px pro mm, gemessen an der Vorderseite
+  const full = document.createElement('canvas')
+  full.width = Math.round(p.W * s)
+  full.height = Math.round(p.H * s)
+  drawCoverPreview(full, p, boxYKey)
+
+  // Linke Kante der BESCHNITTENEN Vorderseite: Beschnitt + Rückseite + Rückenstärke.
+  // Nicht p.frontX nehmen — das ist die Kante der Rücken-Farbfläche, die 1 mm auf
+  // die Vorderseite wickelt.
+  const x0 = COVER.bleed + COVER.panelW + p.B
+  const out = document.createElement('canvas')
+  out.width = Math.round(COVER.panelW * s)
+  out.height = Math.round(COVER.netH * s)
+  out.getContext('2d').drawImage(full,
+    Math.round(x0 * s), Math.round(COVER.bleed * s), out.width, out.height,
+    0, 0, out.width, out.height)
+  return out.toDataURL('image/jpeg', quality)
+}
+
 // ── Speichern ───────────────────────────────────────────────────────
 export function downloadCoverPdf(filename, p, boxYKey) {
   const boxY = p.boxYByPos[boxYKey] ?? p.boxYByPos.auto

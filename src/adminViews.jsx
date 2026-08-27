@@ -3483,6 +3483,13 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                               )}
                               {min != null && <span style={{ color:'#86198f' }}>· {t(`${min} Min.`, `${min} min`)}</span>}
                               {audio.m4b.size != null && <span style={{ color:'#86198f' }}>· {Math.round(audio.m4b.size / 1048576)} MB</span>}
+                              {/* Das Titelbild ist die Vorderseite des Druck-Covers. Ohne
+                                  erstelltes Cover bleibt die Datei absichtlich ohne — einen
+                                  Cover-Hintergrund zu erzeugen kostet Geld. */}
+                              <span style={{ color: audio.m4b.cover ? '#86198f' : '#a8a29e' }}
+                                    title={audio.m4b.cover ? '' : t('Für dieses Buch gibt es noch kein Druck-Cover. Erstelle eines über „📕 Druck-Cover" und erzeuge die M4B danach neu — dann trägt sie die Vorderseite als Umschlag.', 'This book has no print cover yet. Create one via “📕 Print cover” and rebuild the M4B — it will then carry the front page as its artwork.')}>
+                                · {audio.m4b.cover ? t('mit Titelbild', 'with artwork') : t('ohne Titelbild', 'no artwork')}
+                              </span>
                             </div>
                           )
                         })()}

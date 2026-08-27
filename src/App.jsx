@@ -28,7 +28,7 @@ import { reviewSystemPrompt, extractReviewText, contributionsContext } from './r
 import { withRepetitionCheck } from './repetition.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, FORM_DISCLAIMER, FORM_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
-import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, BOX_POSITIONS } from './coverExport.js'
+import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, renderFrontCoverJpeg, MIN_PAGES, BOX_POSITIONS } from './coverExport.js'
 import { audiobookBlocks, audiobookEstimate, audiobookVoices, AUDIOBOOK_VOICE_MODES, trackFileName } from './audiobook.js'
 
 // Version des Cover-Prompts (coverPrompt). Bei jeder inhaltlichen Änderung
@@ -3072,11 +3072,43 @@ Regeln:
     setGenPct(p => ({ ...p, [kind]: 0 }))
     cancelGenRef.current[kind] = false
     try {
-      const title = ab.title || selected[key]?.title || selected.name || 'Buch'
+      const book = selected[GENERATORS[key]?.field || key]
+      const title = ab.title || book?.title || selected.name || 'Buch'
+      // Titelbild: die Vorderseite des bestehenden Druck-Covers. Sie wird HIER
+      // gezeichnet, weil das Cover-Wissen im Browser liegt (coverExport.js) —
+      // dasselbe Prinzip wie beim Vorlesetext des Hörbuchs. Fehlt ein Cover, gibt
+      // es eben keins: Ein Cover-Hintergrund würde erzeugt und KOSTET Geld, und
+      // ein Hörbuch ist kein Anlass, das ungefragt auszulösen.
+      let coverJpeg = null
+      if (book?.cover_image_path && book?.cover_image_url) {
+        try {
+          setGenProgress(p => ({ ...p, [kind]: 'Titelbild wird vorbereitet …' }))
+          const boxPos = book.cover_box_pos || 'auto'
+          const prep = await prepareCover({
+            bgUrl: book.cover_image_url,
+            // Die Seitenzahl bestimmt allein die Rückenstärke — und der Buchrücken
+            // liegt AUSSERHALB des Ausschnitts, den renderFrontCoverJpeg nimmt.
+            // Deshalb genügt hier ein Ersatzwert: Bücher mit fertigem Cover haben
+            // print_pages nicht zwingend (am Lutherhof-Buch belegt), und daran das
+            // Titelbild scheitern zu lassen wäre grundlos.
+            pages: book.print_pages || MIN_PAGES,
+            title: book.title || selected.name,
+            subtitle: book.subtitle || '',
+            layout: getBookLayout(selected.book_layout),
+            boxPos,
+          })
+          coverJpeg = renderFrontCoverJpeg(prep, boxPos)
+        } catch (e) {
+          // Das Hörbuch ist das Ergebnis, nicht der Umschlag — ein misslungenes
+          // Titelbild darf den Lauf nicht kippen.
+          console.warn('M4B-Titelbild konnte nicht erzeugt werden:', e)
+        }
+      }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, {
         resultType: 'audiobook-m4b', variant: key,
         title, artist: selected.name || '',
         filename: `Hoerbuch_${safeName(title)}.m4b`,
+        coverJpeg,
       })
       genJobRef.current[kind] = jobId
       await pollGeneration(kind, jobId)

@@ -954,6 +954,7 @@ async function processM4b(job, deadline) {
     // teilen sich denselben Schlüssel, unterschieden wird über `&f=m4b`.
     prevSlug: rec?.m4b?.slug || rec?.full?.slug,
     filename: p.filename,
+    coverJpeg: p.coverJpeg,
   })
   await m4b.cleanupChapters(genjobs.supabase, result.parts)
 

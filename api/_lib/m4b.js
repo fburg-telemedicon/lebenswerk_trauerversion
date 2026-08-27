@@ -147,14 +147,41 @@ async function assembleM4b(supabase, code, variant, parts, meta = {}, opts = {})
     const metaFile = path.join(dir, 'meta.txt')
     await fs.writeFile(metaFile, ffmetadata(list, meta), 'utf8')
 
+    // Titelbild: die Vorderseite des Druck-Covers, im Browser gezeichnet und als
+    // JPEG mitgeschickt (siehe renderFrontCoverJpeg in src/coverExport.js). Sie
+    // wird als „attached_pic" in den MP4-Behälter gelegt — genau das zeigt ein
+    // Hörbuch-Player als Umschlag.
+    let coverFile = null
+    if (opts.coverJpeg) {
+      const b64 = String(opts.coverJpeg).replace(/^data:[^,]*,/, '')
+      coverFile = path.join(dir, 'cover.jpg')
+      await fs.writeFile(coverFile, Buffer.from(b64, 'base64'))
+    }
+
     const out = path.join(dir, 'out.m4b')
-    await run(FFMPEG, [
-      '-hide_banner', '-nostdin', '-y',
-      '-f', 'concat', '-safe', '0', '-i', listFile,
-      '-i', metaFile, '-map_metadata', '1', '-map_chapters', '1',
-      '-c:a', 'copy', '-movflags', '+faststart',
-      out,
-    ], JOIN_TIMEOUT_MS)
+    const args = (withCover) => {
+      const a = [
+        '-hide_banner', '-nostdin', '-y',
+        '-f', 'concat', '-safe', '0', '-i', listFile,
+        '-i', metaFile,
+      ]
+      if (withCover) a.push('-i', coverFile)
+      a.push('-map', '0:a', '-map_metadata', '1', '-map_chapters', '1')
+      if (withCover) a.push('-map', '2:v', '-c:v', 'copy', '-disposition:v:0', 'attached_pic')
+      a.push('-c:a', 'copy', '-movflags', '+faststart', out)
+      return a
+    }
+    let cover = !!coverFile
+    try {
+      await run(FFMPEG, args(cover), JOIN_TIMEOUT_MS)
+    } catch (e) {
+      // Ohne Umschlag ist die Datei immer noch das, was zählt — mit dem zweiten
+      // Versuch geht ein Hörbuch nicht an einem Bild verloren.
+      if (!cover) throw e
+      console.warn('[m4b] Titelbild konnte nicht eingebettet werden, zweiter Versuch ohne:', e.message)
+      cover = false
+      await run(FFMPEG, args(false), JOIN_TIMEOUT_MS)
+    }
 
     const buf = await fs.readFile(out)
     const blobPath = `${code}/audio/full-${variant}.m4b`
@@ -170,6 +197,7 @@ async function assembleM4b(supabase, code, variant, parts, meta = {}, opts = {})
       slug: opts.prevSlug || crypto.randomBytes(12).toString('base64url'),
       filename: String(opts.filename || `Hoerbuch_${variant}.m4b`).slice(0, 160),
       size: buf.length,
+      cover,
       ms: list.reduce((n, p) => n + p.ms, 0),
       chapters: list.map(p => ({ index: p.index, title: p.title, ms: p.ms })),
       at: new Date().toISOString(),
