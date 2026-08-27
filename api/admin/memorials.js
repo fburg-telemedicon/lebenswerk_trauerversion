@@ -198,8 +198,10 @@ function audiobookPaths(audiobooks) {
     for (const t of (Array.isArray(ab?.tracks) ? ab.tracks : [])) {
       if (t?.path) out.push(String(t.path).replace(/^\/+/, ''))
     }
-    // Die optional abgelegte Gesamtdatei (siehe api/admin/store-audiobook.js).
+    // Die optional abgelegte Gesamtdatei (siehe api/admin/store-audiobook.js) und
+    // die optionale M4B mit Kapitelmarken (api/_lib/m4b.js).
     if (ab?.full?.path) out.push(String(ab.full.path).replace(/^\/+/, ''))
+    if (ab?.m4b?.path) out.push(String(ab.m4b.path).replace(/^\/+/, ''))
   }
   return out
 }
@@ -214,6 +216,10 @@ function applyAudiobookUrls(audiobooks, urlMap) {
     if (ab?.full?.path) {
       const key = String(ab.full.path).replace(/^\/+/, '')
       if (urlMap[key]) ab.full.url = urlMap[key]
+    }
+    if (ab?.m4b?.path) {
+      const key = String(ab.m4b.path).replace(/^\/+/, '')
+      if (urlMap[key]) ab.m4b.url = urlMap[key]
     }
   }
 }

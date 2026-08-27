@@ -22,6 +22,14 @@ FROM node:20-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
+# ffmpeg/ffprobe: nur für das Hörbuch im M4B-Format (api/_lib/m4b.js) — MP3 nach
+# AAC wandeln und mit Kapitelmarken in einen MP4-Behälter legen. Alles andere am
+# Ton kommt ohne aus (Azure liefert reine MPEG-Frames, die sich binär aneinander-
+# hängen lassen). Fehlt das Paket, entfällt nur die M4B-Schaltfläche.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
 # Nur Produktionsabhängigkeiten installieren.
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force

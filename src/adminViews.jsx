@@ -2792,7 +2792,7 @@ function GuestActions({ c, setGuestStatus }) {
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3183,6 +3183,10 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 // eigener busy-Zustand neben dem der Buch-Generierung.
                 const abKind = `audiobook_${key}`
                 const abBusy = !!generating[abKind] && genOwner[abKind] === selected.id
+                // Das Umpacken nach M4B ist ein eigener Job — es darf neben einer
+                // laufenden Hörbuch-Erzeugung stehen und hat seinen eigenen Fortschritt.
+                const m4bKind = `m4b_${key}`
+                const m4bBusy = !!generating[m4bKind] && genOwner[m4bKind] === selected.id
                 const audio = selected.audiobooks?.[key]
                 const hasAudio = !!(audio?.tracks || []).length
                 const report = selected.content_reports?.[gen.field]
@@ -3391,7 +3395,29 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                               {audiobookDl === `${key}:store` ? t('⏳ Wird abgelegt …', '⏳ Storing …') : t('⬆ Auf Server ablegen', '⬆ Store on server')}
                             </button>
                           )}
+                          <button onClick={() => generateM4b(key)} disabled={m4bBusy || !!audiobookDl} className="secondary" style={{ fontSize:12, padding:'4px 10px' }}
+                                  title={t('Erzeugt dieselbe Aufnahme zusätzlich als M4B — das Hörbuch-Format mit Kapitelverzeichnis: Der Player zeigt die Kapitel an, man kann springen und er merkt sich die Stelle. Kostet nichts, es wird nichts neu gesprochen; das Umwandeln dauert je nach Länge einige Minuten.', 'Also produces the recording as an M4B — the audiobook format with a chapter list: the player shows chapters, you can jump, and it remembers your position. Costs nothing, nothing is recorded again; converting takes a few minutes depending on length.')}>
+                            {m4bBusy ? t('⏳ M4B wird erzeugt …', '⏳ Building M4B …') : (audio.m4b ? t('↻ M4B neu erzeugen', '↻ Rebuild M4B') : t('📚 M4B mit Kapiteln', '📚 M4B with chapters'))}
+                          </button>
                         </div>
+                        {m4bBusy && (
+                          <div style={{ marginBottom:8 }}>
+                            {genPct[m4bKind] != null && (
+                              <div style={{ height:6, background:'#f5d0fe', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                                <div style={{ width:`${genPct[m4bKind]}%`, height:'100%', background:'#86198f', transition:'width .3s' }} />
+                              </div>
+                            )}
+                            <p style={{ fontSize:12, color:'#86198f', margin:0 }}>
+                              📚 {genPct[m4bKind] != null ? `${genPct[m4bKind]} % · ` : ''}{genProgress[m4bKind] || t('Kapitel werden umgewandelt …', 'Converting chapters …')}
+                            </p>
+                            <button onClick={() => cancelGenerate(m4bKind)} disabled={!!cancelGenRef.current[m4bKind]} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+                              {t('✕ Abbrechen', '✕ Cancel')}
+                            </button>
+                          </div>
+                        )}
+                        {!m4bBusy && genErr[m4bKind] && genOwner[m4bKind] === selected.id && (
+                          <div style={{ marginBottom:8 }}><Err msg={genErr[m4bKind]} /></div>
+                        )}
                         {audio.full_error && !audio.full && (
                           <p style={{ fontSize:12, color:'#b45309', margin:'0 0 8px' }}>
                             {t('⚠ Die Gesamtdatei konnte beim Erzeugen nicht abgelegt werden:', '⚠ The single file could not be stored during generation:')} {audio.full_error}
@@ -3432,6 +3458,31 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                                       title={t('Die abgelegte Datei aus den aktuellen Kapiteln neu zusammensetzen. Der Link bleibt derselbe.', 'Rebuild the stored file from the current chapters. The link stays the same.')}>
                                 {audiobookDl === `${key}:store` ? t('⏳ …', '⏳ …') : t('↻ neu ablegen', '↻ rebuild')}
                               </button>
+                            </div>
+                          )
+                        })()}
+                        {audio.m4b?.slug && !m4bBusy && (() => {
+                          // Dieselbe kurze Domain-URL wie bei der MP3, nur mit `&f=m4b`
+                          // (api/audio.js). Der Schlüssel ist derselbe — ein bereits
+                          // geteilter Link wird also nur ergänzt.
+                          const url = `${window.location.origin}/api/audio?code=${selected.id}&v=${key}&s=${audio.m4b.slug}&f=m4b`
+                          const mk = `m4b_${key}`
+                          const min = audio.m4b.ms ? Math.round(audio.m4b.ms / 60000) : null
+                          return (
+                            <div style={{ marginBottom:8, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12.5 }}>
+                              <span aria-hidden="true">📚</span>
+                              <a href={url} style={{ color:'#86198f', fontWeight:600, textDecoration:'underline' }}
+                                 title={t('Lädt die M4B herunter — ein Hörbuch-Player zeigt damit das Kapitelverzeichnis und merkt sich die Stelle.', 'Downloads the M4B — an audiobook player shows the chapter list and remembers your position.')}>
+                                {t('⬇ M4B mit Kapiteln', '⬇ M4B with chapters')}
+                              </a>
+                              <button className="secondary" onClick={() => { navigator.clipboard?.writeText(url); setPdfCopied(mk); setTimeout(() => setPdfCopied(c => c === mk ? null : c), 2000) }} style={{ fontSize:12, padding:'4px 10px' }}>
+                                {pdfCopied === mk ? t('✓ Kopiert', '✓ Copied') : t('📋 M4B-Link', '📋 M4B link')}
+                              </button>
+                              {audio.m4b.chapters?.length != null && (
+                                <span style={{ color:'#86198f' }}>· {t(`${audio.m4b.chapters.length} Kapitel`, `${audio.m4b.chapters.length} chapters`)}</span>
+                              )}
+                              {min != null && <span style={{ color:'#86198f' }}>· {t(`${min} Min.`, `${min} min`)}</span>}
+                              {audio.m4b.size != null && <span style={{ color:'#86198f' }}>· {Math.round(audio.m4b.size / 1048576)} MB</span>}
                             </div>
                           )
                         })()}

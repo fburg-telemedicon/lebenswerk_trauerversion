@@ -17,8 +17,11 @@ const genjobs = require('../_lib/genjobs')
 // Das Hörbuch hat je Buchfassung eine eigene Art — so gilt „nur EIN aktiver Job
 // pro (Buch, Art)" getrennt für die beiden Fassungen, und das Dashboard zeigt den
 // Fortschritt an der richtigen Karte.
+// 'm4b_*' packt ein FERTIGES Hörbuch in das Hörbuch-Format M4B um (Kapitelmarken)
+// — eigene Art, damit es neben einer laufenden Hörbuch-Erzeugung nicht abgebrochen
+// wird und der Fortschritt getrennt angezeigt werden kann.
 const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa',
-  'audiobook_book_v1', 'audiobook_book_v2'])
+  'audiobook_book_v1', 'audiobook_book_v2', 'm4b_book_v1', 'm4b_book_v2'])
 
 // Prüft Zugriff auf das Buchprojekt (Admin = alles; sonst eigenes Buch der
 // erlaubten Kategorien). Rückgabe: memorial-Row (id) oder null.
@@ -62,15 +65,20 @@ module.exports = async function handler(req, res) {
       if (!ALLOWED_KINDS.has(kind)) return res.status(400).json({ error: 'Ungültige Generierungsart.' })
       if (!(await accessibleMemorial(req, code))) return res.status(403).json({ error: 'Kein Zugriff auf dieses Buchprojekt.' })
       // Kosten-Obergrenze je Buch erschöpft → keine neue Generierung starten (402).
-      if (!(await enforceBudget(res, code.toUpperCase()))) return
+      // M4B ist davon ausgenommen: es kauft nichts ein, sondern packt bereits
+      // bezahlten Ton in ein anderes Format um.
+      const isM4b = params?.resultType === 'audiobook-m4b'
+      if (!isM4b && !(await enforceBudget(res, code.toUpperCase()))) return
       // Rede nutzt params.steps, Buch params.chapterSteps, Stammbaum/Poster einen
       // einzelnen params.system-Prompt, das Hörbuch die fertigen Vorlese-Blöcke —
-      // eines davon muss da sein.
+      // eines davon muss da sein. M4B braucht nichts davon: dort liegt die Arbeit
+      // schon im Storage, es genügt die Buchfassung.
       const hasWork = params && (
         (Array.isArray(params.steps) && params.steps.length > 0) ||
         (Array.isArray(params.chapterSteps) && params.chapterSteps.length > 0) ||
         (Array.isArray(params.blocks) && params.blocks.length > 0) ||
-        (typeof params.system === 'string' && params.system.trim().length > 0)
+        (typeof params.system === 'string' && params.system.trim().length > 0) ||
+        (isM4b && typeof params.variant === 'string' && params.variant.length > 0)
       )
       if (!hasWork) return res.status(400).json({ error: 'params.steps/chapterSteps/blocks/system fehlt.' })
       // Nur EIN aktiver Job pro (Buch, Art): laufende zuerst abbrechen.

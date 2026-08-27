@@ -3055,6 +3055,47 @@ Regeln:
     finally { setAudiobookDl('') }
   }
 
+  // M4B erzeugen: dasselbe Hörbuch noch einmal als Hörbuch-Datei MIT KAPITELMARKEN.
+  // Kostet nichts — es wird kein Wort neu gesprochen, sondern der vorhandene Ton
+  // umgepackt (api/_lib/m4b.js). Es läuft trotzdem als Job und nicht als einfacher
+  // Aufruf, weil das Umwandeln je nach Buchlänge Minuten rechnet.
+  async function generateM4b(key) {
+    if (!selected) return
+    const ab = selected.audiobooks?.[key]
+    if (!(ab?.tracks || []).length) { setErr('Es gibt noch kein Hörbuch zu dieser Buchfassung.'); return }
+    const kind = `m4b_${key}`
+    setErr('')
+    setGenErr(p => ({ ...p, [kind]: '' }))
+    setGenOwner(o => ({ ...o, [kind]: selected.id }))
+    setGenerating(g => ({ ...g, [kind]: true }))
+    setGenProgress(p => ({ ...p, [kind]: 'Kapitel werden umgewandelt …' }))
+    setGenPct(p => ({ ...p, [kind]: 0 }))
+    cancelGenRef.current[kind] = false
+    try {
+      const title = ab.title || selected[key]?.title || selected.name || 'Buch'
+      const { jobId } = await enqueueGeneration(token, selected.id, kind, {
+        resultType: 'audiobook-m4b', variant: key,
+        title, artist: selected.name || '',
+        filename: `Hoerbuch_${safeName(title)}.m4b`,
+      })
+      genJobRef.current[kind] = jobId
+      await pollGeneration(kind, jobId)
+
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      }
+      setGenPct(p => ({ ...p, [kind]: 100 }))
+    } catch (e) {
+      setGenErr(p => ({ ...p, [kind]: e.message === '__CANCELLED__' ? 'Abgebrochen.' : e.message }))
+    } finally {
+      setGenerating(g => ({ ...g, [kind]: false }))
+      setGenProgress(p => ({ ...p, [kind]: '' }))
+    }
+  }
+
   // Alle Kapitel als ZIP, mit sprechenden Dateinamen („03_Kapitel_3_….mp3"). Das
   // ist der Weg auf ein Handy: entpacken, in einen Hörbuch-Player legen — der
   // spielt sie in der Nummern-Reihenfolge und merkt sich die Stelle.
@@ -3980,7 +4021,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
+    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

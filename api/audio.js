@@ -1,6 +1,7 @@
 // api/audio.js
-// GET /api/audio?code=ABC123&v=book_v2&s=<slug>        → im Browser ABSPIELEN
-// GET /api/audio?code=ABC123&v=book_v2&s=<slug>&dl=1   → MP3 HERUNTERLADEN
+// GET /api/audio?code=ABC123&v=book_v2&s=<slug>          → im Browser ABSPIELEN
+// GET /api/audio?code=ABC123&v=book_v2&s=<slug>&dl=1     → MP3 HERUNTERLADEN
+// GET /api/audio?code=ABC123&v=book_v2&s=<slug>&f=m4b    → M4B mit KAPITELMARKEN
 //
 // Ein Blob, zwei Verhaltensweisen: Die Content-Disposition wird in die SAS-URL
 // hineinsigniert (rscd), Azure gibt sie als Antwort-Header aus. Es liegt also
@@ -40,20 +41,33 @@ module.exports = async function handler(req, res) {
 
     const { data: m } = await supabase
       .from('memorials').select('audiobooks').eq('id', code).maybeSingle()
-    const full = m?.audiobooks?.[v]?.full
-    if (!full || !full.path || full.slug !== s) return res.status(404).send('Hörbuch nicht gefunden.')
+    const rec = m?.audiobooks?.[v]
+    // Zwei Formate derselben Aufnahme: die schlichte MP3-Gesamtdatei und — wenn
+    // erzeugt — die M4B mit Kapitelmarken. Beide tragen denselben Schlüssel, ein
+    // schon geteilter Link wird also nur um `&f=m4b` ergänzt.
+    const wantM4b = String(req.query.f || '').toLowerCase() === 'm4b'
+    const full = wantM4b ? rec?.m4b : rec?.full
+    if (!full || !full.path || full.slug !== s) {
+      return res.status(404).send(wantM4b ? 'Für dieses Hörbuch gibt es keine M4B-Datei.' : 'Hörbuch nicht gefunden.')
+    }
+    const mime = wantM4b ? 'audio/mp4' : 'audio/mpeg'
 
     // Dateiname für den Speichern-Dialog. `filename*` (RFC 5987) trägt Umlaute
     // korrekt, das schlichte `filename` bleibt als ASCII-Rückfall daneben stehen.
-    const name = String(full.filename || 'Hoerbuch.mp3').replace(BAD_IN_HEADER, '').slice(0, 160)
+    const name = String(full.filename || (wantM4b ? 'Hoerbuch.m4b' : 'Hoerbuch.mp3')).replace(BAD_IN_HEADER, '').slice(0, 160)
     const ascii = name.replace(NON_ASCII, '_')
-    const download = req.query.dl !== undefined && String(req.query.dl) !== '0'
+    // M4B wird standardmässig HERUNTERGELADEN: Browser können damit nichts
+    // anfangen, das Format gehört in einen Hörbuch-Player. `&dl=0` erzwingt trotzdem
+    // die Wiedergabe im Browser.
+    const download = wantM4b
+      ? String(req.query.dl ?? '1') !== '0'
+      : (req.query.dl !== undefined && String(req.query.dl) !== '0')
     const disposition = download
       ? `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`
       : `inline; filename="${ascii}"`
 
     const { data: signed } = await supabase.storage.from(IMAGE_BUCKET)
-      .createSignedUrls([full.path], SIGNED_URL_TTL, { contentDisposition: disposition, contentType: 'audio/mpeg' })
+      .createSignedUrls([full.path], SIGNED_URL_TTL, { contentDisposition: disposition, contentType: mime })
     const url = signed?.[0]?.signedUrl
     if (!url) return res.status(502).send('Link konnte nicht erstellt werden.')
 

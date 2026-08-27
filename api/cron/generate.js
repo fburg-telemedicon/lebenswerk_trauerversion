@@ -26,6 +26,7 @@ const genprompts = require('../_lib/genprompts')
 const repetition = require('../_lib/repetition')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { storeFullAudiobook } = require('../_lib/audiobook')
+const m4b = require('../_lib/m4b')
 
 const TIME_BUDGET_MS = Math.max(10000, parseInt(process.env.GENERATE_BUDGET_MS || '240000', 10))
 const MAX_CHAIN = 60
@@ -899,10 +900,77 @@ async function processAudiobook(job, deadline) {
 }
 
 
+// ─────────────────── Hörbuch als M4B (mit Kapitelmarken) ────────────────────
+// Job-Plan: { resultType:'audiobook-m4b', variant:'book_v1'|'book_v2',
+//             memorialCode, title, artist, filename }
+//
+// Kostet KEINE Sprachausgabe: gearbeitet wird ausschliesslich auf den bereits
+// gesprochenen MP3-Kapiteln. Der Job ist trotzdem ein Job und kein Endpunkt, weil
+// das Kodieren rechnet — ein ganzes Buch am Stück sprengt das Zeitbudget einer
+// Runde. Deshalb wird KAPITELWEISE gewandelt und der Zwischenstand nach jedem
+// Kapitel gesichert; die Zwischendateien liegen im Storage und überleben damit
+// einen Wechsel des Containers (siehe api/_lib/m4b.js).
+async function processM4b(job, deadline) {
+  const p = job.params || {}
+  const code = p.memorialCode || job.memorial_id
+  const variant = String(p.variant || 'book_v2')
+
+  if (!(await m4b.ffmpegAvailable())) {
+    await genjobs.failJob(job.id, 'Auf dem Server fehlt ffmpeg — das M4B-Format ist erst ab der nächsten Auslieferung verfügbar.')
+    return 'error'
+  }
+
+  const rec = await genjobs.audiobookRecord(code, variant)
+  const tracks = (rec?.tracks || []).filter(t => t?.path).slice().sort((a, b) => a.index - b.index)
+  if (!tracks.length) { await genjobs.failJob(job.id, 'Für diese Buchfassung gibt es noch kein Hörbuch.'); return 'error' }
+
+  const result = job.result && typeof job.result === 'object' ? job.result : {}
+  if (!Array.isArray(result.parts)) result.parts = []
+  const total = tracks.length
+
+  while (result.parts.length < total) {
+    if (await canceled(job.id)) return 'canceled'
+    const idx = result.parts.length
+    // Ein angefangenes Kapitel wird zu Ende gewandelt; unterbrochen wird nur
+    // DAZWISCHEN — der Zwischenstand liegt dann vollständig im Storage.
+    if (Date.now() > deadline) {
+      await genjobs.releaseJob(job.id, { progress: { phase: 'm4b', cursor: idx, total }, result })
+      return 'paused'
+    }
+    const track = tracks[idx]
+    await genjobs.saveProgress(job.id, {
+      progress: { phase: 'm4b', cursor: idx, total, message: `${idx + 1}/${total}: ${track.title || `Spur ${track.index}`}` }, result,
+    })
+    result.parts.push(await m4b.encodeChapter(genjobs.supabase, code, variant, track))
+    await genjobs.saveProgress(job.id, { progress: { phase: 'm4b', cursor: idx + 1, total }, result })
+  }
+
+  if (await canceled(job.id)) return 'canceled'
+  await genjobs.saveProgress(job.id, { progress: { phase: 'm4b', cursor: total, total, message: 'Kapitel werden zusammengesetzt' }, result })
+  const entry = await m4b.assembleM4b(genjobs.supabase, code, variant, result.parts, {
+    title: p.title || rec?.title || '', artist: p.artist || '',
+  }, {
+    // Ein bereits geteilter Link bleibt gültig; die MP3-Gesamtdatei und die M4B
+    // teilen sich denselben Schlüssel, unterschieden wird über `&f=m4b`.
+    prevSlug: rec?.m4b?.slug || rec?.full?.slug,
+    filename: p.filename,
+  })
+  await m4b.cleanupChapters(genjobs.supabase, result.parts)
+
+  // Frisch lesen statt `rec` fortzuschreiben: zwischen Start und jetzt kann eine
+  // Stunde liegen (mehrere Runden), und der Datensatz gehört der Buchfassung.
+  const now = await genjobs.audiobookRecord(code, variant)
+  await genjobs.saveAudiobook(code, variant, { ...(now || rec), m4b: entry })
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: total, total }, result: { saved: true } })
+  return 'done'
+}
+
+
 async function processJob(job, deadline) {
   // Kosten-Obergrenze je Buch erschöpft → Job nicht ausführen, sondern mit klarer
   // Meldung als fehlgeschlagen markieren (das Dashboard zeigt den Grund an).
-  if (await budgetExceeded(job.memorial_id)) {
+  // Ausnahme M4B: dort wird nichts eingekauft, nur schon bezahlter Ton umgepackt.
+  if (job.params?.resultType !== 'audiobook-m4b' && await budgetExceeded(job.memorial_id)) {
     await genjobs.failJob(job.id, BUDGET_MESSAGE)
     return 'error'
   }
@@ -912,6 +980,7 @@ async function processJob(job, deadline) {
   if (rt === 'json') return processJson(job, deadline)
   if (rt === 'poster') return processPoster(job, deadline)
   if (rt === 'audiobook') return processAudiobook(job, deadline)
+  if (rt === 'audiobook-m4b') return processM4b(job, deadline)
   await genjobs.failJob(job.id, `Unbekannter resultType: ${rt}`)
   return 'error'
 }
