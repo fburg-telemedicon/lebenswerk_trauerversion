@@ -3319,9 +3319,12 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // wurde. Auf einem geteilten Stationstablet ist das die falsche Bedingung: Dort
   // scannt jede Person ihren eigenen QR-Code, das Interview kommt also über
   // `?code=` — und danach führte kein sichtbarer Weg mehr aus dem fremden Buch
-  // heraus. Der Ausweg steht deshalb jetzt immer zur Verfügung; wer ihn nicht
-  // braucht, sieht nur einen zusätzlichen Menüpunkt.
-  const switchInterview = () => {
+  // heraus.
+  //
+  // NICHT beim eingeloggten Endnutzer (`endUserToken`): Der hat oben rechts
+  // schon einen festen Abmelden-Knopf. Ein zweiter Ausstieg, der zur
+  // Code-Eingabe führt statt die Sitzung zu beenden, wäre dort irreführend.
+  const switchInterview = endUserToken ? null : () => {
     try { localStorage.removeItem('lw_last_code') } catch { /* privater Modus */ }
     window.location.href = '/zugang'
   }
