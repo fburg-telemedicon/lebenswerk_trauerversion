@@ -2,6 +2,17 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-27",
+      "items": [
+        "Hörbuch als M4B im Produkt: An der Hörbuch-Karte im Dashboard gibt es jetzt den Knopf „M4B mit Kapiteln“. Er erzeugt aus demselben, bereits gesprochenen Ton zusätzlich eine M4B-Datei — das Hörbuch-Format, in dem ein Player ein Kapitelverzeichnis zeigt, gezielt springen kann und sich die Stelle merkt. Vorlesekosten entstehen dabei keine: es wird kein Wort neu gesprochen, der vorhandene Ton wird nur umgepackt. Bisher gab es das nur handgemacht außerhalb der App (Fritz Pipa, 26.08.).",
+        "Umgesetzt als eigener serverseitiger Auftrag, der KAPITELWEISE arbeitet: Jedes Kapitel wird einzeln von MP3 nach AAC gewandelt und im Speicher abgelegt, erst am Ende werden die Teile zu einer Datei zusammenkopiert (Sekunden statt Minuten). Grund: Ein ganzes Buch am Stück umzuwandeln sprengt das Zeitbudget einer Arbeitsrunde von vier Minuten, und ein Zwischenspeicher auf der Festplatte übersteht den Rundenwechsel nicht — der Speicher schon. Ein unterbrochener Auftrag setzt damit da fort, wo er war.",
+        "Der bestehende Hörbuch-Link trägt das zweite Format mit: dieselbe kurze Adresse auf der eigenen Domain, nur mit angehängtem „&f=m4b“, gleicher Schlüssel wie bei der MP3. Wer den Link schon geteilt hat, muss nichts Neues verschicken. Die M4B wird standardmäßig heruntergeladen statt im Browser abgespielt — sie gehört in einen Hörbuch-Player.",
+        "Die Kosten-Obergrenze je Buch greift für diesen Auftrag bewusst nicht: Er kauft nichts ein, sondern packt bereits bezahlten Ton um. Ein ausgeschöpftes Budget darf das Ausliefern des fertigen Hörbuchs nicht blockieren.",
+        "ffmpeg/ffprobe sind ins Laufzeit-Image aufgenommen (nur dafür — alles andere am Ton kommt weiterhin ohne aus). Fehlt das Werkzeug, meldet der Auftrag das im Klartext, statt kryptisch zu scheitern.",
+        "Stimm-Klon: unverändert offen an Schritt 1 — die Anfrage nach einem Microsoft Account Team ist noch nicht verschickt. Ohne benanntes Account Team wird ein Antrag auf Personal Voice nach Aktenlage abgelehnt."
+      ]
+    },
+    {
       "date": "2026-08-26",
       "items": [
         "Hörbuch: Der Entstehungshinweis am Ende wird weiterhin vorgelesen, aber ohne die Sätze zu den Bildern des Buchs (KI-Bilder, Originalfotos bzw. „enthält keine Bilder“) — im Hörbuch kommen die Bilder nicht vor, ein Hinweis darauf ist dort sinnlos. Gilt für alle künftigen Hörbuch-Produktionen, im gedruckten Buch und im E-Book bleibt der Hinweis unverändert vollständig.",
