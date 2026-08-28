@@ -4,11 +4,8 @@
     {
       "date": "2026-08-28",
       "items": [
-        "Anamnese, gelöschte Projekte: Ein Anamnese-Projekt wird 14 Tage nach der Anlage vollständig und automatisch gelöscht — samt Bogen, Antworten und Endnutzer-Konto. Danach bekam der Patient bisher irreführende Meldungen: über den Link „Code nicht gefunden“ (klingt nach Tippfehler) und beim eigenen Login „Ungültige Zugangsdaten“ (klingt nach falschem Passwort). Beides führte in den Support, obwohl alles nach Plan gelaufen war. Jetzt steht dort die wahre Auskunft: „Dieser Zugang wurde am … nach Ablauf der Aufbewahrungsfrist (14 Tage) automatisch gelöscht — zusammen mit allen erfassten Angaben.“ Die 14-Tage-Frist selbst bleibt unverändert (auch für KVSW).",
-        "Dafür bleibt beim automatischen Löschen ein bewusst winziger „Grabstein“ zurück (neue Tabelle `purged_memorials`, `api/_lib/tombstone.js`): Buch-Code, Kategorie, Frist und Datum — vom Login-Namen NUR ein nicht rechenbarer HMAC, der nie ausgegeben, sondern ausschließlich verglichen wird. Kein Name, keine Antwort, kein Bogen, keine Indikation. Der Grabstein selbst verfällt nach 180 Tagen (`PURGE_TOMBSTONE_DAYS`) und wird vom nächtlichen Purge-Lauf mit aufgeräumt.",
-        "Abwägung dazu offengelegt: Die Auskunft am Login-Formular verrät einem Fremden, der eine Adresse errieüe, dass es dazu einmal ein Konto gab — der Passwort-Reset vermeidet so etwas absichtlich. Hier ist es anders entschieden worden, weil die betroffene Person sonst keine Chance hat zu verstehen, was passiert ist, und die Meldung weder Produkt noch Kategorie noch Inhalt nennt. Abschaltbar über `PURGE_LOGIN_HINT=0`; der Link-Weg bleibt davon unberührt.",
-        "Neuanlage: Der Anlege-Knopf sagt jetzt, warum er grau ist. Über ihm steht „Noch offen: …“ mit den fehlenden Pflichtangaben. Besonders tückisch war das bei Anamnese und Lebenswerk, wo ALLES optional ist außer dem einen Pflichtfeld (Anamnese: Indikation bzw. Fachabteilung) — wer das übersah, suchte den Fehler bei Name oder E-Mail.",
-        "Nebenbefund festgehalten: Dass sich im Dashboard nicht mehr nach der Kategorie „Anamnesebogen“ filtern ließ, war kein Fehler — die Filterliste wird aus den tatsächlich vorhandenen Büchern gebildet. Ohne ein einziges Anamnese-Projekt gibt es den Eintrag schlicht nicht."
+        "Gelöschte Anamnese-Projekte melden jetzt „Zugang abgelaufen“ samt Löschdatum — statt „Code nicht gefunden“ über den Link und „Ungültige Zugangsdaten“ beim Login. Die 14-Tage-Frist bleibt unverändert.",
+        "Der Anlege-Knopf sagt jetzt, warum er grau ist („Noch offen: Indikation“)."
       ]
     },
     {
