@@ -3332,6 +3332,10 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   const [memorial, setMemorial]               = useState(null)
   const [contribForm, setContribForm]         = useState({ name:'', gender:'', relationship:'', address:'Sie' })
   const [err, setErr]                         = useState('')
+  // Fehlerart im Fehler-Screen: true = das Projekt wurde nach Ablauf der
+  // Aufbewahrungsfrist automatisch gelöscht (HTTP 410, api/_lib/tombstone.js),
+  // false = der Code ist schlicht unbekannt. Zwei sehr verschiedene Aussagen.
+  const [errGone, setErrGone]                 = useState(false)
   const [contribId, setContribId]             = useState(() => genContribId())
   const [consentChecked, setConsentChecked]   = useState(false)
   const [consentAt, setConsentAt]             = useState(null)
@@ -3406,6 +3410,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         // Kam dieses Interview aus dem gemerkten Code und ist er ungültig (gelöscht/
         // abgelaufen), den Merker verwerfen → beim nächsten Öffnen kein Sackgassen-Loop.
         if (fromRemembered) { try { localStorage.removeItem('lw_last_code') } catch { /* ignore */ } }
+        // 410 Gone = planmäßig gelöscht (Fristablauf), nicht „Code unbekannt".
+        setErrGone(e.status === 410)
         setErr(e.message); setView('error')
       })
   }, [code])
@@ -3846,7 +3852,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
 
       {view === 'error' && (
         <div style={{ ...S.page, paddingTop:'3rem', textAlign:'center' }}>
-          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>{t.notFound(ct.nounBook)}</h2>
+          <h2 style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>
+            {errGone ? (t.expiredTitle || 'Zugang abgelaufen') : t.notFound(ct.nounBook)}
+          </h2>
           <p style={S.muted}>{err}</p>
         </div>
       )}

@@ -97,4 +97,20 @@ async function purgeMemorialContributions(supabase, code, reason) {
   return { count: ids.length, purge_info }
 }
 
-module.exports = { IMAGE_BUCKET, deleteMemorialImages, deleteMemorialCompletely, purgeMemorialContributions }
+// Login-Namen der Endnutzer-Konten, die an diesem Buch hängen — VOR der Löschung
+// abzufragen, danach sind sie weg. Gebraucht vom Purge-Cron, der daraus den
+// Grabstein baut (api/_lib/tombstone.js), damit ein späterer Login-Versuch die
+// wahre Auskunft bekommt statt „Ungültige Zugangsdaten".
+// Best effort: fehlt die Spalte oder klemmt die DB, ist die Liste eben leer.
+async function enduserLoginsFor(supabase, code) {
+  try {
+    const { data } = await supabase
+      .from('app_users').select('username').eq('enduser_memorial', code).eq('is_enduser', true)
+    return (data || []).map(u => u?.username).filter(Boolean)
+  } catch (e) {
+    console.warn('enduserLoginsFor:', e.message)
+    return []
+  }
+}
+
+module.exports = { IMAGE_BUCKET, deleteMemorialImages, deleteMemorialCompletely, purgeMemorialContributions, enduserLoginsFor }

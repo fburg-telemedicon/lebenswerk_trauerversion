@@ -16,7 +16,16 @@ async function parseResponse(res) {
         : `HTTP ${res.status}${snippet ? ` – ${snippet}` : ''}`
     )
   }
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  if (!res.ok) {
+    // Status und Nutzlast am Fehler mitgeben: Die Meldung allein reicht nicht, wo
+    // der Aufrufer die FÄLLE unterscheiden muss — etwa 410 Gone („nach Fristablauf
+    // gelöscht", api/_lib/tombstone.js) gegenüber 404 („Code unbekannt"). Die
+    // `message` bleibt unverändert, bestehende catch-Blöcke merken davon nichts.
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    err.data = data
+    throw err
+  }
   return data
 }
 

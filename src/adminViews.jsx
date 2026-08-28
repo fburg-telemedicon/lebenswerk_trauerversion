@@ -1731,6 +1731,23 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
     const [expertMode, setExpertMode] = useState(false)
     const t = useAdminT()
+    // Was fehlt dem Anlege-Button noch? Er war bisher kommentarlos grau. Besonders
+    // tückisch bei den Endnutzer-Kategorien: Dort ist ALLES optional außer dem einen
+    // Pflichtfeld (Anamnese: Indikation bzw. Fachabteilung) — wer das übersieht, sucht
+    // den Fehler bei Name oder E-Mail. Dieselben Bedingungen wie `canSubmit` oben,
+    // nur andersherum formuliert.
+    const stripStar = v => String(v || '').replace(/\s*\*\s*$/, '')
+    const missing = []
+    if (isEnduser) {
+      if (isAnamnesis && !createForm.intake?.indication) {
+        missing.push(stripStar((ci.extra || []).find(f => f.key === 'indication')?.label) || 'Indikation')
+      }
+    } else {
+      if (!createForm.name)      missing.push(stripStar(ci.subjectLabel))
+      if (!createForm.organizer) missing.push(t('Ihr Name (Organisator)', 'Your name (organizer)'))
+      if (ci.useGender && !createForm.gender) missing.push(stripStar(ci.genderLabel))
+    }
+    if (!emailOk) missing.push(t('gültige E-Mail-Adresse', 'valid email address'))
     return (
     <div style={{ minHeight:'100vh', background:'#fafaf9' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e7e5e4', padding: '14px 24px', position: 'sticky', top: 0, zIndex: 50, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -2226,6 +2243,11 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
         </div>
         )}
         </>)}
+        {!busy && missing.length > 0 && (
+          <p style={{ fontSize:13, color:'#b45309', margin:'0 0 10px', textAlign:'center' }}>
+            {t('Noch offen: ', 'Still missing: ')}{missing.join(', ')}
+          </p>
+        )}
         <button
           disabled={!canSubmit}
           onClick={handleCreate}

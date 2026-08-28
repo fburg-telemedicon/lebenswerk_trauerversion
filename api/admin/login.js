@@ -14,6 +14,7 @@ const { audit } = require('../_lib/audit')
 const { sendAccessMail, inviteLink, baseUrl } = require('../_lib/invitemail')
 const { ensureLifeworkSchema } = require('../_lib/lifework')
 const { ALLOWED_LANGS } = require('../_lib/languages')
+const { findPurgedByLogin, purgedMessage } = require('../_lib/tombstone')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
@@ -211,5 +212,22 @@ module.exports = async function handler(req, res) {
 
   // Fehlversuch protokollieren (versuchter Benutzername, kein Passwort).
   await audit(req, { actor: { name: username ? String(username) : null }, action: 'login.failure' })
+  // War das ein Zugang, der nach Ablauf der Aufbewahrungsfrist AUTOMATISCH gelöscht
+  // wurde (heute nur Anamnese, 14 Tage)? Dann ist „Ungültige Zugangsdaten" die
+  // falsche Auskunft: Es liegt weder am Passwort noch an der Adresse — das Konto
+  // wurde planmäßig mit allen Daten entfernt. Ohne diesen Hinweis probiert der
+  // Patient sein Passwort durch und landet im Support.
+  //
+  // Die Abwägung dahinter (die Meldung verrät, dass es das Konto einmal gab, anders
+  // als beim absichtlich generischen Passwort-Reset oben) steht ausführlich in
+  // api/_lib/tombstone.js; abschaltbar über PURGE_LOGIN_HINT=0. Nie werfen — ein
+  // Fehler hier darf den Login-Pfad nicht beschädigen.
+  try {
+    const gone = await findPurgedByLogin(username)
+    if (gone) return res.status(410).json({ error: purgedMessage(gone), gone: true })
+  } catch (e) {
+    console.warn('/api/admin/login tombstone lookup:', e.message)
+  }
+
   return res.status(401).json({ error: 'Ungültige Zugangsdaten.' })
 }

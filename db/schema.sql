@@ -249,6 +249,30 @@ create index if not exists audit_log_created_at_idx on audit_log(created_at desc
 create index if not exists audit_log_action_idx     on audit_log(action);
 
 -- ----------------------------------------------------------------------------
+-- purged_memorials — Grabsteine automatisch gelöschter Projekte
+-- ----------------------------------------------------------------------------
+-- Anamnese-Projekte werden 14 Tage nach der Anlage VOLLSTÄNDIG gelöscht (siehe
+-- api/_lib/retention.js). Ohne diesen Rest bekäme der Patient danach irreführende
+-- Meldungen: „Code nicht gefunden“ (klingt nach Tippfehler) bzw. „Ungültige
+-- Zugangsdaten“ (klingt nach falschem Passwort).
+--
+-- Bewusst minimal: Buch-Code (Zufallstoken, keine Personendaten), Kategorie, Frist
+-- und Datum — sowie vom Login-Namen NUR ein HMAC (ADMIN_TOKEN_SECRET), der nie
+-- ausgegeben, sondern ausschließlich verglichen wird. Kein Name, kein Inhalt.
+-- Der Grabstein selbst verfällt nach PURGE_TOMBSTONE_DAYS (Standard 180); der
+-- Purge-Cron räumt ihn ab. Details: api/_lib/tombstone.js.
+create table if not exists purged_memorials (
+  code             varchar(16) primary key,
+  product_category text,
+  retention_days   integer,
+  login_hashes     text[]      not null default '{}',
+  purged_at        timestamptz not null default now(),
+  forget_after     timestamptz not null
+);
+create index if not exists purged_memorials_forget_idx on purged_memorials(forget_after);
+create index if not exists purged_memorials_login_idx  on purged_memorials using gin(login_hashes);
+
+-- ----------------------------------------------------------------------------
 -- report_recipients + job_heartbeats (Tagesreport)
 -- ----------------------------------------------------------------------------
 create table if not exists report_recipients (

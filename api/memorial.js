@@ -16,6 +16,7 @@ const { LIFEWORK, ensureLifeworkSchema } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
 const { isEnduserCategory, isAnamnesisCategory } = require('./_lib/categories')
 const { resolvePublicCode } = require('./_lib/access')
+const { findPurgedByCode, purgedMessage } = require('./_lib/tombstone')
 
 // Endnutzer-Kategorien (Lebenswerk, Anamnese, Anamnese KVSW): EIN Endnutzer/Patient
 // spricht selbst und darf über den Buch-Code (ohne Login) seine eigenen Stammdaten/
@@ -223,7 +224,21 @@ module.exports = async function handler(req, res) {
       // damit der Buch-Code — beim Lebenswerk die volle Berechtigung des Endnutzers —
       // den Gast-Browser nie erreicht.
       const target = await resolvePublicCode(supabase, code)
-      if (!target) return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
+      if (!target) {
+        // Unbekannt — oder nach Ablauf der Aufbewahrungsfrist automatisch gelöscht?
+        // Im zweiten Fall ist „Code nicht gefunden“ schlicht falsch: es klingt nach
+        // Tippfehler, obwohl alles nach Plan gelaufen ist. Der Grabstein
+        // (api/_lib/tombstone.js) erlaubt hier die wahre Auskunft. 410 Gone statt 404,
+        // damit der Beitragenden-Flow die beiden Fälle unterscheiden kann.
+        const gone = await findPurgedByCode(code)
+        if (gone) {
+          return res.status(410).json({
+            error: purgedMessage(gone), gone: true,
+            purged_at: gone.purged_at, retention_days: gone.retention_days,
+          })
+        }
+        return res.status(404).json({ error: `Code „${code}" nicht gefunden.` })
+      }
 
       // BEWUSST nur die für den Beitragenden-Flow nötigen Felder ausliefern –
       // NICHT die ganze Zeile. Insbesondere die generierten Inhalte

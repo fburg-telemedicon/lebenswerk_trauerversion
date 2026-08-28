@@ -24,9 +24,10 @@
 // Test ohne zu löschen:  GET /api/cron/purge?dry=1  (mit Bearer-Secret)
 
 const { createClient } = require('../_lib/store')
-const { purgeMemorialContributions, deleteMemorialCompletely } = require('../_lib/delete-memorial')
+const { purgeMemorialContributions, deleteMemorialCompletely, enduserLoginsFor } = require('../_lib/delete-memorial')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 const { isAnamnesisCategory } = require('../_lib/categories')
+const { recordPurgedMemorial, prunePurgedTombstones } = require('../_lib/tombstone')
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 const { RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS, DAY_MS, retentionDaysFor, isPurgeDue } = require('../_lib/retention')
@@ -70,7 +71,18 @@ module.exports = async function handler(req, res) {
           // Anamnese (Reha + KVSW): nach der Frist ALLES löschen — Rohdaten UND den Bogen
           // (medizinische Daten, maximale Datensparsamkeit). Der Datensatz verschwindet
           // vollständig (Storage, cost_events, Beiträge, memorial-Zeile, Endnutzer-Konto).
+          //
+          // Die Login-Namen der Endnutzer-Konten VOR der Löschung holen: danach sind
+          // sie weg, und ohne sie kann ein späterer Login-Versuch nicht erfahren, dass
+          // hier fristgerecht gelöscht wurde (statt „Ungültige Zugangsdaten").
+          const logins = await enduserLoginsFor(supabase, m.id)
           const warnings = await deleteMemorialCompletely(supabase, m.id)
+          // Grabstein: nur Code, Kategorie, Frist, Datum und ein HMAC des Logins —
+          // siehe api/_lib/tombstone.js. Best effort, kippt die Löschung nie.
+          const tsWarn = await recordPurgedMemorial({
+            code: m.id, productCategory: m.product_category, retentionDays: days, logins,
+          })
+          if (tsWarn) warnings.push(tsWarn)
           results.push({ code: m.id, ok: true, retention_days: days, deleted: 'complete', warnings })
         } else {
           // Übrige Kategorien: Eingangsdaten (Beiträge, Roh-Uploads, Protokolle) weg,
@@ -108,6 +120,10 @@ module.exports = async function handler(req, res) {
           .delete({ count: 'exact' }).lt('created_at', auditCutoff)
         housekeeping.audit_log_removed = al ?? null
       } catch (e) { housekeeping.audit_log_error = e.message }
+      try {
+        // Grabsteine gelöschter Projekte verfallen ihrerseits (PURGE_TOMBSTONE_DAYS).
+        housekeeping.tombstones_removed = await prunePurgedTombstones()
+      } catch (e) { housekeeping.tombstones_error = e.message }
     }
 
     return res.json({

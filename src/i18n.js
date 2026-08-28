@@ -98,6 +98,11 @@ const DE = {
   locale: 'de-DE',
   genders: { 'männlich': 'Männlich', 'weiblich': 'Weiblich', 'divers': 'Divers', 'keine Angabe': 'Keine Angabe' },
   notFound: (noun) => `${noun} nicht gefunden`,
+  // Nach Ablauf der Aufbewahrungsfrist automatisch gelöscht (heute nur Anamnese,
+  // 14 Tage). Eigene Überschrift, weil „nicht gefunden" hier falsch wäre: Der Code
+  // war richtig, die Daten sind planmäßig weg. Der erklärende Satz kommt vom
+  // Server (api/_lib/tombstone.js), damit Datum und Frist stimmen.
+  expiredTitle: 'Zugang abgelaufen',
   yourName: 'Ihr Name *',
   fullName: 'Vollständiger Name',
   yourGender: 'Ihr Geschlecht *',
@@ -418,6 +423,7 @@ const EN = {
   locale: 'en-GB',
   genders: { 'männlich': 'Male', 'weiblich': 'Female', 'divers': 'Diverse', 'keine Angabe': 'Prefer not to say' },
   notFound: (noun) => `${noun} not found`,
+  expiredTitle: 'Access expired',
   yourName: 'Your name *',
   fullName: 'Full name',
   yourGender: 'Your gender *',
