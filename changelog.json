@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-29",
+      "items": [
+        "95 Demozugänge für den Vertrieb angelegt (Lebenswerk): je 20 mit 5 Minuten Interviewzeit und 5 unbegrenzte für Tobias, Pia und Andreas, dazu 20 mit 5 Minuten für Barbara. Der Name der Vertriebsperson steht im Bemerkungsfeld.",
+        "Zugangsblätter dazu gedruckt (7 PDFs, ein Blatt je Code): oben steht auf jedem Blatt, welche Version gilt — 5 Minuten Interviewzeit oder Vollversion ohne Zeitlimit. Kontakt ist support@lebensgeschichten.ai."
+      ]
+    },
+    {
       "date": "2026-08-28",
       "items": [
         "Gelöschte Anamnese-Projekte melden jetzt „Zugang abgelaufen“ samt Löschdatum — statt „Code nicht gefunden“ über den Link und „Ungültige Zugangsdaten“ beim Login. Die 14-Tage-Frist bleibt unverändert.",
