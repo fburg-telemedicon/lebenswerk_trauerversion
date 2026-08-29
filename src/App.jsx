@@ -1176,14 +1176,19 @@ function Dashboard() {
     if (isAnamnesis(slug)) return { ...base, photoUploadTab: true, followups: 0, languages: LANGUAGES.map(l => l.code) }
     if (slug !== 'lifework') return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
-    // nur Variante 2, keine Frist, Foto-Upload an, Transkript-Umschalter aus,
-    // keine Mitwirkenden-Liste (es erzählt nur ein Mensch).
+    // nur Variante 2, keine Frist, Foto-Upload an, keine Mitwirkenden-Liste
+    // (es erzählt nur ein Mensch).
+    //
+    // showTranscript steht hier BEWUSST NICHT mehr drin: Die Zeile hat den
+    // globalen Standard (Standardwerte-Seite, Fallback `true`) hart auf `false`
+    // gezogen — obwohl der Hinweis in der Anlage-Maske daneben „Standard: aktiv"
+    // sagt. Seit dem 2026-08-29 gilt auch beim Lebenswerk der normale Standard:
+    // an, im Formular je Buch weiterhin abwählbar.
     return {
       ...base,
       bookVariant: 2,
       cutoffDays: 0,
       showIntroVideo: false,
-      showTranscript: false,
       showContributors: false,
       photoUploadTab: true,
       // Nachfragen je Frage: beim Lebenswerk bewusst nur 2. Der Erzähler spricht
