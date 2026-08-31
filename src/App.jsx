@@ -3492,7 +3492,9 @@ Regeln:
           die deutsche Fassung im Dashboard bleibt erhalten.
         </p>
         <div style={{ display:'grid', gap:10, marginBottom:14 }}>
-          {LANGUAGES.map(l => (
+          {/* Audio-Varianten (Mundart hören, Hochdeutsch schreiben) sind hier raus:
+              als ZIELSPRACHE einer Übersetzung wären sie ein Doppel von Deutsch. */}
+          {LANGUAGES.filter(l => !l.audioOnly).map(l => (
             <button key={l.code} onClick={() => pickDlLang(l.code)} style={{ fontSize:15, padding:'12px 16px' }}>
               {l.label}{l.code === 'de' ? ' (Original)' : ' – übersetzen'}
             </button>

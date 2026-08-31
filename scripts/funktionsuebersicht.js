@@ -212,6 +212,7 @@ block('Sprachen', '— 14 Sprachen in Interview, Vorlesestimme, Oberfläche und 
   ['Vollständige Oberfläche', 'Alle Bedientexte, alle elf Kategorien und der Probedruck liegen in allen Sprachen vor; kein stiller Rückfall auf Deutsch mehr.', true],
   ['Rechts-nach-links', 'Hebräisch und Arabisch mit gespiegelter Oberfläche. Druck-PDF dort gesperrt (keine Ligaturenbildung), Word-Datei funktioniert.'],
   ['Schweizerdeutsch', 'Mundart wird verstanden, geschrieben wird Schweizer Hochdeutsch ohne Eszett; eigene Stimme und eigene Spracherkennung.'],
+  ['Schweizerdeutsch → Hochdeutsch', 'Gemischte Variante zur Wahl: Der Mensch spricht Mundart, die KI antwortet in normalem Hochdeutsch — mit deutscher Vorlesestimme und deutschem Buchtext. Die Mundart betrifft nur die Spracherkennung.', true],
   ['Stimme je Sprache', 'Passende Neural-Stimme je Sprache, für sieben Sprachen dieselbe Stimme wie im Deutschen (durchgehende Sprecheridentität).'],
   ['Buchsprache getrennt', 'Interviewsprache und Zielsprache des Buchs sind unabhängig; die Zielsprache wird beim Erzeugen abgefragt.'],
 ])

@@ -33,6 +33,15 @@ export const LANGUAGES = [
   { code: 'pl',    label: 'Polski',          de: 'Polnisch',         en: 'Polish' },
   { code: 'ro',    label: 'Română',          de: 'Rumänisch',        en: 'Romanian' },
   { code: 'de-CH', label: 'Schwiizerdütsch', de: 'Schweizerdeutsch', en: 'Swiss German' },
+  // Gemischt: Mundart hinein, Hochdeutsch heraus. Der Unterschied zu 'de-CH'
+  // liegt AUSSCHLIESSLICH in der Audio-Strecke — die Spracherkennung hört
+  // weiterhin de-CH (Mundart), Vorlesestimme, Oberfläche und geschriebener Text
+  // sind aber normales Deutsch (mit ß). Deshalb greifen überall dort, wo nach
+  // dem vollen Code gesucht wird, die vorhandenen Rückfälle auf 'de'
+  // (String(lang).slice(0,2)) — der Code beginnt bewusst mit „de-".
+  // 'audioOnly' = kein eigenes Schriftbild: taugt als INTERVIEW-Sprache, nicht
+  // als Zielsprache einer Übersetzung (dort wäre es ein Doppel von Deutsch).
+  { code: 'de-CH-hd', label: 'Schwiizerdütsch → Hochdeutsch', de: 'Schweizerdeutsch → Hochdeutsch', en: 'Swiss German → German', audioOnly: true },
   { code: 'tr',    label: 'Türkçe',          de: 'Türkisch',         en: 'Turkish' },
   { code: 'ru',    label: 'Русский',         de: 'Russisch',         en: 'Russian' },
   { code: 'uk',    label: 'Українська',      de: 'Ukrainisch',       en: 'Ukrainian' },
@@ -85,6 +94,10 @@ const OVERRIDE = {
   // Rechtschreibung; ein Buch in Mundart-Verschriftlichung wirkt unfreiwillig
   // komisch. Deshalb: hören ja, schreiben nein.
   'de-CH': 'ÜBERGEORDNETE SPRACHREGEL: Die Person spricht Schweizerdeutsch (Mundart). Verstehe die Mundart, aber SCHREIBE ausschliesslich in SCHWEIZER HOCHDEUTSCH: normale deutsche Schriftsprache, jedoch OHNE „ß" (immer „ss"), mit Schweizer Wortwahl, wo sie natürlich ist (z. B. Velo, Znüni, Spital, parkieren, Trottoir). Schreibe NIEMALS in Dialekt-Verschriftlichung.',
+  // Gemischt: Der Mensch spricht Mundart, die KI antwortet auf Hochdeutsch —
+  // gewünscht z. B., wenn das Buch nach Deutschland geht oder die Schweizer
+  // Wortwahl im Text nicht erwünscht ist. Gehört wird trotzdem Mundart.
+  'de-CH-hd': 'ÜBERGEORDNETE SPRACHREGEL: Die Person spricht Schweizerdeutsch (Mundart). Verstehe die Mundart, aber SCHREIBE UND ANTWORTE ausschließlich in normalem HOCHDEUTSCH (bundesdeutsche Standardsprache, mit „ß" wo es hingehört). Keine Dialekt-Verschriftlichung und keine Helvetismen: „Fahrrad" statt „Velo", „Krankenhaus" statt „Spital", „parken" statt „parkieren".',
 }
 export function langDirective(lang) {
   const rule = OVERRIDE[lang]

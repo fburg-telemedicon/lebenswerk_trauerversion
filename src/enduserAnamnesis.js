@@ -17,10 +17,10 @@ import { getCategory } from './categories.js'
 import { langDirective } from './i18n.js'
 import { askLLM } from './api.js'
 
-// Deutsch (inkl. Schweizer Hochdeutsch) braucht KEINE Übersetzung: der kanonische
-// Bogen ist ohnehin Deutsch; `loc` == `de`.
+// Deutsch (inkl. Schweizer Hochdeutsch und der gemischten Mundart-Variante)
+// braucht KEINE Übersetzung: der kanonische Bogen ist ohnehin Deutsch; `loc` == `de`.
 export function isGermanReview(lang) {
-  return !lang || lang === 'de' || lang === 'de-CH'
+  return !lang || lang === 'de' || lang === 'de-CH' || lang === 'de-CH-hd'
 }
 
 // Fester Kopf des Anamnesebogens. Muss mit der Admin-Generierung in App.jsx

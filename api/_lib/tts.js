@@ -48,6 +48,8 @@ const TTS_VOICES = {
   // Standardstimme, allein abhängig davon, ob die Env-Variable gesetzt ist.
   de:      process.env.AZURE_SPEECH_TTS_VOICE       || VOICE_FEMALE_HD,
   'de-CH': process.env.AZURE_SPEECH_TTS_VOICE_DE_CH || 'de-CH-LeniNeural',
+  // Gemischt (Mundart hören, Hochdeutsch sprechen): deutsche Stimme wie bei 'de'.
+  'de-CH-hd': process.env.AZURE_SPEECH_TTS_VOICE    || VOICE_FEMALE_HD,
   pl:      process.env.AZURE_SPEECH_TTS_VOICE_PL    || 'pl-PL-ZofiaNeural',
   en:      process.env.AZURE_SPEECH_TTS_VOICE_EN    || 'en-US-JennyNeural',
   es:      process.env.AZURE_SPEECH_TTS_VOICE_ES    || 'es-ES-ElviraNeural',
@@ -64,7 +66,7 @@ const TTS_VOICES = {
 // BCP-47 je Interviewsprache (für xml:lang; nötig, damit eine mehrsprachige Stimme
 // die richtige Sprache spricht). Passend zu den Locales in api/transcribe.js.
 const SPEECH_LOCALE = {
-  de: 'de-DE', 'de-CH': 'de-CH', pl: 'pl-PL', en: 'en-US',
+  de: 'de-DE', 'de-CH': 'de-CH', 'de-CH-hd': 'de-DE', pl: 'pl-PL', en: 'en-US',
   es: 'es-ES', it: 'it-IT', eu: 'eu-ES', he: 'he-IL', ar: process.env.AZURE_SPEECH_STT_LOCALE_AR || 'ar-EG',
   fr: 'fr-FR', ro: 'ro-RO', tr: 'tr-TR', ru: 'ru-RU', uk: 'uk-UA',
 }
@@ -79,7 +81,11 @@ const MULTILINGUAL_LANGS = new Set(['en', 'es', 'it', 'pl'])
 //   (gleiches Geschlecht, konsistent über Sprachen).
 // - Rest (de-CH, eu, he, ar): dedizierte Standardstimme der Sprache.
 function pickVoiceAndLocale(language, requestedVoice) {
-  const code = String(language || 'de')
+  // 'de-CH-hd' („Schweizerdeutsch → Hochdeutsch"): die Mundart betrifft NUR das
+  // Zuhören (STT-Locale de-CH in api/transcribe.js). Gesprochen wird Hochdeutsch,
+  // also exakt die deutsche Strecke inklusive der pro Buch gewählten Stimme.
+  const raw  = String(language || 'de')
+  const code = raw === 'de-CH-hd' ? 'de' : raw
   if (code === 'de') {
     const v = (requestedVoice && ALLOWED_TTS_VOICES.has(requestedVoice)) ? requestedVoice : TTS_VOICES.de
     return { voice: v, locale: 'de-DE' }

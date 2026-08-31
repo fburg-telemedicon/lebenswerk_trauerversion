@@ -26,7 +26,8 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Bewusst dieselben Locales wie api/transcribe.js (dort LOCALE) — die STT-Seite
 // von Voice Live ist derselbe Dienst.
 //
-// NICHT dabei und bewusst so: `eu` (Baskisch) und `de-CH` (Schweizer Mundart).
+// NICHT dabei und bewusst so: `eu` (Baskisch) sowie `de-CH` und `de-CH-hd`
+// (Schweizer Mundart — beide hören Mundart, nur die Ausgabe unterscheidet sie).
 // Für beide ist die Abdeckung der Voice-Live-Strecke nicht belegt; sie laufen
 // weiter über den bewährten Fast-Transcription-Pfad, wo sie nachweislich
 // funktionieren. Lieber ein Modus weniger als ein unbrauchbares Transkript.

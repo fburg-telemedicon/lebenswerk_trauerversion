@@ -8,10 +8,13 @@
 //
 // `de-CH` ist bewusst ein eigener Code, kein Alias von `de`: Spracherkennung
 // (Mundart) und Stimme sind schweizerisch, geschrieben wird Schweizer Hochdeutsch.
+// `de-CH-hd` ist die gemischte Variante: gehört wird Mundart (STT-Locale de-CH),
+// gesprochen und geschrieben wird normales Hochdeutsch. Der Unterschied liegt
+// allein in der Audio-Strecke (siehe api/transcribe.js und api/_lib/tts.js).
 // `he`/`ar` laufen von rechts nach links.
 // Reihenfolge wie LANGUAGES in src/i18n.js: Deutsch zuerst, dann alphabetisch nach
 // nativer Bezeichnung (lateinisch, dann kyrillisch, dann RTL).
-const ALLOWED_LANGS = ['de', 'en', 'es', 'eu', 'fr', 'it', 'pl', 'ro', 'de-CH', 'tr', 'ru', 'uk', 'he', 'ar']
+const ALLOWED_LANGS = ['de', 'en', 'es', 'eu', 'fr', 'it', 'pl', 'ro', 'de-CH', 'de-CH-hd', 'tr', 'ru', 'uk', 'he', 'ar']
 const RTL_LANGS = ['he', 'ar']
 const DEFAULT_LANG = 'de'
 

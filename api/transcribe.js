@@ -22,6 +22,9 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const LOCALE = {
   de: 'de-DE',
   'de-CH': 'de-CH',
+  // Gemischt: dieselbe Mundart-Erkennung wie de-CH — nur die Ausgabe (Text und
+  // Stimme) ist hochdeutsch. Genau dafür gibt es diese zweite Zeile.
+  'de-CH-hd': 'de-CH',
   en: 'en-US',
   pl: 'pl-PL',
   es: 'es-ES',
@@ -52,6 +55,7 @@ const NUMBER_PHRASES = {
 }
 // Schweizerdeutsch nutzt dieselben (hochdeutschen) Zahlwörter als Bias.
 NUMBER_PHRASES['de-CH'] = NUMBER_PHRASES.de
+NUMBER_PHRASES['de-CH-hd'] = NUMBER_PHRASES.de
 
 function phraseListFor(language) {
   const base = NUMBER_PHRASES[language] || []

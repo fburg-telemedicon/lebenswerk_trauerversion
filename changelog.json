@@ -2,6 +2,15 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-08-31",
+      "items": [
+        "Neue Interview-Sprache zur Wahl: „Schwiizerdütsch → Hochdeutsch\". Der Mensch spricht Mundart, die KI antwortet auf Hochdeutsch — mit deutscher Vorlesestimme und deutschem Text. Gedacht für Schweizer Erzähler, deren Buch nicht schweizerisch klingen soll.",
+        "Der Unterschied zur bisherigen Schweiz-Option liegt ausschließlich in der Ausgabe: Gehört wird in beiden Fällen Mundart (Azure-Spracherkennung mit dem Locale de-CH). Bei „Schweizerdeutsch\" schreibt die KI Schweizer Hochdeutsch (ohne ß, mit Velo/Spital) und liest mit Schweizer Stimme vor; bei der neuen Option schreibt sie normales Hochdeutsch (mit ß, Fahrrad/Krankenhaus) und liest mit der am Buch gewählten deutschen Stimme vor.",
+        "Die Option steht überall dort, wo die Interviewsprachen eingestellt werden (Anlage-Maske, Buch-Einstellungen, Endnutzer-Sprachwahl). In der Liste der Übersetzungs-Zielsprachen erscheint sie bewusst nicht — als Zielsprache wäre sie ein Doppel von Deutsch.",
+        "Das Live-Sprachgespräch bleibt für die neue Option wie schon für Schweizerdeutsch gesperrt (Mundart-Abdeckung dort nicht belegt); die Person bekommt automatisch die bewährten Mikrofon-Modi."
+      ]
+    },
+    {
       "date": "2026-08-29",
       "items": [
         "95 Demozugänge für den Vertrieb angelegt (Lebenswerk): je 20 mit 5 Minuten Interviewzeit und 5 unbegrenzte für Tobias, Pia und Andreas, dazu 20 mit 5 Minuten für Barbara. Der Name der Vertriebsperson steht im Bemerkungsfeld.",
