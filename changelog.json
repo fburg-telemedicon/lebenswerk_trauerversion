@@ -4,11 +4,7 @@
     {
       "date": "2026-08-31",
       "items": [
-        "Neue Interview-Sprache zur Wahl: „Schwiizerdütsch → Hochdeutsch\". Der Mensch spricht Mundart, die KI antwortet auf Hochdeutsch — mit deutscher Vorlesestimme und deutschem Text. Gedacht für Schweizer Erzähler, deren Buch nicht schweizerisch klingen soll.",
-        "Der Unterschied zur bisherigen Schweiz-Option liegt ausschließlich in der Ausgabe: Gehört wird in beiden Fällen Mundart (Azure-Spracherkennung mit dem Locale de-CH). Bei „Schweizerdeutsch\" schreibt die KI Schweizer Hochdeutsch (ohne ß, mit Velo/Spital) und liest mit Schweizer Stimme vor; bei der neuen Option schreibt sie normales Hochdeutsch (mit ß, Fahrrad/Krankenhaus) und liest mit der am Buch gewählten deutschen Stimme vor.",
-        "Die Option steht überall dort, wo die Interviewsprachen eingestellt werden: in der Anlage-Maske, bei den Standardwerten für neue Bücher, in der Sprachwahl der Endnutzer und Beitragenden sowie — für bereits laufende Projekte — im Buch unter „Auftragsdaten“ → „✎ Bearbeiten“ → Sprachen. In der Liste der Übersetzungs-Zielsprachen erscheint sie bewusst nicht: als Zielsprache wäre sie ein Doppel von Deutsch.",
-        "Ein bestehendes Buch lässt sich jederzeit umstellen; die neue Kombination gilt ab dem nächsten Interviewschritt. Bereits erzeugter Text bleibt unverändert stehen und wird nicht rückwirkend umgeschrieben.",
-        "Das Live-Sprachgespräch bleibt für die neue Option wie schon für Schweizerdeutsch gesperrt (Mundart-Abdeckung dort nicht belegt); die Person bekommt automatisch die bewährten Mikrofon-Modi."
+        "Neue Interview-Sprache „Schwiizerdütsch → Hochdeutsch\": Der Erzähler spricht Mundart, die KI antwortet in normalem Hochdeutsch — mit deutscher Vorlesestimme und deutschem Buchtext."
       ]
     },
     {
