@@ -90,6 +90,16 @@ Two namespaces:
 - **Public** (`/api/ask`, `/api/contributions`, `/api/memorial`, `/api/speak`, `/api/transcribe`, `/api/upload`, `/api/feedback`, `/api/pdf`, …) — no auth, called from the contributor flow, rate-limited, and gated on a valid existing `code` so they cannot be abused as an anonymous AI proxy (`api/_lib/access.js`).
 - **Admin** (`/api/admin/*`) — `checkAuth(req, res)` verifies an `Authorization: Bearer <token>` (HMAC-SHA256-signed payload with a 12 h expiry). The frontend treats 401 as an expired session and logs out.
 
+### Websites — two domains, one container (`public-site/`)
+
+The marketing sites live in `public-site/` and are served by `server.js` on `/`; the SPA stays on the **same origin** under `/app` (and on `/` with an app parameter such as `?code=`, `?zugang` — that rule must never be dropped, printed QR codes depend on it).
+
+`server.js` picks the site by **Host** (`X-Forwarded-Host`, else `Host`): `lebenswerk.ai`/`www.lebenswerk.ai` → `public-site/lebenswerk/index.html`, everything else → `public-site/index.html`. The switch is inert until the domain points here; `/lebenswerk` previews it on any host.
+
+Anything that may exist only **once** is shared, not copied: Impressum/Datenschutz from `src/LegalPages.jsx`, AGB/Widerruf from `AGB.md` (both served by the SPA at `/app#impressum|#datenschutz|#agb|#widerruf`, and the old lebenswerk.ai paths `/impressum` … 302 there), the shop (**one** Ecwid store `126140019` in `public-site/_shared/kaufen.html`, route `/kaufen` on both domains), `kontakt.html`, and `_shared/site.css`. Link legal pages as `/app#…` — a bare `/#…` now hits the marketing page.
+
+Details: `public-site/README.md`. Domain/DNS/mail inventory and the cutover checklist: `infra/DOMAIN-LEBENSWERK-AI.md`. The old Netlify build is archived in `website-archiv/` (not shipped in the image).
+
 ### Live voice conversation (Voice Live) — the only WebSocket route
 
 `server.js` creates an `http.Server` and attaches a **WebSocket relay** at `/api/voicelive-relay` (`api/_lib/voicelive-relay.js`) — the one endpoint that is *not* a file under `api/`, because it is an upgrade handler, not an HTTP handler. It is only attached when `AZURE_VOICELIVE_*` and `ADMIN_TOKEN_SECRET` are set.

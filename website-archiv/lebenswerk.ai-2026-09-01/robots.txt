@@ -1,0 +1,5 @@
+# robots.txt for lebenswerk.ai
+# Die Website ist derzeit auf eine minimale Webpräsenz reduziert.
+
+User-agent: *
+Disallow: /

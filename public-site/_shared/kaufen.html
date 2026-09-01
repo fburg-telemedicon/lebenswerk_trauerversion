@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="de" data-site="lebenswerk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaufen — Lebenswerk.ai</title>
+<meta name="description" content="Lebenswerk.ai kaufen: Lizenz mit gedrucktem Buch, Demo-Zugang oder ein Lebenswerk verschenken." />
+<!-- Vorschau-Schutz bis zum Domain-Umzug — siehe public-site/README.md. -->
+<meta name="robots" content="noindex" />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="stylesheet" href="/_shared/site.css" />
+<style>
+  main{padding:44px 0 72px}
+  .gate{max-width:640px;margin:0 auto;text-align:center}
+  .gate .card{text-align:left}
+  #store{margin-top:28px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="/" aria-label="Startseite"><img id="brandimg" src="/lebenswerk-logo.png" alt="Lebenswerk.ai" /></a>
+    <nav><a href="/">← Zur Startseite</a></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1 style="text-align:center">Kaufen</h1>
+
+  <!-- Der Shop ist eine Ecwid-Filiale (Nr. 126140019). Ecwid lädt Skripte und
+       setzt Cookies auf dem Gerät der Besucherin — deshalb wird er erst nach
+       einem Klick geladen. Das ersetzt das Cookie-Banner der alten Seite: ohne
+       Klick verlässt kein Byte den Server. Soll der Shop wie früher sofort
+       laden, genügt es, loadShop() direkt aufzurufen. -->
+  <div class="gate" id="gate">
+    <div class="card">
+      <h2>Zum Shop</h2>
+      <p class="note">
+        Unser Shop wird von <strong>Ecwid (Lightspeed)</strong> bereitgestellt. Beim Öffnen
+        werden Daten an diesen Anbieter übertragen und Cookies auf Ihrem Gerät gesetzt,
+        die für Warenkorb und Bestellung nötig sind. Einzelheiten stehen in unserer
+        <a href="/app#datenschutz">Datenschutzerklärung</a>.
+      </p>
+      <p style="margin:20px 0 0"><button class="btn btn-primary" id="load">Shop laden</button></p>
+    </div>
+  </div>
+
+  <div id="store"></div>
+</main>
+
+<footer>
+  <div class="wrap fnav">
+    <span>Lebenswerk.AI GmbH</span>
+    <a href="/app#impressum">Impressum</a>
+    <a href="/app#datenschutz">Datenschutz</a>
+    <a href="/app#agb">AGB</a>
+    <a href="/app#widerruf">Widerruf</a>
+    <a href="/kontakt">Kontakt</a>
+  </div>
+</footer>
+
+<script>
+  // Dieselbe Datei bedient beide Domains. Nur die Wort-Bild-Marke oben und die
+  // Hausfarbe unterscheiden sich; alles andere — Filiale, Sortiment, Rechtstexte
+  // — ist bewusst identisch, damit es den Shop nur einmal gibt.
+  (function () {
+    var host = String(location.hostname || '').toLowerCase()
+    if (host.indexOf('lebenswerk') === -1) {
+      document.documentElement.setAttribute('data-site', 'lebensgeschichten')
+      var img = document.getElementById('brandimg')
+      img.src = '/logo-lebensgeschichten.png'
+      img.alt = 'Lebensgeschichten.ai'
+    }
+  })()
+
+  function loadShop() {
+    document.getElementById('gate').style.display = 'none'
+    var box = document.getElementById('store')
+    box.id = 'my-store-126140019'
+    var s = document.createElement('script')
+    s.setAttribute('data-cfasync', 'false')
+    s.charset = 'utf-8'
+    s.src = 'https://app.ecwid.com/script.js?126140019&data_platform=code'
+    s.onload = function () {
+      // Rasteransicht mit drei Produkten je Reihe — so sieht der Shop heute aus.
+      window.xProductBrowser(
+        'categoriesPerRow=3',
+        'views=grid(20,3) list(60) table(60)',
+        'categoryView=grid',
+        'searchView=list',
+        'id=my-store-126140019'
+      )
+    }
+    s.onerror = function () {
+      box.innerHTML = '<p class="note" style="text-align:center">Der Shop lässt sich gerade nicht laden. ' +
+        'Bitte versuchen Sie es später noch einmal oder schreiben Sie uns über das ' +
+        '<a href="/kontakt">Kontaktformular</a>.</p>'
+    }
+    document.body.appendChild(s)
+  }
+
+  document.getElementById('load').addEventListener('click', loadShop)
+</script>
+
+</body>
+</html>

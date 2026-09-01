@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de" data-site="lebenswerk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lebenswerk.ai</title>
+<meta name="description" content="Lebenswerk.AI GmbH — unsere Website wird derzeit überarbeitet. Der Shop bleibt erreichbar." />
+<!-- ACHTUNG (Domain-Umzug): Solange diese Seite nur als Vorschau unter
+     lebensgeschichten.ai/lebenswerk erreichbar ist, darf sie NICHT in den Index
+     — sonst steht der Inhalt später doppelt bei Google. Beim Umschalten der
+     Domain lebenswerk.ai auf diesen Container die nächste Zeile entfernen. -->
+<meta name="robots" content="noindex" />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="stylesheet" href="/_shared/site.css" />
+<style>
+  /* Nur diese Seite: die Startseite ist eine einzelne, mittige Karte. */
+  main{min-height:calc(100vh - 190px);display:flex;align-items:center;justify-content:center;
+       text-align:center;padding:64px 24px}
+  .logo{width:min(420px,80vw);height:auto;margin:0 auto 34px;display:block}
+  .claim{font-size:19px;color:#44403c;max-width:520px;margin:0 auto 32px}
+</style>
+</head>
+<body>
+
+<main>
+  <div>
+    <img class="logo" src="/lebenswerk-logo.png" alt="Lebenswerk.ai" />
+    <h1 class="sr-only">Lebenswerk.ai</h1>
+    <p class="claim">
+      Unsere Website wird derzeit überarbeitet.<br />
+      Unser Shop bleibt weiterhin für Sie geöffnet.
+    </p>
+    <a class="btn btn-primary" href="/kaufen">Zum Shop</a>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap fnav">
+    <span>Lebenswerk.AI GmbH</span>
+    <!-- Eine Quelle für alle Rechtstexte: src/LegalPages.jsx + AGB.md, vom SPA
+         unter /app#… ausgeliefert. Beide Websites verlinken hierher, damit es
+         die Texte nie zweimal gibt. -->
+    <a href="/app#impressum">Impressum</a>
+    <a href="/app#datenschutz">Datenschutz</a>
+    <a href="/app#agb">AGB</a>
+    <a href="/app#widerruf">Widerruf</a>
+    <a href="/kontakt">Kontakt</a>
+  </div>
+</footer>
+
+</body>
+</html>

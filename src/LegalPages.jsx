@@ -418,13 +418,13 @@ export function LegalFooter() {
   const a = { color:'#57534e', margin:'0 10px', textDecoration:'none' }
   return (
     <footer dir={lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr'} style={{ borderTop:'1px solid #e7e5e4', padding:'18px 1.5rem', textAlign:'center', fontSize:13, color:'#78716c', background:'#fafaf9' }}>
-      <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={a}>{L.privacy}</a>
+      <a href="/app#datenschutz" target="_blank" rel="noopener noreferrer" style={a}>{L.privacy}</a>
       <span style={{ color:'#d6d3d1' }}>·</span>
-      <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={a}>{L.imprint}</a>
+      <a href="/app#impressum" target="_blank" rel="noopener noreferrer" style={a}>{L.imprint}</a>
       <span style={{ color:'#d6d3d1' }}>·</span>
-      <a href="/#agb" target="_blank" rel="noopener noreferrer" style={a}>{L.terms}</a>
+      <a href="/app#agb" target="_blank" rel="noopener noreferrer" style={a}>{L.terms}</a>
       <span style={{ color:'#d6d3d1' }}>·</span>
-      <a href="/#widerruf" target="_blank" rel="noopener noreferrer" style={a}>{L.revoke}</a>
+      <a href="/app#widerruf" target="_blank" rel="noopener noreferrer" style={a}>{L.revoke}</a>
     </footer>
   )
 }

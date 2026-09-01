@@ -2,6 +2,16 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-01",
+      "items": [
+        "Zweite Website vorbereitet: Die aktuelle lebenswerk.ai-Seite ist als Kopie im Projekt angelegt (Startseite mit Ueberarbeitungs-Hinweis und Shop-Schaltflaeche). Sie wird automatisch ausgeliefert, sobald die Domain lebenswerk.ai auf unseren Server zeigt; vorher ist sie unter lebensgeschichten.ai/lebenswerk zu sehen.",
+        "Beide Websites teilen sich, was es nur einmal geben darf: Impressum, Datenschutzerklaerung, AGB und Widerruf kommen aus einer einzigen Quelle, ebenso der Shop (eine Ecwid-Filiale, eine Seite) und das Kontaktformular. Die alten Adressen lebenswerk.ai/impressum, /datenschutz, /agb und /widerruf leiten auf diese Seiten weiter, damit nichts ins Leere laeuft.",
+        "Shop-Seite laedt den Ecwid-Shop erst nach einem Klick — vorher werden keine Daten an den Anbieter uebertragen und keine Cookies gesetzt. Das ersetzt das Cookie-Banner der alten Seite.",
+        "Fehler behoben: Die Links „Datenschutzerklaerung\" und „Impressum\" fuehrten seit dem Start der Website (3. August) auf die Startseite statt auf den Rechtstext — auch der Link in der Einwilligung vor dem ersten Interview. Alle acht Stellen zeigen wieder auf das richtige Dokument.",
+        "Der bisherige lebenswerk.ai-Auftritt ist vollstaendig archiviert (website-archiv/), und Domain, DNS und E-Mail-Einstellungen der Domain sind dokumentiert (infra/DOMAIN-LEBENSWERK-AI.md) — inklusive der Stelle, an der beim Umzug das neue Ziel eingetragen wird."
+      ]
+    },
+    {
       "date": "2026-08-31",
       "items": [
         "Neue Interview-Sprache „Schwiizerdütsch → Hochdeutsch\": Der Erzähler spricht Mundart, die KI antwortet in normalem Hochdeutsch — mit deutscher Vorlesestimme und deutschem Buchtext."

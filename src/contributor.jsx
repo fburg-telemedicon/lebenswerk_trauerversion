@@ -2216,10 +2216,10 @@ function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof,
             <div style={sep} />
             {/* Bewusst KEIN Schloss-Symbol: es wird sonst mit dem Schloss/Berechtigungs-
                 Symbol des Browsers (Mikrofon-Freigabe) verwechselt. */}
-            <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
+            <a href="/app#datenschutz" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
               <span style={{ fontSize:19, fontWeight:700 }} aria-hidden="true">§</span><span>{t.consentLink || 'Datenschutzerklärung'}</span>
             </a>
-            <a href="/#impressum" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
+            <a href="/app#impressum" target="_blank" rel="noopener noreferrer" style={{ ...row, textDecoration:'none', color:'#78716c' }}>
               <span style={{ fontSize:19 }}>📄</span><span>{t.imprintLink || 'Impressum'}</span>
             </a>
           </div>
@@ -3995,7 +3995,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
           {consentAt ? (
             <div style={{ ...S.card, background:'#f0fdf4', borderColor:'#bbf7d0', marginBottom:18, fontSize:13, color:'#3f6212', lineHeight:1.6 }}>
               ✓ {t.consentAlready || 'Ihre Datenschutz-Einwilligung liegt bereits vor.'}{' '}
-              <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#3f6212', textDecoration:'underline' }}>{t.consentLink}</a>
+              <a href="/app#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#3f6212', textDecoration:'underline' }}>{t.consentLink}</a>
             </div>
           ) : (
           <div style={{ ...S.card, background:'#fffbeb', borderColor:'#fde68a', marginBottom:18 }}>
@@ -4011,7 +4011,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                   ct.consentNoun,
                   memorial?.product_category === 'memorial' ? t.consentSpecialMemorial : t.consentSpecialOther
                 )}
-                <a href="/#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8' }}>{t.consentLink}</a>.
+                <a href="/app#datenschutz" target="_blank" rel="noopener noreferrer" style={{ color:'#1d4ed8' }}>{t.consentLink}</a>.
                 {/* Rechtstexte liegen nur auf Deutsch vor und sind rechtlich
                     maßgeblich — in jeder Sprache ein kurzer Hinweis darauf. */}
                 {t.legalGermanNote ? <><br /><span style={{ fontSize:12, color:'#78716c' }}>{t.legalGermanNote}</span></> : null}

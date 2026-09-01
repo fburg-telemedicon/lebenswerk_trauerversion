@@ -140,11 +140,25 @@ const wantsApp = req => APP_PARAMS.some(k => req.query[k] !== undefined)
 
 if (fs.existsSync(DIST)) {
   if (fs.existsSync(SITE)) {
+    // ── Zweite Domain: lebenswerk.ai ──────────────────────────────────────
+    // Beide Websites liegen in DIESEM Container und teilen sich alles, was es
+    // nur einmal geben darf: Impressum, Datenschutzerklärung, AGB und Widerruf
+    // (eine Quelle — src/LegalPages.jsx + AGB.md, ausgeliefert vom SPA unter
+    // /app#…) sowie den Shop (eine Ecwid-Filiale, eine Seite: _shared/kaufen.html).
+    // Die Host-Weiche ist wirkungslos, solange lebenswerk.ai noch woanders liegt;
+    // sie greift von selbst, sobald die Domain auf diesen Container zeigt.
+    const LW_HOSTS = new Set(['lebenswerk.ai', 'www.lebenswerk.ai'])
+    // Nicht req.hostname: hinter dem Container-Apps-Ingress steht der Ursprungs-
+    // Host je nach Konfiguration in X-Forwarded-Host. Beide Wege prüfen.
+    const hostOf = req => String(req.headers['x-forwarded-host'] || req.headers.host || '')
+      .split(',')[0].trim().split(':')[0].toLowerCase()
+    const isLebenswerk = req => LW_HOSTS.has(hostOf(req))
+
     // MUSS vor express.static(DIST) stehen — sonst liefert der Static-Handler
     // schon dist/index.html für „/" aus und die Website wäre nie sichtbar.
     app.get('/', (req, res, next) => {
       if (wantsApp(req)) return next()
-      res.sendFile(path.join(SITE, 'index.html'))
+      res.sendFile(path.join(SITE, isLebenswerk(req) ? 'lebenswerk/index.html' : 'index.html'))
     })
     // Weitere Seiten der Website. Bewusst eine feste Liste statt eines
     // Static-Handlers auf „/", damit nichts versehentlich den SPA-Fallback
@@ -156,6 +170,22 @@ if (fs.existsSync(DIST)) {
     // Auf Papier ist das die einzige Adresse, die jemand fehlerfrei abtippt —
     // die vollständige ?code=-Adresse ist zehn Zeichen länger und fehleranfällig.
     app.get(['/zugang', '/code'], (req, res) => res.redirect(302, '/?zugang'))
+
+    // Vorschau der Lebenswerk-Startseite unabhängig vom Host — damit sie sich
+    // abnehmen lässt, bevor die Domain umgezogen ist.
+    app.get('/lebenswerk', (req, res) => res.sendFile(path.join(SITE, 'lebenswerk/index.html')))
+    // Shop: EINE Seite, EINE Ecwid-Filiale, unter beiden Domains erreichbar.
+    // Die Seite erkennt am Host, welche Wort-Bild-Marke sie oben zeigt.
+    app.get('/kaufen', (req, res) => res.sendFile(path.join(SITE, '_shared/kaufen.html')))
+    // Die Rechtstexte gibt es nur einmal (im SPA). Diese Weiterleitungen halten
+    // die alten lebenswerk.ai-Adressen gültig — sie stehen so in deren sitemap.xml
+    // und damit im Google-Index. Bewusst 302, nicht 301: eine dauerhafte
+    // Weiterleitung bekäme man aus den Browser-Caches nie wieder zurück.
+    for (const p of ['impressum', 'datenschutz', 'agb', 'widerruf']) {
+      app.get('/' + p, (req, res) => res.redirect(302, '/app#' + p))
+    }
+    // Gemeinsames Stylesheet beider Websites.
+    app.use('/_shared', express.static(path.join(SITE, '_shared'), { maxAge: '1h' }))
     // Bilder der Website. OHNE diese Zeile fallen /img/… in den SPA-Fallback ganz
     // unten und liefern index.html mit Status 200 — im Browser ein kaputtes Bild,
     // das keine Fehlermeldung erzeugt. Muss vor dem Fallback stehen.
