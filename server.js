@@ -185,7 +185,10 @@ if (fs.existsSync(DIST)) {
       app.get('/' + p, (req, res) => res.redirect(302, '/app#' + p))
     }
     // Gemeinsames Stylesheet beider Websites.
-    app.use('/_shared', express.static(path.join(SITE, '_shared'), { maxAge: '1h' }))
+    // Bewusst OHNE Cache-Dauer: der Dateiname enthaelt keine Versionskennung,
+    // eine Stunde Cache hiesse eine Stunde altes Aussehen nach jeder Aenderung.
+    // Mit ETag kostet die Rueckfrage nur ein 304 ohne Inhalt.
+    app.use('/_shared', express.static(path.join(SITE, '_shared'), { maxAge: 0, etag: true }))
     // Bilder der Website. OHNE diese Zeile fallen /img/… in den SPA-Fallback ganz
     // unten und liefern index.html mit Status 200 — im Browser ein kaputtes Bild,
     // das keine Fehlermeldung erzeugt. Muss vor dem Fallback stehen.
