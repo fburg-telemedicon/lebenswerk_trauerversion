@@ -6,10 +6,12 @@ kaputtgehen darf — vor allem die E-Mail.
 
 ## Wer die Domain hält
 
-**Belegt** (RDAP-Abfrage vom 2026-09-01, öffentlich):
+Stand 2026-09-01 — die Vertragsebene aus dem Strato-Konto, alles Übrige aus
+der öffentlichen RDAP-Abfrage:
 
 | | |
 |---|---|
+| **Vertrag / Bedienung** | **Strato** — bestätigt 2026-09-01, Zugang vorhanden. Hier laufen Nameserver, Verlängerung und Auth-Code. |
 | Registrar of Record | **InterNetX** (Handle 800087, `rdap.registrar.internetx.com`) |
 | Registry | Identity Digital (.ai) |
 | Registriert | 2024-12-07 |
@@ -18,21 +20,12 @@ kaputtgehen darf — vor allem die E-Mail.
 | Inhaberdaten | verdeckt durch Whois-Privacy (*PrivateName Services Inc.*, info@privatename.com) |
 | Status | `active`, kein `clientTransferProhibited` — ein Transfer wäre möglich |
 
-**Unbestätigt:** Der Vertrag liegt vermutlich bei **Strato** (Zugangsdaten seit
-2026-09-01 vorhanden). Das ist eine Annahme, keine Feststellung — ein
-Wiederverkäufer taucht im öffentlichen Registereintrag **grundsätzlich nicht
-auf**, dort steht nur der bei der Registry akkreditierte Registrar. InterNetX
-betreibt eine Großhandels-Plattform, über die deutsche Anbieter registrieren;
-dass Strato einer davon ist, passt zum Bild, ist hier aber nicht geprüft.
-
-> **Erster Schritt, und er dauert eine halbe Minute:** Bei Strato einloggen und
-> nachsehen, ob `lebenswerk.ai` in der Domainliste steht.
->
-> * **Steht sie da** → alles unten gilt, Nameserver und Verlängerung sind von
->   dort aus bedienbar.
-> * **Steht sie nicht da** → der Strato-Zugang hilft für diese Domain nicht, und
->   es muss erst geklärt werden, über welchen Anbieter sie läuft. Anhaltspunkt
->   wäre dann der bisherige Verwalter oder eine Anfrage bei InterNetX.
+Der Registereintrag nennt **nur InterNetX**, weil dort ausschließlich der bei
+der Registry akkreditierte Registrar steht — ein Wiederverkäufer taucht darin
+**grundsätzlich nicht auf**. Strato hat die Domain über die
+Großhandels-Plattform von InterNetX registriert; bedient wird sie im
+Strato-Konto. Wer also nach dem Vertragspartner sucht, findet ihn über keine
+öffentliche Abfrage, sondern nur im Konto.
 
 Strato und InterNetX sind **keine verbundenen Unternehmen**: InterNetX GmbH
 (Regensburg) ist die Registrar-Plattform, Strato AG (Berlin, United-Internet-
@@ -56,10 +49,10 @@ Zwei Wege:
 * **Weg A (kleinster Eingriff):** Zugang zum **Netlify-Konto** besorgen und dort
   die A-Records auf Azure umbiegen. Alles andere (MX, SPF, `autodiscover`)
   bleibt unberührt. Setzt voraus, dass wir an dieses Konto herankommen.
-* **Weg B (unabhängig, empfohlen — sofern der Registrar-Zugang stimmt):** Beim
-  Registrar-Konto die Nameserver auf einen eigenen DNS umstellen: Azure DNS
-  (passt zum übrigen Stack, per Skript pflegbar) oder die DNS-Verwaltung des
-  Anbieters. Damit braucht es das Netlify-Konto **nie wieder**.
+* **Weg B (unabhängig, empfohlen):** Bei **Strato** die Nameserver auf einen
+  eigenen DNS umstellen: Azure DNS (passt zum übrigen Stack, per Skript
+  pflegbar) oder Stratos eigene DNS-Verwaltung. Damit braucht es das
+  Netlify-Konto **nie wieder**.
 
 **Die eine Reihenfolge, an der es schiefgeht:** Erst die neue Zone vollständig
 befüllen, **dann** die Nameserver umstellen. Wer zuerst umstellt, hat für die
