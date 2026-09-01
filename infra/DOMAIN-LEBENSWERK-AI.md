@@ -124,41 +124,115 @@ Ausgangslage (Stand 2026-09-01): lebenswerk.ai haengt in einem **fremden**
 Microsoft-365-Tenant. Im eigenen Tenant — dem von lebensgeschichten.ai — sollen
 neue Postfaecher entstehen, und die bisherige Post soll mit.
 
-### Die Falle, die den ganzen Ablauf bestimmt
+### Was sich umsortieren laesst — und was nicht
 
-Eine Domain kann in **genau einem** M365-Tenant verifiziert sein. Solange
-lebenswerk.ai im alten Tenant liegt, laesst sie sich bei uns nicht hinzufuegen.
-Und aus dem alten Tenant entfernen laesst sie sich erst, wenn dort **kein
-einziges Objekt** mehr eine lebenswerk.ai-Adresse traegt — Postfaecher, Aliase,
-geteilte Postfaecher, Verteiler, Gruppen und die Anmeldenamen (UPN) der
-Benutzer. Microsoft blockiert das Entfernen sonst.
+Die naheliegende Reihenfolge ist: neue Infrastruktur bauen, Domain umziehen,
+alten Tenant abbauen. Die **stimmt weitgehend** — mit genau einer Ausnahme.
 
-Daraus folgt: **Die Inhalte ziehen um, bevor die Domain umzieht** — in
-Postfaecher, die zunaechst eine vorlaeufige Adresse tragen.
+**Umsortierbar (und so herum auch besser):**
+
+* Die neue Infrastruktur entsteht **zuerst**, vollstaendig und getestet.
+* Der alte Tenant wird **nicht** abgebaut. Postfach und Inhalte bleiben dort
+  bestehen, nur eben unter `…onmicrosoft.com`.
+* Die **Inhalte** duerfen auch **nach** dem Domainwechsel geholt werden. Es gibt
+  dafuer keinen technischen Zwang — nur einen Risiko-Grund: Sobald die Lizenz im
+  alten Tenant faellt, ist das Postfach nach kurzer Frist weg. Solange der
+  Zugang gesichert ist, kann der Inhalt in Ruhe folgen. Eine **PST-Sicherung vor
+  dem Umschalten** nimmt diesem Risiko trotzdem die Spitze und kostet eine
+  halbe Stunde.
+
+**Nicht umsortierbar:**
+
+> Die Domain muss aus dem alten Tenant **freigegeben** sein, bevor sie im neuen
+> verifiziert werden kann. Microsoft laesst dieselbe Domain nicht in zwei
+> Tenants zu.
+
+Freigeben heisst aber **nicht abbauen**, sondern nur: kein Objekt im alten
+Tenant traegt mehr eine lebenswerk.ai-Adresse. Also **umbenennen statt
+loeschen** — Postfach, Aliase, Verteiler und die Anmeldenamen (UPN) auf
+`…onmicrosoft.com` umstellen. Danach laesst sich die Domain entfernen; das
+Postfach existiert unveraendert weiter und bleibt zugaenglich.
+
+### Wo das Zeitfenster wirklich liegt
+
+Zwischen *Freigabe im alten Tenant* und *Verifizierung im neuen* gehoert die
+Domain kurz **keinem** Tenant. In dieser Zeit weist Microsoft Post an
+lebenswerk.ai ab.
+
+Wichtig fuer die Einschaetzung: Das ist eine **Ablehnung mit Fehlermeldung an
+den Absender**, kein stilles Verschlucken. Wer in diesem Fenster schreibt,
+bekommt eine Unzustellbarkeitsnachricht und weiss Bescheid. Und im Postfach
+liegende Post ist zu keinem Zeitpunkt in Gefahr.
+
+Das Fenster laesst sich klein halten — Groessenordnung Minuten, nicht Stunden:
+
+1. **TTL der MX- und TXT-Eintraege vorher senken** (in der Netlify-Zone, z. B.
+   auf 300 Sekunden), einen Tag vor dem Umschalten.
+2. Im neuen Tenant alles **vorbereiten**, was ohne die Domain geht: Postfach,
+   Verteiler, Mitglieder, Berechtigungen.
+3. Freigabe, Verifizierung, Adressvergabe und MX-Umstellung **in einem Zug**
+   erledigen, nicht ueber Tage verteilt.
+4. In eine **Randzeit** legen (Abend, Wochenende).
+5. Ob Hornetsecurity waehrend des Fensters Post zwischenspeichern kann, vorher
+   dort erfragen — Spooling greift ueblicherweise bei *Nichterreichbarkeit*,
+   nicht bei einer Ablehnung. Nicht darauf verlassen.
+
+### Adminrechte: wofuer sie noetig sind — und wofuer nicht
+
+Zwei Dinge werden hier leicht verwechselt:
+
+| | braucht Adminrechte im alten Tenant? |
+|---|---|
+| **Inhalt des Postfachs** holen | **Nein.** Eine PST reicht, und die zieht man mit der normalen Postfach-Anmeldung aus Outlook. |
+| **Domain freigeben**, damit sie in unseren Tenant kann | **Ja.** Ohne Freigabe keine Verifizierung bei uns — und keine lebenswerk.ai-Adressen. |
+
+Die Freigabe muss aber nicht *durch uns* geschehen: Es genuegt, dass **irgend
+jemand** mit Adminrechten im alten Tenant die lebenswerk.ai-Adressen von
+Postfach, Aliasen, Verteilern und Anmeldenamen loest und die Domain dann
+entfernt. Uebernimmt das der bisherige Verwalter im Zuge der Uebergabe, reicht
+uns die PST vollstaendig aus.
+
+Passiert das nicht, bleibt der **Microsoft-Support**: Eine Domain laesst sich
+aus einem fremden Tenant loesen, wenn man die Verfuegungsgewalt per DNS-Eintrag
+nachweist. Das dauert laenger — und an die Postfachinhalte kommt man auf diesem
+Weg nicht mehr heran. Genau deshalb wird die **PST gezogen, solange die
+Anmeldung noch funktioniert**, und nicht erst, wenn es klemmt.
+
+Ein zweiter Punkt, der ohne Adminrechte auffaellt: **Verteiler lassen sich nicht
+auslesen.** Sie haben keinen Inhalt und brauchen keine PST, aber ihre Adressen
+und Mitgliederlisten muessen bekannt sein, um sie im neuen Tenant nachzubauen.
+Diese Liste also fruehzeitig zusammentragen — notfalls aus dem Gedaechtnis und
+aus alten Nachrichten.
 
 ### Reihenfolge
 
-0. **Inventar im alten Tenant** — Postfaecher, Aliase, geteilte Postfaecher,
-   Verteiler, Weiterleitungen, serverseitige Regeln. Zuerst klaeren: *Haben wir
-   dort Adminrechte, oder nur einzelne Postfach-Anmeldungen?* Davon haengt ab,
-   welcher der Wege unten ueberhaupt offensteht.
-1. **Sicherung: je Postfach eine PST.** Nicht optional — nach dem Entzug der
-   Domain kann der Zugang zum alten Tenant schnell weg sein, und dann ist die
-   Post weg.
-2. **Postfaecher bei uns anlegen**, vorlaeufig unter
-   `<name>@<unser-tenant>.onmicrosoft.com` (oder unter lebensgeschichten.ai).
-3. **Inhalte umziehen** — Wege siehe Tabelle.
-4. **Alten Tenant abraeumen**: alle lebenswerk.ai-Adressen von Objekten und UPNs
-   loesen, dann die Domain dort entfernen.
-5. **lebenswerk.ai bei uns hinzufuegen und verifizieren** (TXT-Eintrag in der
-   DNS-Zone), danach die lebenswerk.ai-Adressen als *primaere* SMTP-Adresse auf
-   die neuen Postfaecher setzen; die onmicrosoft-Adresse bleibt als Alias.
-6. **MX umstellen** — siehe Abschnitt „Wo man den E-Mail-Zielserver umstellt".
-   Dabei gleich SPF, **DKIM**, **DMARC** und `autodiscover` mitnehmen.
+0. **Inventar** im alten Tenant: Postfach, Aliase, Verteiler samt Mitgliedern,
+   Weiterleitungen, serverseitige Regeln.
+1. **PST-Sicherung** des Postfachs, solange der Zugang sicher ist.
+2. **Neuen Tenant vollstaendig aufbauen** — Postfach und Verteiler unter
+   vorlaeufigen Adressen (`…onmicrosoft.com`), Mitglieder und Berechtigungen
+   gesetzt, durchgetestet.
+3. **TTL senken**, einen Tag vorher.
+4. **Umschaltfenster**, in einem Zug: alte Adressen im alten Tenant auf
+   `…onmicrosoft.com` umbenennen → Domain dort entfernen → im neuen Tenant
+   hinzufuegen und per TXT verifizieren → lebenswerk.ai-Adressen als primaere
+   SMTP setzen → MX, SPF, `autodiscover` umstellen.
+5. **DKIM und DMARC** einrichten (fehlen bisher komplett).
+6. **Inhalte holen** — jetzt in Ruhe, aus dem weiterhin bestehenden alten
+   Postfach.
 7. **Nachlauf**: alte Adressen eine Weile als Alias mitfuehren, Hornetsecurity
-   kuendigen oder auf das neue Ziel umkonfigurieren.
+   kuendigen oder umkonfigurieren, alten Tenant erst ganz zum Schluss abbauen.
 
 ### Wege, die Inhalte zu bewegen
+
+Fuer diesen Fall ist die Wahl getroffen: **ein Postfach, also PST** — per
+Outlook exportieren und im neuen Postfach wieder einlesen, oder beide Konten
+kurz in einem Outlook-Profil und die Ordner hinueberziehen. Kein Werkzeug,
+keine Adminrechte, kein Migrationsprojekt. Die **Verteiler** haben keinen
+Inhalt und werden im neuen Tenant einfach neu angelegt.
+
+Die uebrigen Wege stehen hier nur als Bemessungsgrundlage, falls spaeter
+mehr Postfaecher dazukommen:
 
 | Weg | Aufwand | Was mitkommt | Voraussetzung |
 |---|---|---|---|
