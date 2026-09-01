@@ -6,22 +6,37 @@ kaputtgehen darf — vor allem die E-Mail.
 
 ## Wer die Domain hält
 
+**Belegt** (RDAP-Abfrage vom 2026-09-01, öffentlich):
+
 | | |
 |---|---|
-| **Vertrag / Verwaltung** | **Strato** — dort liegt der Zugang (seit 2026-09-01 vorhanden). Hier werden Nameserver, Verlängerung und Auth-Code gepflegt. |
-| Technischer Registrar | **InterNetX** (RDAP-Handle 800087, `rdap.registrar.internetx.com`) |
+| Registrar of Record | **InterNetX** (Handle 800087, `rdap.registrar.internetx.com`) |
 | Registry | Identity Digital (.ai) |
 | Registriert | 2024-12-07 |
 | Zuletzt geändert | 2026-08-12 — kurz vor der Übergabe, also vermutlich schon Teil davon |
-| **Läuft ab** | **2026-12-07** — in gut drei Monaten. Im Strato-Konto prüfen, ob die Verlängerung aktiv ist. |
+| **Läuft ab** | **2026-12-07** — in gut drei Monaten. Prüfen, ob die Verlängerung aktiv ist. |
 | Inhaberdaten | verdeckt durch Whois-Privacy (*PrivateName Services Inc.*, info@privatename.com) |
-| Status | `active` (kein `clientTransferProhibited` — ein Transfer wäre möglich, Auth-Code kommt aus dem Strato-Konto) |
+| Status | `active`, kein `clientTransferProhibited` — ein Transfer wäre möglich |
 
-**Strato und InterNetX sind kein Widerspruch.** Strato registriert `.ai` nicht
-selbst, sondern über die Großhandels-Plattform von InterNetX — deshalb steht im
-öffentlichen Registereintrag InterNetX, während der Vertrag und die Bedienung
-bei Strato liegen. Gegenprobe: Stratos *eigene* Nameserver heißen
-`ns-strato.ui-dns.de/.com/.org/.biz`; die stehen hier **nicht** (siehe unten).
+**Unbestätigt:** Der Vertrag liegt vermutlich bei **Strato** (Zugangsdaten seit
+2026-09-01 vorhanden). Das ist eine Annahme, keine Feststellung — ein
+Wiederverkäufer taucht im öffentlichen Registereintrag **grundsätzlich nicht
+auf**, dort steht nur der bei der Registry akkreditierte Registrar. InterNetX
+betreibt eine Großhandels-Plattform, über die deutsche Anbieter registrieren;
+dass Strato einer davon ist, passt zum Bild, ist hier aber nicht geprüft.
+
+> **Erster Schritt, und er dauert eine halbe Minute:** Bei Strato einloggen und
+> nachsehen, ob `lebenswerk.ai` in der Domainliste steht.
+>
+> * **Steht sie da** → alles unten gilt, Nameserver und Verlängerung sind von
+>   dort aus bedienbar.
+> * **Steht sie nicht da** → der Strato-Zugang hilft für diese Domain nicht, und
+>   es muss erst geklärt werden, über welchen Anbieter sie läuft. Anhaltspunkt
+>   wäre dann der bisherige Verwalter oder eine Anfrage bei InterNetX.
+
+Strato und InterNetX sind **keine verbundenen Unternehmen**: InterNetX GmbH
+(Regensburg) ist die Registrar-Plattform, Strato AG (Berlin, United-Internet-
+Gruppe) ein Hoster. Eine Verbindung bestünde nur als Geschäftsbeziehung.
 
 ## Wo die DNS-Einträge gepflegt werden  ← **hier trägt man das neue Ziel ein**
 
@@ -31,27 +46,27 @@ Die Nameserver sind
     dns3.p01.nsone.net   dns4.p01.nsone.net
 
 Das ist **NS1 — das DNS-Backend von Netlify**; der SOA-Kontakt der Zone lautet
-`domains+netlify.netlify.com`. Die **Zone** wird also derzeit im Netlify-Konto
-verwaltet, obwohl die **Domain** bei Strato liegt. Bei Strato stehen nur die
-vier Nameserver-Einträge — die aber genügen, um die Zone woandershin zu holen.
+`domains+netlify.netlify.com`. Die **Zone** wird also im Netlify-Konto
+verwaltet, unabhängig davon, wo der Domainvertrag liegt. Zum Vergleich: Stratos
+eigene Nameserver heißen `ns-strato.ui-dns.de/.com/.org/.biz` — die stehen hier
+**nicht**.
 
-Daraus folgen zwei Wege — **beide sind jetzt gangbar**, weil der Strato-Zugang
-vorliegt:
+Zwei Wege:
 
 * **Weg A (kleinster Eingriff):** Zugang zum **Netlify-Konto** besorgen und dort
   die A-Records auf Azure umbiegen. Alles andere (MX, SPF, `autodiscover`)
   bleibt unberührt. Setzt voraus, dass wir an dieses Konto herankommen.
-* **Weg B (unabhängig, empfohlen):** Bei **Strato** die Nameserver auf einen
-  eigenen DNS umstellen — Azure DNS (passt zum übrigen Stack, per Skript
-  pflegbar) oder Stratos eigene DNS-Verwaltung (nichts Zusätzliches nötig).
-  Damit braucht es das Netlify-Konto **nie wieder**.
+* **Weg B (unabhängig, empfohlen — sofern der Registrar-Zugang stimmt):** Beim
+  Registrar-Konto die Nameserver auf einen eigenen DNS umstellen: Azure DNS
+  (passt zum übrigen Stack, per Skript pflegbar) oder die DNS-Verwaltung des
+  Anbieters. Damit braucht es das Netlify-Konto **nie wieder**.
 
-**Reihenfolge bei Weg B — das ist der Punkt, an dem es schiefgeht:** Erst die
-neue Zone vollständig befüllen, **dann** bei Strato die Nameserver umstellen.
-Wer zuerst umstellt, hat für die Dauer der Umstellung eine leere Zone: kein MX,
-keine Website, keine Mail. Die vollständige Liste der zu übernehmenden Einträge
-steht im nächsten Abschnitt — **inklusive MX, SPF, den beiden
-`google-site-verification`-Einträgen, `MS=ms82341597` und `autodiscover`.**
+**Die eine Reihenfolge, an der es schiefgeht:** Erst die neue Zone vollständig
+befüllen, **dann** die Nameserver umstellen. Wer zuerst umstellt, hat für die
+Dauer der Umstellung eine leere Zone: keine Website, **keine Mail**. Zu
+übernehmen sind nicht nur die A-Records, sondern auch MX, SPF, die beiden
+`google-site-verification`-Einträge, `MS=ms82341597` und `autodiscover` — die
+vollständige Liste steht im nächsten Abschnitt.
 
 Vor der Umstellung die **TTL** in der alten Zone senken (z. B. auf 300 s), damit
 die Änderung schnell greift.
