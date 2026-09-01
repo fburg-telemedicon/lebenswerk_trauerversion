@@ -273,6 +273,37 @@ native Tenant-zu-Tenant-Migration verlangt Anwendungsregistrierungen und eine
 Vertrauensstellung auf beiden Seiten und lohnt erst bei vielen Postfaechern
 oder wenn Berechtigungen und Regeln zwingend mit muessen.
 
+### PST aus dem lokalen Outlook — der Weg und seine Fallen
+
+Der Export laeuft ohne Adminrechte und ohne Werkzeug, direkt im installierten
+Outlook: **Datei → Oeffnen und Exportieren → Importieren/Exportieren → In Datei
+exportieren → Outlook-Datendatei (.pst)**, Postfach waehlen, *Unterordner
+einbeziehen* anhaken. Zurueck ins neue Postfach geht es ueber denselben
+Assistenten mit *Aus anderen Programmen oder Dateien importieren*.
+
+Vier Punkte, an denen es schiefgeht — der erste ist der gefaehrliche, weil er
+**stillschweigend** zu wenig exportiert:
+
+1. **Der Zwischenspeicher enthaelt womoeglich nicht alles.** Im Cache-Modus haelt
+   Outlook je nach Einstellung nur einen Ausschnitt vor (oft 12 Monate). Was
+   nicht lokal liegt, landet **nicht in der PST**, ohne Fehlermeldung. Vorher in
+   *Kontoeinstellungen → Konto aendern → Offline-Einstellungen* den Regler auf
+   **„Alle"** stellen und den vollstaendigen Abgleich abwarten (Statusleiste:
+   „Alle Ordner sind auf dem neuesten Stand").
+2. **Ein Onlinearchiv wird nicht mitexportiert.** Steht im Ordnerbaum ein
+   zweiter Eintrag „Onlinearchiv – …", ist das ein eigener Speicher: separat
+   exportieren. Er liegt ausserdem nie vollstaendig lokal.
+3. **Der neue Outlook-Client kann keine PST exportieren** (Stand 2026-09-01,
+   nicht neu geprueft). Dann oben auf **klassisches Outlook** umschalten.
+4. **Hinterher pruefen, nicht vertrauen:** die PST oeffnen (*Datei → Oeffnen und
+   Exportieren → Outlook-Datendatei oeffnen*) und stichprobenartig vergleichen —
+   aelteste Nachricht, Anzahl der Ordner, plausible Dateigroesse.
+
+Was eine PST **nicht** enthaelt: serverseitige Regeln, Berechtigungen und
+Stellvertretungen, Abwesenheitsnotiz — und vor allem die **Verteiler**. Die sind
+Serverobjekte ohne Inhalt; ihre Adressen und Mitgliederlisten muessen getrennt
+notiert werden, solange man noch hineinsehen kann.
+
 ### Zwei Bestaende, die leicht vergessen werden
 
 * **Hornetsecurity** kann ein eigenes **Archiv und eine Quarantaene** halten.
