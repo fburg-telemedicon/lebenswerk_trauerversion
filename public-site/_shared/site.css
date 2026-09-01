@@ -26,6 +26,12 @@ body{margin:0;background:var(--bg);color:var(--ink);
      -webkit-font-smoothing:antialiased}
 a{color:inherit}
 
+/* Die Fusszeile steht immer unten, auch wenn die Seite kurz ist — sonst haengt
+   sie mitten im Bild und darunter bleibt eine leere Flaeche. */
+body{display:flex;flex-direction:column;min-height:100vh}
+main{flex:1 0 auto}
+footer{flex-shrink:0}
+
 .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
 .wrap.narrow{max-width:680px}
 

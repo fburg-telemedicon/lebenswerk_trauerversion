@@ -13,8 +13,12 @@
 <link rel="icon" href="/icons/icon-192.png" />
 <link rel="stylesheet" href="/_shared/site.css" />
 <style>
-  /* Nur diese Seite: die Startseite ist eine einzelne, mittige Karte. */
-  main{min-height:calc(100vh - 190px);display:flex;align-items:center;justify-content:center;
+  /* Nur diese Seite: die Startseite ist eine einzelne, mittige Karte.
+     Weiss statt der sonstigen Grundfarbe, weil die Wort-Bild-Marke als PNG
+     mit weissem Hintergrund vorliegt — auf dem Sandton der uebrigen Seiten
+     zeichnete sich ihr Rechteck sichtbar ab. */
+  body{background:#fff}
+  main{display:flex;align-items:center;justify-content:center;
        text-align:center;padding:64px 24px}
   .logo{width:min(420px,80vw);height:auto;margin:0 auto 34px;display:block}
   .claim{font-size:19px;color:#44403c;max-width:520px;margin:0 auto 32px}
