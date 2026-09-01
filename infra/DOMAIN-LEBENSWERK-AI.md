@@ -72,6 +72,10 @@ Auffällig fehlen:
 
 Beides beim Umzug gleich mit einrichten — ohne DKIM/DMARC landen ausgehende
 Mails häufiger im Spam.
+Bestaetigt am 2026-09-01: lebenswerk.ai liegt in einem **anderen** Tenant als
+lebensgeschichten.ai. Der Umzug der Postfaecher ist damit eine echte
+Tenant-zu-Tenant-Migration — siehe den Abschnitt weiter unten.
+
 
 ## Wo man den E-Mail-Zielserver umstellt
 
@@ -113,6 +117,69 @@ lebensgeschichten.ai ebenfalls.
 
 Ein `mail.lebenswerk.ai` gibt es nicht; ausser `autodiscover` existieren keine
 weiteren Mail-Unterdomaenen.
+
+## Bestehende Postfaecher in unseren Tenant umziehen
+
+Ausgangslage (Stand 2026-09-01): lebenswerk.ai haengt in einem **fremden**
+Microsoft-365-Tenant. Im eigenen Tenant — dem von lebensgeschichten.ai — sollen
+neue Postfaecher entstehen, und die bisherige Post soll mit.
+
+### Die Falle, die den ganzen Ablauf bestimmt
+
+Eine Domain kann in **genau einem** M365-Tenant verifiziert sein. Solange
+lebenswerk.ai im alten Tenant liegt, laesst sie sich bei uns nicht hinzufuegen.
+Und aus dem alten Tenant entfernen laesst sie sich erst, wenn dort **kein
+einziges Objekt** mehr eine lebenswerk.ai-Adresse traegt — Postfaecher, Aliase,
+geteilte Postfaecher, Verteiler, Gruppen und die Anmeldenamen (UPN) der
+Benutzer. Microsoft blockiert das Entfernen sonst.
+
+Daraus folgt: **Die Inhalte ziehen um, bevor die Domain umzieht** — in
+Postfaecher, die zunaechst eine vorlaeufige Adresse tragen.
+
+### Reihenfolge
+
+0. **Inventar im alten Tenant** — Postfaecher, Aliase, geteilte Postfaecher,
+   Verteiler, Weiterleitungen, serverseitige Regeln. Zuerst klaeren: *Haben wir
+   dort Adminrechte, oder nur einzelne Postfach-Anmeldungen?* Davon haengt ab,
+   welcher der Wege unten ueberhaupt offensteht.
+1. **Sicherung: je Postfach eine PST.** Nicht optional — nach dem Entzug der
+   Domain kann der Zugang zum alten Tenant schnell weg sein, und dann ist die
+   Post weg.
+2. **Postfaecher bei uns anlegen**, vorlaeufig unter
+   `<name>@<unser-tenant>.onmicrosoft.com` (oder unter lebensgeschichten.ai).
+3. **Inhalte umziehen** — Wege siehe Tabelle.
+4. **Alten Tenant abraeumen**: alle lebenswerk.ai-Adressen von Objekten und UPNs
+   loesen, dann die Domain dort entfernen.
+5. **lebenswerk.ai bei uns hinzufuegen und verifizieren** (TXT-Eintrag in der
+   DNS-Zone), danach die lebenswerk.ai-Adressen als *primaere* SMTP-Adresse auf
+   die neuen Postfaecher setzen; die onmicrosoft-Adresse bleibt als Alias.
+6. **MX umstellen** — siehe Abschnitt „Wo man den E-Mail-Zielserver umstellt".
+   Dabei gleich SPF, **DKIM**, **DMARC** und `autodiscover` mitnehmen.
+7. **Nachlauf**: alte Adressen eine Weile als Alias mitfuehren, Hornetsecurity
+   kuendigen oder auf das neue Ziel umkonfigurieren.
+
+### Wege, die Inhalte zu bewegen
+
+| Weg | Aufwand | Was mitkommt | Voraussetzung |
+|---|---|---|---|
+| **Outlook-Profil**: beide Konten in einem Profil, Ordner hinueberziehen | klein, gut bei 1–5 Postfaechern | Mail, Kalender, Kontakte — **keine** serverseitigen Regeln, keine Berechtigungen | je Postfach eine funktionierende Anmeldung |
+| **PST-Export + Import-Dienst** (Purview Network Upload, kostenfrei) | mittel, laeuft unbeaufsichtigt, auch fuer grosse Postfaecher | wie oben | Admin im **Quell**-Tenant fuer den eDiscovery-Export |
+| **IMAP-Migration** (Exchange Admin Center) | mittel | **nur E-Mail** — kein Kalender, keine Kontakte, keine Regeln | Zugangsdaten je Postfach |
+| **Native Tenant-zu-Tenant-Migration** oder Werkzeug (MigrationWiz, CodeTwo, Quest) | gross bzw. kostenpflichtig (~10–15 € je Postfach) | alles, inkl. Kalender, Kontakte, Berechtigungen, Ordnerstruktur | Adminrechte in **beiden** Tenants |
+
+Bei einer Handvoll Postfaecher sind die ersten beiden Wege das Richtige; die
+native Tenant-zu-Tenant-Migration verlangt Anwendungsregistrierungen und eine
+Vertrauensstellung auf beiden Seiten und lohnt erst bei vielen Postfaechern
+oder wenn Berechtigungen und Regeln zwingend mit muessen.
+
+### Zwei Bestaende, die leicht vergessen werden
+
+* **Hornetsecurity** kann ein eigenes **Archiv und eine Quarantaene** halten.
+  Wird dort archiviert, ist das ein *zweiter* Datenbestand, der vor der
+  Kuendigung exportiert werden muss — er steckt nicht in den Postfaechern.
+* **Geteilte Postfaecher und Verteiler** haben keine eigene Anmeldung und
+  fallen bei der Postfach-fuer-Postfach-Methode durchs Raster. Sie brauchen
+  Adminzugang im alten Tenant oder muessen neu aufgebaut werden.
 
 ## Checkliste Website-Umzug auf die Container App
 
