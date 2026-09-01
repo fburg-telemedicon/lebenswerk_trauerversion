@@ -73,6 +73,47 @@ Auffällig fehlen:
 Beides beim Umzug gleich mit einrichten — ohne DKIM/DMARC landen ausgehende
 Mails häufiger im Spam.
 
+## Wo man den E-Mail-Zielserver umstellt
+
+Die Post laeuft in **zwei Etappen**, und der eigentliche Zielserver steht
+nicht im DNS:
+
+    Internet --MX--> Hornetsecurity (Filter) --Zustellung--> Microsoft 365
+                ^                                  ^
+          DNS-Zone bei Netlify              Hornetsecurity-Panel
+
+1. **MX-Record** — wer die Post aus dem Internet annimmt. Steht in der
+   **Netlify-DNS-Zone** (dieselbe Oberflaeche wie die Website-Eintraege).
+2. **Zustellziel hinter dem Filter** — wohin Hornetsecurity nach dem Pruefen
+   ausliefert. Steht **im Hornetsecurity Control Panel**, nicht im DNS. Wer nur
+   den MX aendert und den Filter weiterlaufen laesst, aendert an der Zustellung
+   nichts — und umgekehrt.
+
+| Ziel | Wo umstellen |
+|---|---|
+| Postfaecher bleiben in M365, Filter raus | Netlify DNS: MX auf  (Prio 0), SPF kuerzen auf ; Hornetsecurity kuendigen |
+| Filter bleibt, Postfaecher ziehen um | nur Hornetsecurity-Panel (Zustellziel); DNS unveraendert |
+| Beides neu | MX in Netlify DNS direkt auf den neuen Anbieter, Hornetsecurity kuendigen |
+
+Der Microsoft-365-Endpunkt ****
+existiert bereits (loest auf 52.101.170.0–2 und 52.101.168.0 auf) — die Domain
+ist also in einem M365-Tenant angelegt und verifiziert (TXT ).
+**In welchem Tenant, ist beim Uebernehmen zu klaeren**: ohne Adminzugang dort
+kommt man an die Postfaecher nicht heran, egal was im DNS steht.
+
+Zum Vergleich unsere eigene Domain **lebensgeschichten.ai**: Nameserver bei
+**Porkbun**, MX **direkt** auf ,
+kein vorgelagerter Filter, SPF ,
+TXT . Die aufgeraeumteste Endfassung waere, lebenswerk.ai in
+denselben Tenant zu holen und genauso direkt zuzustellen.
+
+Bei **jedem** dieser Wege gehoeren dazu: **DKIM einschalten** und einen
+**DMARC-Eintrag** setzen. Beides fehlt bei lebenswerk.ai vollstaendig — bei
+lebensgeschichten.ai ebenfalls.
+
+Ein  gibt es nicht; ausser  existieren keine
+weiteren Mail-Unterdomaenen.
+
 ## Checkliste Website-Umzug auf die Container App
 
 1. Custom Domain auf der Container App anlegen (`lebenswerk-web`, RG
