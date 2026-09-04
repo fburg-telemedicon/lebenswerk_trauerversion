@@ -8,7 +8,9 @@
         "45 Zugangscodes fuer den mamazone-Kongress in Hamburg angelegt — 30 mit zehn Minuten und 15 mit dreissig Minuten Gespraechszeit. Der Name bleibt frei, damit jede Erzaehlerin ihren eigenen eintraegt; die Zuordnung laeuft ueber Bemerkungsfeld und Projektnummer.",
         "Zugangsblaetter dazu gedruckt (ein Blatt je Code, QR-Code und Code-Eingabe, Gespraechszeit oben im roten Rahmen, Hinweis auf europaeische Verarbeitung und Loeschung auf Wunsch).",
         "Musterbuch als Druck-PDF erzeugt (44 Seiten, fuenf Kapitel mit Bildern) — Grundlage fuer die Ausschnitte, die auf dem Kongress gezeigt werden. Die Erzaehlerin ist frei erfunden und im Dashboard als Demo gekennzeichnet.",
-        "Lebenswerk fuer einen Kunden angelegt, der schon in der Vorgaengerversion erzaehlt hatte: 121 Frage-Antwort-Paare aus den ersten drei Kapiteln wurden uebernommen, samt der Stelle im Fragenkatalog, an der es weitergeht. Das Gespraech laeuft also dort weiter, wo es aufgehoert hat, statt von vorn zu beginnen."
+        "Lebenswerk fuer einen Kunden angelegt, der schon in der Vorgaengerversion erzaehlt hatte: 121 Frage-Antwort-Paare aus den ersten drei Kapiteln wurden uebernommen, samt der Stelle im Fragenkatalog, an der es weitergeht. Das Gespraech laeuft also dort weiter, wo es aufgehoert hat, statt von vorn zu beginnen.",
+        "Buchliste im Dashboard laedt jetzt nach: neuer Knopf „Aktualisieren\" ueber der Liste, und beim Zurueckkehren auf den Browser-Tab aktualisiert sie sich von allein (hoechstens alle 30 Sekunden, und nur in der Listenansicht). Vorher zeigte die Liste immer den Stand vom Oeffnen der Seite — ein Buch, das ein Kunde selbst angelegt hatte, war erst nach manuellem Neuladen zu sehen.",
+        "Eigene Zusatzfragen stehen jetzt VOR den vorgefertigten Themenbloecken. Wer alle Bloecke samt Zeitgeschehen anschaltet, hatte sonst 23 Fragen vor seinen eigenen — die kamen bei einem langen Interview womoeglich nie dran."
       ]
     },
     {

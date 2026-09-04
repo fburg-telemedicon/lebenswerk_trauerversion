@@ -1214,7 +1214,7 @@ function RecordingModeRadio({ handsFree, micManualStop, set, t }) {
 // (eigene Sweden-Central-Ressource, DSFA/Verfahrensverzeichnis). Ein Manager soll
 // den Modus nicht versehentlich freischalten können. Das Ausblenden ist nur die
 // halbe Miete — verriegelt ist es serverseitig in api/admin/memorials.js.
-export function ListView({ showCategoryColumn, auth, memorials, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete, loadFairCodes, runRetention, retentionBusy, showArchived, setShowArchived }) {
+export function ListView({ showCategoryColumn, auth, memorials, refreshMemorials, refreshing, filters, sort, myName, myUid, loading, filterCol, hoveredRow, err, deletingId, setSort, setFilters, setFilterCol, setHoveredRow, loadUsers, setErr, setView, loadAudit, loadCatalogs, setCatalogForm, loadRecipients, setReportMsg, loadFeedback, loadCodes, loadSupport, openSettings, openBookDefaults, logout, startCreate, openMemorial, openCosts, handleDelete, loadFairCodes, runRetention, retentionBusy, showArchived, setShowArchived }) {
     const t = useAdminT()
     const openSupport = useSupport()
     // Sortierbare + filterbare Spalten (Reihenfolge = Spaltenreihenfolge).
@@ -1408,6 +1408,15 @@ export function ListView({ showCategoryColumn, auth, memorials, filters, sort, m
                 {showArchived ? t('← Zurück zur Liste', '← Back to list') : `${t('Archiv', 'Archive')} (${archivedCount})`}
               </button>
             )}
+            {/* Die Liste ist sonst der Stand vom Öffnen der Seite — Bücher, die
+                inzwischen ein Kunde selbst angelegt hat oder ein anderer Manager,
+                fehlen bis zum Neuladen. Beim Zurückkehren auf den Tab passiert das
+                zusätzlich von allein (App.jsx). */}
+            <button className="secondary" onClick={() => refreshMemorials()} disabled={refreshing}
+                    title={t('Buchliste neu laden', 'Reload book list')}
+                    style={{ fontSize:13, padding:'8px 12px' }}>
+              {refreshing ? '…' : t('↻ Aktualisieren', '↻ Refresh')}
+            </button>
             <button onClick={startCreate} style={{ fontSize:14, padding:'9px 16px' }}>
               {t('+ Neues Buch', '+ New book')}
             </button>

@@ -532,6 +532,16 @@ function clearAdminSession() {
 function Dashboard() {
   const { setLang: setAdminLang } = useAdminLang()  // Dashboard-Sprache (de/en)
   const [view, setView]               = useState('login') // login|list|create-category|create|created|detail|book-v1|book-v2|users
+  // Die aktuelle Ansicht auch als Ref: Der visibilitychange-Listener (Nachladen
+  // der Buchliste) wird einmal registriert und sähe sonst dauerhaft den `view`
+  // von damals.
+  const viewRef                       = useRef(view)
+  useEffect(() => { viewRef.current = view }, [view])
+  // Nachladen der Buchliste: läuft gerade (Ref, damit zwei Auslöser sich nicht
+  // überholen), Anzeige am Knopf, und wann zuletzt geladen wurde (Drosselung).
+  const refreshingRef                 = useRef(false)
+  const [refreshing, setRefreshing]   = useState(false)
+  const lastRefreshRef                = useRef(0)
   const [token, setToken]             = useState(() => readAdminToken())
   const [auth, setAuth]               = useState(() => readAdminAuth() || { admin: false, cats: [], uid: null })
   const [username, setUsername]       = useState('')
@@ -757,11 +767,60 @@ function Dashboard() {
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       setMemorials(d); setView('list')
+      lastRefreshRef.current = Date.now()
       loadCatalogs(t)      // Kataloge im Hintergrund laden (für Auswahl beim Anlegen)
       loadBookDefaults(t)  // Standardwerte der Anlage-Maske
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
   }
+
+  // ── Liste nachladen ──
+  // loadMemorials() lief bisher NUR beim Seitenaufruf, nach dem Login und beim
+  // Zurückgehen aus „Buch angelegt". Alles, was danach entstand — ein Kunde, der
+  // sich selbst registriert, ein zweiter Manager, ein Skript — fehlte bis zum
+  // manuellen Neuladen der Seite.
+  //
+  // Diese Variante wechselt bewusst NICHT die Ansicht und blendet die Tabelle
+  // nicht aus (kein `loading`), damit die Liste beim Aktualisieren stehen bleibt.
+  // `silent` unterdrückt zusätzlich die Fehlermeldung — beim automatischen
+  // Nachladen im Hintergrund soll ein kurzer Netzaussetzer nichts aufpoppen
+  // lassen; die alte Liste bleibt dann einfach stehen.
+  async function refreshMemorials({ silent = false } = {}) {
+    if (!token || refreshingRef.current) return
+    refreshingRef.current = true
+    if (!silent) { setRefreshing(true); setErr('') }
+    try {
+      const res = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (res.status === 401) { logout(); return }
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      setMemorials(d)
+      lastRefreshRef.current = Date.now()
+    } catch (e) { if (!silent) setErr(e.message) }
+    finally { refreshingRef.current = false; setRefreshing(false) }
+  }
+
+  // Zurück auf dem Tab → Liste still nachladen. Drei Einschränkungen:
+  //   • nur in der Listenansicht (viewRef, nicht `view` — der Listener würde
+  //     sonst den Stand von seiner Registrierung sehen). Mitten in einem Buch
+  //     dürfen die Daten nicht unter den Füßen wechseln.
+  //   • nicht für Endnutzer (die haben gar keine Liste).
+  //   • höchstens alle 30 Sekunden, damit Hin- und Herklicken keine Last erzeugt.
+  useEffect(() => {
+    if (!token || auth?.enduser) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (viewRef.current !== 'list') return
+      if (Date.now() - lastRefreshRef.current < 30 * 1000) return
+      refreshMemorials({ silent: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [token, auth?.enduser])
 
   // ── Buch-Standardwerte ──
   // Fehler bewusst still: ohne geladene Werte greifen die Fallbacks aus
@@ -3997,7 +4056,7 @@ Regeln:
     view === 'fair-codes' ? (
     <FairCodesView err={err} fairData={fairData} fairForm={fairForm} sheetForm={sheetForm} busy={busy} fairMsg={fairMsg} logout={logout} setView={setView} setFairForm={setFairForm} setSheetForm={setSheetForm} createFairBatch={createFairBatch} printFairBatch={printFairBatch} removeFairBatch={removeFairBatch} />
     ) :
-    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} loadSupport={loadSupport} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} loadFairCodes={loadFairCodes} runRetention={runRetention} retentionBusy={retentionBusy} showArchived={showArchived} setShowArchived={setShowArchived} />
+    <ListView showCategoryColumn={showCategoryColumn} auth={auth} memorials={memorials} refreshMemorials={refreshMemorials} refreshing={refreshing} filters={filters} sort={sort} myName={myName} myUid={myUid} loading={loading} filterCol={filterCol} hoveredRow={hoveredRow} err={err} deletingId={deletingId} setSort={setSort} setFilters={setFilters} setFilterCol={setFilterCol} setHoveredRow={setHoveredRow} loadUsers={loadUsers} setErr={setErr} setView={setView} loadAudit={loadAudit} loadCatalogs={loadCatalogs} setCatalogForm={setCatalogForm} loadRecipients={loadRecipients} setReportMsg={setReportMsg} loadFeedback={loadFeedback} loadCodes={loadCodes} loadSupport={loadSupport} openSettings={openSettings} openBookDefaults={openBookDefaults} logout={logout} startCreate={startCreate} openMemorial={openMemorial} openCosts={openCosts} handleDelete={handleDelete} loadFairCodes={loadFairCodes} runRetention={runRetention} retentionBusy={retentionBusy} showArchived={showArchived} setShowArchived={setShowArchived} />
   )
 
   // ── BUCH-STANDARDWERTE (nur Admin) ──

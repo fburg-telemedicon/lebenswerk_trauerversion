@@ -275,7 +275,12 @@ export function extraQuestionList(memorial) {
   if (memorial?.product_category && memorial.product_category !== 'lifework') return []
   const cfg = normalizeExtraQuestions(memorial?.extra_questions)
   if (!cfg.enabled) return []
-  const out = []
+  // Die EIGENEN Fragen des Managers stehen VORN, die vorgefertigten Themenblöcke
+  // dahinter. Sie sind auf dieses eine Buch gemünzt (z. B. eine Katalogfrage, die
+  // beim Erfassen verlorenging), die Presets sind Beiwerk — und wer alle Blöcke
+  // samt Zeitgeschehen anschaltet, hat sonst 23 Fragen davor stehen. Ein 91-
+  // jähriger Erzähler kommt dann nie bei ihnen an.
+  const out = [...cfg.own]
   for (const p of EXTRA_QUESTION_PRESETS) {
     if (!cfg.presets.includes(p.key)) continue
     if (p.key === 'zeitgeschehen') {
@@ -286,7 +291,6 @@ export function extraQuestionList(memorial) {
       out.push(...p.questions)
     }
   }
-  out.push(...cfg.own)
   return out
 }
 
