@@ -19,7 +19,7 @@ import {
   storeMemorialPdf,
   storeAudiobookFull,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -239,9 +239,9 @@ const EMPTY_CREATE = {
   pickupAddress: { ...EMPTY_PICKUP },
   catalogId: '', followups: 2,
   guestEnabled: false,               // Gastbeitraege (nur Lebenswerk): zweiter Link fuer Angehoerige/Freunde
-  // Zusatzfragen ans Interview-Ende (nur Lebenswerk). Standard AUS — ohne
-  // Einschaltung aendert sich am Interview nichts.
-  extraQuestions: { enabled: false, own: [], presets: [], events: [] },
+  // Zusatzfragen ans Interview-Ende (nur Lebenswerk). Standard: AN, mit allen
+  // Themenbloecken und allen Ereignissen der Zeitgeschichte.
+  extraQuestions: defaultExtraQuestions(),
   imageStyle: DEFAULT_IMAGE_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   ttsVoice: defaultTtsVoice(DEFAULT_CATEGORY),   // deutsche Sprachausgabe-Stimme; je Kategorie in freshCreateForm gesetzt
@@ -676,12 +676,12 @@ function Dashboard() {
 
   useEffect(() => { if (token) loadMemorials(token) }, [])
 
-  // Buch-/Redeansicht immer oben (bei der Titelseite) beginnen. Ohne das landet
-  // man beim Öffnen durch das Nachladen der Kapitelbilder (lazy, ohne reservierten
-  // Platz) via Scroll-Anchoring mitten im Buch (z. B. bei Kapitel 2).
-  useEffect(() => {
-    if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') window.scrollTo(0, 0)
-  }, [view])
+  // Jede Ansicht beginnt oben. Ohne das landet man beim Öffnen eines Buchs durch
+  // das Nachladen der Kapitelbilder (lazy, ohne reservierten Platz) via
+  // Scroll-Anchoring mitten im Buch — und nach dem Löschen aus der Detailansicht
+  // heraus stand man in der Buchliste ganz unten, weil der Löschknopf dort unten
+  // sitzt und die Scroll-Position beim Ansichtswechsel erhalten bleibt.
+  useEffect(() => { window.scrollTo(0, 0) }, [view])
 
   // Fehlt der Anzeigename (z. B. Session von vor dem Deploy), serverseitig
   // nachladen – damit oben der echte Benutzername statt eines Platzhalters steht.
@@ -1223,6 +1223,9 @@ function Dashboard() {
       ttsVoice: defaultTtsVoice(slug),
       pickupAddress: { ...EMPTY_PICKUP, ...(d.pickupAddress || {}) },
       languages: d.languages?.length ? [...d.languages] : [DEFAULT_LANGUAGE],
+      // Frisches Objekt je Maske — EMPTY_CREATE wird nur flach kopiert, sonst
+      // teilten sich alle Anlagen dieselben Listen.
+      extraQuestions: defaultExtraQuestions(),
     }
     // Anamnese: der Dokumenten-Upload (umgewidmeter Foto-Upload) ist standardmäßig an
     // — der Patient kann Arztbriefe/Befunde beitragen. Kein Buch/Bild/Stil.

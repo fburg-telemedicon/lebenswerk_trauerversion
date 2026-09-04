@@ -254,10 +254,31 @@ export const EXTRA_QUESTION_PRESETS = [
 
 export const getExtraPreset = key => EXTRA_QUESTION_PRESETS.find(p => p.key === key) || null
 
-// Die gespeicherte Einstellung in eine feste Form bringen. Alles Unbekannte fällt
-// weg — die Spalte ist jsonb und käme sonst irgendwann als halbes Objekt zurück.
+// Der Standard: eingeschaltet, alle Themenbloecke, alle Ereignisse der
+// Zeitgeschichte. Er wird aus den Presets selbst abgeleitet, damit ein spaeter
+// ergaenztes Ereignis automatisch dazugehoert und nicht an zwei Stellen
+// nachgetragen werden muss.
+export function defaultExtraQuestions() {
+  return {
+    enabled: true,
+    own: [],
+    presets: EXTRA_QUESTION_PRESETS.map(p => p.key),
+    events: (getExtraPreset('zeitgeschehen')?.events || []).map(e => e.key),
+  }
+}
+
+// Die gespeicherte Einstellung in eine feste Form bringen. Alles Unbekannte faellt
+// weg — die Spalte ist jsonb und kaeme sonst irgendwann als halbes Objekt zurueck.
+//
+// WICHTIG: `null` (= nie eingestellt) bedeutet NICHT „aus", sondern „aktueller
+// Standard". So bekommen alle Wege, die die Spalte gar nicht setzen — die
+// Selbstregistrierung, die Demo-Buecher beim Anlegen eines Managers, meine
+// Anlage-Skripte —, ohne Zutun dieselbe Vorbelegung wie die Maske im Dashboard.
+// Wer die Zusatzfragen im Dashboard ausschaltet, speichert ein Objekt mit
+// `enabled: false`; das ist eine ausdrueckliche Entscheidung und bleibt bestehen.
 export function normalizeExtraQuestions(v) {
-  const o = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}
+  if (v === null || v === undefined) return defaultExtraQuestions()
+  const o = (typeof v === 'object' && !Array.isArray(v)) ? v : {}
   const known = new Set(EXTRA_QUESTION_PRESETS.map(p => p.key))
   const knownEvents = new Set((getExtraPreset('zeitgeschehen')?.events || []).map(e => e.key))
   return {
