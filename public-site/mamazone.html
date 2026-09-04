@@ -44,6 +44,7 @@ img{max-width:100%}
 .hv0:hover{background:#a10d25}
 .hv1:hover{background:#a10d25}
 .hv2:hover{border-color:#1b1a19}
+.hv3:hover{background:#a10d25}
 .hv-rot:hover{background:#a10d25}
 
 footer{--ink:#1c1917;--muted:#78716c;--line:#e7e5e4;--card:#fff;
@@ -314,13 +315,37 @@ footer a:hover{color:var(--ink);text-decoration:underline}
         <p style="font-size:19px;line-height:1.65;color:#3c3936">Die Anwendung wird derzeit gemeinsam mit Frauen aus dem Netzwerk von mamazone e. V. entwickelt und erprobt. Wenn Sie mitmachen möchten, hinterlassen Sie hier Ihre E-Mail-Adresse. Wir melden uns, sobald die nächste Gruppe startet.</p>
         <p style="font-family:Jost,sans-serif;font-size:15px;line-height:1.6;color:#6d6862">Sie erhalten ausschließlich Nachrichten zu diesem Projekt. Keine Werbung, keine Weitergabe Ihrer Adresse. Abmeldung jederzeit mit einem Klick.</p>
       </div>
-      
-      
-        <div style="background:#fff;border:1px solid rgba(27,26,25,.12);padding:34px 30px;display:flex;flex-direction:column;gap:20px">
-          <p style="font-size:18px;line-height:1.65;color:#3c3936">Schreiben Sie uns kurz, dass Sie dabei sein möchten — ein Satz genügt. Wir nehmen Sie auf die Liste und melden uns, sobald die nächste Gruppe startet.</p>
-          <a href="/kontakt" class="hv-rot" style="font-family:Jost,sans-serif;font-size:17px;background:#c8102e;color:#fff;padding:16px 22px;border-radius:2px;text-decoration:none;text-align:center;display:block">Interesse anmelden</a>
-          <p style="font-family:Jost,sans-serif;font-size:14px;line-height:1.55;color:#57534e;margin:0">Wie wir mit Ihren Angaben umgehen, steht in der <a href="/app#datenschutz">Datenschutzerklärung</a>.</p>
+      <div id="mz-dank" hidden>
+        <div style="border:1px solid rgba(200,16,46,.4);background:#fff;padding:40px 32px;display:flex;flex-direction:column;gap:14px">
+          <h3 style="font-size:26px;font-weight:400;line-height:1.3">Vielen Dank.</h3>
+          <p style="font-size:18px;line-height:1.65;color:#57534e">Wir haben Ihre Anmeldung notiert und melden uns, sobald es weitergeht.</p>
         </div>
+      </div>
+      
+        <form id="mz-form" novalidate="novalidate" style="background:#fff;border:1px solid rgba(27,26,25,.12);padding:34px 30px;display:flex;flex-direction:column;gap:20px">
+          <label style="display:flex;flex-direction:column;gap:8px;font-family:Jost,sans-serif;font-size:14.5px;color:#3c3936">Vorname
+            <input type="text" name="vorname" placeholder="Wie dürfen wir Sie ansprechen?" style="border:1px solid rgba(27,26,25,.25);padding:13px 14px;font-size:16px;font-family:Lora,serif;background:#fbf9f6">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:8px;font-family:Jost,sans-serif;font-size:14.5px;color:#3c3936">E-Mail-Adresse
+            <input type="email" name="email" required="required" placeholder="name@beispiel.de" style="border:1px solid rgba(27,26,25,.25);padding:13px 14px;font-size:16px;font-family:Lora,serif;background:#fbf9f6">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:8px;font-family:Jost,sans-serif;font-size:14.5px;color:#3c3936">Wo stehen Sie gerade?
+            <select name="phase" style="border:1px solid rgba(27,26,25,.25);padding:13px 14px;font-size:16px;font-family:Lora,serif;background:#fbf9f6">
+              <option>Ich bin in Behandlung</option>
+              <option>Die Behandlung liegt hinter mir</option>
+              <option>Ich lebe mit metastasiertem Brustkrebs</option>
+              <option>Ich bin Angehörige oder Angehöriger</option>
+              <option>Ich arbeite in der Versorgung oder Forschung</option>
+              <option>Das möchte ich nicht angeben</option>
+            </select>
+          </label>
+          <label style="display:flex;gap:12px;align-items:flex-start;font-family:Jost,sans-serif;font-size:14px;line-height:1.55;color:#57534e">
+            <input type="checkbox" required="required" style="margin-top:3px;width:17px;height:17px;accent-color:#c8102e;flex:none">
+            <span>Ich möchte über den Projektstand informiert werden. Meine Angaben — auch die zu meiner Behandlungssituation — dürfen dafür gespeichert und per E-Mail an das Projektteam übermittelt werden. Ich kann das jederzeit widerrufen. Die <a href="/app#datenschutz">Datenschutzhinweise</a> habe ich gelesen.</span>
+          </label>
+          <div id="mz-meldung" style="font-family:Jost,sans-serif;font-size:15px;line-height:1.55"></div>
+          <button type="submit" style="font-family:Jost,sans-serif;font-size:17px;background:#c8102e;color:#fff;border:none;padding:16px 22px;cursor:pointer;border-radius:2px" class="hv3">Interesse anmelden</button>
+        </form>
       
     </div>
   </section>
@@ -355,5 +380,66 @@ footer a:hover{color:var(--ink);text-decoration:underline}
   </div>
 </footer>
 </div>
+
+<script>
+  // Anmeldung geht an den vorhandenen Support-Endpunkt (POST /api/support) —
+  // derselbe Weg wie das Kontaktformular: E-Mail an support@lebensgeschichten.ai
+  // UND Ablage in der Datenbank, damit nichts verloren geht, wenn der Mailversand
+  // hakt. Der Endpunkt ist rate-limited (10/Stunde je IP, 6/Stunde je Adresse).
+  (function () {
+    var form = document.getElementById('mz-form')
+    var dank = document.getElementById('mz-dank')
+    var meldung = document.getElementById('mz-meldung')
+    if (!form) return
+    var knopf = form.querySelector('button[type=submit]')
+    var beschriftung = knopf.textContent
+
+    function fehler(text) {
+      meldung.innerHTML = '<span style="color:#c8102e">' + text + '</span>'
+      meldung.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault()
+      meldung.textContent = ''
+      var vorname = (form.elements.vorname.value || '').trim()
+      var email = (form.elements.email.value || '').trim()
+      var phase = form.elements.phase.value || ''
+      var zustimmung = form.querySelector('input[type=checkbox]').checked
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fehler('Bitte tragen Sie eine E-Mail-Adresse ein, unter der wir Sie erreichen.'); return }
+      if (!zustimmung) { fehler('Ohne Ihre Einwilligung dürfen wir Ihre Angaben nicht speichern.'); return }
+
+      knopf.disabled = true
+      knopf.textContent = 'Wird gesendet …'
+      fetch('/api/support', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          message: 'Anmeldung zur mamazone Edition über die Website.\n\nWo stehen Sie gerade? ' + phase,
+          replyEmail: email,
+          name: vorname,
+          preferredChannel: 'email',
+          context: { view: 'website-mamazone' }
+        })
+      }).then(function (r) {
+        return r.text().then(function (t) {
+          var d = {}
+          try { d = t ? JSON.parse(t) : {} } catch (_) {}
+          if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status))
+          return d
+        })
+      }).then(function () {
+        form.hidden = true
+        dank.hidden = false
+        dank.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }).catch(function (err) {
+        fehler('Das hat leider nicht geklappt: ' + err.message
+          + '<br>Sie erreichen uns auch direkt unter <a href="mailto:support@lebensgeschichten.ai">support@lebensgeschichten.ai</a>.')
+        knopf.disabled = false
+        knopf.textContent = beschriftung
+      })
+    })
+  })()
+</script>
 </body>
 </html>
