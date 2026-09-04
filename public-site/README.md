@@ -6,6 +6,7 @@ unter `/app` bzw. auf „/" mit einem der App-Parameter (`?code=`, `?zugang`, �
 
     public-site/
       index.html          ← Startseite lebensgeschichten.ai
+      mamazone.html       ← Projektseite mamazone Edition (nur lebensgeschichten.ai)
       kontakt.html        ← Kontaktformular (beide Domains)
       img/                ← Bilder der Lebensgeschichten-Startseite
       lebenswerk/
@@ -31,6 +32,25 @@ Zusätzlich leitet `server.js` die **alten lebenswerk.ai-Adressen**
 `/impressum`, `/datenschutz`, `/agb`, `/widerruf` auf die `/app#…`-Seiten
 weiter. Diese Adressen stehen in der `sitemap.xml` der alten Seite und damit im
 Google-Index; sie dürfen beim Umzug nicht ins Leere laufen.
+
+## mamazone-Seite
+
+`mamazone.html` ist die Projektseite zur **mamazone Edition** (Lebensgeschichten
+für Frauen mit Brustkrebs, gemeinsam mit mamazone e. V.). Sie hängt im Menü von
+lebensgeschichten.ai; auf lebenswerk.ai ist sie bewusst nicht verlinkt.
+
+Erzeugt wird sie von `.lwab/mamazone-seite.mjs` (untracked). Das Skript **kopiert
+den `<style>`-Block und die Fusszeile aus `index.html`**, statt sie abzutippen —
+so kann die Seite optisch nicht auseinanderlaufen. Nach Änderungen an der
+Startseite das Skript erneut laufen lassen.
+
+Bewusst **nicht** übernommen aus der Arbeitsfassung, die als Vorlage diente:
+* das **Anmeldeformular** — es erhebt Gesundheitsdaten (Behandlungsstatus,
+  metastasiert ja/nein). Das ist Art. 9 DSGVO und braucht einen definierten
+  Verantwortlichen, eine Rechtsgrundlage, ein Ziel für die Daten und einen
+  eigenen Datenschutzhinweis. Bis das geklärt ist, führt der Handlungsaufruf auf
+  `/kontakt`.
+* das **mamazone-Logo** — fremde Wort-Bild-Marke, liegt uns nicht vor.
 
 **Offen:** `index.html` und `kontakt.html` tragen ihr CSS noch inline. Sie sind
 beim Anlegen der zweiten Domain bewusst unangetastet geblieben (kein Risiko für

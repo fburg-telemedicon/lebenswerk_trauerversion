@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mamazone Edition — Lebensgeschichten.ai</title>
+<meta name="description" content="Die mamazone Edition von Lebensgeschichten.ai: ein geschützter digitaler Raum, in dem Frauen mit Brustkrebs ihre Lebensgeschichte erzählen — nicht als Patientinnen, sondern als ganze Menschen. In Zusammenarbeit mit mamazone e. V." />
+<link rel="icon" href="/icons/icon-192.png" />
+<style>
+  :root{
+    --ink:#1c1917; --muted:#78716c; --line:#e7e5e4; --bg:#fafaf9; --card:#fff;
+    --accent:#c1272d; --soft:#f5f5f4;
+  }
+  *{box-sizing:border-box}
+  html{scroll-padding-top:68px;scroll-behavior:smooth}
+  section[id]{scroll-margin-top:68px}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
+  .brand{display:flex;align-items:center;text-decoration:none}
+  .brand img{height:30px;width:auto;display:block}
+    nav{display:flex;align-items:center;gap:20px;font-size:14.5px}
+  nav a{color:var(--muted);text-decoration:none}
+  nav a:hover{color:var(--ink)}
+  .btn{display:inline-block;padding:10px 18px;border-radius:9px;text-decoration:none;font-size:15px;font-weight:600;border:1px solid transparent}
+  .btn-primary{background:var(--ink);color:#fff}
+  .btn-ghost{background:var(--card);color:var(--ink);border-color:var(--line)}
+  .hero{padding:72px 0 56px}
+  .split{display:grid;gap:44px;grid-template-columns:1.05fr .95fr;align-items:center}
+  .split figure{margin:0}
+  .split img{width:100%;height:auto;border-radius:16px;display:block;box-shadow:0 18px 40px rgba(28,25,23,.12)}
+  .heroimg img{aspect-ratio:3/2;object-fit:cover}
+  .banner{margin:0 0 32px}
+  .banner img{width:100%;height:320px;object-fit:cover;border-radius:16px;display:block}
+  .cats .card{background:linear-gradient(180deg,#fff 0%,#fdfdfc 100%)}
+  .cats .card h3{font-size:17px}
+  @media (max-width:820px){ .split{grid-template-columns:1fr;gap:28px} nav a:not(.btn){display:none} }
+  h1{font-size:clamp(30px,5vw,50px);line-height:1.12;margin:0 0 20px;letter-spacing:-.9px}
+  .lead{font-size:19px;color:#44403c;max-width:660px;margin:0 0 32px}
+  .cta{display:flex;flex-wrap:wrap;gap:12px}
+  .hint{font-size:13.5px;color:var(--muted);margin-top:16px}
+  section{padding:56px 0;border-top:1px solid var(--line)}
+  h2{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .sub{color:var(--muted);max-width:640px;margin:0 0 32px}
+  .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+  .card h3{margin:0 0 8px;font-size:18px}
+  .card p{margin:0;color:var(--muted);font-size:15px}
+  .num{width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;display:flex;
+       align-items:center;justify-content:center;font-size:14px;font-weight:700;margin-bottom:14px}
+  .quote{background:var(--soft);border-left:3px solid var(--accent);padding:18px 22px;border-radius:0 10px 10px 0;
+         color:#44403c;max-width:720px}
+  ul.check{list-style:none;padding:0;margin:0;color:var(--muted);font-size:15px}
+  ul.check li{padding-left:26px;position:relative;margin-bottom:10px}
+  ul.check li::before{content:"";position:absolute;left:6px;top:9px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  footer{border-top:1px solid var(--line);background:var(--card);padding:36px 0;font-size:14px;color:var(--muted)}
+  .fgrid{display:flex;flex-wrap:wrap;gap:28px;justify-content:space-between}
+  footer a{color:var(--muted)}
+  .final{background:var(--ink);color:#fff;border-radius:16px;padding:40px;text-align:center}
+  .final h2{color:#fff;margin-bottom:8px}
+  .final p{color:#d6d3d1;max-width:520px;margin:0 auto 24px}
+  .final .btn-primary{background:#fff;color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="/" aria-label="Lebensgeschichten.ai"><img src="/logo-lebensgeschichten.png" alt="Lebensgeschichten.ai" /></a>
+    <nav>
+      <a href="/#so">So funktioniert es</a>
+      <a href="/#produkte">Produkte</a>
+      <a href="/mamazone" style="color:var(--ink);font-weight:600">mamazone</a>
+      <a href="/#partner">Für Partner</a>
+      <a href="/zugang">Zugangscode</a>
+      <a class="btn btn-ghost" href="/app">Partner-Login</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="hero" style="border-top:none">
+  <div class="wrap split">
+    <div>
+      <p style="font-size:14px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin:0 0 14px">mamazone Edition</p>
+      <h1>Eine Frau mit Brustkrebs ist sehr viel mehr als eine Brustkrebspatientin.</h1>
+      <p class="lead">Ein geschützter digitaler Raum, in dem nicht die Krankheit im Mittelpunkt steht, sondern Ihre
+        Lebensgeschichte. Begleitet von einer dialogbasierten KI, die zuhört, nachfragt und nichts beschönigt.
+        Denn auch Ihre Lebensgeschichte ist es wert, dass sie erzählt wird.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/kontakt">Ich möchte davon erfahren</a>
+        <a class="btn btn-ghost" href="#ablauf">Wie die Anwendung arbeitet</a>
+      </div>
+      <p class="hint">In Erprobung · Für Frauen während und nach der Erkrankung</p>
+    </div>
+    <figure class="heroimg"><img src="/img/erzaehlen.jpg" alt="" /></figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="max-width:760px">
+    <h2>Die mamazone Edition</h2>
+    <p style="color:#44403c">Die mamazone Edition von Lebenswerk.ai eröffnet Frauen einen Raum, ihre Brustkrebserfahrung
+      als Teil ihrer eigenen Lebensgeschichte zu erzählen und einzuordnen. Dabei begegnet ihnen die Anwendung nicht
+      primär als Patientinnen, sondern als ganzen Menschen mit einer Geschichte vor, während und nach der Diagnose.</p>
+    <p style="color:#44403c">Das Erzählen kann sichtbar machen, was sich verändert hat und was geblieben ist; was
+      erschüttert wurde und was trägt; was eine Frau selbst vermag und wo sie von anderen getragen wird. Sie muss aus
+      ihrer Erkrankung weder Stärke noch Sinn noch Wachstum gewinnen. Zugleich darf erfahrbar werden, dass ein Mensch
+      auch unter schwierigen und nicht selbst gewählten Bedingungen handeln, entscheiden, Beziehungen gestalten und
+      Schweres bewältigen kann.</p>
+    <p class="quote">Brustkrebs wird damit weder verharmlost noch zur bestimmenden Identität gemacht. Er ist etwas
+      Bedeutsames, möglicherweise Lebensveränderndes, das dieser Frau widerfahren ist – innerhalb einer
+      Lebensgeschichte, die davor begonnen hat und größer bleibt als ihre Diagnose.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="max-width:760px">
+    <h2>Was sich mit der Diagnose verändert</h2>
+    <p style="color:#44403c">Eine Brustkrebsdiagnose verändert innerhalb kurzer Zeit sehr viel. Plötzlich bestimmen
+      Befunde, Untersuchungen, Therapieentscheidungen, Termine und medizinische Fachbegriffe einen Alltag, der kurz
+      zuvor noch ein ganz anderer war.</p>
+    <p style="color:#44403c">Aus einer Frau mit einer eigenen Geschichte, Beziehungen, Aufgaben, Interessen, Plänen und
+      Vorstellungen von ihrer Zukunft wird beinahe über Nacht auch eine Patientin. Die Anwendung setzt genau hier an.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Ein Raum, in dem die Person im Mittelpunkt steht</h2>
+    <p class="sub">Die Anwendung bietet Frauen mit Brustkrebs nach ihrer Erkrankung – und, wenn sie das möchten, auch
+      während der Therapie – einen geschützten digitalen Raum. Eine dialogbasierte KI begleitet dabei, das Erlebte
+      einzuordnen, eigene Kraftquellen wahrzunehmen, persönliche Muster und Ressourcen aus der eigenen Lebensgeschichte
+      wiederzuentdecken und herauszufinden, was in der gegenwärtigen Situation Halt gibt.</p>
+    <div class="grid cats">
+      <div class="card"><h3>Das Erlebte einordnen</h3><p>Im Gespräch entsteht Reihenfolge: was war, was ist, was noch offen ist. Ohne Bewertung, im eigenen Tempo.</p></div>
+      <div class="card"><h3>Kraftquellen wahrnehmen</h3><p>Menschen, Orte, Tätigkeiten, Überzeugungen, die tragen – auch wenn sie im Moment aus dem Blick geraten sind.</p></div>
+      <div class="card"><h3>Muster wiederentdecken</h3><p>Wie Sie frühere schwere Zeiten bewältigt haben, sagt etwas darüber, was Ihnen auch jetzt zur Verfügung steht.</p></div>
+      <div class="card"><h3>Halt finden</h3><p>Nicht ein Befund, sondern Ihre Geschichte in Ihren Worten – nachlesbar, wann Sie möchten.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="max-width:760px">
+    <h2>Worum es ausdrücklich nicht geht</h2>
+    <p style="color:#44403c">Dabei geht es ausdrücklich nicht darum, möglichst positiv zu denken, die Krankheit als
+      Chance zu interpretieren oder in jeder Krise persönliches Wachstum finden zu müssen.</p>
+    <p style="color:#44403c">Die Anwendung soll auch Angst, Wut, Erschöpfung, Ambivalenz, Trauer und Ungewissheit
+      aushalten können.</p>
+    <p class="quote"><strong>Ausgangspunkt.</strong> Ihre bisherige Geschichte verschwindet mit der Diagnose nicht. In
+      ihr liegen Erfahrungen, Beziehungen, Fähigkeiten, Werte, Bewältigungsstrategien und Kraftquellen, die gerade
+      jetzt bedeutsam werden können.</p>
+  </div>
+</section>
+
+<section id="ablauf">
+  <div class="wrap">
+    <h2>So entsteht ein Gespräch</h2>
+    <p class="sub">Sie sprechen einfach – zu Hause, in Ihrem Tempo.</p>
+    <div class="grid">
+      <div class="card"><div class="num">1</div><h3>Sie beginnen, wo Sie möchten</h3><p>Bei der Kindheit, beim letzten Sommer oder bei dem Tag, an dem der Befund kam. Es gibt keine richtige Reihenfolge und keine Pflichtfragen.</p></div>
+      <div class="card"><div class="num">2</div><h3>Die KI hört zu und fragt nach</h3><p>Sie sprechen, die Anwendung hört zu. Nachgefragt wird ruhig und konkret – nach Menschen, Situationen, Entscheidungen. Sie können jederzeit abbrechen oder ein Thema auslassen.</p></div>
+      <div class="card"><div class="num">3</div><h3>Ihre Geschichte bleibt bei Ihnen</h3><p>Aus den Gesprächen wird ein Text, der Ihnen gehört. Sie entscheiden, ob er privat bleibt oder ob Sie ihn mit Menschen teilen, die Ihnen wichtig sind.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap split">
+    <div>
+      <h2>Worum es in den Gesprächen geht</h2>
+      <p class="sub">Dreizehn Themenfelder stehen bereit. Keines muss besprochen werden, die Reihenfolge liegt bei
+        Ihnen, und jede Frage darf offen bleiben.</p>
+      <ul class="check">
+        <li>Mein Leben vor der Erkrankung</li>
+        <li>Meine Geschichte mit Brustkrebs</li>
+        <li>Was sich verändert hat – und was geblieben ist</li>
+        <li>Mein Körper und mein Erleben</li>
+        <li>Wie ich mich selbst sehe</li>
+        <li>Was ich schon geschafft habe</li>
+        <li>Was und wer mich trägt</li>
+        <li>Wo ich handeln und entscheiden kann</li>
+        <li>Freude, Lebendigkeit und das ganz normale Leben</li>
+        <li>Was vor mir liegt</li>
+        <li>Was ich anderen Frauen mitgeben möchte</li>
+        <li>Was Ärztinnen, Ärzte und das Gesundheitssystem wissen sollten</li>
+        <li>Was noch zu meiner Geschichte gehört</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="font-size:18px;margin:0 0 14px">Ein Auszug aus den Fragen</h3>
+      <p class="quote" style="margin-bottom:12px;font-size:15px">Wenn du an die Zeit vor deiner Diagnose denkst: Wie sah ein ganz normaler Tag bei dir aus?</p>
+      <p class="quote" style="margin-bottom:12px;font-size:15px">Gab es seit deiner Diagnose einen Moment, in dem du etwas getan, gesagt oder gedacht hast und dachtest: Ja, das bin einfach ich?</p>
+      <p class="quote" style="margin-bottom:12px;font-size:15px">Denk an einen Moment seit deiner Diagnose, an dem du dich nicht allein gefühlt hast. Was ist da passiert?</p>
+      <p class="quote" style="margin-bottom:12px;font-size:15px">Vieles an dieser Erkrankung kannst du nicht bestimmen. Wo erlebst du trotzdem: Hier kann ich entscheiden?</p>
+      <p class="quote" style="margin-bottom:12px;font-size:15px">Wann hast du zuletzt richtig gelacht?</p>
+      <p class="note" style="margin-top:16px">Gefragt wird nach Momenten, nicht nach Konzepten – und immer nur eine
+        Frage auf einmal.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Vertraulich, freiwillig, jederzeit beendbar</h2>
+    <div class="grid">
+      <div class="card"><p>Ihre Erzählungen werden nicht veröffentlicht und nicht an Dritte weitergegeben.</p></div>
+      <div class="card"><p>Sie entscheiden, was Sie erzählen, wie lange und ob überhaupt.</p></div>
+      <div class="card"><p>Sie können Ihre Daten und Ihre Geschichte jederzeit löschen lassen.</p></div>
+    </div>
+    <p class="note" style="margin-top:22px">Entwicklung und Erprobung erfolgen in Zusammenarbeit mit mamazone e. V. –
+      Frauen und Forschung gegen Brustkrebs.</p>
+    <div class="card" style="margin-top:26px;border-color:#fca5a5;background:#fef2f2">
+      <h3 style="margin:0 0 8px">Wichtiger Hinweis</h3>
+      <p style="color:#44403c;font-size:15px">Diese Anwendung ist kein medizinisches Angebot. Sie ersetzt keine
+        ärztliche Behandlung, keine psychoonkologische Beratung und keine Psychotherapie.</p>
+      <p style="color:#44403c;font-size:15px;margin-top:10px">In akuten Krisen wenden Sie sich bitte an Ihre
+        behandelnde Ärztin oder Ihren Arzt, an eine psychoonkologische Beratungsstelle oder an die Telefonseelsorge
+        unter <strong>0800 111 0 111</strong> (kostenfrei, rund um die Uhr).</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="max-width:760px">
+    <h2>Was Frauen erzählen, kann die Versorgung verändern</h2>
+    <p style="color:#44403c">In Befunden und Arztbriefen steht, was messbar war. Was eine Frau selbst als entscheidend
+      erinnert – welche Information zur richtigen Zeit kam, wer im richtigen Moment da war, welche Unterstützung
+      gefehlt hat – bleibt darin unsichtbar.</p>
+    <p style="color:#44403c">Wer möchte, kann die eigene Geschichte deshalb der wissenschaftlichen Auswertung zur
+      Verfügung stellen. Dafür braucht es immer eine gesonderte, freiwillige Einwilligung, die unabhängig von der
+      Nutzung der Anwendung ist und jederzeit widerrufen werden kann. Ausgewertet wird ausschließlich anonymisiert und
+      über viele Erzählungen hinweg: nicht einzelne Schicksale, sondern wiederkehrende Muster – welche Fragen Frauen
+      beschäftigen, wo Erfahrung und Versorgung auseinandergehen, was Frauen einander weitergeben würden.</p>
+    <p style="color:#44403c">Die Erkenntnisse gehen dorthin zurück, wo sie wirken können: in die Arbeit von mamazone,
+      in Fortbildung, in Kongressbeiträge, in Gespräche mit Behandelnden. Und wer nichts weitergeben möchte, verliert
+      dadurch nichts. Eine Lebensgeschichte, die vollständig privat bleibt, ist eine vollständige Nutzung dieser
+      Anwendung.</p>
+    <h3 style="font-size:18px;margin:28px 0 8px">Neu in der Versorgungsforschung</h3>
+    <p style="color:#44403c">Qualitative Interviewdaten lassen sich mithilfe von KI nun auch quantitativ analysieren –
+      Muster, Häufigkeiten und Zusammenhänge über viele Erzählungen hinweg, ohne dass die einzelne Geschichte darin
+      verschwindet. Das eröffnet der Versorgungsforschung neue Möglichkeiten: Wer hier seine Geschichte erzählt, hilft
+      damit auch anderen Menschen und kann die medizinische Versorgung verbessern.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap split">
+    <div>
+      <p style="font-size:clamp(44px,7vw,72px);line-height:1;font-weight:800;letter-spacing:-2px;margin:0 0 10px;color:var(--accent)">20 %</p>
+      <h2>Ein Fünftel des Erlöses geht an mamazone e. V.</h2>
+      <p style="color:#44403c">Von jedem Erlös der mamazone Edition gehen 20 Prozent an Frauen und Forschung gegen
+        Brustkrebs e. V. Wofür das Geld eingesetzt wird, entscheidet mamazone selbst. Wer hier seine Geschichte
+        erzählt, unterstützt damit auch die Frauen, die nach ihr kommen.</p>
+    </div>
+    <div>
+      <h2>Das Ergebnis ist Ihr eigenes Buch</h2>
+      <p style="color:#44403c">Aus den Gesprächen entsteht ein gebundenes Werk in Ihren eigenen Worten – zum Behalten,
+        zum Weitergeben oder einfach zum Wiederlesen. Sie entscheiden, wer es zu sehen bekommt.</p>
+      <figure style="margin:18px 0 0"><img src="/img/buch.jpg" alt="" style="width:100%;height:auto;border-radius:16px;display:block" /></figure>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="final">
+      <h2>Sie möchten davon erfahren, sobald es losgeht?</h2>
+      <p>Schreiben Sie uns eine Nachricht — wir melden uns, sobald die mamazone Edition offen ist. Sie erhalten
+         ausschließlich Nachrichten zu diesem Projekt, keine Werbung.</p>
+      <a class="btn btn-primary" href="/kontakt">Nachricht schreiben</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap fgrid">
+    <div>
+      <div style="font-weight:700;color:var(--ink);margin-bottom:6px">Lebenswerk.AI GmbH</div>
+      Walter-Schneider-Straße 10<br />06317 Seegebiet Mansfelder Land<br />
+      <a href="mailto:support@lebensgeschichten.ai">support@lebensgeschichten.ai</a><br /><a href="/kontakt">Kontaktformular</a>
+    </div>
+    <div>
+      <div style="font-weight:700;color:var(--ink);margin-bottom:6px">Anwendung</div>
+      <a href="/app">Partner-Login</a><br />
+      <a href="/zugang">Zugangscode eingeben</a><br />
+      <a href="/?register=1">Kostenlos testen</a>
+    </div>
+    <div>
+      <div style="font-weight:700;color:var(--ink);margin-bottom:6px">Rechtliches</div>
+      <a href="/app#impressum">Impressum</a><br />
+      <a href="/app#datenschutz">Datenschutzerklärung</a><br />
+      <a href="/app#agb">AGB</a><br />
+      <a href="/app#widerruf">Widerrufsbelehrung</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
