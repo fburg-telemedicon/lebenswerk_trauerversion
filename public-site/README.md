@@ -39,18 +39,26 @@ Google-Index; sie dürfen beim Umzug nicht ins Leere laufen.
 für Frauen mit Brustkrebs, gemeinsam mit mamazone e. V.). Sie hängt im Menü von
 lebensgeschichten.ai; auf lebenswerk.ai ist sie bewusst nicht verlinkt.
 
-Erzeugt wird sie von `.lwab/mamazone-seite.mjs` (untracked). Das Skript **kopiert
-den `<style>`-Block und die Fusszeile aus `index.html`**, statt sie abzutippen —
-so kann die Seite optisch nicht auseinanderlaufen. Nach Änderungen an der
-Startseite das Skript erneut laufen lassen.
+Sie ist eine **1:1-Übernahme** der Arbeitsfassung von
+`lebensgeschichtenmamazone.tobias-gantner.workers.dev` — gleicher Aufbau,
+gleiche Texte, Farben, Abstände und Bilder. Erzeugt wird sie von
+`.lwab/mamazone-seite.mjs` (untracked): Das Skript lädt die Vorlage, löst deren
+Template-Platzhalter und -Bedingungen mit den Vorgaben aus ihrem eigenen Skript
+auf (`zugang` = „Warteliste", `showMedicalNote` = true) und baut daraus eine
+statische Seite. Ändert sich die Vorlage, Skript erneut laufen lassen.
 
-Bewusst **nicht** übernommen aus der Arbeitsfassung, die als Vorlage diente:
-* das **Anmeldeformular** — es erhebt Gesundheitsdaten (Behandlungsstatus,
-  metastasiert ja/nein). Das ist Art. 9 DSGVO und braucht einen definierten
-  Verantwortlichen, eine Rechtsgrundlage, ein Ziel für die Daten und einen
-  eigenen Datenschutzhinweis. Bis das geklärt ist, führt der Handlungsaufruf auf
-  `/kontakt`.
-* das **mamazone-Logo** — fremde Wort-Bild-Marke, liegt uns nicht vor.
+Vier bewusste Abweichungen — mehr nicht:
+
+| Abweichung | Grund |
+|---|---|
+| **Anmeldeformular** → Verweis auf `/kontakt` | Das Formular erhebt Gesundheitsdaten (Behandlungsstatus, metastasiert ja/nein) — Art. 9 DSGVO. Es braucht einen definierten Verantwortlichen, eine Rechtsgrundlage und ein Ziel für die Daten. Überschrift, Einleitung und der Hinweis „keine Werbung" bleiben wortgleich. |
+| **Fusszeile** → unsere aus `index.html` | Impressum, Datenschutz, AGB und Widerruf kommen aus EINER Quelle (siehe oben). Das Band „Ein Projekt von lebenswerk.ai, unterstützt von" darüber gehört zum Inhalt und bleibt. |
+| **Schriften** (Jost, Lora) selbst gehostet | Die Vorlage lädt sie von `fonts.googleapis.com`; dabei geht bei jedem Aufruf die IP des Besuchers an Google. Die Dateien liegen in `public-site/fonts/` (nur latin/latin-ext, 316 KB), eingebunden über `fonts/mamazone-fonts.css`, ausgeliefert von `server.js` unter `/fonts`. |
+| **Wortmarke oben** verlinkt auf `/` statt `#top` | Die Vorlage ist eine Einzelseite, dort war das dasselbe. Ohne die Änderung käme man von hier nicht zurück. |
+
+Die Bilder liegen in `public-site/img/mamazone/` — aus der Vorlage übernommen und
+von 14 MB PNG auf 1 MB gebracht (Fotos als JPEG, Logos als PNG). Die Verwendung
+des mamazone-Logos ist freigegeben.
 
 **Offen:** `index.html` und `kontakt.html` tragen ihr CSS noch inline. Sie sind
 beim Anlegen der zweiten Domain bewusst unangetastet geblieben (kein Risiko für

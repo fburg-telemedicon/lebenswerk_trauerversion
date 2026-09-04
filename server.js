@@ -196,6 +196,10 @@ if (fs.existsSync(DIST)) {
     // unten und liefern index.html mit Status 200 — im Browser ein kaputtes Bild,
     // das keine Fehlermeldung erzeugt. Muss vor dem Fallback stehen.
     app.use('/img', express.static(path.join(SITE, 'img'), { maxAge: '7d' }))
+    // Selbst gehostete Webfonts (mamazone-Seite). Sie liegen bewusst hier und
+    // nicht bei Google: sonst ginge bei jedem Seitenaufruf die IP-Adresse des
+    // Besuchers an Google. Lange Cache-Zeit — die Dateien ändern sich nie.
+    app.use('/fonts', express.static(path.join(SITE, 'fonts'), { maxAge: '365d', immutable: true }))
     app.use('/site', express.static(SITE))
   }
   app.get(['/app', '/app/*'], (req, res) => res.sendFile(path.join(DIST, 'index.html')))
