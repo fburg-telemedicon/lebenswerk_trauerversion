@@ -2,6 +2,8 @@
 // Aus App.jsx ausgelagert, damit weitere Views sie ohne Import-Zyklus nutzen können.
 
 import { createContext } from 'react'
+import { isLifework } from './categories.js'
+
 
 // Sichtbarkeit des globalen Rechts-Footers (Datenschutz/Impressum). Der Beitragenden-/
 // Interview-Flow blendet den Footer aus und bietet die Links stattdessen im ☰-Menü an.
@@ -37,7 +39,7 @@ export const DEFAULT_LOGO = '/logo-lebensgeschichten.png'
 // damit das gedruckte Dokument dasselbe Logo trägt wie der Bildschirm.
 export function partnerLogoSrc(logoUrl, category) {
   return logoUrl
-      || (category === 'lifework'       ? '/lebenswerk-logo.png'
+      || (isLifework(category)       ? '/lebenswerk-logo.png'
        :  category === 'anamnesis_kvsw' ? '/logo-anamni-kvsw.svg'
        :  category === 'anamnesis'      ? '/logo-anamni.png'
        :  DEFAULT_LOGO)

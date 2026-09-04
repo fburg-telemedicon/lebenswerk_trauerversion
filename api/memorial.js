@@ -12,9 +12,9 @@ const { checkAuth } = require('./_lib/auth')
 const { normalizeStyle } = require('./_lib/image-styles')
 const { normalizeLayout } = require('./_lib/book-layouts')
 const { normalizeTextStyle } = require('./_lib/text-styles')
-const { LIFEWORK, ensureLifeworkSchema } = require('./_lib/lifework')
+const { ensureLifeworkSchema } = require('./_lib/lifework')
 const { ALLOWED_LANGS } = require('./_lib/languages')
-const { isEnduserCategory, isAnamnesisCategory } = require('./_lib/categories')
+const { isEnduserCategory, isAnamnesisCategory, isLifeworkCategory } = require('./_lib/categories')
 const { resolvePublicCode } = require('./_lib/access')
 const { findPurgedByCode, purgedMessage } = require('./_lib/tombstone')
 
@@ -45,7 +45,7 @@ async function handleEnduserPatch(req, res, code) {
     if (!checkAuth(req, res)) return                 // ungültiges Token → 401 (in checkAuth)
     ok = req.auth.eu === code
   } else {
-    ok = m.product_category === LIFEWORK             // Code-basiert nur beim Lebenswerk
+    ok = isLifeworkCategory(m.product_category)      // Code-basiert nur beim Lebenswerk (inkl. mamazone Edition)
   }
   if (!ok) return res.status(403).json({ error: 'Kein Zugriff auf dieses Buch.' })
   const { imageStyle, bookLayout, textStyle } = req.body || {}

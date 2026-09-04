@@ -8,10 +8,19 @@
 // View o. Ä. das ALTER, wird zurückgerollt und der Fehler zurückgegeben — die DB
 // bleibt unverändert.
 //
+// Zweite Aktion: `mamazone-umstellen`. Die 45 Kongress-Zugaenge und das Musterbuch
+// wurden angelegt, BEVOR es die Produktkategorie „mamazone Edition" gab — sie
+// laufen als Lebenswerk mit dem mamazone-Fragenkatalog. Die QR-Codes sind gedruckt,
+// die Codes duerfen sich also nicht aendern; geaendert wird nur die Spalte
+// product_category. Erkannt werden die Buecher an ihrem Katalog, nicht an einer
+// Liste von Codes — so kann die Aktion nichts Fremdes erwischen.
+//
 // Bezeichner sind ausschließlich Code-Literale (keine Nutzereingabe).
 
 const { pool } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
+const { audit } = require('../_lib/audit')
+const { CATALOG_NAME: MAMAZONE_CATALOG_NAME } = require('../_lib/mamazone')
 
 // Spalten, die den 6-stelligen Code speichern und für 10 Zeichen zu eng sind.
 // contributions.id ist bereits breit (14-stellige Session-IDs) und bleibt außen vor.
@@ -76,6 +85,34 @@ module.exports = async function handler(req, res) {
       if (!ids.length) return res.json({ ok: true, deleted: 0, orphans: [] })
       await p.query(`delete from app_users where id = any($1::uuid[])`, [ids])
       return res.json({ ok: true, deleted: ids.length, orphans })
+    }
+    if (action === 'mamazone-umstellen') {
+      // Betroffen ist genau, was am mamazone-Fragenkatalog haengt und noch als
+      // Lebenswerk gefuehrt wird. Ohne `confirm` nur anzeigen (Trockenlauf).
+      const { rows: kat } = await p.query(
+        `select id, product_categories from question_catalogs where name = $1`, [MAMAZONE_CATALOG_NAME])
+      if (!kat.length) return res.status(404).json({ error: 'mamazone-Fragenkatalog nicht gefunden: ' + MAMAZONE_CATALOG_NAME })
+      const katalogId = kat[0].id
+      const { rows: buecher } = await p.query(
+        `select id, note, project_no, product_category from memorials
+          where catalog_id = $1 and product_category = 'lifework' order by project_no nulls last, id`, [katalogId])
+      if (String(req.body?.confirm || '') !== 'MAMAZONE') {
+        return res.json({ dry_run: true, katalog: { id: katalogId, product_categories: kat[0].product_categories }, count: buecher.length, memorials: buecher })
+      }
+      const client = await p.connect()
+      try {
+        await client.query('BEGIN')
+        await client.query(`update question_catalogs set product_categories = array['mamazone'] where id = $1`, [katalogId])
+        await client.query(`update memorials set product_category = 'mamazone' where catalog_id = $1 and product_category = 'lifework'`, [katalogId])
+        await client.query('COMMIT')
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {})
+        client.release()
+        return res.status(500).json({ ok: false, error: e.message, hint: 'Rollback ausgefuehrt — DB unveraendert.' })
+      }
+      client.release()
+      await audit(req, { actor: req.auth, action: 'db-maint.mamazone', detail: { katalog: katalogId, memorials: buecher.length } })
+      return res.json({ ok: true, katalog: katalogId, umgestellt: buecher.length, memorials: buecher.map(b => b.id) })
     }
     if (action === 'widen-codes') {
       const client = await p.connect()

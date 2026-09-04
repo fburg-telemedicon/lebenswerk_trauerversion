@@ -17,7 +17,7 @@ const crypto = require('crypto')
 const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 const { checkAuth } = require('./_lib/auth')
-const { LIFEWORK } = require('./_lib/lifework')
+const { isLifeworkCategory } = require('./_lib/categories')
 const { costImage, recordCost, enforceBudget } = require('./_lib/cost')
 const { normalizeStyle, styleDirective, styleAnchor, DEFAULT_STYLE } = require('./_lib/image-styles')
 const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
@@ -126,7 +126,7 @@ async function authAndLoad(req, res, code) {
     .select('id, product_category, proof_enabled, proof_max, book_finalized, edit_lock, image_regen, image_style')
     .eq('id', code).maybeSingle()
   if (!m) { res.status(404).json({ error: 'Buch nicht gefunden.' }); return null }
-  if (m.product_category !== LIFEWORK) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
+  if (!isLifeworkCategory(m.product_category)) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
   const hasToken = /^Bearer\s/.test(req.headers.authorization || '')
   if (hasToken) {
     if (!checkAuth(req, res)) return null

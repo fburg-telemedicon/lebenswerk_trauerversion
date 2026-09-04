@@ -19,7 +19,7 @@ import {
   storeMemorialPdf,
   storeAudiobookFull,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -967,7 +967,7 @@ function Dashboard() {
   // Admin den Lock (blockt den Endnutzer). Scheitert das (409), bearbeitet der
   // Endnutzer gerade → Admin-Ansicht wird read-only. Freigabe beim Verlassen.
   useEffect(() => {
-    if (view !== 'detail' || !selected || selected.product_category !== 'lifework' || selected.book_finalized) { setEnduserEditing(false); return }
+    if (view !== 'detail' || !selected || !isLifework(selected.product_category) || selected.book_finalized) { setEnduserEditing(false); return }
     let alive = true
     const code = selected.id
     ;(async () => {
@@ -1065,7 +1065,7 @@ function Dashboard() {
     // trägt seinen Namen ggf. beim Start selbst nach; der Arzt ist eine reine Notiz).
     // Bei Selbst-Interviews (Lebenswerk, Anamnese) sind Name + Organisator optional
     // — der Endnutzer/Patient trägt seinen Namen ggf. selbst beim Start nach.
-    if (!isAnamnesis(selected.product_category) && selected.product_category !== 'lifework' && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
+    if (!isAnamnesis(selected.product_category) && !isLifework(selected.product_category) && (!d.name.trim() || !d.organizer.trim())) { setErr('Name und Organisator dürfen nicht leer sein.'); return }
     // Kontakt-E-Mail: leer = löschen. Der Schlüssel wird ENTFERNT statt auf ''
     // gesetzt, sonst bliebe eine leere Adresse als Feld stehen und Prüfungen wie
     // `if (!intake.contact_email)` verhielten sich uneinheitlich.
@@ -1236,7 +1236,7 @@ function Dashboard() {
     // festen Fragenkatalog ab; Nachfragen macht die KI ohnehin situativ nach Schema).
     // Allgemeiner Default für alle anderen Produkte ist 2.
     if (isAnamnesis(slug)) return { ...base, photoUploadTab: true, followups: 0, languages: LANGUAGES.map(l => l.code) }
-    if (slug !== 'lifework') return base
+    if (!isLifework(slug)) return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, keine Mitwirkenden-Liste
     // (es erzählt nur ein Mensch).
@@ -1288,7 +1288,7 @@ function Dashboard() {
         // Lebenswerk kennt keinen Organisator: Der Endnutzer erzählt sein eigenes
         // Leben. Damit die Spalte (Pflichtfeld, u. a. in der Buchliste sichtbar)
         // etwas Sinnvolles enthält, steht dort sein Name.
-        organizer: createForm.productCategory === 'lifework'
+        organizer: isLifework(createForm.productCategory)
           ? createForm.name.trim()
           : createForm.organizer.trim(),
         gender: cat.intake.useGender ? (createForm.gender || null) : null,
@@ -2315,7 +2315,7 @@ function Dashboard() {
     if (!gen || !selected) return
     // Warnung VOR der Erzeugung: zu wenig eigenes Material. Nur beim Lebenswerk
     // und nur für die Produkte, die aus dem Selbst-Interview entstehen.
-    if (selected.product_category === 'lifework' && ['book_v1', 'book_v2', 'eulogy'].includes(key)) {
+    if (isLifework(selected.product_category) && ['book_v1', 'book_v2', 'eulogy'].includes(key)) {
       const words = selfWordCount()
       if (words < LIFEWORK_MIN_SELF_WORDS) {
         const ok = window.confirm(
@@ -2435,7 +2435,7 @@ function Dashboard() {
         // Layout, nicht von der KI). Eine Rede dagegen wird am Stück vorgelesen und
         // bleibt ohne Zwischenüberschriften.
         const isAnamnesisBogen = isAnamnesis(selected?.product_category)
-        const withHeadings = selected?.product_category === 'lifework' || isAnamnesisBogen
+        const withHeadings = isLifework(selected?.product_category) || isAnamnesisBogen
         // Fester Kopf des Anamnesebogens (Selbstauskunft, KI-generiert, nicht
         // ärztlich validiert) — wird dem ersten Abschnitt vorangestellt.
         const anamnesisHeader = isAnamnesisBogen
@@ -2446,7 +2446,7 @@ function Dashboard() {
         // gekennzeichnet — aber eine Pflegekraft, die das Blatt in der Akte
         // findet, muss vorab wissen, dass es sie überhaupt gibt und was die
         // Klammer bedeutet. Deshalb ein fester Kopf.
-        const careHasGuests = selected?.product_category === 'lifework'
+        const careHasGuests = isLifework(selected?.product_category)
           && bookContribs.some(c => c.is_guest)
         const careHeader = careHasGuests
           ? `_Hinweis zu den Quellen: Dieses Exzerpt beruht auf der Selbstauskunft von ${selected?.name || 'der Person'} sowie auf Angaben von Angehörigen und Freunden. Angaben, die ausschließlich von Dritten stammen, sind im Text mit „(Fremdangabe: Name, Beziehung)" gekennzeichnet; alles Übrige hat die Person selbst erzählt. Bei Widerspruch gilt die Selbstauskunft._`
@@ -2543,7 +2543,7 @@ function Dashboard() {
   // in eine Pflegeakte, die Sprache hängt am Pflegeteam, nicht am Buch.
   // fmt: 'docx' | 'pdf'
   function requestDownload(key, fmt = 'docx') {
-    if (key === 'eulogy' && selected?.product_category === 'lifework' && selected?.eulogy_text) {
+    if (key === 'eulogy' && isLifework(selected?.product_category) && selected?.eulogy_text) {
       setDlLangModal({ key, fmt })
       return
     }
@@ -2636,7 +2636,7 @@ Regeln:
         // Detailansicht länger offen hat, exportierte sonst ein Buch OHNE Bilder,
         // ohne es zu merken — deshalb unmittelbar vor dem Export neu signieren.
         const fresh = await freshBook(gen.field)
-        const out = await downloadStructuredDocx(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+        const out = await downloadStructuredDocx(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: isLifework(selected.product_category) })
         warnMissingImages(out)
       }
       else                     await downloadAsDocx(filename, `${gen.label} – ${selected.name}`, data, selected.languages?.[0] || 'de', textExportOpts())
@@ -2655,7 +2655,7 @@ Regeln:
       // Frische SAS-Links holen (siehe downloadGenerated) — sonst fehlen im
       // Druck-PDF genau die Bilder, deren Signatur abgelaufen ist.
       const fresh = await freshBook(gen.field)
-      const { pages, blob, missingImages } = await downloadPrintPdf(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: selected.product_category === 'lifework' })
+      const { pages, blob, missingImages } = await downloadPrintPdf(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), { showContributors: selected.show_contributors !== false, selfNarrated: isLifework(selected.product_category) })
       warnMissingImages({ missingImages })
       // Seitenzahl am Buch festhalten — sie bestimmt die Rückenstärke des Covers
       // und schaltet den Cover-Button frei.
@@ -2829,7 +2829,7 @@ Regeln:
       const fresh = await freshBook(gen.field)
       const { blob, missingImages } = await downloadEbookPdf(filename, fresh, bookContribs, selected.owner_logo, getBookLayout(selected.book_layout), {
         showContributors: selected.show_contributors !== false,
-        selfNarrated: selected.product_category === 'lifework',
+        selfNarrated: isLifework(selected.product_category),
         coverBgUrl: fresh.cover_image_url || bgUrl,
         coverBoxPos: fresh.cover_box_pos || data.cover_box_pos || 'auto',
         coverTitle: fresh.title || data.title || selected.name,
@@ -2895,7 +2895,7 @@ Regeln:
     // Pflegeexzerpt (Lebenswerk) und Anamnesebogen (Anamnese) entstehen IMMER
     // auf Deutsch — beim Lebenswerk wird die Zielsprache erst beim Download
     // gefragt, beim Anamnesebogen prüft der Patient in seiner Interviewsprache.
-    if (key === 'eulogy' && (selected?.product_category === 'lifework' || isAnamnesis(selected?.product_category))) return ['de']
+    if (key === 'eulogy' && (isLifework(selected?.product_category) || isAnamnesis(selected?.product_category))) return ['de']
     return langs
   }
   function pickGenLang(code) {
@@ -3029,7 +3029,7 @@ Regeln:
     const { blocks, tracks } = audiobookBlocks(book, bookContribs, {
       voiceMode,
       showContributors: selected.show_contributors !== false,
-      selfNarrated: selected.product_category === 'lifework',
+      selfNarrated: isLifework(selected.product_category),
     })
     return { book, voices, blocks, tracks }
   }
@@ -3377,7 +3377,7 @@ Regeln:
             : 'In welcher Sprache soll das Buch erstellt werden?'}
         </h2>
         <p style={{ ...S.muted, marginBottom:16 }}>
-          {genLangModal.key === 'eulogy' && selected?.product_category === 'lifework'
+          {genLangModal.key === 'eulogy' && isLifework(selected?.product_category)
             ? 'Das Pflegeexzerpt wird in der hier gewählten Sprache geschrieben – unabhängig von der Sprache des Buches.'
             : 'Für dieses Buch sind mehrere Sprachen freigeschaltet.'}
         </p>

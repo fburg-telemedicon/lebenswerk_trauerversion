@@ -9,6 +9,8 @@
 //    (installState()==='ios': „Teilen → Zum Home-Bildschirm").
 //  - Bereits installiert (Standalone) → kein Button (installState()==='installed').
 
+import { isLifework } from './categories.js'
+
 let deferredPrompt = null
 const listeners = new Set()
 const emit = () => listeners.forEach((fn) => { try { fn() } catch { /* ignore */ } })
@@ -73,7 +75,7 @@ export function onInstallChange(fn) { listeners.add(fn); return () => listeners.
 // aufgerufen → dort bleibt der Manifest-Link ohne href = nicht installierbar.
 export function setPwaProduct(category, code) {
   if (typeof document === 'undefined') return
-  const lw = category === 'lifework'
+  const lw = isLifework(category)
   const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
   const params = new URLSearchParams()
   if (c) params.set('code', c)

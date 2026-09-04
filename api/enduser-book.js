@@ -20,7 +20,7 @@ const crypto = require('crypto')
 const { createClient, pool } = require('./_lib/store')
 const { checkAuth } = require('./_lib/auth')
 const { enforce } = require('./_lib/ratelimit')
-const { LIFEWORK } = require('./_lib/lifework')
+const { isLifeworkCategory } = require('./_lib/categories')
 const { sendMail } = require('./_lib/graphmail')
 const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 
@@ -87,7 +87,7 @@ async function authAndLoad(req, res, code) {
     .select('id, name, product_category, proof_enabled, proof_max, proof_used, edit_lock, book_v2, interview_closed, book_finalized, image_regen, image_style')
     .eq('id', code).maybeSingle()
   if (!m) { res.status(404).json({ error: 'Buch nicht gefunden.' }); return null }
-  if (m.product_category !== LIFEWORK) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
+  if (!isLifeworkCategory(m.product_category)) { res.status(403).json({ error: 'Nur beim Lebenswerk verfügbar.' }); return null }
   const hasToken = /^Bearer\s/.test(req.headers.authorization || '')
   if (hasToken) {
     if (!checkAuth(req, res)) return null            // ungültiges Token → 401 in checkAuth

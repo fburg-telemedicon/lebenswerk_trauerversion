@@ -65,12 +65,14 @@ Two top-level flows are selected at boot:
 
 ### Product categories & customer groups (multi-tenant)
 
-There are **eleven product categories**; `CATEGORY_ORDER` in `src/categories.js` is the authoritative list: `lifework`, `anamnesis`, `anamnesis_kvsw`, `memorial`, `birthday`, `anniversary`, `farewell`, `service`, `company`, `newborn`, `encouragement`. Each memorial row carries `product_category`. Slugs also exist backend-side in `api/_lib/categories.js`, which additionally exports the predicates `isEnduserCategory` / `isAnamnesisCategory`.
+There are **twelve product categories**; `CATEGORY_ORDER` in `src/categories.js` is the authoritative list: `lifework`, `mamazone`, `anamnesis`, `anamnesis_kvsw`, `memorial`, `birthday`, `anniversary`, `farewell`, `service`, `company`, `newborn`, `encouragement`. Each memorial row carries `product_category`. Slugs also exist backend-side in `api/_lib/categories.js`, which additionally exports the predicates `isEnduserCategory` / `isAnamnesisCategory` / `isLifeworkCategory`.
 
 Two shapes of category:
 
 - **Contributor categories** (`memorial`, `birthday`, …) — many people contribute via one shared `?code=` link.
-- **End-user categories** (`lifework`, `anamnesis`, `anamnesis_kvsw`, see `isEnduserCategory`) — **one** person speaks about themselves. `isSelf` in `contributor.jsx` is derived from the category, and for `lifework` **the book code alone is the end user's only credential** (`api/memorial.js` allows PATCH of own name/gender/image style/layout with the code, no login). Keep that in mind before handing a code to anyone else.
+- **End-user categories** (`lifework`, `mamazone`, `anamnesis`, `anamnesis_kvsw`, see `isEnduserCategory`) — **one** person speaks about themselves. `isSelf` in `contributor.jsx` is derived from the category, and for `lifework` **the book code alone is the end user's only credential** (`api/memorial.js` allows PATCH of own name/gender/image style/layout with the code, no login). Keep that in mind before handing a code to anyone else.
+
+Two categories are **variants of another one** and are recognised by a family predicate rather than by their own slug — copy that pattern instead of adding `=== 'slug'` checks: `anamnesis_kvsw` is a variant of `anamnesis` (`isAnamnesis` in `src/categories.js`, `isAnamnesisCategory` in `api/_lib/categories.js`), and **`mamazone` is a variant of `lifework`** (`isLifework` / `isLifeworkCategory`). The mamazone Edition is the breast-cancer edition built with mamazone e. V.: technically identical to a Lebenswerk (one person tells her own story, the book code is the only credential, same products and settings), it differs only in its question catalogue (`api/_lib/mamazone.js`, 159 questions by Pia Hübinger) and in the *Haltung* woven into the interview and book prompts (`MAMAZONE_HALTUNG` / `MAMAZONE_WRITING_RULE` in `src/categories.js`). Every other `lifework` check goes through `isLifework`, so the variant inherits everything.
 
 **Languages.** Each memorial has `languages` (text[], default `{de}`). `src/i18n.js` holds contributor-flow UI strings, per-category contributor overlays, and `langDirective(lang)`, prepended to the interview prompt. With >1 language the contributor picks one first (`needLang` gate); for book/eulogy generation the admin is asked the target language. The admin UI itself stays German.
 

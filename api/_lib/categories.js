@@ -16,6 +16,7 @@ const CATEGORY_LABELS = {
   encouragement: 'Mutmachbuch',
   lifework:      'Lebenswerk',
   anamnesis:     'Anamnesebogen',
+  mamazone:      'mamazone Edition',
   anamnesis_kvsw:'Anamnese KVSW',
 }
 
@@ -29,7 +30,13 @@ const DEFAULT_CATEGORY = 'memorial'
 // die BACKEND-Entsprechung zu isAnamnesis() im Frontend (src/categories.js) — wenn
 // hier ein Slug ergänzt wird, dort ebenfalls prüfen.
 const ANAMNESIS_CATEGORIES = ['anamnesis', 'anamnesis_kvsw']
-const ENDUSER_CATEGORIES = ['lifework', 'anamnesis', 'anamnesis_kvsw']
+// Lebenswerk-FAMILIE: das Lebenswerk und die mamazone Edition. Technisch dasselbe
+// Produkt (ein Mensch erzaehlt ueber sich selbst, der Buch-Code ist die
+// Berechtigung); sie unterscheiden sich nur in Fragenkatalog und Haltung. Muss mit
+// isLifework() in src/categories.js uebereinstimmen.
+const LIFEWORK_CATEGORIES = ['lifework', 'mamazone']
+
+const ENDUSER_CATEGORIES = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw']
 
 function isValidCategory(slug) {
   return CATEGORY_SLUGS.includes(slug)
@@ -37,8 +44,11 @@ function isValidCategory(slug) {
 function isAnamnesisCategory(slug) {
   return ANAMNESIS_CATEGORIES.includes(slug)
 }
+function isLifeworkCategory(slug) {
+  return LIFEWORK_CATEGORIES.includes(slug)
+}
 function isEnduserCategory(slug) {
   return ENDUSER_CATEGORIES.includes(slug)
 }
 
-module.exports = { CATEGORY_LABELS, CATEGORY_SLUGS, DEFAULT_CATEGORY, isValidCategory, isAnamnesisCategory, isEnduserCategory, ANAMNESIS_CATEGORIES, ENDUSER_CATEGORIES }
+module.exports = { CATEGORY_LABELS, CATEGORY_SLUGS, DEFAULT_CATEGORY, isValidCategory, isAnamnesisCategory, isEnduserCategory, isLifeworkCategory, ANAMNESIS_CATEGORIES, LIFEWORK_CATEGORIES, ENDUSER_CATEGORIES }

@@ -1049,6 +1049,11 @@ export function contributorL10n(slug, lang, guest = false) {
   const cat = CATEGORIES[slug] || CATEGORIES.memorial
   const useGuest = guest && cat.guestContributor
   const base = { nounBook: cat.nounBook, ...(useGuest ? cat.guestContributor : cat.contributor) }
-  const overlay = useGuest ? GUEST_CONTRIB[lang] : (CONTRIB[lang] || {})[slug]
+  // mamazone Edition: eigene Kategorie, aber wortgleich zum Lebenswerk — sie
+  // erbt dessen Uebersetzungen, statt sie in 14 Sprachen zu verdoppeln.
+  const fallbackSlug = slug === 'mamazone' ? 'lifework' : null
+  const overlay = useGuest
+    ? GUEST_CONTRIB[lang]
+    : ((CONTRIB[lang] || {})[slug] || (fallbackSlug ? (CONTRIB[lang] || {})[fallbackSlug] : null))
   return overlay ? { ...base, ...overlay } : base
 }

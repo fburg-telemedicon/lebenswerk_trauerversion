@@ -8,13 +8,14 @@ const { checkAuth, canAccessCategory } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { audit } = require('../_lib/audit')
 const { purgeDueAt, isPurgeDue, isPurgeSoon, daysUntilDue, retentionDaysFor, WARN_DAYS } = require('../_lib/retention')
-const { isValidCategory, DEFAULT_CATEGORY, isAnamnesisCategory, isEnduserCategory } = require('../_lib/categories')
+const { isValidCategory, DEFAULT_CATEGORY, isAnamnesisCategory, isEnduserCategory, isLifeworkCategory } = require('../_lib/categories')
 const { deleteMemorialCompletely, IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { genCode } = require('../_lib/codes')
 const { normalizeStyle, DEFAULT_STYLE } = require('../_lib/image-styles')
 const { normalizeTextStyle, defaultTextStyle } = require('../_lib/text-styles')
 const { normalizeLayout, DEFAULT_BOOK_LAYOUT } = require('../_lib/book-layouts')
-const { LIFEWORK, ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
+const { ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifework')
+const { MAMAZONE, ensureMamazoneCatalog } = require('../_lib/mamazone')
 const { ensureAnamnesisCatalog, ensureAnamnesisKvswCatalog } = require('../_lib/anamnesis')
 const { defaultTtsVoice, sanitizeVoice } = require('../_lib/ttsvoices')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
@@ -661,7 +662,7 @@ module.exports = async function handler(req, res) {
         return res.status(403).json({ error: 'Keine Berechtigung für diese Produktkategorie.' })
       }
 
-      const isLifework = category === LIFEWORK
+      const isLifework = isLifeworkCategory(category)
       // Lebenswerk hat keinen Organisator (der Endnutzer erzählt sein eigenes
       // Leben); die Spalte bekommt seinen Namen. Alle anderen Kategorien sammeln
       // Beiträge Dritter — dort bleibt der Organisator Pflicht.
@@ -717,7 +718,8 @@ module.exports = async function handler(req, res) {
       // Inhalt eigen/medizinisch). Der Manager kann in den Experteneinstellungen auf
       // FREIE Fragen umstellen — dann sendet die Form den Sentinel '__free__'.
       let catalog = catalogId === '__free__' ? null : (catalogId || null)
-      if (isLifework && !catalog) catalog = await ensureLifeworkCatalog(supabase)
+      if (category === MAMAZONE && catalogId !== '__free__' && !catalog) catalog = await ensureMamazoneCatalog(supabase)
+      else if (isLifework && !catalog) catalog = await ensureLifeworkCatalog(supabase)
       else if (category === 'anamnesis' && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisCatalog(supabase)
       else if (category === 'anamnesis_kvsw' && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisKvswCatalog(supabase)
 
@@ -806,11 +808,11 @@ module.exports = async function handler(req, res) {
         // Manager Buch-Link und Gast-Link in einem Zug bekommt. Der Gast-Code ist ein
         // EIGENES Geheimnis (der Buch-Code allein öffnet den Endnutzer-Bereich) und
         // wird deshalb gleich hier erzeugt.
-        ...(category === LIFEWORK && guestEnabled === true
+        ...(isLifework && guestEnabled === true
           ? { guest_enabled: true, guest_code: genCode() }
           : {}),
         // Zusatzfragen ans Interview-Ende: nur beim Lebenswerk, Standard aus.
-        extra_questions: category === LIFEWORK ? sanitizeExtraQuestions(extraQuestions) : null,
+        extra_questions: isLifework ? sanitizeExtraQuestions(extraQuestions) : null,
       }
       let { error } = await supabase.from('memorials').insert(insertRow)
       // Falls image-style.sql / book-layout.sql noch nicht liefen, fehlen die
@@ -1030,6 +1032,7 @@ module.exports = async function handler(req, res) {
         if ('catalogId' in meta) {
           if (meta.catalogId === '__free__') update.catalog_id = null
           else if (meta.catalogId) update.catalog_id = meta.catalogId
+          else if (meta.productCategory === MAMAZONE) update.catalog_id = await ensureMamazoneCatalog(supabase)
           else if (meta.productCategory === 'anamnesis') update.catalog_id = await ensureAnamnesisCatalog(supabase)
           else if (meta.productCategory === 'anamnesis_kvsw') update.catalog_id = await ensureAnamnesisKvswCatalog(supabase)
           else update.catalog_id = null
@@ -1054,7 +1057,7 @@ module.exports = async function handler(req, res) {
         // Der Code wird beim ERSTEN Einschalten erzeugt und danach behalten —
         // Ausschalten sperrt den Link, macht aber bereits gedruckte QR-Codes nicht
         // dauerhaft wertlos, weil dasselbe Geheimnis beim Wiedereinschalten gilt.
-        if ('guestEnabled' in meta && meta.productCategory === LIFEWORK) {
+        if ('guestEnabled' in meta && isLifeworkCategory(meta.productCategory)) {
           const on = meta.guestEnabled === true
           update.guest_enabled = on
           if (on) {
@@ -1065,7 +1068,7 @@ module.exports = async function handler(req, res) {
         }
         // Zusatzfragen ans Interview-Ende (nur Lebenswerk). Greift ab der nächsten
         // Frage — das laufende Interview muss dafür nicht neu gestartet werden.
-        if ('extraQuestions' in meta && meta.productCategory === LIFEWORK) {
+        if ('extraQuestions' in meta && isLifeworkCategory(meta.productCategory)) {
           await ensureLifeworkSchema()
           update.extra_questions = sanitizeExtraQuestions(meta.extraQuestions)
         }
