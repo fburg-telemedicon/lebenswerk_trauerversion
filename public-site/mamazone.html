@@ -329,19 +329,9 @@ footer a:hover{color:var(--ink);text-decoration:underline}
           <label style="display:flex;flex-direction:column;gap:8px;font-family:Jost,sans-serif;font-size:14.5px;color:#3c3936">E-Mail-Adresse
             <input type="email" name="email" required="required" placeholder="name@beispiel.de" style="border:1px solid rgba(27,26,25,.25);padding:13px 14px;font-size:16px;font-family:Lora,serif;background:#fbf9f6">
           </label>
-          <label style="display:flex;flex-direction:column;gap:8px;font-family:Jost,sans-serif;font-size:14.5px;color:#3c3936">Wo stehen Sie gerade?
-            <select name="phase" style="border:1px solid rgba(27,26,25,.25);padding:13px 14px;font-size:16px;font-family:Lora,serif;background:#fbf9f6">
-              <option>Ich bin in Behandlung</option>
-              <option>Die Behandlung liegt hinter mir</option>
-              <option>Ich lebe mit metastasiertem Brustkrebs</option>
-              <option>Ich bin Angehörige oder Angehöriger</option>
-              <option>Ich arbeite in der Versorgung oder Forschung</option>
-              <option>Das möchte ich nicht angeben</option>
-            </select>
-          </label>
           <label style="display:flex;gap:12px;align-items:flex-start;font-family:Jost,sans-serif;font-size:14px;line-height:1.55;color:#57534e">
             <input type="checkbox" required="required" style="margin-top:3px;width:17px;height:17px;accent-color:#c8102e;flex:none">
-            <span>Ich möchte über den Projektstand informiert werden. Meine Angaben — auch die zu meiner Behandlungssituation — dürfen dafür gespeichert und per E-Mail an das Projektteam übermittelt werden. Ich kann das jederzeit widerrufen. Die <a href="/app#datenschutz">Datenschutzhinweise</a> habe ich gelesen.</span>
+            <span>Ich möchte über den Projektstand informiert werden. Mein Vorname und meine E-Mail-Adresse dürfen dafür gespeichert werden. Ich kann das jederzeit widerrufen. Die <a href="/app#datenschutz">Datenschutzhinweise</a> habe ich gelesen.</span>
           </label>
           <div id="mz-meldung" style="font-family:Jost,sans-serif;font-size:15px;line-height:1.55"></div>
           <button type="submit" style="font-family:Jost,sans-serif;font-size:17px;background:#c8102e;color:#fff;border:none;padding:16px 22px;cursor:pointer;border-radius:2px" class="hv3">Interesse anmelden</button>
@@ -382,10 +372,11 @@ footer a:hover{color:var(--ink);text-decoration:underline}
 </div>
 
 <script>
-  // Anmeldung geht an den vorhandenen Support-Endpunkt (POST /api/support) —
-  // derselbe Weg wie das Kontaktformular: E-Mail an support@lebensgeschichten.ai
-  // UND Ablage in der Datenbank, damit nichts verloren geht, wenn der Mailversand
-  // hakt. Der Endpunkt ist rate-limited (10/Stunde je IP, 6/Stunde je Adresse).
+  // Die Anmeldung geht an unseren eigenen Endpunkt (POST /api/mamazone-anmeldung).
+  // Der verschickt genau EINE E-Mail: die Bestaetigung an die Anmelderin, mit
+  // Kopie (BCC) ins Support-Postfach. Bewusst KEIN Support-Ticket — es ist eine
+  // Anmeldung, keine Anfrage, und niemand muss darauf antworten.
+  // Rate-limited (10/Stunde je IP, 3/Stunde je Adresse).
   (function () {
     var form = document.getElementById('mz-form')
     var dank = document.getElementById('mz-dank')
@@ -404,23 +395,16 @@ footer a:hover{color:var(--ink);text-decoration:underline}
       meldung.textContent = ''
       var vorname = (form.elements.vorname.value || '').trim()
       var email = (form.elements.email.value || '').trim()
-      var phase = form.elements.phase.value || ''
       var zustimmung = form.querySelector('input[type=checkbox]').checked
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fehler('Bitte tragen Sie eine E-Mail-Adresse ein, unter der wir Sie erreichen.'); return }
       if (!zustimmung) { fehler('Ohne Ihre Einwilligung dürfen wir Ihre Angaben nicht speichern.'); return }
 
       knopf.disabled = true
       knopf.textContent = 'Wird gesendet …'
-      fetch('/api/support', {
+      fetch('/api/mamazone-anmeldung', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({
-          message: 'Anmeldung zur mamazone Edition über die Website.\n\nWo stehen Sie gerade? ' + phase,
-          replyEmail: email,
-          name: vorname,
-          preferredChannel: 'email',
-          context: { view: 'website-mamazone' }
-        })
+        body: JSON.stringify({ email: email, name: vorname, consent: true })
       }).then(function (r) {
         return r.text().then(function (t) {
           var d = {}

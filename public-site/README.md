@@ -36,8 +36,10 @@ Google-Index; sie dürfen beim Umzug nicht ins Leere laufen.
 ## mamazone-Seite
 
 `mamazone.html` ist die Projektseite zur **mamazone Edition** (Lebensgeschichten
-für Frauen mit Brustkrebs, gemeinsam mit mamazone e. V.). Sie hängt im Menü von
-lebensgeschichten.ai; auf lebenswerk.ai ist sie bewusst nicht verlinkt.
+für Frauen mit Brustkrebs, gemeinsam mit mamazone e. V.). Sie ist derzeit
+**nirgends verlinkt** — weder im Menü noch
+in der Fusszeile —, sondern nur über die direkte Adresse `/mamazone` erreichbar,
+bis die Veröffentlichung mit mamazone e. V. abgestimmt ist.
 
 Sie ist eine **1:1-Übernahme** der Arbeitsfassung von
 `lebensgeschichtenmamazone.tobias-gantner.workers.dev` — gleicher Aufbau,
@@ -51,7 +53,7 @@ Vier bewusste Abweichungen — mehr nicht:
 
 | Abweichung | Grund |
 |---|---|
-| **Anmeldeformular** → Verweis auf `/kontakt` | Das Formular erhebt Gesundheitsdaten (Behandlungsstatus, metastasiert ja/nein) — Art. 9 DSGVO. Es braucht einen definierten Verantwortlichen, eine Rechtsgrundlage und ein Ziel für die Daten. Überschrift, Einleitung und der Hinweis „keine Werbung" bleiben wortgleich. |
+| **Anmeldeformular** → eigener Endpunkt, ohne Gesundheitsfrage | Die Frage „Wo stehen Sie gerade?" (in Behandlung, metastasiert, Angehörige) ist entfernt: Das sind Gesundheitsdaten nach Art. 9 DSGVO, und für eine Warteliste braucht es sie nicht. Es bleiben Vorname, E-Mail und die Einwilligung. Abgesendet wird an `POST /api/mamazone-anmeldung`; der verschickt genau eine E-Mail — die Bestätigung an die Anmelderin, Kopie (BCC) ins Support-Postfach — und legt bewusst **nichts** in der Datenbank ab. Überschrift, Einleitung und der Hinweis „keine Werbung" bleiben wortgleich. |
 | **Fusszeile** → unsere aus `index.html` | Impressum, Datenschutz, AGB und Widerruf kommen aus EINER Quelle (siehe oben). Das Band „Ein Projekt von lebenswerk.ai, unterstützt von" darüber gehört zum Inhalt und bleibt. |
 | **Schriften** (Jost, Lora) selbst gehostet | Die Vorlage lädt sie von `fonts.googleapis.com`; dabei geht bei jedem Aufruf die IP des Besuchers an Google. Die Dateien liegen in `public-site/fonts/` (nur latin/latin-ext, 316 KB), eingebunden über `fonts/mamazone-fonts.css`, ausgeliefert von `server.js` unter `/fonts`. |
 | **Wortmarke oben** verlinkt auf `/` statt `#top` | Die Vorlage ist eine Einzelseite, dort war das dasselbe. Ohne die Änderung käme man von hier nicht zurück. |

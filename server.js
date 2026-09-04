@@ -163,9 +163,9 @@ if (fs.existsSync(DIST)) {
     // Weitere Seiten der Website. Bewusst eine feste Liste statt eines
     // Static-Handlers auf „/", damit nichts versehentlich den SPA-Fallback
     // überschattet (dort liegen u. a. /assets und die Icon-Pfade).
-    // /mamazone: Projektseite zur mamazone Edition (Brustkrebs). Sie hängt am
-    // Menü von lebensgeschichten.ai; auf lebenswerk.ai ist sie bewusst nicht
-    // verlinkt, dort führt kein Menüpunkt darauf.
+    // /mamazone: Projektseite zur mamazone Edition (Brustkrebs). Sie ist derzeit
+    // NIRGENDS verlinkt — nur über die direkte Adresse erreichbar, bis die
+    // Veröffentlichung mit mamazone e. V. abgestimmt ist.
     for (const [route, file] of [['/kontakt', 'kontakt.html'], ['/mamazone', 'mamazone.html']]) {
       app.get(route, (req, res) => res.sendFile(path.join(SITE, file)))
     }
