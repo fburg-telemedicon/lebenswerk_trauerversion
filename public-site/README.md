@@ -49,7 +49,7 @@ Template-Platzhalter und -Bedingungen mit den Vorgaben aus ihrem eigenen Skript
 auf (`zugang` = „Warteliste", `showMedicalNote` = true) und baut daraus eine
 statische Seite. Ändert sich die Vorlage, Skript erneut laufen lassen.
 
-Vier bewusste Abweichungen — mehr nicht:
+Fünf bewusste Abweichungen — mehr nicht:
 
 | Abweichung | Grund |
 |---|---|
@@ -57,6 +57,7 @@ Vier bewusste Abweichungen — mehr nicht:
 | **Fusszeile** → unsere aus `index.html` | Impressum, Datenschutz, AGB und Widerruf kommen aus EINER Quelle (siehe oben). Das Band „Ein Projekt von lebenswerk.ai, unterstützt von" darüber gehört zum Inhalt und bleibt. |
 | **Schriften** (Jost, Lora) selbst gehostet | Die Vorlage lädt sie von `fonts.googleapis.com`; dabei geht bei jedem Aufruf die IP des Besuchers an Google. Die Dateien liegen in `public-site/fonts/` (nur latin/latin-ext, 316 KB), eingebunden über `fonts/mamazone-fonts.css`, ausgeliefert von `server.js` unter `/fonts`. |
 | **Wortmarke oben** verlinkt auf `/` statt `#top` | Die Vorlage ist eine Einzelseite, dort war das dasselbe. Ohne die Änderung käme man von hier nicht zurück. |
+| **Herbst-Banner** unter dem Aufmacher | Der einzige Block ohne Entsprechung in der Vorlage: Die Vorlage ist eine Warteliste, wir verkaufen die Edition inzwischen im Shop. Er sitzt zwischen `#top` und `#edition`, damit er gesehen wird, ohne den Textfluss zu zerschneiden, und hält sich an die Tonlage der Seite (kein Countdown, keine Dringlichkeitsmasche). Ziel-URL steht als `SHOP_URL` oben im Skript. |
 
 Die Bilder liegen in `public-site/img/mamazone/` — aus der Vorlage übernommen und
 von 14 MB PNG auf 1 MB gebracht (Fotos als JPEG, Logos als PNG). Die Verwendung
