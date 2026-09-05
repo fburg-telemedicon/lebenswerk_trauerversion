@@ -2,6 +2,12 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-05",
+      "items": [
+        "Die mamazone-Seite ist wieder ueber das Menue auf lebensgeschichten.ai erreichbar (Menuepunkt „mamazone“ zwischen „Produkte“ und „Fuer Partner“). Die Kooperation mit mamazone e. V. ist jetzt offiziell, damit entfaellt der Grund, die Seite nur ueber die direkte Adresse anzubieten."
+      ]
+    },
+    {
       "date": "2026-09-04",
       "items": [
         "mamazone-Ausgabe eingerichtet: Der Fragenapparat fuer Frauen mit Brustkrebs (13 Kapitel, 159 Fragen) liegt als Fragenkatalog im System und kann beim Anlegen eines Lebenswerks ausgewaehlt werden.",

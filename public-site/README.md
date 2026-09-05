@@ -36,10 +36,11 @@ Google-Index; sie dürfen beim Umzug nicht ins Leere laufen.
 ## mamazone-Seite
 
 `mamazone.html` ist die Projektseite zur **mamazone Edition** (Lebensgeschichten
-für Frauen mit Brustkrebs, gemeinsam mit mamazone e. V.). Sie ist derzeit
-**nirgends verlinkt** — weder im Menü noch
-in der Fusszeile —, sondern nur über die direkte Adresse `/mamazone` erreichbar,
-bis die Veröffentlichung mit mamazone e. V. abgestimmt ist.
+für Frauen mit Brustkrebs, gemeinsam mit mamazone e. V.). Die Kooperation ist
+offiziell, deshalb ist sie im **Menü von `index.html`** verlinkt (`/mamazone`,
+zwischen „Produkte" und „Für Partner"); in der Fusszeile steht sie nicht. Auf
+`lebenswerk.ai` ist sie bewusst nicht verlinkt — die Seite gehört zu
+lebensgeschichten.ai.
 
 Sie ist eine **1:1-Übernahme** der Arbeitsfassung von
 `lebensgeschichtenmamazone.tobias-gantner.workers.dev` — gleicher Aufbau,
