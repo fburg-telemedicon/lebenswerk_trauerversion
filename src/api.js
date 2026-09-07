@@ -555,6 +555,16 @@ export async function adminDeleteMemorial(token, code) {
   return parseResponse(res)
 }
 
+// Was die erzaehlende Person von ihren eigenen Erzeugnissen sieht (Kategorie
+// „Lebenslauf"). Ohne Token traegt der Zugangscode die Berechtigung — wie beim
+// Lebenswerk.
+export async function getEnduserCareer(code, token) {
+  const res = await fetch(`/api/enduser-career?code=${encodeURIComponent(code)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  return parseResponse(res) // { name, language, cv, avoca, guide, match, documents }
+}
+
 // Fragen an das Profil (Kategorie „Lebenslauf"). Der AGG-Filter sitzt
 // SERVERSEITIG (api/_lib/profileqa.js) — hier wird nur die Frage geschickt.
 export async function adminProfileAsk(token, code, question) {

@@ -5,7 +5,7 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef, useContext, useMemo } from 'react'
-import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink } from './api.js'
+import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink, getEnduserCareer } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
@@ -19,6 +19,12 @@ import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
 import { DEFAULT_BOOK_LAYOUT } from './bookLayouts.js'
 import { S, PartnerBanner, Dots, Err, Lbl, FooterVisibilityCtx } from './ui.jsx'
 import { useSupport } from './support.jsx'
+import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
+import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
+import { AVOCA_DIMENSIONS } from './avocaRubric.js'
+import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
+import { downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
+import { downloadTextPdf } from './bookExport.js'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { startVoiceLive } from './voicelive.js'
 
@@ -2134,13 +2140,14 @@ function DetailChooser({ lang, memorial, detailLevel, onPick, onClose }) {
   )
 }
 
-function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel, onDetail, detailLabel, onSoundTest }) {
+function ContribMenu({ tab, setTab, t, lang, withPhoto, withSettings, withProof, withBogen, bogenLabel, withResults, resultsLabel, photoLabel, photoIcon, showTx, onToggleTx, onPause, onSupport, onSwitchInterview, onMicMode, micModeLabel, onDetail, detailLabel, onSoundTest }) {
   const [open, setOpen] = useState(false)
   const navItems = [
     { id:'interview', icon:'🎙️', label:t.tabInterview },
     ...(withPhoto    ? [{ id:'photo',    icon: photoIcon || '📷', label: photoLabel || t.tabPhoto }] : []),
     ...(withProof    ? [{ id:'proof',    icon:'📖', label:t.tabProof || 'Probedruck' }] : []),
     ...(withBogen    ? [{ id:'bogen',    icon:'🩺', label:bogenLabel || 'Anamnesebogen' }] : []),
+    ...(withResults  ? [{ id:'results',  icon:'📁', label:resultsLabel || 'Meine Unterlagen' }] : []),
     ...(withSettings ? [{ id:'settings', icon:'⚙️', label:t.tabSettings }] : []),
   ]
   const go = id => { setTab(id); setOpen(false) }
@@ -2380,6 +2387,207 @@ function anamneseT(lang) {
     || (isGermanReview(lang) ? ANAMNESE_REVIEW_L10N.de : ANAMNESE_REVIEW_L10N.en)
 }
 
+
+// ── Meine Unterlagen (Kategorie „Lebenslauf") ─────────────────────
+// Was die erzaehlende Person von ihren eigenen Erzeugnissen sieht: Lebenslauf
+// in fuenf Vorlagen, Kompetenzprofil, Gespraechsleitfaden und — sofern der
+// Berater eine Stelle abgeglichen hat — den Abgleich.
+//
+// Zwei Dinge sind hier Absicht:
+//  - Alles, was ueber sie erzeugt wurde, steht hier. Nicht eine Auswahl davon.
+//  - Gezeichnet wird im Browser aus den gespeicherten Daten (dieselben
+//    Renderer wie im Dashboard). Ein Vorlagenwechsel kostet also nichts und
+//    fragt niemanden um Erlaubnis.
+const CAREER_TAB_L10N = {
+  de: {
+    tab: 'Meine Unterlagen',
+    title: 'Ihre Unterlagen',
+    intro: 'Aus Ihrem Gespräch sind diese Unterlagen entstanden. Sie gehören Ihnen: Sie können sie ansehen, das Aussehen wechseln und herunterladen, so oft Sie möchten.',
+    empty: 'Es ist noch nichts erzeugt. Sobald Ihr Lebenslauf fertig ist, finden Sie ihn hier.',
+    cv: 'Lebenslauf', cvSub: 'Wählen Sie eine Vorlage — der Inhalt bleibt derselbe.',
+    avoca: 'Kompetenzprofil', avocaSub: 'Ihr Handeln entlang der fünf Dimensionen, mit den Stellen aus dem Gespräch, auf denen es beruht.',
+    guide: 'Gesprächsleitfaden', guideSub: 'Rote Fäden, Wendepunkte und offene Fragen für ein biografisches Gespräch.',
+    match: 'Abgleich mit einer Stelle', matchSub: 'Was Ihre Erzählung zu den Anforderungen dieser Stelle hergibt — und wozu nichts vorliegt.',
+    docs: 'Ihre Unterlagen im Gespräch', docsConfirmed: 'als Beleg bestätigt', docsPending: 'noch nicht bestätigt',
+    pdf: '⬇ PDF', docx: '⬇ Word', busy: '⏳ wird erstellt …',
+    missing: 'Im Gespräch nicht genannt',
+    missingHint: 'Diese Angaben fehlen, weil sie im Gespräch nicht vorkamen. Nichts davon wurde geschätzt. Erzählen Sie einfach weiter, dann kommen sie dazu.',
+    reload: '↻ Aktualisieren',
+    error: 'Die Unterlagen konnten nicht geladen werden.',
+  },
+  en: {
+    tab: 'My documents',
+    title: 'Your documents',
+    intro: 'These documents were created from your conversation. They are yours: view them, change how they look and download them as often as you like.',
+    empty: 'Nothing has been created yet. As soon as your CV is ready you will find it here.',
+    cv: 'Curriculum vitae', cvSub: 'Choose a template — the content stays the same.',
+    avoca: 'Competency profile', avocaSub: 'Your actions along the five dimensions, with the passages from the conversation they rest on.',
+    guide: 'Interview guide', guideSub: 'Recurring threads, turning points and open questions for a biographical interview.',
+    match: 'Match with a position', matchSub: 'What your account evidences against this role’s requirements — and where nothing is on record.',
+    docs: 'Your uploaded documents', docsConfirmed: 'confirmed as evidence', docsPending: 'not confirmed yet',
+    pdf: '⬇ PDF', docx: '⬇ Word', busy: '⏳ creating …',
+    missing: 'Not stated in the conversation',
+    missingHint: 'These details are missing because they did not come up. Nothing has been estimated. Just keep talking and they will be added.',
+    reload: '↻ Refresh',
+    error: 'The documents could not be loaded.',
+  },
+}
+const careerTabT = lang => CAREER_TAB_L10N[lang] || CAREER_TAB_L10N[String(lang || '').split('-')[0]]
+  || (isGermanReview(lang) ? CAREER_TAB_L10N.de : CAREER_TAB_L10N.en)
+
+function CareerResults({ code, token, memorial, lang }) {
+  const t = careerTabT(lang)
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [tpl, setTpl] = useState(DEFAULT_CV_TEMPLATE)
+  const [busy, setBusy] = useState('')
+
+  async function load() {
+    setLoading(true); setErr('')
+    try { setData(await getEnduserCareer(code, token)) }
+    catch (e) { setErr(e.message || t.error) }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [code])
+
+  const base = `${(memorial?.name || 'Lebenslauf').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_') || 'Lebenslauf'}`
+  async function dl(key, fn) {
+    setBusy(key); setErr('')
+    try { await fn() } catch (e) { setErr(e.message) } finally { setBusy('') }
+  }
+
+  const card = { background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, padding:'16px 18px', marginBottom:14 }
+  const h = { fontSize:16, fontWeight:600, margin:'0 0 4px' }
+  const sub = { fontSize:13.5, color:'#78716c', margin:'0 0 12px', lineHeight:1.5 }
+  const btn = { fontSize:13.5, padding:'9px 16px' }
+
+  if (loading) return <div style={{ padding:'2rem 1.25rem' }}><p style={{ color:'#78716c' }}>…</p></div>
+
+  const nothing = data && !data.cv && !data.avoca && !data.guide && !data.match
+
+  return (
+    <div style={{ padding:'1.25rem 1.25rem 6rem', maxWidth:760, margin:'0 auto' }}>
+      <h2 style={{ fontSize:22, fontWeight:600, margin:'0 0 6px' }}>{t.title}</h2>
+      <p style={{ fontSize:14.5, color:'#57534e', lineHeight:1.6, margin:'0 0 18px' }}>{t.intro}</p>
+      {err && <p style={{ color:'#b91c1c', fontSize:14 }}>{err}</p>}
+
+      {nothing && (
+        <div style={card}>
+          <p style={{ ...sub, margin:0 }}>{t.empty}</p>
+          <button onClick={load} className="secondary" style={{ ...btn, marginTop:12 }}>{t.reload}</button>
+        </div>
+      )}
+
+      {data?.cv && (
+        <div style={card}>
+          <h3 style={h}>{t.cv}</h3>
+          <p style={sub}>{t.cvSub}</p>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
+            {CV_TEMPLATES.map(x => (
+              <button key={x.key} onClick={() => setTpl(x.key)} className={x.key === tpl ? undefined : 'secondary'}
+                      style={{ fontSize:13, padding:'7px 13px' }}>{x.label}</button>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => dl('cv:pdf', () => downloadCvPdf(`${base}_${tpl}.pdf`, data.cv, tpl))} disabled={!!busy} style={btn}>
+              {busy === 'cv:pdf' ? t.busy : t.pdf}
+            </button>
+            <button onClick={() => dl('cv:docx', () => downloadCvDocx(`${base}_${tpl}.docx`, data.cv, tpl))} disabled={!!busy} className="secondary" style={btn}>
+              {busy === 'cv:docx' ? t.busy : t.docx}
+            </button>
+          </div>
+          {Array.isArray(data.cv.not_stated) && data.cv.not_stated.length > 0 && (
+            <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #f0efec' }}>
+              <div style={{ fontSize:12.5, fontWeight:600, color:'#78716c' }}>{t.missing}</div>
+              <div style={{ fontSize:12.5, color:'#78716c', margin:'4px 0' }}>{data.cv.not_stated.join(' · ')}</div>
+              <div style={{ fontSize:12, color:'#a8a29e' }}>{t.missingHint}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {data?.avoca && (
+        <div style={card}>
+          <h3 style={h}>{t.avoca}</h3>
+          <p style={sub}>{t.avocaSub}</p>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
+            {AVOCA_DIMENSIONS.map(def => {
+              const d = (data.avoca.dimensions || []).find(x => x.code === def.code)
+              const lvl = Number.isInteger(d?.level) ? d.level : null
+              return (
+                <div key={def.code} style={{ display:'flex', alignItems:'center', gap:10, fontSize:13.5 }}>
+                  <span style={{ width:150, flexShrink:0 }}>{def.name}</span>
+                  <span style={{ display:'flex', gap:2 }}>
+                    {[1,2,3,4,5].map(i => (
+                      <span key={i} style={{ width:15, height:9, borderRadius:2,
+                        background: lvl && i <= lvl ? '#3c3c3c' : 'transparent',
+                        border: lvl && i <= lvl ? 'none' : '1px solid #d6d3d1' }} />
+                    ))}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => dl('av:pdf', () => downloadAvocaPdf(`Kompetenzprofil_${base}.pdf`, data.avoca, memorial))} disabled={!!busy} style={btn}>
+              {busy === 'av:pdf' ? t.busy : t.pdf}
+            </button>
+            <button onClick={() => dl('av:docx', () => downloadAvocaDocx(`Kompetenzprofil_${base}.docx`, data.avoca, memorial))} disabled={!!busy} className="secondary" style={btn}>
+              {busy === 'av:docx' ? t.busy : t.docx}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {data?.guide && (
+        <div style={card}>
+          <h3 style={h}>{t.guide}</h3>
+          <p style={sub}>{t.guideSub}</p>
+          <button onClick={() => dl('gu:pdf', () => downloadTextPdf(`Gespraechsleitfaden_${base}.pdf`, t.guide, data.guide, data.language || 'de'))} disabled={!!busy} style={btn}>
+            {busy === 'gu:pdf' ? t.busy : t.pdf}
+          </button>
+        </div>
+      )}
+
+      {data?.match && (
+        <div style={card}>
+          <h3 style={h}>{t.match}</h3>
+          <p style={sub}>{t.matchSub}</p>
+          {data.match.position && <p style={{ fontSize:14, fontWeight:600, margin:'0 0 10px' }}>{data.match.position}</p>}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => dl('ma:pdf', () => downloadMatchPdf(`Stellenabgleich_${base}.pdf`, data.match, memorial))} disabled={!!busy} style={btn}>
+              {busy === 'ma:pdf' ? t.busy : t.pdf}
+            </button>
+            <button onClick={() => dl('ma:docx', () => downloadMatchDocx(`Stellenabgleich_${base}.docx`, data.match, memorial))} disabled={!!busy} className="secondary" style={btn}>
+              {busy === 'ma:docx' ? t.busy : t.docx}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {data?.documents?.length > 0 && (
+        <div style={card}>
+          <h3 style={h}>{t.docs}</h3>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {data.documents.map((d, i) => (
+              <div key={i} style={{ fontSize:13.5, display:'flex', gap:8, alignItems:'baseline' }}>
+                <span>{d.caption || d.organization || `#${i + 1}`}</span>
+                <span style={{ fontSize:12, color: d.confirmed ? '#16a34a' : '#a8a29e' }}>
+                  {d.confirmed ? `✓ ${t.docsConfirmed}` : t.docsPending}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!nothing && (
+        <button onClick={load} className="secondary" style={{ ...btn, marginTop:4 }}>{t.reload}</button>
+      )}
+    </div>
+  )
+}
 
 // Unterlagen-Upload (Lebenslauf): derselbe Upload-Pfad wie die Fotos, nur auf
 // berufliche Nachweise umformuliert. Was hier hochgeladen wird, liest die KI
@@ -4128,6 +4336,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         const withProof    = isLifework && memorial.proof_enabled === true
         // Anamnese: eigener Tab, in dem der Patient den Bogen prüft/bestätigt (Step 2).
         const withBogen    = isAnamnesis
+        // Der Lebenslauf zeigt der Person ihre eigenen Erzeugnisse — ohne diesen
+        // Reiter erzaehlt sie eine Stunde und sieht das Ergebnis nie.
+        const withResults  = isCareerCategory(memorial?.product_category)
         // Sicherheitsnetz: Zeigt `tab` auf einen Tab, den es in dieser Rolle gar
         // nicht gibt (z. B. ein Gast auf 'proof'), wäre die Seite vollständig leer —
         // nur das ☰-Menü stünde da. Dann auf das Interview zurückfallen.
@@ -4211,12 +4422,18 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                   onDone={() => setView('done')} />
               </div>
             )}
+            {withResults && (
+              <div style={{ display: cur === 'results' ? 'block' : 'none' }}>
+                <CareerResults code={code} token={endUserToken} memorial={memorial} lang={L} />
+              </div>
+            )}
             {withSettings && (
               <div style={{ display: cur === 'settings' ? 'block' : 'none' }}>
                 <EnduserSettings code={code} token={endUserToken} memorial={memorial} t={t} />
               </div>
             )}
             <ContribMenu tab={cur} setTab={setTab} t={t} lang={L} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
+              withResults={withResults} resultsLabel={careerTabT(L).tab}
               photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : isCareerCategory(memorial?.product_category) ? careerDocT(L).tabPhoto : null} photoIcon={(isAnamnesis || isCareerCategory(memorial?.product_category)) ? '📄' : null}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
