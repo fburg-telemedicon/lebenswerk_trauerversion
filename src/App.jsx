@@ -22,6 +22,8 @@ import {
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
 import { cvSystem, CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
+import { avocaSystem } from './avoca.js'
+import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -116,6 +118,13 @@ const LIFEWORK_EXTRAS = {
     field: 'cv', filename: 'Lebenslauf', article: 'Der Lebenslauf',
     firstStep: 'Berufsweg wird gelesen', missing: 'Es gibt noch keinen Lebenslauf.',
     system: cvSystem,
+  },
+  // Das Kompetenzprofil derselben Kategorie: Einstufung entlang der Rubrik,
+  // jede Stufe mit Belegstellen und Gegenprobe (src/avoca.js).
+  avoca: {
+    field: 'avoca', filename: 'Kompetenzprofil', article: 'Das Kompetenzprofil',
+    firstStep: 'Belege werden gesucht', missing: 'Es gibt noch kein Kompetenzprofil.',
+    system: avocaSystem,
   },
 }
 
@@ -2964,7 +2973,9 @@ Regeln:
         : { resultType: 'json', field, kind: field, memorialCode: selected.id, label: ex.firstStep,
             // Der Lebenslauf entsteht in einer waehlbaren Sprache (DE/EN) aus
             // demselben Gespraech; alle uebrigen Extras folgen der Buchsprache.
-            system: kind === 'cv' ? ex.system(selected, bookContribs, opts.lang || 'de') : ex.system(selected, bookContribs),
+            system: (kind === 'cv' || kind === 'avoca')
+              ? ex.system(selected, bookContribs, opts.lang || 'de')
+              : ex.system(selected, bookContribs),
             user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId
@@ -2995,7 +3006,9 @@ Regeln:
     const data = mem?.[ex.field]
     if (!data) { setErr(ex.missing); return }
     const base = `${ex.filename}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
-    setExtraDl(kind === 'cv' ? `cv:${styleKey || DEFAULT_CV_TEMPLATE}:${fmt}` : (styleKey ? `poster:${styleKey}` : kind)); setErr('')
+    setExtraDl(kind === 'cv' ? `cv:${styleKey || DEFAULT_CV_TEMPLATE}:${fmt}`
+      : kind === 'avoca' ? `avoca:${fmt}`
+      : (styleKey ? `poster:${styleKey}` : kind)); setErr('')
     try {
       // Lebenslauf: `styleKey` ist die gewaehlte Vorlage, `fmt` das Format. Beides
       // kostet keine KI — gezeichnet wird aus den gespeicherten Daten.
@@ -3004,6 +3017,10 @@ Regeln:
         const file = `${base}_${tpl}`
         if (fmt === 'docx') await downloadCvDocx(`${file}.docx`, data, tpl)
         else await downloadCvPdf(`${file}.pdf`, data, tpl)
+      }
+      else if (kind === 'avoca') {
+        if (fmt === 'docx') await downloadAvocaDocx(`${base}.docx`, data, mem)
+        else await downloadAvocaPdf(`${base}.pdf`, data, mem)
       }
       else if (kind === 'tree') await downloadTreePdf(`${base}.pdf`, data, mem)
       else if (kind === 'care') await downloadCareDirectivePdf(`${base}.pdf`, data, mem)

@@ -9,6 +9,7 @@ import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULE
 import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
+import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 
@@ -2931,6 +2932,122 @@ function CvCard({ selected, contributions, generating, genOwner, genPct, genProg
   )
 }
 
+// Das Kompetenzprofil der Kategorie „Lebenslauf". Zeigt nach dem Erzeugen je
+// Dimension die Stufe und die Zahl der Belege — damit im Dashboard sofort
+// sichtbar ist, worauf das Dokument beruht und wo die Grundlage duenn war.
+function AvocaCard({ selected, contributions, generating, genOwner, genPct, genProgress, genErr,
+                     cancelGenerate, cancelGenRef, generateExtra, downloadExtra, extraDl }) {
+  const has  = !!selected.avoca
+  const busy = !!generating.avoca && genOwner.avoca === selected.id
+  const [lang, setLang] = useState(selected.languages?.[0] === 'en' ? 'en' : 'de')
+  const dims = Array.isArray(selected.avoca?.dimensions) ? selected.avoca.dimensions : []
+  const byCode = Object.fromEntries(dims.map(d => [d.code, d]))
+  const unclear = AVOCA_DIMENSIONS.filter(d => {
+    const x = byCode[d.code]
+    return !x || x.unclear === true || !Number.isInteger(x.level)
+  }).length
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontWeight:600, marginBottom:4 }}>🧭 Kompetenzprofil</div>
+          <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+            Die KI durchsucht das Gespräch entlang der fünf AVOCA-Dimensionen nach Situationen, in denen
+            Handeln sichtbar wird, und stuft jede Dimension nach der hinterlegten Rubrik ein — mit
+            wörtlichen Belegstellen, einer Gegenprobe und Ansatzpunkten für Entwicklung.
+          </p>
+          <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#3730a3', background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:6, padding:'8px 10px' }}>
+            Kein psychologisches Verfahren: Beschrieben wird Handeln in erzählten Situationen, nicht
+            Persönlichkeit oder Eignung. Ohne mindestens zwei tragfähige Belege bleibt eine Dimension
+            ausdrücklich „nicht belegbar" — geraten wird keine Stufe. Rubrik {RUBRIC_VERSION}, im Dokument
+            ausgewiesen.
+          </p>
+        </div>
+        {has && !busy && (
+          <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>
+            ✓ {5 - unclear}/5 belegt
+          </span>
+        )}
+      </div>
+
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom: has && !busy ? 14 : 0 }}>
+        <select value={lang} onChange={e => setLang(e.target.value)} disabled={busy}
+                style={{ fontSize:13, padding:'7px 10px', width:'auto' }}>
+          <option value="de">Deutsch</option>
+          <option value="en">Englisch</option>
+        </select>
+        <button onClick={() => generateExtra('avoca', undefined, { lang })} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+          {busy ? 'Wird erzeugt …' : has ? '↻ Neu erzeugen' : '✨ Erzeugen'}
+        </button>
+      </div>
+
+      {has && !busy && (
+        <>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
+            {AVOCA_DIMENSIONS.map(def => {
+              const d = byCode[def.code]
+              const lvl = Number.isInteger(d?.level) ? d.level : null
+              const isUnclear = !d || d.unclear === true || lvl === null
+              const ev = Array.isArray(d?.evidence) ? d.evidence.length : 0
+              const ce = Array.isArray(d?.counter_evidence) ? d.counter_evidence.length : 0
+              return (
+                <div key={def.code} style={{ display:'flex', alignItems:'center', gap:10, fontSize:13 }}>
+                  <span style={{ width:150, flexShrink:0 }}>{def.name}</span>
+                  <span style={{ display:'flex', gap:2 }}>
+                    {[1,2,3,4,5].map(i => (
+                      <span key={i} style={{ width:14, height:9, borderRadius:2,
+                        background: !isUnclear && i <= lvl ? '#3c3c3c' : 'transparent',
+                        border: !isUnclear && i <= lvl ? 'none' : '1px solid #d6d3d1' }} />
+                    ))}
+                  </span>
+                  <span style={{ ...S.muted, fontSize:12 }}>
+                    {isUnclear ? 'nicht belegbar' : `Stufe ${lvl} · ${d.evidence_strength || '—'} · ${ev} Belege${ce ? `, ${ce} Gegenbelege` : ''}`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => downloadExtra('avoca', selected, null, 'pdf')} disabled={!!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+              {extraDl === 'avoca:pdf' ? '⏳ PDF wird erstellt …' : '⬇ PDF'}
+            </button>
+            <button onClick={() => downloadExtra('avoca', selected, null, 'docx')} disabled={!!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+              {extraDl === 'avoca:docx' ? '⏳ DOCX wird erstellt …' : '⬇ DOCX'}
+            </button>
+          </div>
+          {unclear > 0 && (
+            <p style={{ ...S.muted, fontSize:12, margin:'10px 0 0' }}>
+              {unclear === 1 ? 'Eine Dimension ist' : `${unclear} Dimensionen sind`} im Gespräch nicht ausreichend
+              belegt. Ein weiteres Gespräch zu diesen Fragen füllt die Lücke; hochgerechnet wird nichts.
+            </p>
+          )}
+        </>
+      )}
+
+      {busy && (
+        <div style={{ marginTop:10 }}>
+          {genPct.avoca != null && (
+            <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+              <div style={{ width:`${genPct.avoca}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+            </div>
+          )}
+          <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+            {genPct.avoca != null ? `${genPct.avoca} % · ` : ''}{genProgress.avoca || 'Wird erzeugt …'}
+          </p>
+          <button onClick={() => cancelGenerate('avoca')} disabled={!!cancelGenRef.current.avoca} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+            Abbrechen
+          </button>
+        </div>
+      )}
+      {genErr.avoca && <Err>{genErr.avoca}</Err>}
+      {contributions.length === 0 && !has && (
+        <p style={{ ...S.muted, fontSize:12.5, margin:'10px 0 0' }}>Es liegt noch kein Gespräch vor.</p>
+      )}
+    </div>
+  )
+}
+
 export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
@@ -3709,6 +3826,12 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 <CvCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
                         genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
                         cancelGenRef={cancelGenRef} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} />
+              )}
+
+              {isCareer && (
+                <AvocaCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
+                           genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
+                           cancelGenRef={cancelGenRef} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} />
               )}
 
               {/* Nebenprodukte des Lebenswerks. Alle entstehen aus dem Interview als
