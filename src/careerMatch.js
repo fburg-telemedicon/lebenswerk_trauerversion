@@ -88,11 +88,12 @@ REGELN:
 4. NICHTS ERFINDEN. Keine Erfahrung, keine Jahreszahl, keine Branche, die nicht im Material steht. Aus „Produktionsleiterin" wird nicht „Erfahrung in der Automobilzulieferung", wenn das nirgends steht.
 
 5. "avoca": nur wenn ein Kompetenzprofil vorliegt. Leite je Dimension (${dims}) aus der ANZEIGE ab, welche Stufe die Aufgabe verlangt ("required_level", 1–5, mit "required_reason" aus dem Anzeigentext), und stelle die im Profil belegte Stufe daneben ("shown_level", null wenn nicht belegbar). Kein Gesamtwert, keine Differenzsumme. Liegt kein Profil vor, gib eine leere Liste.
+   Nicht jede Aufgabe verlangt in jeder Dimension dasselbe — leite jede Stufe EINZELN aus dem Anzeigentext ab und begründe sie dort. Fünfmal dieselbe Stufe ist fast immer ein Zeichen dafür, dass nicht wirklich abgeleitet, sondern geschätzt wurde.
 
 6. "gaps": die wichtigsten Punkte, an denen die Anzeige mehr verlangt, als belegt ist — sachlich, ohne Bewertung der Person.
    "open_questions": drei bis sechs Fragen, die ein Gespräch klären sollte. Sie dürfen KEINE geschützten Merkmale berühren (Alter, Herkunft, Geschlecht, Religion, Gesundheit, Behinderung, sexuelle Identität, Familienstand, Familienplanung, Gewerkschaft).
 
-7. "summary": drei bis fünf Sätze in Worten. KEINE Prozentzahl, KEIN Score, KEINE Note, KEIN „passt gut/schlecht", KEINE Empfehlung, ob eingeladen oder eingestellt werden soll, KEIN Vergleich mit anderen Menschen. Benenne, worauf das Bild beruht und wo es dünn ist.
+7. "summary": drei bis fünf Sätze in Worten. Schreibe über die BELEGLAGE, nicht über die Person: „zur Investitionsplanung liegt nichts vor" statt „Defizite bei der Investitionsplanung". Vermeide „Defizit", „Schwäche", „Mangel", „Lücken im Profil" — gemeint ist immer das Gespräch, nicht der Mensch. KEINE Prozentzahl, KEIN Score, KEINE Note, KEIN „passt gut/schlecht", KEINE Empfehlung, ob eingeladen oder eingestellt werden soll, KEIN Vergleich mit anderen Menschen. Benenne, worauf das Bild beruht und wo es dünn ist.
 
 8. KEINE geschützten Merkmale in irgendeinem Feld — auch nicht mittelbar (kein Rückschluss vom Abschlussjahr auf das Alter). KEINE psychologischen Begriffe (Persönlichkeit, Charakter, Eignung, Belastbarkeit, Motiv, Potenzial).
 

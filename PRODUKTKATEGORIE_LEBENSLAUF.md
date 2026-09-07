@@ -1,9 +1,15 @@
 # Produktkategorie „Lebenslauf" (`career`) — Produktdefinition
 
-Stand 7. September 2026. **Stufe 1 und Stufe 2 sind gebaut und live** (Kategorie, Fragenkatalog,
-Interview, Lebenslauf mit fünf Vorlagen, Gesprächsleitfaden, Kompetenzprofil). Offen ist allein der
-Dokumenten-Upload mit OCR (siehe Abschnitt 8). Ein vollständiger Testlauf liegt vor: Demo-Zugang
-`DZMXP8UPEC`, Katrin Berger (Demo), 47 Antworten, alle Erzeugnisse geprüft.
+Stand 7. September 2026. **Alle drei Ausbaustufen sind gebaut und live.** Kategorie, Fragenkatalog,
+Interview, Lebenslauf mit fünf Vorlagen, Gesprächsleitfaden, Kompetenzprofil, Auslesung hochgeladener
+Zeugnisse, Fragen an das Profil und Abgleich mit einer Stellenausschreibung. Ein vollständiger
+Testlauf liegt vor: Demo-Zugang `DZMXP8UPEC`, Katrin Berger (Demo), 47 Antworten, jedes Erzeugnis am
+echten Material geprüft.
+
+**Nicht gebaut — und warum:** Die Übergabe an die AVOCA-Kompass-App (Abschnitt 8, Stufe 3) hat kein
+Gegenüber; von dort kommen weder Rubrik noch Schnittstelle. Das Exportformat des Kompetenzprofils ist
+so geschnitten, dass es dorthin passen würde (Stufe, Belegstärke, Belege, Gegenbelege je Dimension) —
+angeschlossen ist nichts.
 
 Grundlage: das externe Briefing „Lebenswerk Talent Edition" (Version 3) — **als Inspiration, nicht
 als Vorgabe**. Dieses Dokument definiert stattdessen ein Produkt, das sich als **13. Produktkategorie
