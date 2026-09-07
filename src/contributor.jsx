@@ -25,6 +25,7 @@ import { AVOCA_DIMENSIONS } from './avocaRubric.js'
 import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
 import { downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
 import { downloadTextPdf } from './bookExport.js'
+import { isPdf, pdfToPageImages, MAX_PDF_PAGES } from './pdfPages.js'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
 import { startVoiceLive } from './voicelive.js'
 
@@ -1558,12 +1559,13 @@ function FeedbackBlock({ code, contribId, t }) {
 // Der Beitrag ist zu diesem Zeitpunkt bereits gespeichert; die Fotos werden
 // einzeln direkt hochgeladen. Die Einverständniserklärung (Rechte + KI-
 // Verarbeitung aller abgebildeten Personen) ist Pflicht vor dem ersten Upload.
-function ContributorPhotoUpload({ code, contribId, t }) {
+function ContributorPhotoUpload({ code, contribId, t, allowPdf = false }) {
   const [consent, setConsent] = useState(false)
   const [staged, setStaged]   = useState(null) // { dataUrl, caption, description }
   const [uploaded, setUploaded] = useState([])
   const [busy, setBusy]       = useState(false)
   const [err, setErr]         = useState('')
+  const [pdfProgress, setPdfProgress] = useState('')
   const inStyle = { width:'100%', padding:'9px 11px', border:'1px solid #d6d3d1', borderRadius:8, fontSize:14, boxSizing:'border-box' }
 
   async function onPick(e) {
@@ -1584,13 +1586,30 @@ function ContributorPhotoUpload({ code, contribId, t }) {
       setErr(t.uploadNoVideo || 'Videos können nicht hochgeladen werden – bitte ein Foto auswählen.')
       return
     }
+    setErr('')
+
+    // PDF (nur wo ausdrücklich erlaubt, siehe `allowPdf`): Der Upload-Pfad nimmt
+    // Bilder an, also wird das Dokument hier in Seitenbilder zerlegt. Jede Seite
+    // wird danach ein ganz normaler Bild-Upload.
+    if (allowPdf && isPdf(file)) {
+      setBusy(true)
+      try {
+        const { pages, truncated, totalPages } = await pdfToPageImages(file, {
+          onProgress: (i, n) => setPdfProgress(`${t.uploadPdfWorking || 'Seiten werden vorbereitet'} ${i}/${n}`),
+        })
+        setStaged({ pages, caption: '', description: '' })
+        if (truncated) setErr((t.uploadPdfTooMany || 'Nur die ersten {n} Seiten werden übernommen.').replace('{n}', String(pages.length)).replace('{total}', String(totalPages)))
+      } catch (e2) { setErr(e2.message) }
+      finally { setBusy(false); setPdfProgress('') }
+      return
+    }
+
     const clearlyNotImage = type && !/^image\//.test(type) && !/^application\/octet-stream$/.test(type)
     if (clearlyNotImage) {
       setErr(`${t.uploadError} (${type})`)
       return
     }
-    setErr('')
-    try { setStaged({ dataUrl: await fileToDownscaledDataURL(file), caption:'', description:'' }) }
+    try { setStaged({ pages: [await fileToDownscaledDataURL(file)], caption:'', description:'' }) }
     catch (e2) { setErr(e2.message) }
   }
 
@@ -1599,14 +1618,24 @@ function ContributorPhotoUpload({ code, contribId, t }) {
     if (!consent) { setErr(t.uploadConsentRequired); return }
     setBusy(true); setErr('')
     try {
-      await uploadContributorImage(code, {
-        image: staged.dataUrl, caption: staged.caption, description: staged.description,
-        consent: true, contributionId: contribId,
-      })
-      setUploaded(u => [...u, { caption: staged.caption, thumb: staged.dataUrl }])
+      // Ein mehrseitiges Dokument wird Seite für Seite hochgeladen. Die
+      // Seitenzahl steht in der Bezeichnung, damit die Auslesung und der Mensch
+      // im Dashboard erkennen, dass die Seiten zusammengehören.
+      const n = staged.pages.length
+      for (let i = 0; i < n; i++) {
+        const caption = n > 1
+          ? `${staged.caption || t.uploadStepTitle} (${t.uploadPage || 'Seite'} ${i + 1}/${n})`
+          : staged.caption
+        if (n > 1) setPdfProgress(`${t.uploadPdfSending || 'Wird hochgeladen'} ${i + 1}/${n}`)
+        await uploadContributorImage(code, {
+          image: staged.pages[i], caption, description: staged.description,
+          consent: true, contributionId: contribId,
+        })
+        setUploaded(u => [...u, { caption, thumb: staged.pages[i] }])
+      }
       setStaged(null)
     } catch (e2) { setErr(e2.message || t.uploadError) }
-    finally { setBusy(false) }
+    finally { setBusy(false); setPdfProgress('') }
   }
 
   return (
@@ -1625,6 +1654,7 @@ function ContributorPhotoUpload({ code, contribId, t }) {
       )}
 
       <Err msg={err} />
+      {pdfProgress && <p style={{ ...S.muted, fontSize:13, marginBottom:10 }}>{pdfProgress}</p>}
 
       {!staged ? (
         <label className="secondary" style={{ display:'inline-block', cursor:'pointer', padding:'10px 16px', borderRadius:8, fontSize:14 }}>
@@ -1633,11 +1663,16 @@ function ContributorPhotoUpload({ code, contribId, t }) {
               dazu, dass die Galerie ALLE Dateien anbot — also auch Videos, die hier
               nichts verloren haben. iOS braucht sie nicht: Safari bietet bei image/*
               die Fotomediathek an und wandelt HEIC beim Auswählen selbst in JPEG um. */}
-          <input type="file" accept="image/*" onChange={onPick} style={{ display:'none' }} />
+          <input type="file" accept={allowPdf ? 'image/*,application/pdf' : 'image/*'} onChange={onPick} style={{ display:'none' }} />
         </label>
       ) : (
         <div>
-          <img src={staged.dataUrl} alt="" style={{ width:'100%', maxHeight:240, objectFit:'contain', borderRadius:8, border:'1px solid #e7e5e4', marginBottom:12, background:'#faf9f7' }} />
+          <img src={staged.pages[0]} alt="" style={{ width:'100%', maxHeight:240, objectFit:'contain', borderRadius:8, border:'1px solid #e7e5e4', marginBottom:12, background:'#faf9f7' }} />
+          {staged.pages.length > 1 && (
+            <p style={{ ...S.muted, fontSize:13, marginTop:-6, marginBottom:12 }}>
+              {staged.pages.length} {t.uploadPages || 'Seiten'} — {t.uploadPagesHint || 'jede Seite wird einzeln übernommen.'}
+            </p>
+          )}
           <div style={{ marginBottom:10 }}>
             <Lbl>{t.uploadCaption}</Lbl>
             <input value={staged.caption} onChange={e => setStaged(s => ({ ...s, caption:e.target.value }))} style={inStyle} maxLength={300} />
@@ -2597,7 +2632,7 @@ const CAREER_DOC_L10N = {
   de: {
     tabPhoto: 'Unterlagen',
     uploadStepTitle: 'Zeugnisse und Nachweise hochladen',
-    uploadStepIntro: 'Hier können Sie Ihre beruflichen Unterlagen beitragen – Arbeitszeugnisse, Abschlusszeugnisse, Zertifikate, Referenzen oder einen früheren Lebenslauf. Fotografieren Sie die Seite oder laden Sie ein Bild davon hoch; achten Sie darauf, dass die ganze Seite lesbar drauf ist. Aus den Unterlagen werden Zeiträume, Stationen und Abschlüsse für Ihren Lebenslauf übernommen — geprüft wird jede Angabe vorher.',
+    uploadStepIntro: 'Hier können Sie Ihre beruflichen Unterlagen beitragen – Arbeitszeugnisse, Abschlusszeugnisse, Zertifikate, Referenzen oder einen früheren Lebenslauf. PDF-Dateien können Sie direkt hochladen; ebenso ein Foto der Seite – achten Sie dann darauf, dass die ganze Seite lesbar drauf ist. Aus den Unterlagen werden Zeiträume, Stationen und Abschlüsse für Ihren Lebenslauf übernommen — geprüft wird jede Angabe vorher.',
     uploadPick: '＋ Unterlage auswählen',
     uploadCaption: 'Bezeichnung (optional)',
     uploadCaptionHint: 'Kurze Bezeichnung, z. B. „Arbeitszeugnis Hebruck 2011".',
@@ -2606,12 +2641,18 @@ const CAREER_DOC_L10N = {
     uploadSubmit: 'Unterlage hochladen',
     uploadConsent: 'Ich bin berechtigt, diese Unterlagen hochzuladen. Sie werden ausschließlich zur Erstellung meines Lebenslaufs und meines Kompetenzprofils verarbeitet. Die Verarbeitung erfolgt über IT-/KI-Dienste, die ausschließlich in der EU laufen.',
     uploadConsentRequired: 'Bitte bestätigen Sie die Einverständniserklärung, um Unterlagen hochzuladen.',
-    uploadError: 'Diese Datei konnte nicht verarbeitet werden. Bitte laden Sie ein Foto oder Bild der Seite hoch (kein PDF).',
+    uploadError: 'Diese Datei konnte nicht verarbeitet werden. Bitte laden Sie ein Foto, ein Bild der Seite oder eine PDF-Datei hoch.',
+    uploadPdfWorking: 'Seite wird vorbereitet',
+    uploadPdfSending: 'Seite wird hochgeladen',
+    uploadPdfTooMany: 'Die Datei hat {total} Seiten. Übernommen werden die ersten {n} — laden Sie den Rest bitte als zweite Datei hoch.',
+    uploadPages: 'Seiten',
+    uploadPagesHint: 'jede Seite wird einzeln übernommen.',
+    uploadPage: 'Seite',
   },
   en: {
     tabPhoto: 'Documents',
     uploadStepTitle: 'Upload references and certificates',
-    uploadStepIntro: 'Here you can add your professional documents – employer references, degree certificates, training certificates, letters of recommendation or an earlier CV. Photograph the page or upload an image of it, making sure the whole page is legible. Periods, positions and qualifications are taken from these documents for your CV — every detail is reviewed first.',
+    uploadStepIntro: 'Here you can add your professional documents – employer references, degree certificates, training certificates, letters of recommendation or an earlier CV. You can upload PDF files directly, or a photo of the page – in that case make sure the whole page is legible. Periods, positions and qualifications are taken from these documents for your CV — every detail is reviewed first.',
     uploadPick: '＋ Choose document',
     uploadCaption: 'Label (optional)',
     uploadCaptionHint: 'Short label, e.g. “Reference Hebruck 2011”.',
@@ -2620,7 +2661,13 @@ const CAREER_DOC_L10N = {
     uploadSubmit: 'Upload document',
     uploadConsent: 'I am entitled to upload these documents. They are processed solely to produce my CV and competency profile. Processing is carried out using IT/AI services that run exclusively in the EU.',
     uploadConsentRequired: 'Please confirm the declaration of consent to upload documents.',
-    uploadError: 'This file could not be processed. Please upload a photo or image of the page (not a PDF).',
+    uploadError: 'This file could not be processed. Please upload a photo, an image of the page or a PDF.',
+    uploadPdfWorking: 'Preparing page',
+    uploadPdfSending: 'Uploading page',
+    uploadPdfTooMany: 'The file has {total} pages. The first {n} are taken — please upload the rest as a second file.',
+    uploadPages: 'pages',
+    uploadPagesHint: 'each page is added separately.',
+    uploadPage: 'Page',
   },
 }
 function careerDocT(lang) {
@@ -4406,7 +4453,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               <div style={{ display: cur === 'photo' ? 'block' : 'none' }}>
                 <div style={{ ...S.page, paddingTop:'2rem' }}>
                   {/* Anamnese: derselbe Upload, aber vollständig auf Dokumente umformuliert. */}
-                  <ContributorPhotoUpload code={code} contribId={contribId} t={isAnamnesis ? { ...t, ...anamneseDocT(L) } : isCareerCategory(memorial?.product_category) ? { ...t, ...careerDocT(L) } : t} />
+                  <ContributorPhotoUpload code={code} contribId={contribId} allowPdf={isCareerCategory(memorial?.product_category)}
+                    t={isAnamnesis ? { ...t, ...anamneseDocT(L) } : isCareerCategory(memorial?.product_category) ? { ...t, ...careerDocT(L) } : t} />
                 </div>
               </div>
             )}
