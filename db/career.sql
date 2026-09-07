@@ -20,4 +20,7 @@ alter table memorials
   -- Gegenprobe, Entwicklungsansaetze + die Version der zugrunde liegenden Rubrik.
   add column if not exists avoca jsonb,
   -- Ausgelesene Zeugnisse/Nachweise je Upload + Bestaetigungsstatus.
-  add column if not exists documents jsonb;
+  add column if not exists documents jsonb,
+  -- Stufe 3: Protokoll der Fragen ans Profil + Abgleich mit einer Stelle.
+  add column if not exists profile_queries jsonb,
+  add column if not exists job_match jsonb;

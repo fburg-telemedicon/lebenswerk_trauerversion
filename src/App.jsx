@@ -22,6 +22,7 @@ import {
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
 import { cvSystem, CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { docExtractSystem } from './careerDocs.js'
+import { matchSystem, downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
 import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
 import { avocaSystem } from './avoca.js'
 import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
@@ -122,6 +123,13 @@ const LIFEWORK_EXTRAS = {
   },
   // Das Kompetenzprofil derselben Kategorie: Einstufung entlang der Rubrik,
   // jede Stufe mit Belegstellen und Gegenprobe (src/avoca.js).
+  // Der Abgleich mit einer Stellenausschreibung. Erzeugt wird er ueber
+  // generateMatch() (der Anzeigentext kommt aus der Oberflaeche), heruntergeladen
+  // ueber denselben Weg wie die uebrigen Erzeugnisse.
+  match: {
+    field: 'job_match', filename: 'Stellenabgleich', article: 'Der Abgleich',
+    firstStep: 'Anforderungen werden gelesen', missing: 'Es gibt noch keinen Abgleich.',
+  },
   avoca: {
     field: 'avoca', filename: 'Kompetenzprofil', article: 'Das Kompetenzprofil',
     firstStep: 'Belege werden gesucht', missing: 'Es gibt noch kein Kompetenzprofil.',
@@ -3059,6 +3067,50 @@ Regeln:
     finally { setDocBusy('') }
   }
 
+
+  // ── Abgleich mit einer Stellenausschreibung ───────────────────────
+  // Laeuft wie die uebrigen JSON-Erzeugnisse als Job; der Anzeigentext geht als
+  // Teil des Prompts mit und wird NICHT gespeichert — gespeichert wird nur das
+  // Ergebnis. (Die Ausschreibung gehoert dem Auftraggeber, nicht dem Profil.)
+  async function generateMatch(jobText) {
+    if (!selected) return
+    const text = String(jobText || '').trim()
+    if (text.length < 80) { setErr('Bitte die vollständige Ausschreibung einfügen.'); return }
+    if (contributions.length === 0) { setErr('Es liegt noch kein Gespräch vor.'); return }
+    if (selected.job_match && !window.confirm('Der bisherige Abgleich wird ersetzt. Fortfahren?')) return
+
+    setErr('')
+    setGenErr(p => ({ ...p, match: '' }))
+    setGenOwner(o => ({ ...o, match: selected.id }))
+    setGenerating(g => ({ ...g, match: true }))
+    setGenProgress(p => ({ ...p, match: 'Anforderungen werden gelesen …' }))
+    setGenPct(p => ({ ...p, match: 0 }))
+    cancelGenRef.current.match = false
+    try {
+      const lang = selected.languages?.[0] === 'en' ? 'en' : 'de'
+      const { jobId } = await enqueueGeneration(token, selected.id, 'match', {
+        resultType: 'json', field: 'job_match', kind: 'match', memorialCode: selected.id,
+        label: 'Anforderungen werden gelesen',
+        system: matchSystem(selected, bookContribs, text, lang),
+        user: 'Gib jetzt das JSON aus.',
+      })
+      genJobRef.current.match = jobId
+      await pollGeneration('match', jobId)
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      }
+      setGenPct(p => ({ ...p, match: 100 }))
+    } catch (e) {
+      setGenErr(p => ({ ...p, match: e.message === '__CANCELLED__' ? 'Abgebrochen.' : e.message }))
+    } finally {
+      setGenerating(g => ({ ...g, match: false }))
+      setGenProgress(p => ({ ...p, match: '' }))
+    }
+  }
+
   // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
   // Dauert trotzdem spürbar: Beim Poster werden bis zu 20 Vignetten geladen und
   // ein mehrere MB großes PDF gezeichnet. Deshalb ein eigener Busy-Zustand.
@@ -3070,6 +3122,7 @@ Regeln:
     const base = `${ex.filename}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
     setExtraDl(kind === 'cv' ? `cv:${styleKey || DEFAULT_CV_TEMPLATE}:${fmt}`
       : kind === 'avoca' ? `avoca:${fmt}`
+      : kind === 'match' ? `match:${fmt}`
       : (styleKey ? `poster:${styleKey}` : kind)); setErr('')
     try {
       // Lebenslauf: `styleKey` ist die gewaehlte Vorlage, `fmt` das Format. Beides
@@ -3079,6 +3132,10 @@ Regeln:
         const file = `${base}_${tpl}`
         if (fmt === 'docx') await downloadCvDocx(`${file}.docx`, data, tpl)
         else await downloadCvPdf(`${file}.pdf`, data, tpl)
+      }
+      else if (kind === 'match') {
+        if (fmt === 'docx') await downloadMatchDocx(`${base}.docx`, data, mem)
+        else await downloadMatchPdf(`${base}.pdf`, data, mem)
       }
       else if (kind === 'avoca') {
         if (fmt === 'docx') await downloadAvocaDocx(`${base}.docx`, data, mem)
@@ -4224,7 +4281,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} generateDocs={generateDocs} setDocConfirmed={setDocConfirmed} docBusy={docBusy} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
+    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} generateDocs={generateDocs} setDocConfirmed={setDocConfirmed} docBusy={docBusy} generateMatch={generateMatch} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

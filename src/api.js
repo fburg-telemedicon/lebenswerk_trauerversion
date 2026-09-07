@@ -555,6 +555,24 @@ export async function adminDeleteMemorial(token, code) {
   return parseResponse(res)
 }
 
+// Fragen an das Profil (Kategorie „Lebenslauf"). Der AGG-Filter sitzt
+// SERVERSEITIG (api/_lib/profileqa.js) — hier wird nur die Frage geschickt.
+export async function adminProfileAsk(token, code, question) {
+  const res = await fetch('/api/admin/profile-ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ code, question }),
+  })
+  return parseResponse(res) // { answer, blocked?, topic?, hint?, redirect?, queries? }
+}
+
+export async function adminProfileQueries(token, code) {
+  const res = await fetch(`/api/admin/profile-ask?code=${encodeURIComponent(code)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return parseResponse(res) // { queries }
+}
+
 export async function adminSaveMemorialText(token, code, field, text) {
   const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
     method: 'PATCH',

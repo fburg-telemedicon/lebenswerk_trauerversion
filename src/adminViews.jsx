@@ -11,6 +11,7 @@ import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
 import { docKindLabel } from './careerDocs.js'
+import { adminProfileAsk } from './api.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 
@@ -3166,7 +3167,210 @@ function DocsCard({ selected, generating, genOwner, genPct, genProgress, genErr,
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, generateDocs, setDocConfirmed, docBusy, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
+// Fragen an das Profil. Die Antwort nennt ihre Belegstellen; Fragen nach
+// geschuetzten Merkmalen werden serverseitig geblockt, psychologische Fragen
+// umgelenkt. Jede Frage steht danach im Protokoll — auch die geblockte.
+function ProfileQaCard({ selected, token, contributions }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState(null)
+  const [err, setErr] = useState('')
+  const [log, setLog] = useState(Array.isArray(selected.profile_queries) ? selected.profile_queries : [])
+  const [showLog, setShowLog] = useState(false)
+
+  async function ask(e) {
+    e?.preventDefault?.()
+    const text = q.trim()
+    if (!text || busy) return
+    setBusy(true); setErr(''); setRes(null)
+    try {
+      const r = await adminProfileAsk(token, selected.id, text)
+      setRes(r)
+      if (Array.isArray(r.queries)) setLog(r.queries)
+      else setLog(l => [...l, { at: new Date().toISOString(), question: text, answer: r.answer, blocked: !!r.blocked }])
+      setQ('')
+    } catch (e2) { setErr(e2.message) }
+    finally { setBusy(false) }
+  }
+
+  const examples = [
+    'Wo zeigt sich Verantwortung für ein Budget?',
+    'Welche Station belegt Führungserfahrung?',
+    'Was hat die Person über Veränderungen gegen Widerstand erzählt?',
+  ]
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ marginBottom:12 }}>
+        <div style={{ fontWeight:600, marginBottom:4 }}>💬 Fragen an das Profil</div>
+        <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+          Stellen Sie eine Frage in eigenen Worten. Die Antwort stützt sich ausschließlich auf das
+          geführte Gespräch und die bestätigten Dokumente und nennt zu jeder Aussage ihre Belegstelle.
+          Liegt nichts vor, lautet die Antwort „Dazu liegt nichts vor".
+        </p>
+        <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#3730a3', background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:6, padding:'8px 10px' }}>
+          Fragen nach Alter, Herkunft, Geschlecht, Religion, Gesundheit, Familienstand oder
+          Familienplanung werden nicht beantwortet. Fragen nach Persönlichkeit („Ist sie belastbar?")
+          werden auf die zulässige Frage nach Situationen umgelenkt. Jede Frage wird protokolliert.
+        </p>
+      </div>
+
+      <form onSubmit={ask} style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ihre Frage …" maxLength={500}
+               disabled={busy || contributions.length === 0} style={{ flex:'1 1 320px', fontSize:14 }} />
+        <button type="submit" disabled={busy || !q.trim() || contributions.length === 0} style={{ fontSize:13, padding:'8px 16px' }}>
+          {busy ? 'Wird beantwortet …' : 'Fragen'}
+        </button>
+      </form>
+
+      {contributions.length === 0 && <p style={{ ...S.muted, fontSize:12.5, margin:'0 0 8px' }}>Es liegt noch kein Gespräch vor.</p>}
+
+      {!res && contributions.length > 0 && (
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
+          {examples.map(x => (
+            <button key={x} type="button" onClick={() => setQ(x)} className="secondary" style={{ fontSize:12, padding:'5px 10px' }}>{x}</button>
+          ))}
+        </div>
+      )}
+
+      {res && (
+        <div style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'12px 14px',
+                      background: res.blocked ? '#fef2f2' : '#fafaf9', marginBottom:10 }}>
+          {res.blocked && (
+            <div style={{ fontSize:12.5, fontWeight:600, color:'#b91c1c', marginBottom:6 }}>
+              Geblockt · geschütztes Merkmal ({res.topic})
+            </div>
+          )}
+          {res.redirect && (
+            <div style={{ fontSize:12.5, color:'#92400e', marginBottom:6 }}>
+              Umgelenkt auf: „{res.redirect}"
+            </div>
+          )}
+          <p style={{ fontSize:14, lineHeight:1.6, margin:0, whiteSpace:'pre-wrap' }}>{res.answer}</p>
+        </div>
+      )}
+      {err && <Err>{err}</Err>}
+
+      {log.length > 0 && (
+        <>
+          <button type="button" onClick={() => setShowLog(v => !v)} className="secondary" style={{ fontSize:12.5, padding:'6px 12px' }}>
+            {showLog ? 'Protokoll ausblenden' : `Protokoll anzeigen (${log.length})`}
+          </button>
+          {showLog && (
+            <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:8, maxHeight:320, overflowY:'auto' }}>
+              {[...log].reverse().map((e, i) => (
+                <div key={i} style={{ borderLeft:'2px solid #e7e5e4', paddingLeft:10 }}>
+                  <div style={{ ...S.muted, fontSize:11.5 }}>
+                    {e.at ? new Date(e.at).toLocaleString('de-DE') : ''}{e.by ? ` · ${e.by}` : ''}{e.blocked ? ' · geblockt' : ''}
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:600 }}>{e.question}</div>
+                  {e.answer && <div style={{ fontSize:12.5, color:'#57534e', whiteSpace:'pre-wrap' }}>{e.answer}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// Abgleich mit EINER Stellenausschreibung. Bewusst ohne Punktzahl und ohne
+// Empfehlung: je Anforderung eine Einstufung mit Beleg, mehr nicht.
+function MatchCard({ selected, contributions, generating, genOwner, genPct, genProgress, genErr,
+                     cancelGenerate, cancelGenRef, generateMatch, downloadExtra, extraDl }) {
+  const has  = !!selected.job_match
+  const busy = !!generating.match && genOwner.match === selected.id
+  const [job, setJob] = useState('')
+  const [open, setOpen] = useState(false)
+  const crit = Array.isArray(selected.job_match?.criteria) ? selected.job_match.criteria : []
+  const count = v => crit.filter(c => c.verdict === v).length
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontWeight:600, marginBottom:4 }}>🎯 Abgleich mit einer Stelle</div>
+          <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+            Fügen Sie eine Stellenausschreibung ein. Die KI zieht die einzelnen Anforderungen heraus und
+            zeigt zu jeder, was im Gespräch belegt ist — belegt, teilweise belegt, nicht belegt oder
+            keine Aussage möglich, jeweils mit Belegstelle.
+          </p>
+          <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#3730a3', background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:6, padding:'8px 10px' }}>
+            Kein Prozentwert, keine Punktzahl, keine Empfehlung — und keine Ansicht, die mehrere
+            Menschen nebeneinanderstellt. „Keine Aussage möglich" heißt: Dazu kam im Gespräch nichts
+            vor; das ist keine Aussage über die Person.
+          </p>
+        </div>
+        {has && !busy && (
+          <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>
+            ✓ {crit.length} Anforderungen
+          </span>
+        )}
+      </div>
+
+      <button type="button" onClick={() => setOpen(v => !v)} className="secondary" style={{ fontSize:13, padding:'8px 14px', marginBottom: open ? 10 : 0 }}>
+        {open ? 'Ausschreibung ausblenden' : has ? '↻ Neue Ausschreibung abgleichen' : '＋ Ausschreibung einfügen'}
+      </button>
+
+      {open && (
+        <div style={{ marginBottom:12 }}>
+          <textarea value={job} onChange={e => setJob(e.target.value)} rows={10} disabled={busy}
+                    placeholder="Text der Stellenausschreibung hier einfügen …"
+                    style={{ width:'100%', fontSize:13, fontFamily:'inherit', lineHeight:1.5 }} />
+          <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center' }}>
+            <button onClick={() => generateMatch(job)} disabled={busy || job.trim().length < 80 || contributions.length === 0}
+                    style={{ fontSize:13, padding:'8px 14px' }}>
+              {busy ? 'Wird abgeglichen …' : '✨ Abgleichen'}
+            </button>
+            <span style={{ ...S.muted, fontSize:12 }}>
+              {job.trim().length < 80 ? 'Bitte die vollständige Ausschreibung einfügen.' : `${job.trim().length} Zeichen`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {has && !busy && (
+        <>
+          <div style={{ fontSize:13, marginBottom:8 }}>
+            <strong>{selected.job_match.position || 'Stelle'}</strong>
+            {selected.job_match.employer ? <span style={{ color:'#78716c' }}> · {selected.job_match.employer}</span> : null}
+          </div>
+          <div style={{ ...S.muted, fontSize:12.5, marginBottom:10 }}>
+            {count('belegt')} belegt · {count('teilweise')} teilweise · {count('nicht')} nicht belegt · {count('offen')} keine Aussage
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => downloadExtra('match', selected, null, 'pdf')} disabled={!!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+              {extraDl === 'match:pdf' ? '⏳ PDF wird erstellt …' : '⬇ PDF'}
+            </button>
+            <button onClick={() => downloadExtra('match', selected, null, 'docx')} disabled={!!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+              {extraDl === 'match:docx' ? '⏳ DOCX wird erstellt …' : '⬇ DOCX'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {busy && (
+        <div style={{ marginTop:10 }}>
+          {genPct.match != null && (
+            <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+              <div style={{ width:`${genPct.match}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+            </div>
+          )}
+          <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+            {genPct.match != null ? `${genPct.match} % · ` : ''}{genProgress.match || 'Wird abgeglichen …'}
+          </p>
+          <button onClick={() => cancelGenerate('match')} disabled={!!cancelGenRef.current.match} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+            Abbrechen
+          </button>
+        </div>
+      )}
+      {genErr.match && <Err>{genErr.match}</Err>}
+    </div>
+  )
+}
+
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, generateDocs, setDocConfirmed, docBusy, generateMatch, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3957,6 +4161,16 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 <AvocaCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
                            genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
                            cancelGenRef={cancelGenRef} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} />
+              )}
+
+              {isCareer && (
+                <MatchCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
+                           genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
+                           cancelGenRef={cancelGenRef} generateMatch={generateMatch} downloadExtra={downloadExtra} extraDl={extraDl} />
+              )}
+
+              {isCareer && (
+                <ProfileQaCard selected={selected} token={token} contributions={contributions} />
               )}
 
               {/* Nebenprodukte des Lebenswerks. Alle entstehen aus dem Interview als
