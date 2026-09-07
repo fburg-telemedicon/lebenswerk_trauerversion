@@ -18,4 +18,6 @@ alter table memorials
   add column if not exists cv jsonb,
   -- Kompetenzprofil (Stufe 2): je Dimension Stufe, Belegstaerke, Belegstellen,
   -- Gegenprobe, Entwicklungsansaetze + die Version der zugrunde liegenden Rubrik.
-  add column if not exists avoca jsonb;
+  add column if not exists avoca jsonb,
+  -- Ausgelesene Zeugnisse/Nachweise je Upload + Bestaetigungsstatus.
+  add column if not exists documents jsonb;

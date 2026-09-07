@@ -21,6 +21,7 @@
 
 import { selfOnly } from './categories.js'
 import { numberedMaterial } from './career.js'
+import { docsBlock, docsRule } from './careerDocs.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION, RUBRIC_DATE, EVIDENCE_STRENGTH } from './avocaRubric.js'
 
 const LANG_OUT = { de: 'Deutsch', en: 'Englisch (English)' }
@@ -41,6 +42,8 @@ ${levels}
 
 export function avocaSystem(memorial, allContributions, lang = 'de') {
   const contributions = selfOnly(allContributions)
+  const docs = docsBlock(memorial?.documents)
+  const docRules = docsRule(memorial?.documents)
   const name = String(memorial?.name || '').trim()
   const out = LANG_OUT[lang] || LANG_OUT.de
   const codes = AVOCA_DIMENSIONS.map(d => `"${d.code}"`).join(', ')
@@ -79,7 +82,8 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen, keine Codefen
 
 REGELN — die ersten drei schlagen alle anderen:
 
-1. NUR BELEGTES. Jede Einstufung stützt sich ausschließlich auf Aussagen aus dem Interview. Erfinde keine Situation, keine Zahl, kein Zitat. Ein "quote" ist ein WÖRTLICHES (oder eng sinngemäßes) Stück aus der genannten Antwort — nichts, was dort nicht steht.
+1. NUR BELEGTES. Jede Einstufung stützt sich ausschließlich auf Aussagen aus dem Interview und auf bestätigte Dokumente.${docRules}
+   Jede Einstufung stützt sich ausschließlich auf Aussagen aus dem Interview. Erfinde keine Situation, keine Zahl, kein Zitat. Ein "quote" ist ein WÖRTLICHES (oder eng sinngemäßes) Stück aus der genannten Antwort — nichts, was dort nicht steht.
 
 2. LIEBER NICHT BELEGBAR ALS GERATEN. Findest du zu einer Dimension weniger als zwei tragfähige Belege, setze "level": null, "unclear": true und schreibe in "unclear_reason" in einem Satz, was fehlt (z. B. „Es kommen keine Situationen vor, in denen ein eigener Plan geändert wurde."). Lasse die Dimension trotzdem in der Liste — eine fehlende Grundlage ist eine Aussage, ein geratener Wert nicht. Ein einzelner beiläufiger Satz trägt KEINE Stufe.
 
@@ -109,5 +113,5 @@ FORM:
 
 Interview${name ? ` mit ${name}` : ''}:
 
-${numberedMaterial(contributions)}`
+${numberedMaterial(contributions)}${docs}`
 }

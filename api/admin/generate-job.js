@@ -22,7 +22,7 @@ const genjobs = require('../_lib/genjobs')
 // wird und der Fortschritt getrennt angezeigt werden kann.
 // 'cv' ist der Lebenslauf der Kategorie "Lebenslauf" — technisch dasselbe
 // JSON-Erzeugnis wie Stammbaum und Vorsorgemappe.
-const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa', 'cv', 'avoca',
+const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa', 'cv', 'avoca', 'docs',
   'audiobook_book_v1', 'audiobook_book_v2', 'm4b_book_v1', 'm4b_book_v2'])
 
 // Prüft Zugriff auf das Buchprojekt (Admin = alles; sonst eigenes Buch der

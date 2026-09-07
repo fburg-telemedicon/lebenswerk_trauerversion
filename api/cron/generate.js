@@ -967,6 +967,75 @@ async function processM4b(job, deadline) {
 }
 
 
+// ─────────── Zeugnisse und Nachweise auslesen (Kategorie „Lebenslauf") ───────────
+// Job-Plan: { resultType:'documents', field:'documents', memorialCode,
+//             items:[{ id, path, caption, system }] }
+// Je hochgeladenem Bild EIN multimodaler Aufruf: Das Modell liest das Dokument
+// und gibt die Angaben strukturiert zurueck. Das Ergebnis ist ein VORSCHLAG —
+// bestaetigt wird im Dashboard, erst danach zaehlt es als Beleg.
+//
+// Ein unlesbares oder fehlgeschlagenes Dokument ist NICHT fatal: Es wird als
+// nicht lesbar vermerkt, die uebrigen laufen weiter. Ein einzelnes schiefes Foto
+// darf nicht den ganzen Durchgang kosten.
+async function processDocuments(job, deadline) {
+  const p = job.params || {}
+  const code = p.memorialCode || job.memorial_id
+  const items = Array.isArray(p.items) ? p.items : []
+  const total = items.length
+  if (!total) { await genjobs.failJob(job.id, 'Keine Dokumente zum Auslesen.'); return 'error' }
+
+  // Bereits Ausgelesenes uebernehmen (Selbstfortsetzung nach Zeitbudget).
+  const { data: cur } = await genjobs.supabase.from('memorials').select('documents').eq('id', code).maybeSingle()
+  const done = new Map((Array.isArray(cur?.documents) ? cur.documents : []).map(d => [d.upload_id, d]))
+
+  let cursor = 0
+  for (const item of items) {
+    cursor += 1
+    if (await canceled(job.id)) return 'canceled'
+    // Schon ausgelesen und noch nicht verworfen? Nicht erneut bezahlen.
+    if (done.has(item.id) && done.get(item.id).data) continue
+    if (Date.now() > deadline) {
+      await genjobs.saveProgress(job.id, { progress: { phase: 'docs', cursor: cursor - 1, total, message: 'Dokumente werden gelesen' } })
+      return 'continue'
+    }
+    await genjobs.saveProgress(job.id, { progress: { phase: 'docs', cursor, total, message: `Dokument ${cursor} von ${total} wird gelesen` } })
+
+    let data = null
+    try {
+      const { data: blob, error } = await genjobs.supabase.storage.from(IMAGE_BUCKET).download(item.path)
+      if (error || !blob) throw new Error('Bild nicht lesbar')
+      const b64 = Buffer.from(await blob.arrayBuffer()).toString('base64')
+      const r = await callWithBackoff({
+        system: item.system,
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: 'Lies dieses Dokument aus und gib das JSON zurueck.' },
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } },
+        ] }],
+      })
+      if (r.inT || r.outT) {
+        await recordCost({ memorial_id: job.memorial_id, kind: 'doc_extract', provider: r.provider, model: r.model,
+                           input_tokens: r.inT, output_tokens: r.outT, cost_usd: costLLM(r.model, r.inT, r.outT) }).catch(() => {})
+      }
+      data = genprompts.tryParseJSON(r.text)
+    } catch (e) {
+      console.warn('[generate] Dokument nicht ausgelesen:', item.id, e.message)
+    }
+    done.set(item.id, {
+      upload_id: item.id,
+      caption: item.caption || '',
+      data: data || { readable: false, unreadable_reason: 'Das Dokument konnte nicht ausgelesen werden.' },
+      confirmed: false,
+      extracted_at: new Date().toISOString(),
+    })
+    // Nach JEDEM Dokument speichern: Ein Abbruch mittendrin soll die bereits
+    // bezahlte Arbeit nicht verwerfen.
+    await genjobs.saveMemorialField(code, 'documents', [...done.values()])
+  }
+
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: total, total }, result: { saved: true, count: total } })
+  return 'done'
+}
+
 async function processJob(job, deadline) {
   // Kosten-Obergrenze je Buch erschöpft → Job nicht ausführen, sondern mit klarer
   // Meldung als fehlgeschlagen markieren (das Dashboard zeigt den Grund an).
@@ -980,6 +1049,7 @@ async function processJob(job, deadline) {
   if (rt === 'book') return processBook(job, deadline)
   if (rt === 'json') return processJson(job, deadline)
   if (rt === 'poster') return processPoster(job, deadline)
+  if (rt === 'documents') return processDocuments(job, deadline)
   if (rt === 'audiobook') return processAudiobook(job, deadline)
   if (rt === 'audiobook-m4b') return processM4b(job, deadline)
   await genjobs.failJob(job.id, `Unbekannter resultType: ${rt}`)

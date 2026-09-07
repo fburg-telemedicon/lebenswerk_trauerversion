@@ -2380,6 +2380,47 @@ function anamneseT(lang) {
     || (isGermanReview(lang) ? ANAMNESE_REVIEW_L10N.de : ANAMNESE_REVIEW_L10N.en)
 }
 
+
+// Unterlagen-Upload (Lebenslauf): derselbe Upload-Pfad wie die Fotos, nur auf
+// berufliche Nachweise umformuliert. Was hier hochgeladen wird, liest die KI
+// spaeter aus (src/careerDocs.js) — deshalb der ausdrueckliche Hinweis, dass
+// ein LESBARES Foto der ganzen Seite gebraucht wird.
+const CAREER_DOC_L10N = {
+  de: {
+    tabPhoto: 'Unterlagen',
+    uploadStepTitle: 'Zeugnisse und Nachweise hochladen',
+    uploadStepIntro: 'Hier können Sie Ihre beruflichen Unterlagen beitragen – Arbeitszeugnisse, Abschlusszeugnisse, Zertifikate, Referenzen oder einen früheren Lebenslauf. Fotografieren Sie die Seite oder laden Sie ein Bild davon hoch; achten Sie darauf, dass die ganze Seite lesbar drauf ist. Aus den Unterlagen werden Zeiträume, Stationen und Abschlüsse für Ihren Lebenslauf übernommen — geprüft wird jede Angabe vorher.',
+    uploadPick: '＋ Unterlage auswählen',
+    uploadCaption: 'Bezeichnung (optional)',
+    uploadCaptionHint: 'Kurze Bezeichnung, z. B. „Arbeitszeugnis Hebruck 2011".',
+    uploadDesc: 'Notiz (optional)',
+    uploadDescHint: 'Nur zur Einordnung, z. B. „zweite Seite fehlt".',
+    uploadSubmit: 'Unterlage hochladen',
+    uploadConsent: 'Ich bin berechtigt, diese Unterlagen hochzuladen. Sie werden ausschließlich zur Erstellung meines Lebenslaufs und meines Kompetenzprofils verarbeitet. Die Verarbeitung erfolgt über IT-/KI-Dienste, die ausschließlich in der EU laufen.',
+    uploadConsentRequired: 'Bitte bestätigen Sie die Einverständniserklärung, um Unterlagen hochzuladen.',
+    uploadError: 'Diese Datei konnte nicht verarbeitet werden. Bitte laden Sie ein Foto oder Bild der Seite hoch (kein PDF).',
+  },
+  en: {
+    tabPhoto: 'Documents',
+    uploadStepTitle: 'Upload references and certificates',
+    uploadStepIntro: 'Here you can add your professional documents – employer references, degree certificates, training certificates, letters of recommendation or an earlier CV. Photograph the page or upload an image of it, making sure the whole page is legible. Periods, positions and qualifications are taken from these documents for your CV — every detail is reviewed first.',
+    uploadPick: '＋ Choose document',
+    uploadCaption: 'Label (optional)',
+    uploadCaptionHint: 'Short label, e.g. “Reference Hebruck 2011”.',
+    uploadDesc: 'Note (optional)',
+    uploadDescHint: 'Only to help classify it, e.g. “second page missing”.',
+    uploadSubmit: 'Upload document',
+    uploadConsent: 'I am entitled to upload these documents. They are processed solely to produce my CV and competency profile. Processing is carried out using IT/AI services that run exclusively in the EU.',
+    uploadConsentRequired: 'Please confirm the declaration of consent to upload documents.',
+    uploadError: 'This file could not be processed. Please upload a photo or image of the page (not a PDF).',
+  },
+}
+function careerDocT(lang) {
+  return CAREER_DOC_L10N[lang]
+    || CAREER_DOC_L10N[String(lang || '').split('-')[0]]
+    || (isGermanReview(lang) ? CAREER_DOC_L10N.de : CAREER_DOC_L10N.en)
+}
+
 // Dokumenten-Upload (Anamnese): der bestehende Foto-Upload wird für diese Kategorie
 // vollständig auf Dokumente umformuliert (Arztbriefe, Befunde, Medikamentenpläne …).
 // Overlay über die uiText-Upload-Strings; nicht überschriebene Schlüssel fallen auf
@@ -4154,7 +4195,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               <div style={{ display: cur === 'photo' ? 'block' : 'none' }}>
                 <div style={{ ...S.page, paddingTop:'2rem' }}>
                   {/* Anamnese: derselbe Upload, aber vollständig auf Dokumente umformuliert. */}
-                  <ContributorPhotoUpload code={code} contribId={contribId} t={isAnamnesis ? { ...t, ...anamneseDocT(L) } : t} />
+                  <ContributorPhotoUpload code={code} contribId={contribId} t={isAnamnesis ? { ...t, ...anamneseDocT(L) } : isCareerCategory(memorial?.product_category) ? { ...t, ...careerDocT(L) } : t} />
                 </div>
               </div>
             )}
@@ -4176,7 +4217,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               </div>
             )}
             <ContribMenu tab={cur} setTab={setTab} t={t} lang={L} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
-              photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : null} photoIcon={isAnamnesis ? '📄' : null}
+              photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : isCareerCategory(memorial?.product_category) ? careerDocT(L).tabPhoto : null} photoIcon={(isAnamnesis || isCareerCategory(memorial?.product_category)) ? '📄' : null}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}
               onPause={cur === 'interview' ? handlePause : null}

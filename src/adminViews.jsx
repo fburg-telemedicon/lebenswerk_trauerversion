@@ -10,6 +10,7 @@ import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIO
 import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
+import { docKindLabel } from './careerDocs.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 
@@ -3048,7 +3049,124 @@ function AvocaCard({ selected, contributions, generating, genOwner, genPct, genP
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
+// Zeugnisse und Nachweise der Kategorie „Lebenslauf". Zeigt zu jedem
+// hochgeladenen Dokument die Auslesung und verlangt eine Entscheidung: Erst ein
+// BESTAETIGTES Dokument wird zur Quelle fuer Lebenslauf und Kompetenzprofil.
+//
+// Warum die Bestaetigung: Ein Foto eines Arbeitszeugnisses ist schief, geknickt,
+// manchmal halb abgeschnitten. Eine falsch gelesene Jahreszahl waere spaeter im
+// Lebenslauf nicht mehr von einer erzaehlten zu unterscheiden.
+function DocsCard({ selected, generating, genOwner, genPct, genProgress, genErr,
+                    cancelGenerate, cancelGenRef, generateDocs, setDocConfirmed, docBusy }) {
+  const busy = !!generating.docs && genOwner.docs === selected.id
+  const uploads = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
+  const docs = Array.isArray(selected.documents) ? selected.documents : []
+  const byUpload = Object.fromEntries(docs.map(d => [d.upload_id, d]))
+  const pending = uploads.filter(u => !byUpload[u.id])
+  const confirmed = docs.filter(d => d.confirmed === true).length
+  const unreadable = docs.filter(d => d.data?.readable === false).length
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontWeight:600, marginBottom:4 }}>📄 Zeugnisse und Nachweise</div>
+          <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+            Die Person lädt ihre Unterlagen im Gespräch hoch (Reiter „Unterlagen"). Die KI liest jedes
+            Dokument aus — Organisation, Zeitraum, Funktion, Abschluss. Sie bestätigen oder verwerfen
+            jede Auslesung; erst bestätigte Dokumente werden zum Beleg für Lebenslauf und Kompetenzprofil.
+          </p>
+          <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#3730a3', background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:6, padding:'8px 10px' }}>
+            Ausgelesen werden Bilder (Foto oder Scan). Ein PDF bitte als Bild hochladen oder die Seite
+            abfotografieren. Geburtsdatum, Staatsangehörigkeit und Namen Dritter werden aus den Dokumenten
+            bewusst nicht übernommen.
+          </p>
+        </div>
+        {docs.length > 0 && !busy && (
+          <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>
+            ✓ {confirmed}/{docs.length} bestätigt
+          </span>
+        )}
+      </div>
+
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom: docs.length ? 14 : 0 }}>
+        <button onClick={() => generateDocs()} disabled={busy || uploads.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+          {busy ? 'Wird gelesen …' : pending.length ? `📖 ${pending.length} ${pending.length === 1 ? 'Dokument' : 'Dokumente'} auslesen` : '↻ Erneut auslesen'}
+        </button>
+        {uploads.length === 0 && <span style={{ ...S.muted, fontSize:12.5 }}>Es wurden noch keine Unterlagen hochgeladen.</span>}
+        {unreadable > 0 && !busy && (
+          <span style={{ ...S.muted, fontSize:12.5 }}>{unreadable} nicht lesbar</span>
+        )}
+      </div>
+
+      {docs.length > 0 && !busy && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {docs.map(d => {
+            const x = d.data || {}
+            const bad = x.readable === false
+            const rowBusy = docBusy === d.upload_id
+            const line = [x.organization, x.role].filter(Boolean).join(' · ')
+            const when = [x.from, x.to].filter(Boolean).join(' – ')
+            return (
+              <div key={d.upload_id} style={{ border:'1px solid #e7e5e4', borderRadius:8, padding:'10px 12px',
+                                              background: d.confirmed ? '#f0fdf4' : bad ? '#fef2f2' : '#fafaf9' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'flex-start' }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, marginBottom:2 }}>
+                      {bad ? 'Nicht lesbar' : docKindLabel(x.kind)}
+                      {d.caption ? <span style={{ fontWeight:400, color:'#78716c' }}> · {d.caption}</span> : null}
+                    </div>
+                    {bad ? (
+                      <p style={{ ...S.muted, fontSize:12.5, margin:0 }}>{x.unreadable_reason || 'Das Dokument konnte nicht ausgelesen werden.'}</p>
+                    ) : (
+                      <>
+                        {line && <div style={{ fontSize:13 }}>{line}</div>}
+                        {(when || x.qualification || x.grade) && (
+                          <div style={{ ...S.muted, fontSize:12.5 }}>
+                            {[when, x.qualification, x.grade].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
+                        {x.summary && <p style={{ ...S.muted, fontSize:12.5, margin:'4px 0 0' }}>{x.summary}</p>}
+                      </>
+                    )}
+                  </div>
+                  {d.confirmed && <span style={{ fontSize:11, color:'#16a34a', whiteSpace:'nowrap' }}>✓ bestätigt</span>}
+                </div>
+                {!bad && (
+                  <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                    <button onClick={() => setDocConfirmed(d.upload_id, !d.confirmed)} disabled={rowBusy}
+                            className={d.confirmed ? 'secondary' : undefined} style={{ fontSize:12.5, padding:'6px 12px' }}>
+                      {rowBusy ? '…' : d.confirmed ? 'Bestätigung zurücknehmen' : '✓ Bestätigen'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {busy && (
+        <div style={{ marginTop:10 }}>
+          {genPct.docs != null && (
+            <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+              <div style={{ width:`${genPct.docs}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+            </div>
+          )}
+          <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+            {genPct.docs != null ? `${genPct.docs} % · ` : ''}{genProgress.docs || 'Wird gelesen …'}
+          </p>
+          <button onClick={() => cancelGenerate('docs')} disabled={!!cancelGenRef.current.docs} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+            Abbrechen
+          </button>
+        </div>
+      )}
+      {genErr.docs && <Err>{genErr.docs}</Err>}
+    </div>
+  )
+}
+
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, generateDocs, setDocConfirmed, docBusy, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -3826,6 +3944,13 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 <CvCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
                         genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
                         cancelGenRef={cancelGenRef} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} />
+              )}
+
+              {isCareer && (
+                <DocsCard selected={selected} generating={generating} genOwner={genOwner} genPct={genPct}
+                          genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
+                          cancelGenRef={cancelGenRef} generateDocs={generateDocs} setDocConfirmed={setDocConfirmed}
+                          docBusy={docBusy} />
               )}
 
               {isCareer && (

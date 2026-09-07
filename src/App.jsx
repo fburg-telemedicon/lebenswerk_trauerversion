@@ -21,6 +21,7 @@ import {
 } from './api.js'
 import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
 import { cvSystem, CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
+import { docExtractSystem } from './careerDocs.js'
 import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
 import { avocaSystem } from './avoca.js'
 import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
@@ -2997,6 +2998,67 @@ Regeln:
     }
   }
 
+
+  // ── Zeugnisse und Nachweise (Kategorie „Lebenslauf") ──────────────
+  // Ein Job je Durchgang, ein multimodaler Aufruf je Bild. Bereits ausgelesene
+  // Dokumente ueberspringt der Worker — ein zweiter Klick kostet also nur die
+  // neu hinzugekommenen.
+  const [docBusy, setDocBusy] = useState('')
+
+  async function generateDocs() {
+    if (!selected) return
+    const uploads = Array.isArray(selected.uploaded_images) ? selected.uploaded_images : []
+    if (uploads.length === 0) { setErr('Es wurden noch keine Unterlagen hochgeladen.'); return }
+    setErr('')
+    setGenErr(p => ({ ...p, docs: '' }))
+    setGenOwner(o => ({ ...o, docs: selected.id }))
+    setGenerating(g => ({ ...g, docs: true }))
+    setGenProgress(p => ({ ...p, docs: 'Dokumente werden gelesen …' }))
+    setGenPct(p => ({ ...p, docs: 0 }))
+    cancelGenRef.current.docs = false
+    try {
+      const items = uploads.map(u => ({
+        id: u.id, path: u.path, caption: u.caption || '',
+        system: docExtractSystem(selected, u),
+      }))
+      const { jobId } = await enqueueGeneration(token, selected.id, 'docs', {
+        resultType: 'documents', field: 'documents', kind: 'docs', memorialCode: selected.id, items,
+      })
+      genJobRef.current.docs = jobId
+      await pollGeneration('docs', jobId)
+      const r = await fetch('/api/admin/memorials', { headers: { Authorization: `Bearer ${token}` } })
+      if (r.ok) {
+        const fresh = await r.json(); setMemorials(fresh)
+        const u = fresh.find(m => m.id === selected.id)
+        if (u) setSelected(u)
+      }
+      setGenPct(p => ({ ...p, docs: 100 }))
+    } catch (e) {
+      setGenErr(p => ({ ...p, docs: e.message === '__CANCELLED__' ? 'Abgebrochen.' : e.message }))
+    } finally {
+      setGenerating(g => ({ ...g, docs: false }))
+      setGenProgress(p => ({ ...p, docs: '' }))
+    }
+  }
+
+  // Bestaetigen/Zuruecknehmen: Erst ein bestaetigtes Dokument geht als Beleg in
+  // Lebenslauf und Kompetenzprofil ein. Gespeichert wird die ganze Liste
+  // (dasselbe Feld-PATCH wie bei den uebrigen Erzeugnissen).
+  async function setDocConfirmed(uploadId, confirmed) {
+    if (!selected) return
+    const docs = Array.isArray(selected.documents) ? selected.documents : []
+    const next = docs.map(d => d.upload_id === uploadId
+      ? { ...d, confirmed, confirmed_at: confirmed ? new Date().toISOString() : null }
+      : d)
+    setDocBusy(uploadId); setErr('')
+    try {
+      await adminSaveMemorialText(token, selected.id, 'documents', next)
+      setSelected(s => ({ ...s, documents: next }))
+      setMemorials(ms => ms.map(m => m.id === selected.id ? { ...m, documents: next } : m))
+    } catch (e) { setErr(e.message) }
+    finally { setDocBusy('') }
+  }
+
   // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
   // Dauert trotzdem spürbar: Beim Poster werden bis zu 20 Vignetten geladen und
   // ein mehrere MB großes PDF gezeichnet. Deshalb ein eigener Busy-Zustand.
@@ -4162,7 +4224,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
+    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} generateDocs={generateDocs} setDocConfirmed={setDocConfirmed} docBusy={docBusy} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──

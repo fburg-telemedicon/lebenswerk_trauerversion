@@ -111,6 +111,10 @@ create table if not exists memorials (
   -- Belegstellen, Gegenprobe und Entwicklungsansaetze; dazu die Version der
   -- Rubrik, nach der eingestuft wurde (src/avocaRubric.js).
   avoca            jsonb,
+  -- Ausgelesene Zeugnisse und Nachweise derselben Kategorie: je Upload eine
+  -- Auslesung (Organisation, Zeitraum, Funktion, Abschluss, Note ...) plus den
+  -- Bestaetigungsstatus. Erst bestaetigte Dokumente zaehlen als Beleg.
+  documents        jsonb,
   -- Fortlaufende Projektnummer fuers Dashboard und fuer Rueckfragen ("Projekt 42").
   -- Global aufsteigend aus einer Sequenz; eine Nummer gehoert dauerhaft zu genau
   -- einem Projekt (nach Loeschungen entstehen Luecken, das ist gewollt).

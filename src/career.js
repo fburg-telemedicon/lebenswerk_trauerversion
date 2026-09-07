@@ -15,6 +15,7 @@
 // Unbekanntes ausdrücklich leer, statt es zu füllen.
 
 import { selfOnly } from './categories.js'
+import { docsBlock, docsRule } from './careerDocs.js'
 
 // Die wählbaren Vorlagen. `key` landet im Dateinamen und steuert cvExport.js.
 export const CV_TEMPLATES = [
@@ -63,6 +64,8 @@ const LANGS = {
 // gewünschte JSON als Beispiel, dann die Regeln, dann das Material.
 export function cvSystem(memorial, allContributions, lang = 'de') {
   const contributions = selfOnly(allContributions)
+  const docs = docsBlock(memorial?.documents)
+  const docRules = docsRule(memorial?.documents)
   const name = String(memorial?.name || '').trim()
   const focus = memorial?.intake?.focus || ''
   const target = String(memorial?.intake?.target || '').trim()
@@ -104,7 +107,7 @@ DIE WICHTIGSTE REGEL — NICHTS ERFINDEN:
 - Jede Angabe muss im Interview VORKOMMEN. Erfinde keine Organisation, keine Rollenbezeichnung, keine Jahreszahl, kein Ergebnis, keine Kompetenz.
 - Fehlt eine Angabe, bleibt das Feld ein LEERER STRING. Schätze NIEMALS ein Jahr, runde nichts, leite nichts aus dem Zusammenhang ab („dann wird sie wohl 2015 gewechselt sein" ist verboten).
 - Formuliere um, verdichte, ordne — aber füge inhaltlich nichts hinzu. Aus „wir haben die Abteilung umgebaut" wird nicht „Restrukturierung mit Effizienzgewinn".
-- "evidence": zu JEDEM Eintrag die Nummern der Antworten, aus denen er stammt (z. B. ["A12","A13"]). Ein Eintrag ohne Beleg gehört nicht in den Lebenslauf.
+- "evidence": zu JEDEM Eintrag die Nummern der Quellen, aus denen er stammt (Gesprächsantworten "A12", bestätigte Dokumente "D2"). Ein Eintrag ohne Beleg gehört nicht in den Lebenslauf.${docRules}
 - "not_stated": Benenne hier kurz, was für einen Lebenslauf üblich wäre, im Gespräch aber NICHT vorkam (z. B. „Zeitraum der zweiten Station", „Abschlussnote", „Sprachkenntnisse"). Diese Liste ist erwünscht — sie zeigt der Person, was sie noch ergänzen kann.
 
 INHALTLICHE REGELN:
@@ -134,5 +137,5 @@ FORM:
 
 Interview:
 
-${numberedMaterial(contributions)}`
+${numberedMaterial(contributions)}${docs}`
 }
