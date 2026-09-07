@@ -68,7 +68,7 @@ export function cvSystem(memorial, allContributions, lang = 'de') {
   const target = String(memorial?.intake?.target || '').trim()
   const L = LANGS[lang] || LANGS.de
   const interimNote = focus === 'interim'
-    ? '\n- Diese Person arbeitet als Interim-Managerin/Interim-Manager: Fülle zusätzlich "interim" mit den einzelnen Mandaten (Ausgangslage, Auftrag, Ergebnis, Übergabe), soweit das Gespräch sie hergibt. Die Mandate gehören NICHT zusätzlich in "stations".'
+    ? '\n- Diese Person arbeitet als Interim-Managerin/Interim-Manager: Fülle zusätzlich "interim" mit den einzelnen Mandaten (Ausgangslage, Auftrag, Ergebnis, Übergabe), soweit das Gespräch sie hergibt. Dieselben Mandate gehören AUSSERDEM als Stationen mit "kind": "interim" in "stations" — die Vorlagen ohne Mandatsliste zeigen sie sonst gar nicht. Die Interim-Vorlage blendet sie unten automatisch aus, es entsteht also keine Dopplung.'
     : '\n- "interim" bleibt eine leere Liste, wenn im Gespräch keine Interim-Mandate vorkommen.'
   const targetNote = target
     ? `\n- Die Person strebt an: „${target}". Das darf die AUSWAHL und Reihenfolge der genannten Aufgaben und Ergebnisse leiten (Wichtiges zuerst) — es darf NICHTS hinzufügen, umdeuten oder beschönigen.`
@@ -83,7 +83,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen, keine Codefen
   "summary": "",
   "stations": [
     { "from": "2018", "to": "2023", "organization": "", "role": "", "place": "",
-      "kind": "job",
+      "kind": "job", "current": false,
       "responsibilities": ["..."],
       "results": ["..."],
       "evidence": ["A17"] }
@@ -92,7 +92,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen, keine Codefen
     { "from": "", "to": "", "institution": "", "qualification": "", "evidence": ["A3"] }
   ],
   "skills": ["..."],
-  "languages": [ { "name": "Deutsch", "level": "Muttersprache", "evidence": ["A40"] } ],
+  "languages": [ { "name": "Englisch", "level": "verhandlungssicher", "evidence": ["A40"] } ],
   "interim": [
     { "period": "", "client": "", "situation": "", "mandate": "", "result": "", "handover": "", "evidence": ["A22"] }
   ],
@@ -113,11 +113,12 @@ INHALTLICHE REGELN:
 - "person.location": Wohnort/Region nur, wenn genannt.
 - "summary": drei bis fünf Sätze, sachlich, in der dritten Person, ausschließlich aus Belegtem. Keine Eigenschaftszuschreibungen.
 - "stations": ALLE beruflichen Stationen, chronologisch ABSTEIGEND (aktuellste zuerst). "kind" ist "job", "education", "break" (Pause, Umweg, Auszeit — nur wenn die Person selbst davon erzählt) oder "interim".
-- "from"/"to": Jahreszahlen wie genannt ("2018"), gern mit Monat ("03/2018"), wenn er fiel. Läuft die Station noch, ist "to" der leere String.
+- "from"/"to": Jahreszahlen wie genannt ("2018"), gern mit Monat ("03/2018"), wenn er fiel. Fiel eine Jahreszahl nicht, bleibt das Feld LEER — schätze sie nicht.
+- "current": true NUR für die Station, die zum Zeitpunkt des Gesprächs noch läuft; bei allen anderen false. Eine beendete Station mit unbekanntem Enddatum hat "to": "" UND "current": false — daraus wird im Lebenslauf „ab 2004", nicht „bis heute". Das ist wichtig: „bis heute" bei einer längst beendeten Station wäre eine Falschaussage.
 - "responsibilities": zwei bis fünf kurze Punkte, was die Aufgabe war. "results": nur, was die Person als Ergebnis oder Veränderung GENANNT hat — keine Zahlen, die nicht fielen. Beides ohne Punkt am Ende.
 - "education": Ausbildung, Studium, Weiterbildungen mit Abschluss, soweit genannt.
 - "skills": höchstens zwölf Einträge, je ein bis drei Wörter, nur belegte Fähigkeiten, Methoden, Werkzeuge, Fachgebiete. KEINE Charaktereigenschaften („teamfähig", „belastbar", „durchsetzungsstark").
-- "languages": nur genannte Sprachkenntnisse mit dem genannten Niveau.${interimNote}
+- "languages": NUR Sprachkenntnisse, über die die Person ausdrücklich gesprochen hat. Die Sprache, in der das Gespräch geführt wurde, ist KEIN Beleg für eine Sprachkenntnis — leite aus ihr NICHTS ab, auch keine Muttersprache. Sagt die Person nichts über Sprachen, bleibt die Liste LEER und "Sprachkenntnisse" gehört in "not_stated".${interimNote}
 - "narrative": vier bis acht Absätze, die denselben Werdegang als zusammenhängenden Text in der ICH-FORM erzählen, in der Sprache und den Bildern der Person. Nur für die Vorlage „Narrativ" — inhaltlich exakt dasselbe Material, kein zusätzliches Wissen.${targetNote}
 
 WAS NICHT IN EINEN LEBENSLAUF GEHÖRT (verbindlich):

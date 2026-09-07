@@ -32,3 +32,6 @@ Fotos*/
 
 # Lokale Live-API-Arbeitsdateien (Token, Kundendaten) - NIEMALS committen
 .lw_*
+_demo_pdf/
+_demo_*.mjs
+.lw_*

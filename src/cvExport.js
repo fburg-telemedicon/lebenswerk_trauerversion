@@ -34,7 +34,8 @@ const T = {
     profile: 'Profil', career: 'Beruflicher Werdegang', education: 'Ausbildung',
     skills: 'Kompetenzen', languages: 'Sprachen', mandates: 'Mandate',
     situation: 'Ausgangslage', mandate: 'Auftrag', result: 'Ergebnis', handover: 'Übergabe',
-    stations: 'Weitere Stationen', today: 'heute', missing: 'Im Gespräch nicht genannt',
+    stations: 'Weitere Stationen', today: 'heute', since: 'seit', from: 'ab', until: 'bis',
+    missing: 'Im Gespräch nicht genannt',
     missingHint: 'Diese Angaben fehlen im Lebenslauf, weil sie im Gespräch nicht vorkamen. Sie lassen sich jederzeit ergänzen — geschätzt wird nichts.',
     page: 'Seite', cv: 'Lebenslauf',
     note: 'Aus dem eigenen Bericht erstellt. Alle Angaben stammen aus dem geführten Gespräch.',
@@ -43,7 +44,8 @@ const T = {
     profile: 'Profile', career: 'Professional experience', education: 'Education',
     skills: 'Skills', languages: 'Languages', mandates: 'Assignments',
     situation: 'Starting point', mandate: 'Assignment', result: 'Outcome', handover: 'Handover',
-    stations: 'Further positions', today: 'present', missing: 'Not stated in the interview',
+    stations: 'Further positions', today: 'present', since: 'since', from: 'from', until: 'until',
+    missing: 'Not stated in the interview',
     missingHint: 'These details are absent because they did not come up in the interview. They can be added at any time — nothing is estimated.',
     page: 'Page', cv: 'Curriculum vitae',
     note: 'Compiled from the person’s own account. All details stem from the recorded interview.',
@@ -57,12 +59,29 @@ const str = v => String(v ?? '').trim()
 const list = v => (Array.isArray(v) ? v : []).map(str).filter(Boolean)
 const rows = v => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object')
 
+// Zeitraum einer Station. Der Sonderfall, der hier zaehlt: from gesetzt, to leer.
+// Das heisst NICHT automatisch "bis heute" — es heisst nur, dass kein Enddatum
+// genannt wurde. "bis heute" bei einer laengst beendeten Station waere eine
+// Falschaussage im Dokument, also sagt es nur, wer sich ausdruecklich als laufend
+// gemeldet hat (st.current).
 function period(st, t) {
   const from = str(st.from), to = str(st.to)
   if (from && to) return `${from} – ${to}`
-  if (from) return `${from} – ${t.today}`
-  return to || ''
+  if (from) return st.current === true ? `${t.since} ${from}` : `${t.from} ${from}`
+  if (to) return `${t.until} ${to}`
+  return ''
 }
+// Welche Stationen stehen in der Interim-Vorlage schon als Mandat oben? Zwei
+// Wege, weil man sich auf die Kennzeichnung durch die KI nicht verlassen kann:
+// die ausdrueckliche Markierung kind="interim" UND ein Namensabgleich mit den
+// Auftraggebern. Ohne den zweiten Weg stuende jedes Mandat zweimal im Dokument.
+function isMandateStation(st, mandates) {
+  if (str(st.kind) === 'interim') return true
+  const key = v => str(v).toLowerCase().replace(/[^a-zäöüß0-9]+/g, ' ').trim()
+  const names = new Set(mandates.map(m => key(m.client)).filter(Boolean))
+  return names.has(key(st.organization)) || names.has(key(st.role))
+}
+
 function stationTitle(st) {
   const role = str(st.role), org = str(st.organization), place = str(st.place)
   const head = [role, org].filter(Boolean).join(', ')
@@ -240,7 +259,9 @@ function tplInterim(s, data, t) {
       s.gap(2)
     }
   }
-  const st = rows(data.stations)
+  // Die Mandate stehen oben schon einzeln — hier nur die uebrigen Stationen,
+  // sonst stuende jedes Mandat zweimal im selben Dokument.
+  const st = rows(data.stations).filter(x => !isMandateStation(x, mandates))
   if (st.length) {
     s.heading(t.stations)
     for (const x of st) {
@@ -309,8 +330,9 @@ function drawFooters(doc, data, t) {
   }
 }
 
-// Vorlage als PDF laden. `templateKey` ist einer der Schlüssel aus CV_TEMPLATES.
-export async function downloadCvPdf(filename, data, templateKey = 'klassisch') {
+// Das fertige jsPDF-Dokument bauen. Getrennt vom Speichern, damit dieselbe
+// Zeichenroutine auch ausserhalb des Browsers pruefbar ist (Layout-Kontrolle).
+export async function buildCvDoc(data, templateKey = 'klassisch') {
   if (!data || typeof data !== 'object') throw new Error('Es liegen keine Lebenslauf-Daten vor.')
   await loadPdfFonts()
   const t = labels(data)
@@ -319,6 +341,12 @@ export async function downloadCvPdf(filename, data, templateKey = 'klassisch') {
   const draw = TEMPLATES[getCvTemplate(templateKey).key] || tplKlassisch
   draw(s, data, t)
   drawFooters(doc, data, t)
+  return doc
+}
+
+// Vorlage als PDF laden. `templateKey` ist einer der Schlüssel aus CV_TEMPLATES.
+export async function downloadCvPdf(filename, data, templateKey = 'klassisch') {
+  const doc = await buildCvDoc(data, templateKey)
   doc.save(filename)
 }
 
@@ -357,7 +385,7 @@ export async function downloadCvDocx(filename, data, templateKey = 'klassisch') 
     }
   }
 
-  const st = rows(data.stations)
+  const st = rows(data.stations).filter(x => key !== 'interim' || !isMandateStation(x, mandates))
   if (st.length) {
     H(key === 'interim' || key === 'narrativ' ? t.stations : t.career)
     for (const x of st) {
