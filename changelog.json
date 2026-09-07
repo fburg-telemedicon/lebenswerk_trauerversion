@@ -2,6 +2,14 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-07",
+      "items": [
+        "Produktdefinition fuer eine 13. Produktkategorie „Lebenslauf“ geschrieben (PRODUKTKATEGORIE_LEBENSLAUF.md): Ein Mensch erzaehlt seinen beruflichen Weg, daraus entstehen ein Lebenslauf in fuenf waehlbaren Vorlagen, ein Kompetenzprofil entlang der fuenf AVOCA Future Skills mit Belegstellen und ein Gespraechsleitfaden. Zielgruppe sind Personalberatung, Outplacement und Personalentwicklung.",
+        "Die Kategorie ist bewusst wie die Anamnese geschnitten — ein Endnutzer mit eigenem Zugang, kein Buch, keine KI-Bilder, dafuer strukturierte Dokumente. Sie fuegt sich damit ohne Umbau in das bestehende System ein: nur drei Stellen im geteilten Code werden beruehrt, alles Uebrige kommt hinzu.",
+        "Ein externes Briefing zu dem Thema wurde geprueft und auf das Machbare zugeschnitten; die weitreichenden Teile daraus (eigenes Mandanten- und Freigabemodell, Personen-Konten, Auswahl-Workflows fuer Unternehmen) bleiben bewusst draussen und sind im Dokument mit Begruendung aufgefuehrt. Noch kein Code, Entwurf zur Abstimmung."
+      ]
+    },
+    {
       "date": "2026-09-06",
       "items": [
         "Alle sechs Fotos der mamazone-Seite gegen eine neue Motivreihe ausgetauscht: durchgaengig dieselbe Erzaehlerin mit tuerkisem Kopftuch in helleren Wohnraeumen (Portraet oben, Gespraech am Kuechentisch, Videokonferenz, Fensterbank, Sprechen ins Smartphone, Lesen im eigenen Buch).",
