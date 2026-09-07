@@ -18,6 +18,7 @@ const CATEGORY_LABELS = {
   anamnesis:     'Anamnesebogen',
   mamazone:      'mamazone Edition',
   anamnesis_kvsw:'Anamnese KVSW',
+  career:        'Lebenslauf',
 }
 
 const CATEGORY_SLUGS = Object.keys(CATEGORY_LABELS)
@@ -36,7 +37,16 @@ const ANAMNESIS_CATEGORIES = ['anamnesis', 'anamnesis_kvsw']
 // isLifework() in src/categories.js uebereinstimmen.
 const LIFEWORK_CATEGORIES = ['lifework', 'mamazone']
 
-const ENDUSER_CATEGORIES = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw']
+// Lebenslauf: EIN Mensch erzaehlt seinen eigenen Berufsweg — also ebenfalls eine
+// Endnutzer-Kategorie (eigener Zugang, Code = Berechtigung). Eine eigene FAMILIE
+// bildet sie NICHT: Sie erbt nichts vom Lebenswerk und nichts von der Anamnese,
+// sondern steht fuer sich (Pruefung ueber den Slug bzw. isCareer() im Frontend).
+const ENDUSER_CATEGORIES = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw', 'career']
+
+const CAREER_CATEGORY = 'career'
+function isCareerCategory(slug) {
+  return slug === CAREER_CATEGORY
+}
 
 function isValidCategory(slug) {
   return CATEGORY_SLUGS.includes(slug)
@@ -51,4 +61,4 @@ function isEnduserCategory(slug) {
   return ENDUSER_CATEGORIES.includes(slug)
 }
 
-module.exports = { CATEGORY_LABELS, CATEGORY_SLUGS, DEFAULT_CATEGORY, isValidCategory, isAnamnesisCategory, isEnduserCategory, isLifeworkCategory, ANAMNESIS_CATEGORIES, LIFEWORK_CATEGORIES, ENDUSER_CATEGORIES }
+module.exports = { CATEGORY_LABELS, CATEGORY_SLUGS, DEFAULT_CATEGORY, isValidCategory, isAnamnesisCategory, isEnduserCategory, isLifeworkCategory, isCareerCategory, CAREER_CATEGORY, ANAMNESIS_CATEGORIES, LIFEWORK_CATEGORIES, ENDUSER_CATEGORIES }

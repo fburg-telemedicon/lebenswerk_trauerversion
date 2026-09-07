@@ -808,6 +808,7 @@ const CONTRIB = {
     lifework:      { nounBook: 'life’s work', heading: 'Your life story', introNoun: 'Life’s work of', consentNoun: 'life’s work (autobiography)', interviewButton: '🎙 Start the conversation →' },
     anamnesis:     { nounBook: 'medical intake form', heading: 'Your medical intake', introNoun: 'Medical intake for', consentNoun: 'medical intake form', interviewButton: '🎙 Start the interview →' },
     anamnesis_kvsw:{ nounBook: 'medical intake form', heading: 'Your medical intake', introNoun: 'Medical intake for', consentNoun: 'medical intake form', interviewButton: '🎙 Start the interview →' },
+    career:        { nounBook: 'curriculum vitae', heading: 'Your professional path', introNoun: 'Professional path of', consentNoun: 'curriculum vitae', interviewButton: '🎙 Start the conversation →' },
   },
   es: {
     // 2026-08-23 ergänzt: Beitragenden-Kategorien; vorher fielen sie auf Deutsch zurück.

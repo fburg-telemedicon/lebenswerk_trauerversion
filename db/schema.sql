@@ -102,6 +102,11 @@ create table if not exists memorials (
   -- MP3-Spuren liegen im Bild-Container unter <CODE>/audio/, die Links werden beim
   -- Laden signiert (nie gespeichert).
   audiobooks       jsonb,
+  -- Produktkategorie "Lebenslauf" (career): der strukturierte Lebenslauf als JSON
+  -- (Kopfdaten, Stationen, Ausbildung, Kompetenzen, Interim-Mandate, Erzaehlfassung
+  -- und benannte Luecken). Die KI liefert die Struktur, gezeichnet wird sie im
+  -- Browser (src/cvExport.js) in der jeweils gewaehlten Vorlage.
+  cv               jsonb,
   -- Fortlaufende Projektnummer fuers Dashboard und fuer Rueckfragen ("Projekt 42").
   -- Global aufsteigend aus einer Sequenz; eine Nummer gehoert dauerhaft zu genau
   -- einem Projekt (nach Loeschungen entstehen Luecken, das ist gewollt).

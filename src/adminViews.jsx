@@ -6,8 +6,9 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
+import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 
@@ -1065,7 +1066,7 @@ function bookProgress(m, t) {
   if (p && p.done) return t('✓ abgeschlossen', '✓ completed')
   if (p) return `${t('Kapitel', 'Chapter')} ${p.chapter}/${p.chapterTotal} · ${t('Frage', 'Question')} ${p.questionLabel}/${p.questionTotal}`
   const a = m.answer_count || 0
-  const isEnduser = isLifework(m.product_category) || isAnamnesisCategory(m.product_category)
+  const isEnduser = isLifework(m.product_category) || isAnamnesisCategory(m.product_category) || isCareerCategory(m.product_category)
   if (isEnduser) {
     if (a === 0) return t('noch nicht begonnen', 'not started yet')
     return `${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
@@ -1724,7 +1725,11 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
     // aber gültig sein, sonst geht die Einladung ins Leere.
     const isLifework = isLifework(createForm.productCategory)
     const isAnamnesis = isAnamnesisCategory(createForm.productCategory)
-    // Endnutzer-Kategorien (Lebenswerk, Anamnese): EIN Endnutzer/Patient bekommt
+    // Lebenslauf: wie die Anamnese eine Endnutzer-Kategorie mit EINEM Pflichtfeld
+    // beim Anlegen — dort der Anlass (Bewerbung/Outplacement/…), der den letzten
+    // Fragenblock des Interviews steuert.
+    const isCareer = isCareerCategory(createForm.productCategory)
+    // Endnutzer-Kategorien (Lebenswerk, Anamnese, Lebenslauf): EIN Endnutzer bekommt
     // einen eigenen Zugang; kein Organisator, kein Buch, Name/Geschlecht optional.
     const isEnduser = ci.useEnduser === true
     const euMail = (createForm.enduserEmail || '').trim()
@@ -1734,7 +1739,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
     // Anlage-Button dort nur an einer gültigen (oder leeren) E-Mail. Bei der
     // Anamnese ist zusätzlich die Indikation Pflicht (sie steuert den Fragenast).
     const canSubmit = isEnduser
-      ? (emailOk && (!isAnamnesis || !!createForm.intake?.indication) && !busy)
+      ? (emailOk && (!isAnamnesis || !!createForm.intake?.indication) && (!isCareer || !!createForm.intake?.focus) && !busy)
       : (createForm.name && createForm.organizer && (!ci.useGender || createForm.gender) && emailOk && !busy)
     const pa = createForm.pickupAddress || EMPTY_PICKUP
     const setPa = patch => setCreateForm(f => ({ ...f, pickupAddress: { ...f.pickupAddress, ...patch } }))
@@ -1750,6 +1755,9 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
     if (isEnduser) {
       if (isAnamnesis && !createForm.intake?.indication) {
         missing.push(stripStar((ci.extra || []).find(f => f.key === 'indication')?.label) || 'Indikation')
+      }
+      if (isCareer && !createForm.intake?.focus) {
+        missing.push(stripStar((ci.extra || []).find(f => f.key === 'focus')?.label) || 'Anlass')
       }
     } else {
       if (!createForm.name)      missing.push(stripStar(ci.subjectLabel))
@@ -2823,6 +2831,106 @@ function GuestActions({ c, setGuestStatus }) {
   )
 }
 
+// Der Lebenslauf der Kategorie „Lebenslauf" (career). Eine Karte, zwei
+// Entscheidungen: In welcher Sprache die KI die Struktur schreibt (das kostet
+// einen Lauf) und in welcher Vorlage sie gezeichnet wird (das kostet nichts —
+// deshalb sind die fuenf Vorlagen frei durchklickbar, ohne neu zu erzeugen).
+function CvCard({ selected, contributions, generating, genOwner, genPct, genProgress, genErr,
+                  cancelGenerate, cancelGenRef, generateExtra, downloadExtra, extraDl }) {
+  const has  = !!selected.cv
+  const busy = !!generating.cv && genOwner.cv === selected.id
+  const [tpl, setTpl]   = useState(DEFAULT_CV_TEMPLATE)
+  const [lang, setLang] = useState(selected.languages?.[0] === 'en' ? 'en' : 'de')
+  const stations = Array.isArray(selected.cv?.stations) ? selected.cv.stations.length : 0
+  const missing  = Array.isArray(selected.cv?.not_stated) ? selected.cv.not_stated.length : 0
+  const active   = CV_TEMPLATES.find(t => t.key === tpl) || CV_TEMPLATES[0]
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontWeight:600, marginBottom:4 }}>💼 Lebenslauf</div>
+          <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+            Die KI liest den Berufsweg aus dem Gespräch und legt ihn als Struktur ab — Stationen,
+            Ausbildung, Kompetenzen, jeweils mit Belegstelle. Daraus entsteht das PDF in der
+            gewählten Vorlage. Ein Vorlagenwechsel kostet nichts und dauert eine Sekunde.
+          </p>
+          <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#3730a3', background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:6, padding:'8px 10px' }}>
+            Es wird nichts geschätzt und nichts ergänzt: Was im Gespräch nicht vorkam, bleibt leer und
+            steht am Ende des Dokuments unter „Im Gespräch nicht genannt". Geburtsdatum, Foto,
+            Familienstand und Staatsangehörigkeit enthält der Lebenslauf bewusst nicht.
+          </p>
+        </div>
+        {has && !busy && (
+          <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>
+            ✓ {stations} {stations === 1 ? 'Station' : 'Stationen'}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom: has && !busy ? 14 : 0 }}>
+        <select value={lang} onChange={e => setLang(e.target.value)} disabled={busy}
+                style={{ fontSize:13, padding:'7px 10px', width:'auto' }}>
+          <option value="de">Deutsch</option>
+          <option value="en">Englisch</option>
+        </select>
+        <button onClick={() => generateExtra('cv', undefined, { lang })} disabled={busy || contributions.length === 0} style={{ fontSize:13, padding:'8px 14px' }}>
+          {busy ? 'Wird erzeugt …' : has ? '↻ Neu erzeugen' : '✨ Erzeugen'}
+        </button>
+      </div>
+
+      {has && !busy && (
+        <>
+          <Lbl>Vorlage</Lbl>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', margin:'6px 0 8px' }}>
+            {CV_TEMPLATES.map(t => (
+              <button key={t.key} onClick={() => setTpl(t.key)} className={t.key === tpl ? undefined : 'secondary'}
+                      style={{ fontSize:12.5, padding:'6px 12px' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <p style={{ ...S.muted, fontSize:12.5, margin:'0 0 12px' }}>{active.sub}</p>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => downloadExtra('cv', selected, tpl, 'pdf')} disabled={!!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+              {extraDl === `cv:${tpl}:pdf` ? '⏳ PDF wird erstellt …' : '⬇ PDF'}
+            </button>
+            <button onClick={() => downloadExtra('cv', selected, tpl, 'docx')} disabled={!!extraDl} className="secondary" style={{ fontSize:13, padding:'8px 14px' }}>
+              {extraDl === `cv:${tpl}:docx` ? '⏳ DOCX wird erstellt …' : '⬇ DOCX'}
+            </button>
+          </div>
+          {missing > 0 && (
+            <p style={{ ...S.muted, fontSize:12, margin:'10px 0 0' }}>
+              {missing} {missing === 1 ? 'Angabe wurde' : 'Angaben wurden'} im Gespräch nicht genannt und
+              {missing === 1 ? ' ist' : ' sind'} im Dokument als Lücke ausgewiesen.
+            </p>
+          )}
+        </>
+      )}
+
+      {busy && (
+        <div style={{ marginTop:10 }}>
+          {genPct.cv != null && (
+            <div style={{ height:6, background:'#e7e5e4', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+              <div style={{ width:`${genPct.cv}%`, height:'100%', background:'#1c1917', transition:'width .3s' }} />
+            </div>
+          )}
+          <p style={{ fontSize:12, color:'#78716c', margin:0 }}>
+            {genPct.cv != null ? `${genPct.cv} % · ` : ''}{genProgress.cv || 'Wird erzeugt …'}
+          </p>
+          <button onClick={() => cancelGenerate('cv')} disabled={!!cancelGenRef.current.cv} className="secondary" style={{ fontSize:12, padding:'5px 10px', marginTop:8, color:'#b91c1c', borderColor:'#fecaca' }}>
+            Abbrechen
+          </button>
+        </div>
+      )}
+      {genErr.cv && <Err>{genErr.cv}</Err>}
+      {contributions.length === 0 && !has && (
+        <p style={{ ...S.muted, fontSize:12.5, margin:'10px 0 0' }}>Es liegt noch kein Gespräch vor.</p>
+      )}
+    </div>
+  )
+}
+
 export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
@@ -2832,6 +2940,9 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     // Anamnese: einziges Produkt ist der Bogen (eulogy). Buch/Bilder/Stammbaum/
     // Poster sind ausgeblendet.
     const isAnamnesis = isAnamnesisCategory(selected?.product_category)
+    // Lebenslauf: wie die Anamnese ohne Buch und ohne Bilder — die Produkte sind
+    // der Lebenslauf (eigene Karte unten) und der Gespraechsleitfaden (finalText).
+    const isCareer = isCareerCategory(selected?.product_category)
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
@@ -2851,7 +2962,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     // kein Buch. Die Anlage-Maske blendet sie längst aus (`!isEnduser`); auf der
     // Detailseite stand sie trotzdem noch an drei Stellen und suggerierte eine
     // Auswahl, die es nicht gibt.
-    const isEnduserCat = isAnamnesis || isLifework(selected.product_category)
+    const isEnduserCat = isAnamnesis || isCareer || isLifework(selected.product_category)
     const orderLangLabels = sortLangs(selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
@@ -3139,7 +3250,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
               onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
             />
 
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{isAnamnesis ? GENERATORS.eulogy.label : `Buch & ${GENERATORS.eulogy.label}`}</h3>
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{isAnamnesis || isCareer ? GENERATORS.eulogy.label : `Buch & ${GENERATORS.eulogy.label}`}</h3>
             {/* Anamnese: Hat der Patient den Bogen im Beitragenden-Flow selbst geprüft
                 und mit „ok" bestätigt (Step 2)? Dann ist eulogy_text die vom Patienten
                 bestätigte Fassung. */}
@@ -3194,11 +3305,13 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 // book_variant als TEXT mit einer Zahl verglichen wurde, griff die
                 // Sperre nicht; die damals erzeugten Fassungen waeren sonst
                 // unerreichbar (Ansehen/Download weg). Neu erzeugen bleibt gesperrt.
-                ...((isLifework || isAnamnesis || (normVariant(selected.book_variant) === 2 && !selected.book_v1)) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
-                ...((isAnamnesis || (normVariant(selected.book_variant) === 1 && !selected.book_v2)) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                ...((isLifework || isAnamnesis || isCareer || (normVariant(selected.book_variant) === 2 && !selected.book_v1)) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
+                ...((isAnamnesis || isCareer || (normVariant(selected.book_variant) === 1 && !selected.book_v2)) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
                   ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
                   : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') }]),
-                { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : '🕯', title:GENERATORS.eulogy.label, sub: isLifework
+                { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : isCareer ? '🗒' : '🕯', title:GENERATORS.eulogy.label, sub: isCareer
+                  ? t('Leitfaden für ein biografisches Gespräch: rote Fäden, Wendepunkte, dünne Stellen und offene Fragen – jeweils mit Anhaltspunkt aus der Erzählung.', 'Guide for a biographical interview: recurring threads, turning points, thin spots and open questions – each with its cue from the account.')
+                  : isLifework
                   ? t('Zweiseitige Zusammenfassung für die Pflegeakte – Sprache wird beim Erzeugen abgefragt.', 'Two-page summary for the care record – language is asked when generating.')
                   : isAnamnesis
                   ? t('Strukturierter Anamnesebogen für die ärztliche Aufnahme – immer auf Deutsch, aus den Angaben des Patienten.', 'Structured medical intake form for the admission – always in German, from the patient’s answers.')
@@ -3591,6 +3704,12 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   </div>
                 )
               })}
+
+              {isCareer && (
+                <CvCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
+                        genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
+                        cancelGenRef={cancelGenRef} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} />
+              )}
 
               {/* Nebenprodukte des Lebenswerks. Alle entstehen aus dem Interview als
                   strukturierte Daten und werden daraus gezeichnet — erneutes Laden

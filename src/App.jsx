@@ -19,7 +19,9 @@ import {
   storeMemorialPdf,
   storeAudiobookFull,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
+import { cvSystem, CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
+import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
@@ -104,6 +106,16 @@ const LIFEWORK_EXTRAS = {
     field: 'power_of_attorney', filename: 'Vorsorgemappe', article: 'Die Vorsorgemappe',
     firstStep: 'Wertebild wird gelesen', missing: 'Es gibt noch keine Vorsorgemappe.',
     system: powerOfAttorneySystem,
+  },
+  // Der Lebenslauf der Kategorie „Lebenslauf" (career). Technisch dasselbe
+  // Muster wie die Nebenprodukte des Lebenswerks — KI liefert JSON, der Browser
+  // zeichnet daraus die gewaehlte Vorlage —, deshalb steht er in derselben
+  // Registry und laeuft durch dieselbe generateExtra()/downloadExtra().
+  // Einzige Besonderheit: Die Sprache wird beim Erzeugen mitgegeben.
+  cv: {
+    field: 'cv', filename: 'Lebenslauf', article: 'Der Lebenslauf',
+    firstStep: 'Berufsweg wird gelesen', missing: 'Es gibt noch keinen Lebenslauf.',
+    system: cvSystem,
   },
 }
 
@@ -2925,7 +2937,7 @@ Regeln:
     setPosterStyleModal(true)
   }
 
-  async function generateExtra(kind, posterStyles = POSTER_STYLES.map(s => s.key)) {
+  async function generateExtra(kind, posterStyles = POSTER_STYLES.map(s => s.key), opts = {}) {
     if (!selected) return
     const ex = LIFEWORK_EXTRAS[kind]
     if (!ex || ex.legacy) return
@@ -2950,7 +2962,10 @@ Regeln:
         // Stammbaum und Betreuungsverfügung: ein einzelner KI-Aufruf, Ergebnis ist
         // das JSON, aus dem der Browser sein PDF zeichnet.
         : { resultType: 'json', field, kind: field, memorialCode: selected.id, label: ex.firstStep,
-            system: ex.system(selected, bookContribs), user: 'Gib jetzt das JSON aus.' }
+            // Der Lebenslauf entsteht in einer waehlbaren Sprache (DE/EN) aus
+            // demselben Gespraech; alle uebrigen Extras folgen der Buchsprache.
+            system: kind === 'cv' ? ex.system(selected, bookContribs, opts.lang || 'de') : ex.system(selected, bookContribs),
+            user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId
       await pollGeneration(kind, jobId)
@@ -2974,15 +2989,23 @@ Regeln:
   // Lädt das PDF aus dem gespeicherten JSON — ohne die KI erneut zu bemühen.
   // Dauert trotzdem spürbar: Beim Poster werden bis zu 20 Vignetten geladen und
   // ein mehrere MB großes PDF gezeichnet. Deshalb ein eigener Busy-Zustand.
-  async function downloadExtra(kind, mem = selected, styleKey = null) {
+  async function downloadExtra(kind, mem = selected, styleKey = null, fmt = 'pdf') {
     const ex = LIFEWORK_EXTRAS[kind]
     if (!ex) return
     const data = mem?.[ex.field]
     if (!data) { setErr(ex.missing); return }
     const base = `${ex.filename}_${(mem.name || '').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_')}`
-    setExtraDl(styleKey ? `poster:${styleKey}` : kind); setErr('')
+    setExtraDl(kind === 'cv' ? `cv:${styleKey || DEFAULT_CV_TEMPLATE}:${fmt}` : (styleKey ? `poster:${styleKey}` : kind)); setErr('')
     try {
-      if (kind === 'tree') await downloadTreePdf(`${base}.pdf`, data, mem)
+      // Lebenslauf: `styleKey` ist die gewaehlte Vorlage, `fmt` das Format. Beides
+      // kostet keine KI — gezeichnet wird aus den gespeicherten Daten.
+      if (kind === 'cv') {
+        const tpl = styleKey || DEFAULT_CV_TEMPLATE
+        const file = `${base}_${tpl}`
+        if (fmt === 'docx') await downloadCvDocx(`${file}.docx`, data, tpl)
+        else await downloadCvPdf(`${file}.pdf`, data, tpl)
+      }
+      else if (kind === 'tree') await downloadTreePdf(`${base}.pdf`, data, mem)
       else if (kind === 'care') await downloadCareDirectivePdf(`${base}.pdf`, data, mem)
       else if (kind === 'poa') await downloadProvisionFolderPdf(`${base}.pdf`, data, mem)
       // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.

@@ -20,7 +20,9 @@ const genjobs = require('../_lib/genjobs')
 // 'm4b_*' packt ein FERTIGES Hörbuch in das Hörbuch-Format M4B um (Kapitelmarken)
 // — eigene Art, damit es neben einer laufenden Hörbuch-Erzeugung nicht abgebrochen
 // wird und der Fortschritt getrennt angezeigt werden kann.
-const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa',
+// 'cv' ist der Lebenslauf der Kategorie "Lebenslauf" — technisch dasselbe
+// JSON-Erzeugnis wie Stammbaum und Vorsorgemappe.
+const ALLOWED_KINDS = new Set(['eulogy', 'book_v1', 'book_v2', 'images', 'tree', 'poster', 'care', 'poa', 'cv',
   'audiobook_book_v1', 'audiobook_book_v2', 'm4b_book_v1', 'm4b_book_v2'])
 
 // Prüft Zugriff auf das Buchprojekt (Admin = alles; sonst eigenes Buch der

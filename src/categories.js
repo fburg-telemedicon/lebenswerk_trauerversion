@@ -1796,6 +1796,160 @@ function anamnesisNoBook() {
 // Zuweisungsdiagnose zur Reha) entfallen. Die Reha-Anamnese oben bleibt unberührt.
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// LEBENSLAUF (career) — EIN Mensch erzählt seinen eigenen BERUFSWEG.
+//
+// Technisch nach dem Muster der Anamnese gebaut: Endnutzer-Kategorie (eigener
+// Zugang, Code = Berechtigung), fester Standard-Fragenkatalog, KEIN Buch, keine
+// KI-Bilder. Erstes Produkt ist der LEBENSLAUF — die KI liefert ihn als
+// Struktur (Spalte `cv`), gezeichnet wird er im Browser in einer von fünf
+// Vorlagen (src/cvExport.js). Der finalText-Slot trägt den Gesprächsleitfaden.
+//
+// Zwei Regeln tragen das ganze Produkt und stehen deshalb in JEDEM Prompt:
+//   1. NICHTS ERFINDEN. Eine Lücke bleibt eine Lücke und wird benannt. Keine
+//      geschätzten Jahreszahlen, keine plausibel ergänzten Erfolge.
+//   2. KEINE PSYCHOLOGIE. Beschrieben wird Handeln in erzählten Situationen,
+//      nie Persönlichkeit, Eignung, Belastbarkeit oder Charakter.
+// Dazu der AGG-Filter: Fragen nach geschützten Merkmalen sind unzulässig — im
+// Interview wie später in jeder Auswertung.
+// ════════════════════════════════════════════════════════════════
+
+// Anlass des Gesprächs. Steuert einen zusätzlichen Fragenblock am Ende des
+// Interviews und später den Zuschnitt des Lebenslaufs. Wie ANAMNESIS_INDICATIONS
+// ein `intake.extra`-Auswahlfeld beim Anlegen.
+export const CAREER_FOCUS = [
+  { key: 'bewerbung', label: 'Bewerbung / Stellensuche',
+    focus: 'Die Person sucht eine neue Stelle. Frage am Ende zusätzlich: Was an der angestrebten Aufgabe sie anspricht; womit sie sich aus eigener Sicht dafür qualifiziert; was sie in den ersten hundert Tagen täte; wo sie selbst die größte Lücke zwischen sich und der Aufgabe sieht.' },
+  { key: 'outplacement', label: 'Outplacement / Neuorientierung',
+    focus: 'Die Person orientiert sich nach dem Ende einer Anstellung neu. Frage am Ende zusätzlich: Was sie in der letzten Station gehalten hat und was gefehlt hat; welche ihrer Stärken die letzte Rolle nicht gebraucht hat; welche Art von Organisation zu ihr passt und welche nicht; was in der nächsten Station anders sein soll. WICHTIG: Frage NICHT nach den Umständen der Trennung — weder nach Gründen noch nach Schuld noch nach dem Ablauf. Erzählt die Person von sich aus davon, nimm es an, hake aber nicht nach.' },
+  { key: 'entwicklung', label: 'Standortbestimmung / Personalentwicklung',
+    focus: 'Die Person bestimmt ihren beruflichen Standort, unabhängig von einer konkreten Vakanz. Frage am Ende zusätzlich: Welche Aufgabe sie als Nächstes reizen würde; woran sie zurzeit wächst; was sie sich fachlich vorgenommen hat.' },
+  { key: 'interim', label: 'Interim-Mandate',
+    focus: 'Die Person arbeitet als Interim-Managerin oder Interim-Manager. Gehe die Mandate EINZELN durch und erfrage je Mandat vier Dinge: Ausgangslage beim Auftraggeber, Auftrag, Ergebnis, Übergabe. Frage außerdem nach der Verfügbarkeit, nach dem ersten Tag in einer fremden Organisation und danach, was ein Auftraggeber liefern muss, damit ein Mandat gelingt. Frage NICHT nach Konditionen, Tagessätzen oder Honoraren.' },
+]
+
+function careerFocus(memorial) {
+  const key = memorial?.intake?.focus
+  return CAREER_FOCUS.find(f => f.key === key) || null
+}
+
+// AGG: gilt für das Interview UND für jede spätere Auswertung. Die Liste ist
+// bewusst konkret — eine allgemeine Ermahnung („diskriminiere nicht") führt in
+// der Praxis trotzdem zu Fragen nach Kindern oder Herkunft.
+const CAREER_AGG_RULE = `KEINE FRAGEN NACH GESCHÜTZTEN MERKMALEN (AGG, verbindlich): Frage NIEMALS — weder direkt noch über eine Ersatzfrage — nach Alter oder Geburtsjahr, ethnischer Herkunft oder Staatsangehörigkeit, Geschlecht oder geschlechtlicher Identität, Religion oder Weltanschauung, Behinderung oder Gesundheit, sexueller Identität, Familienstand, Kinderwunsch, Schwangerschaft oder Familienplanung, Gewerkschafts- oder Parteizugehörigkeit, Vermögensverhältnissen. Auch Umwege sind gesperrt („Wie vereinbaren Sie das mit der Familie?", „Woher kommt Ihr Nachname?"). Erzählt die Person von sich aus davon, nimm es an, ohne nachzuhaken, und führe zurück zum Berufsweg.`
+
+// Kein Persönlichkeitsinterview: Die Erzählimpulse zu den Future Skills zielen
+// auf SITUATIONEN, nicht auf Selbsteinschätzungen. „Sind Sie belastbar?" wäre
+// genau die Frage, die dieses Produkt nicht stellt.
+const CAREER_NO_PSYCH_RULE = `KEINE PSYCHOLOGISCHEN FRAGEN: Frage nach SITUATIONEN und HANDELN, nie nach Persönlichkeit, Charakter, Eignung, Belastbarkeit, Stabilität oder Motiven. Statt „Sind Sie belastbar?" fragst du „Erzählen Sie von einer Phase, in der viel gleichzeitig lief — was haben Sie zuerst getan?". Stelle KEINE Diagnose, gib KEINE Einschätzung der Person ab und bewerte ihre Antworten nicht.`
+
+// Der Kern des Produkts: Aus dem Gespräch entsteht ein LEBENSLAUF. Was die
+// Person nicht sagt, kann später nicht im Dokument stehen — deshalb sammelt das
+// Interview je Station ausdrücklich die harten Eckdaten mit ein.
+const CAREER_STATION_RULE = `VOLLSTÄNDIGE STATIONEN (dafür wird das Gespräch geführt): Aus deinen Fragen entsteht später ein Lebenslauf. Kläre deshalb zu JEDER beruflichen Station beiläufig, aber vollständig: Zeitraum (von–bis, mindestens die Jahre), Organisation, Rollenbezeichnung, Verantwortungsbereich, was die Person dort bewirkt oder verändert hat, und wie es weiterging. Fehlt eine dieser Angaben, frage EINMAL freundlich nach („In welchen Jahren war das ungefähr?"). Weiß die Person es nicht mehr oder will sie nicht antworten, nimm das an und geh weiter — geschätzt wird NICHTS.`
+
+function careerGreetingRule(name) {
+  return `- Eröffne das Gespräch freundlich und sachlich. Erkläre ${name} in zwei bis drei kurzen Sätzen: (1) In diesem Gespräch geht es um den beruflichen Weg — Stationen, Aufgaben, Wendepunkte. (2) Daraus entsteht anschließend ein Lebenslauf; es ist also hilfreich, bei Jahreszahlen, Organisationen und Aufgaben konkret zu werden. (3) Es lässt sich jederzeit pausieren und später fortsetzen, und „weiter" überspringt jede Frage. Stelle im selben Zug die erste Frage. Wiederhole diese Erklärung NICHT in späteren Nachrichten.`
+}
+
+function careerInterview(memorial, name, rel, address, contributorGender) {
+  const addr = addressRule(address)
+  const gen = contributorGenderRule(contributorGender)
+  const foc = careerFocus(memorial)
+  const cb = catalogBlock(memorial)
+  const flow = cb
+    ? catalogRules(cb, name)
+    : `- Führe das Gespräch in dieser Reihenfolge: (1) Selbstbild jenseits von Titeln, (2) Anfang des Berufswegs, (3) die Stationen chronologisch, eine nach der anderen, (4) größte Herausforderungen und prägende Entscheidungen, (5) je zwei bis drei Erzählimpulse zu Agilität, Vision, Offenheit, Curiosity und Ambiguitätstoleranz, (6) Ausblick.
+- Halte die Reihenfolge ein; bringt die Person von sich aus etwas anderes vor, greife es auf und kehre danach zurück.`
+  return `Du bist eine aufmerksame, professionelle Gesprächspartnerin für berufliche Biografien. Du sprichst mit ${name} über den eigenen beruflichen Weg. Aus dem Gespräch entstehen anschließend ein Lebenslauf und eine belegbasierte Auswertung entlang der fünf Future Skills Agilität, Vision, Offenheit, Curiosity und Ambiguitätstoleranz.
+
+Ziel: Den Berufsweg vollständig, konkret und in den eigenen Worten von ${name} erfassen — mit belastbaren Eckdaten und mit den Situationen, in denen Handeln sichtbar wird.
+
+Regeln:
+- ${addr}${gen ? `\n- ${gen}` : ''}
+- Du sprichst mit der Person SELBST über ihren eigenen Werdegang.
+- Stelle immer nur EINE Frage pro Nachricht, in klaren Worten (höchstens zwei kurze Sätze).
+- Ton: interessiert, respektvoll, auf Augenhöhe. Bestätige knapp („Verstanden.", „Danke."), ohne zu loben und ohne zu bewerten.
+- Frage konkret nach, wenn eine Antwort im Allgemeinen bleibt: Was genau war Ihre Aufgabe? Woran haben Sie gemerkt, dass es wirkt? Wer war beteiligt? In welchem Zeitraum?
+- Erzählt die Person eine Situation, hole EIN konkretes Beispiel heraus, statt nach einer Einschätzung zu fragen.
+- ${CAREER_STATION_RULE}
+- ${CAREER_AGG_RULE}
+- ${CAREER_NO_PSYCH_RULE}
+- ${THIRD_PARTY_RULE}
+- Wertende Aussagen über frühere Arbeitgeber, Vorgesetzte oder Kolleginnen nimmst du an, ohne sie zu vertiefen und ohne sie zu kommentieren.
+${careerGreetingRule(name)}
+${interviewScopeRule(name)}
+${flow}${foc ? `\n- ANLASS DIESES GESPRÄCHS (${foc.label}): ${foc.focus}` : ''}
+- Schreibe auf Deutsch`
+}
+
+// ── Gesprächsleitfaden (finalText-Slot) ───────────────────────────
+// Das dritte Produkt der Kategorie, technisch der „Endtext": Abschnitte, die
+// einzeln erzeugt und danach zu einem Dokument zusammengesetzt werden. Er ist
+// ein Leitfaden für ein MENSCHLICHES Gespräch — Beobachtungen zum Erzählten und
+// offene Fragen, ausdrücklich keine Thesen über die Person.
+const CAREER_GUIDE_SECTIONS = [
+  { key: 'faeden', label: 'Rote Fäden', greets: false,
+    brief: 'Was sich durch den erzählten Berufsweg zieht: wiederkehrende Aufgabenarten, Themen, Arbeitsweisen, Situationen, die die Person mehrfach gesucht oder gemieden hat. Je Faden ein kurzer Absatz mit dem Anhaltspunkt aus der Erzählung („zeigt sich in …"). Drei bis fünf Fäden.' },
+  { key: 'wendepunkte', label: 'Brüche und Wendepunkte', greets: false,
+    brief: 'Stellen, an denen der Weg die Richtung geändert hat: Wechsel, Umwege, Pausen, Rückschritte, bewusste Entscheidungen gegen das Naheliegende. Je Punkt: was geschah, wie die Person es selbst erzählt, und was daran für ein Gespräch interessant ist.' },
+  { key: 'duenn', label: 'Dünne Stellen', greets: false,
+    brief: 'Wo die Erzählung wenig hergibt: unbelegte Zeiträume, Stationen ohne Aufgabenbeschreibung, Ergebnisse ohne Zusammenhang, angedeutete, aber nicht ausgeführte Themen. Sachlich benennen, ohne zu deuten und ohne einen Verdacht zu formulieren — eine dünne Stelle ist eine Lücke im Gespräch, kein Befund über die Person.' },
+  { key: 'fragen', label: 'Offene Fragen für das Gespräch', greets: false,
+    brief: 'Acht bis zwölf offene Fragen, die an das Erzählte anknüpfen und im Gespräch weiterführen. Jede Frage einzeln als Stichpunkt, jeweils mit einem kurzen Hinweis in Klammern, worauf sie sich bezieht. Keine Fragen nach geschützten Merkmalen (Alter, Herkunft, Geschlecht, Religion, Gesundheit, Familienplanung, Behinderung, sexuelle Identität, Gewerkschaft) und keine Fragen, die eine Selbsteinschätzung der Persönlichkeit verlangen.' },
+]
+
+const CAREER_GUIDE_STYLES = [
+  { key: 'sachlich', title: 'Sachlich', sub: 'Knapp, für ein Gespräch von 60 Minuten',
+    instruction: 'Sachlich und knapp: kurze Absätze, klare Sprache, keine Ausschmückung. Umfang für ein Gespräch von etwa einer Stunde.' },
+  { key: 'ausfuehrlich', title: 'Ausführlich', sub: 'Mehr Zusammenhang zu jeder Beobachtung',
+    instruction: 'Ausführlich: zu jeder Beobachtung der Zusammenhang aus der Erzählung, mehr Anhaltspunkte, längere Absätze. Für eine gründliche Vorbereitung.' },
+  { key: 'kurz', title: 'Kurzfassung', sub: 'Eine Seite, für ein kurzes Gespräch',
+    instruction: 'Kurzfassung: höchstens eine Seite insgesamt. Nur das Wichtigste, in Stichpunkten, ohne einleitende Sätze.' },
+]
+
+function careerGuideSection(memorial, contributions, section, styleInstruction) {
+  const name = memorial?.name || 'die Person'
+  const list = CAREER_GUIDE_SECTIONS.map(s => `  ${s.label === section.label ? '>>' : '  '} ${s.label}`).join('\n')
+  return `Du bereitest ein biografisches Gespräch vor. Aus dem folgenden Interview mit ${name} über den eigenen Berufsweg schreibst du EINEN Abschnitt eines GESPRÄCHSLEITFADENS. Der Leitfaden hilft einem Menschen, ein gutes Gespräch zu führen — er ist keine Bewertung und keine Empfehlung.
+
+DIESER ABSCHNITT: „${section.label}"
+${section.brief}
+${styleInstruction ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n` : ''}
+ABGRENZUNG ZU DEN ANDEREN ABSCHNITTEN (streng einhalten):
+Der Leitfaden besteht aus diesen Abschnitten; jeder wird getrennt aus demselben Interview geschrieben (>> = dieser hier):
+${list}
+- Schreibe AUSSCHLIESSLICH, was in „${section.label}" gehört. Jede Beobachtung steht im gesamten Leitfaden genau EINMAL.
+
+Anforderungen:
+- Stütze dich AUSSCHLIESSLICH auf das Interview. Erfinde nichts und ergänze nichts aus Allgemeinwissen. Was nicht erzählt wurde, steht nicht im Leitfaden.
+- Jede Beobachtung nennt ihren Anhaltspunkt aus der Erzählung — kurz, sinngemäß oder als kurzes Zitat in Anführungszeichen.
+- Schreibe über das ERZÄHLTE, nicht über die Person: „erzählt von drei Wechseln, die sie selbst angestoßen hat" statt „ist ein durchsetzungsstarker Mensch".
+- KEINE Aussagen über Persönlichkeit, Charakter, Eignung, Belastbarkeit, Stabilität, Motive oder Intelligenz. KEINE Begriffe aus Persönlichkeitsmodellen. KEINE Empfehlung, ob jemand eingestellt werden sollte.
+- KEINE Aussagen zu geschützten Merkmalen (Alter, Herkunft, Geschlecht, Religion, Gesundheit, Behinderung, sexuelle Identität, Familienstand, Familienplanung, Gewerkschaftszugehörigkeit) — auch dann nicht, wenn die Person selbst davon erzählt hat.
+- Schreibe auf Deutsch, in der dritten Person.
+- Absätze bzw. Stichpunkte durch EINEN Zeilenumbruch trennen; Stichpunkte immer mit „• " beginnen.
+- Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. KEINE Überschrift (die kommt vom Layout), keine Metakommentare, kein Markdown.
+
+${companionNote(contributions)}
+
+Interview mit ${name}:
+
+${blocks(contributions)}`
+}
+
+// Die Kategorie erzeugt kein Buch — Platzhalter wie bei der Anamnese, damit
+// GENERATORS in App.jsx nicht ins Leere greift.
+function careerNoBook() {
+  return 'Diese Kategorie erzeugt kein Buch.'
+}
+
+// Produktkategorie „Lebenslauf". Eigenständig — weder Lebenswerk- noch
+// Anamnese-Familie; wo der Code für sie verzweigt, fragt er isCareer().
+export function isCareer(cat) {
+  return cat === 'career'
+}
+
 // Die Lebenswerk-FAMILIE: das Lebenswerk selbst und die mamazone Edition. Beide
 // sind technisch dasselbe Produkt (EIN Mensch erzählt über sich selbst, der
 // Buch-Code ist die Berechtigung, gleiche Einstellungen, gleiche Endprodukte) und
@@ -1832,6 +1986,7 @@ export const STD_CATALOG_NAMES = {
   mamazone:       'mamazone – Brustkrebs als Teil meiner Lebensgeschichte',
   anamnesis:      ANAMNESIS_STD_CATALOG_NAMES.anamnesis,
   anamnesis_kvsw: ANAMNESIS_STD_CATALOG_NAMES.anamnesis_kvsw,
+  career:         'Lebenslauf – Standardfragen',
 }
 export function stdCatalogName(category) {
   return STD_CATALOG_NAMES[category] || null
@@ -2579,10 +2734,59 @@ export const CATEGORIES = {
       styles: ANAMNESIS_STYLES, sections: ANAMNESIS_KVSW_SECTIONS, sectionSystem: anamnesisKvswSection,
     },
   },
+
+  // Lebenslauf: EIN Mensch erzählt seinen eigenen Berufsweg. Kein Buch, keine
+  // Bilder — die Produkte sind der strukturierte Lebenslauf (Spalte `cv`, fünf
+  // Vorlagen) und der Gesprächsleitfaden (finalText). Aufbau wie die Anamnese.
+  career: {
+    slug: 'career',
+    label: 'Lebenslauf',
+    icon: '💼',
+    description: 'Berufsweg: Der Mensch erzählt seine beruflichen Stationen – daraus entstehen ein Lebenslauf in wählbarer Vorlage und ein Gesprächsleitfaden.',
+    nounBook: 'Lebenslauf',
+    intake: {
+      subjectLabel: 'Name der Person (optional)',
+      subjectPlaceholder: 'Vollständiger Name – leer lassen, wenn unbekannt',
+      useGender: true,
+      genderLabel: 'Geschlecht',
+      genderSelfOption: true,
+      useAddressForm: true,
+      useDate: false,          // Kein Anlass, kein Anlass-Datum.
+      useCutoff: false,        // Keine Frist — die Person bestimmt ihr Tempo.
+      useEnduser: true,        // E-Mail-Adresse + Sprache (Einladung).
+      // Anlass steuert einen zusätzlichen Fragenblock am Ende des Interviews
+      // und später den Zuschnitt des Lebenslaufs (Interim = Mandatsliste).
+      extra: [
+        { key: 'focus', label: 'Anlass *', type: 'select',
+          options: CAREER_FOCUS.map(f => ({ value: f.key, label: f.label })) },
+        { key: 'target', label: 'Zielrichtung (optional)', type: 'text',
+          placeholder: 'z. B. Bereichsleitung Logistik, Wechsel in den Mittelstand' },
+      ],
+      createHeading: 'Neuen Lebenslauf anlegen',
+      createIntro: 'Die Person erhält einen persönlichen Zugang und erzählt ihren beruflichen Weg. Daraus entstehen anschließend der Lebenslauf und der Gesprächsleitfaden.',
+      createButton: 'Lebenslauf anlegen →',
+    },
+    contributor: {
+      heading: 'Ihr beruflicher Weg',
+      introNoun: 'Beruflicher Weg von',
+      consentNoun: 'Lebenslaufs',
+      interviewButton: '🎙 Gespräch beginnen →',
+    },
+    interviewSystem: careerInterview,
+    // Kein Buch — Platzhalter, die im Dashboard nie angezeigt/aufgerufen werden.
+    generators: {
+      book_v1: { label: 'Lebenslauf', filename: 'Lebenslauf', outlineSystem: careerNoBook, chapterSystem: careerNoBook },
+      book_v2: { label: 'Lebenslauf', filename: 'Lebenslauf', outlineSystem: careerNoBook, chapterSystem: careerNoBook },
+    },
+    finalText: {
+      label: 'Gesprächsleitfaden', filename: 'Gespraechsleitfaden', noun: 'Gesprächsleitfaden',
+      styles: CAREER_GUIDE_STYLES, sections: CAREER_GUIDE_SECTIONS, sectionSystem: careerGuideSection,
+    },
+  },
 }
 
 // Lebenswerk steht bewusst GANZ OBEN (aktuelles Hauptprodukt).
-export const CATEGORY_ORDER = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw', 'career', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
 // Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
 export const CATEGORY_COLORS = {
@@ -2598,6 +2802,7 @@ export const CATEGORY_COLORS = {
   mamazone:      '#c8102e', // mamazone-Rot (Vereinsfarbe, Verwendung freigegeben)
   anamnesis:     '#0d9488', // Teal (medizinisch/klinisch)
   anamnesis_kvsw:'#0369a1', // Klinik-Blau (Krankenhausaufnahme, KVSW)
+  career:        '#4338ca', // Indigo (Berufsweg/Lebenslauf)
 }
 
 export function categoryColor(slug) {
