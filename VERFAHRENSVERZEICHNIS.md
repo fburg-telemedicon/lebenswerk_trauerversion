@@ -30,12 +30,12 @@ Dokumentationspflichten der Rechenschaftspflicht (Art. 5 Abs. 2).
 ## 2. Zwecke der Verarbeitung (Art. 30 Abs. 1 lit. b)
 
 Erstellung eines individuellen **Erinnerungs-, Lebens- oder Gedenkwerks** (Buch,
-Rede bzw. Anamnesebogen) aus dem, was die erzählenden Personen berichten. **Elf
+Rede bzw. Anamnesebogen) aus dem, was die erzählenden Personen berichten. **Dreizehn
 Produktkategorien**, die sich in zwei Formen teilen:
 
 | Form | Kategorien | Wer erzählt |
 |---|---|---|
-| **Selbsterzählung** | Lebenswerk, Anamnesebogen (Reha), Anamnese KVSW (Krankenhausaufnahme) | die betroffene Person über sich selbst, mit eigenem Zugang |
+| **Selbsterzählung** | Lebenswerk, mamazone Edition, Anamnesebogen (Reha), Anamnese KVSW (Krankenhausaufnahme), **Lebenslauf** | die betroffene Person über sich selbst, mit eigenem Zugang |
 | **Beiträge mehrerer** | Gedenken, Geburtstag, Hochzeitsjubiläum, Abschied & Ruhestand, Dienstjubiläum, Betriebsjubiläum, Geburt (Willkommensbuch), Ermutigung (Mutmachbuch) | Angehörige, Freundinnen, Kolleginnen über eine Person (bzw. beim Betriebsjubiläum über die Organisation) |
 
 Die Unterscheidung ist datenschutzrechtlich erheblich: Bei der Selbsterzählung gibt
@@ -52,7 +52,27 @@ Teilzwecke:
 7. **Kosten- und Zugriffsprotokollierung** (Betrieb, Sicherheit, Abrechnung).
 8. **Lizenzverkauf über den Online-Shop** (Vertragsschluss, Zahlung, Rechnung) —
    getrennte Verarbeitung, siehe Abschnitt 5a. Der Shop kennt **keine** Interview-Inhalte.
-9. **Beschäftigtenverwaltung** in dem Umfang, der für die Erbringung der Leistung
+9. **Kategorie „Lebenslauf" (Bewerbungs- und Beratungskontext)** — dort treten vier
+   Teilzwecke hinzu, die es in den übrigen Kategorien nicht gibt:
+   a. **Auslesen hochgeladener Zeugnisse und Nachweise** (multimodales LLM). Die
+      Auslesung ist zunächst nur ein Vorschlag; erst nach Bestätigung durch den
+      Manager wird sie als Beleg verwendet. Geschützte Merkmale aus den Dokumenten
+      (Geburtsdatum, Staatsangehörigkeit, Familienstand) sowie Namen Dritter werden
+      ausdrücklich **nicht** übernommen.
+   b. **Kompetenzprofil** entlang von fünf Handlungsdimensionen, jede Einstufung mit
+      wörtlichen Belegstellen und Gegenprobe. Die Einstufung erfolgt **dreifach
+      unabhängig**; weichen die Durchgänge um mehr als eine Stufe ab, wird keine
+      Stufe vergeben. Kein psychometrisches Verfahren, keine Aussage zu
+      Persönlichkeit oder Eignung.
+   c. **Fragen an das Profil** — freie Auskunft aus dem eigenen Material mit
+      Quellenangabe. Fragen nach geschützten Merkmalen werden serverseitig
+      abgewiesen, bevor sie das Modell erreichen; jede Frage wird protokolliert und
+      ist für die betroffene Person einsehbar.
+   d. **Abgleich mit einer Stellenausschreibung** — je Anforderung eine Einstufung
+      mit Beleg. **Kein Score, keine Rangfolge, kein Schwellenwert, keine
+      Empfehlung**; es gibt keine Ansicht, die mehrere Personen nebeneinanderstellt.
+      Eine Auswahlentscheidung trifft ausschließlich ein Mensch (Art. 22 DSGVO).
+10. **Beschäftigtenverwaltung** in dem Umfang, der für die Erbringung der Leistung
    nötig ist: Konten der eigenen Mitarbeitenden im Dashboard (`app_users`),
    Protokollierung ihrer Aktionen (`audit_log`).
 
@@ -69,6 +89,7 @@ sie bleibt es bei der hier beschriebenen Zweckbindung.
 |---|---|---|
 | **Beitragende** (geben das Interview) | Name, Beziehung, Geschlecht, Anrede; **Stimmaufnahme**; Interviewinhalt (Freitext); Einwilligungs-Zeitstempel + -Version | `contributions` |
 | **Gewürdigte Person** (z. B. Verstorbene/r) | Name, Geburts-/Sterbejahr, Geschlecht, Lebensgeschichte (im Buchtext) | `memorials`, `book_v1/v2`, `eulogy_text` |
+| **Erzählende Person, Kategorie „Lebenslauf"** | zusätzlich: berufliche Stationen, Ausbildung, Kompetenzen; **hochgeladene Zeugnisse und Nachweise** (Bild der Seite + ausgelesene Angaben); Kompetenzprofil mit Belegstellen; Protokoll der Fragen an das Profil; Abgleich mit einer Stellenausschreibung | `memorials.cv`, `.avoca`, `.documents`, `.profile_queries`, `.job_match`, Bild-Container |
 | **In Beiträgen genannte Dritte** | Namen, ggf. Beziehungen/Anschriften lebender Hinterbliebener (im Freitext) | `contributions`, Buchtext |
 | **Admin-/Kundennutzer** | Benutzername, **scrypt-Passwort-Hash + Salt**, erlaubte Kategorien, Admin-Flag | `app_users` |
 | **Eigene Mitarbeitende** (Beschäftigte der Lebenswerk.AI GmbH mit Dashboard-Zugang) | dieselben Kontodaten wie oben; zusätzlich Protokoll ihrer Aktionen (Anmeldung, Anlage/Löschung von Büchern) | `app_users`, `audit_log` |
@@ -251,6 +272,15 @@ Nutzerin bzw. des Nutzers, ohne weitere Empfänger.
   > nichts mehr, woraus ein Buch entstehen könnte. Gegenüber Art. 5 Abs. 1 lit. e
   > gerechtfertigt: Solange erzählt werden darf, sind die Beiträge für den Zweck
   > erforderlich. Bücher mit Anlassdatum sind unverändert (Anlass + 90 Tage).
+- **Kategorie „Lebenslauf":** Die zusätzlichen Felder (`cv`, `avoca`, `documents`,
+  `profile_queries`, `job_match`) hängen am Buchprojekt und werden mit ihm gelöscht.
+  Die hochgeladenen Zeugnis-Bilder liegen im selben Ordner wie alle übrigen Uploads
+  (`<CODE>/up-*.jpg`) und werden vom Löschlauf mit erfasst; die ausgelesenen Angaben
+  stehen in `documents` und verschwinden mit der Zeile. Da hier kein Anlassdatum
+  existiert, gilt die Frist `created_at` + `LICENSE_MONTHS` + `RETENTION_DAYS`.
+  **Offen:** Ob das Frageprotokoll (`profile_queries`) kürzer aufzubewahren ist als
+  das Profil selbst, ist noch nicht entschieden — es dient der Nachvollziehbarkeit
+  gegenüber der betroffenen Person und spricht eher für Gleichlauf.
 - **Druckdaten bei der Druckerei (Abschnitt 5b):** Die Druckdatei und die
   Lieferanschrift liegen für die Dauer der Auftragsabwicklung bei der Druckerei; die
   dortigen Fristen und die Löschung nach Auftragsende richten sich nach dem

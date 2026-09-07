@@ -25,10 +25,47 @@ regelmäßig **zwei** einschlägige Kriterien:
 | Verarbeitung von Daten **schutzbedürftiger Personen** | **Ja** | Trauernde/Hinterbliebene; emotional belastende Ausnahmesituation |
 | Daten **Dritter**, die nicht selbst einwilligen | **Ja** | In Beiträgen genannte lebende Hinterbliebene (Namen, ggf. Anschriften) |
 | Zusammenführung/Anreicherung aus mehreren Quellen | Teilweise | Mehrere Beitragende zu einer Person zu einem Werk verknüpft |
+| **Bewertung oder Einstufung („Scoring")** | **Ja** (nur Kategorie „Lebenslauf") | Aus der Erzählung entsteht ein Kompetenzprofil mit Ausprägungsstufen und ein Abgleich mit einer Stellenausschreibung. Das Ergebnis kann in einem Bewerbungsverfahren verwendet werden. |
 
 **Ergebnis:** Eine DSFA ist **erforderlich**. Die Schwelle liegt bei **zwei**
-einschlägigen Kriterien; eindeutig erfüllt sind hier **vier**. Die Zahl in der
+einschlägigen Kriterien; eindeutig erfüllt sind hier **fünf**. Die Zahl in der
 Tabelle ist also der Befund, nicht die Schwelle.
+
+### 1a. Nachtrag zur Kategorie „Lebenslauf" (seit 7. September 2026)
+
+Diese Kategorie unterscheidet sich von den übrigen dadurch, dass ihr Ergebnis in
+eine **Entscheidung über einen Menschen** einfließen kann. Die dafür getroffenen
+Bauentscheidungen sind hier festgehalten, weil sie den Charakter der Verarbeitung
+prägen und nicht nachträglich verhandelbar sein sollen:
+
+- **Keine automatisierte Entscheidung im Sinne von Art. 22.** Es gibt keinen Score,
+  keine Rangfolge, keinen Schwellenwert und keine Empfehlung, ob jemand eingeladen
+  oder eingestellt werden soll. Keine Ansicht stellt mehrere Personen nebeneinander.
+  Das Ergebnis ist eine belegte Beschreibung; die Entscheidung trifft ein Mensch.
+- **Belegpflicht.** Jede Aussage in Lebenslauf, Kompetenzprofil, Auskunft und
+  Abgleich verweist auf ihre Quelle (Antwort-Nummer bzw. bestätigtes Dokument).
+  Was das Gespräch nicht hergibt, wird als Lücke ausgewiesen, nicht geschätzt.
+- **Kein psychometrisches Verfahren.** Beschrieben wird Handeln in erzählten
+  Situationen. Begriffe aus Persönlichkeitsmodellen sind im Prompt ausdrücklich
+  verboten; Aussagen zu Eignung, Belastbarkeit oder Charakter sind ausgeschlossen.
+- **Streuung wird ausgewiesen, nicht geglättet.** Die Einstufung erfolgt dreifach
+  unabhängig. Weichen die Durchgänge um mehr als eine Stufe voneinander ab, wird
+  **keine** Stufe vergeben, sondern die Uneindeutigkeit im Dokument benannt.
+- **AGG-Filter serverseitig.** Fragen an das Profil, die auf Alter, Herkunft,
+  Geschlecht, Religion, Gesundheit, Behinderung, sexuelle Identität, Familienstand,
+  Familienplanung oder Gewerkschaftszugehörigkeit zielen, werden abgewiesen, bevor
+  sie das Modell erreichen. Der Lebenslauf enthält weder Geburtsdatum noch Foto,
+  Familienstand oder Staatsangehörigkeit — auch dann nicht, wenn die Person selbst
+  davon erzählt oder es in einem hochgeladenen Zeugnis steht.
+- **Die Person sieht alles.** Lebenslauf, Kompetenzprofil, Gesprächsleitfaden und
+  Abgleich stehen ihr im eigenen Zugang zur Verfügung; das Protokoll der Fragen an
+  ihr Profil ist einsehbar.
+
+**Offen und ausdrücklich noch nicht bewertet:** die Einordnung nach der
+KI-Verordnung (Anhang III Nr. 4 betrifft KI-Systeme für Auswahlentscheidungen). Ob
+diese Kategorie darunterfällt, hängt an der Zweckbestimmung und ist vor einem
+Vertrieb an Personalberatungen **anwaltlich zu klären**. Bis dahin darf sie nicht
+mit Auswahl- oder Eignungsaussagen beworben werden.
 
 ---
 
