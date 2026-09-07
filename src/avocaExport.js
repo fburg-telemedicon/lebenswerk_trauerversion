@@ -34,6 +34,7 @@ const T = {
     development: 'Wo Entwicklung ansetzen könnte', overall: 'Gesamtbild', unclear: 'Nicht belegbar',
     noCounter: 'Keine Gegenbelege im Gespräch gefunden.', missing: 'Im Gespräch nicht genannt',
     rubric: 'Rubrik', page: 'Seite', source: 'Beleg', note: 'Zum Vorgehen',
+    runs: 'Durchgänge', spread: 'Abweichung', levelsShort: 'Stufen',
     disclaimer: AVOCA_DISCLAIMER,
   },
   en: {
@@ -42,6 +43,7 @@ const T = {
     development: 'Where development could start', overall: 'Overall picture', unclear: 'Not evidenced',
     noCounter: 'No counter-evidence found in the interview.', missing: 'Not stated in the interview',
     rubric: 'Rubric', page: 'Page', source: 'Source', note: 'On the method',
+    runs: 'runs', spread: 'spread', levelsShort: 'levels',
     disclaimer: AVOCA_DISCLAIMER_EN,
   },
 }
@@ -174,11 +176,20 @@ export async function buildAvocaDoc(data, memorial = null) {
     if (unclear) {
       s.text(t.unclear, { size: 10, style: 'bold', gapAfter: 1 })
       s.text(str(d.unclear_reason) || '—', { size: 9.5, color: [70, 70, 70] })
+      const cu = d.consistency
+      if (cu && cu.runs > 1) {
+        s.text(`${cu.runs} ${t.runs} · ${t.levelsShort} ${(cu.levels || []).map(x => x == null ? '–' : x).join('/')}`,
+               { size: 8.8, color: SOFT, gapAfter: 1 })
+      }
     } else {
       s.scale(lvl)
       s.text(`${t.level} ${lvl} ${t.of} 5 — ${def.levels[lvl - 1] || ''}`, { size: 9.6, gapAfter: 1.5 })
       const strength = str(d.evidence_strength)
-      if (strength) s.text(`${t.strength}: ${strength}`, { size: 8.8, color: SOFT, gapAfter: 2 })
+      const c = d.consistency
+      const runsLine = c && c.runs > 1
+        ? ` · ${c.runs} ${t.runs} (${t.levelsShort} ${(c.levels || []).map(x => x == null ? '–' : x).join('/')})`
+        : ''
+      if (strength) s.text(`${t.strength}: ${strength}${runsLine}`, { size: 8.8, color: SOFT, gapAfter: 2 })
     }
 
     if (str(d.summary)) s.text(d.summary, { size: 10, gapAfter: 2 })
@@ -210,8 +221,9 @@ export async function buildAvocaDoc(data, memorial = null) {
   }
 
   s.gap(3)
-  s.text(`${t.note}: ${t.rubric} ${str(data.rubric_version) || RUBRIC_VERSION} (${RUBRIC_DATE}). ${RUBRIC_ORIGIN}`,
-         { size: 8, color: SOFT })
+  const note = [`${t.rubric} ${str(data.rubric_version) || RUBRIC_VERSION} (${RUBRIC_DATE}). ${RUBRIC_ORIGIN}`,
+                str(data.consistency?.note)].filter(Boolean).join(' ')
+  s.text(`${t.note}: ${note}`, { size: 8, color: SOFT })
 
   drawFooters(doc, data, t)
   return doc

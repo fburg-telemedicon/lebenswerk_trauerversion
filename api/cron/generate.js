@@ -23,6 +23,7 @@ const { recordHeartbeat } = require('../_lib/heartbeat')
 const { issueToken } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
 const genprompts = require('../_lib/genprompts')
+const { mergeAvocaRuns } = require('../_lib/avocaconsensus')
 const repetition = require('../_lib/repetition')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { storeFullAudiobook } = require('../_lib/audiobook')
@@ -453,17 +454,37 @@ async function processBook(job, deadline) {
 async function processJson(job, deadline) {
   const p = job.params || {}
   if (await canceled(job.id)) return 'canceled'
-  await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: 0, total: 1, message: p.label || 'Wird gelesen' } })
-  let data = null
-  for (let attempt = 1; attempt <= 2 && !data; attempt++) {
-    const raw = await runLLMStep(job, p.kind, p.system, p.user || 'Gib jetzt das JSON aus.')
-    data = genprompts.tryParseJSON(raw)
-    if (!data && attempt < 2) await sleep(1500)
+  // Mehrfach-Einstufung: `runs` > 1 laesst denselben Prompt mehrmals unabhaengig
+  // laufen und fuehrt die Durchgaenge zusammen (derzeit nur fuers
+  // Kompetenzprofil, merge:'avoca'). Kostet das n-Fache — dafuer wird die
+  // Streuung sichtbar, statt sich hinter einem Einzelergebnis zu verstecken.
+  const runs = Math.min(Math.max(parseInt(p.runs, 10) || 1, 1), 5)
+  const results = []
+  for (let r = 1; r <= runs; r++) {
+    if (await canceled(job.id)) return 'canceled'
+    await genjobs.saveProgress(job.id, { progress: { phase: 'llm', cursor: r - 1, total: runs,
+      message: runs > 1 ? `${p.label || 'Wird gelesen'} (Durchgang ${r} von ${runs})` : (p.label || 'Wird gelesen') } })
+    let data = null
+    for (let attempt = 1; attempt <= 2 && !data; attempt++) {
+      const raw = await runLLMStep(job, p.kind, p.system, p.user || 'Gib jetzt das JSON aus.')
+      data = genprompts.tryParseJSON(raw)
+      if (!data && attempt < 2) await sleep(1500)
+    }
+    if (data) results.push(data)
+    // Ein einzelner misslungener Durchgang darf die uebrigen nicht wegwerfen —
+    // gemergt wird mit dem, was da ist (mindestens einer muss es sein).
+    if (Date.now() > deadline && results.length) break
   }
-  if (!data) { await genjobs.failJob(job.id, 'Die KI hat kein gültiges JSON geliefert.'); return 'error' }
+  if (!results.length) { await genjobs.failJob(job.id, 'Die KI hat kein gültiges JSON geliefert.'); return 'error' }
   if (await canceled(job.id)) return 'canceled'
-  await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, data)
-  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: 1, total: 1 }, result: { saved: true } })
+
+  let value = results[0]
+  if (p.merge === 'avoca' && results.length > 1) {
+    const merged = mergeAvocaRuns(results, p.dimensionCodes)
+    if (merged) value = merged
+  }
+  await genjobs.saveMemorialField(p.memorialCode || job.memorial_id, p.field, value)
+  await genjobs.finishJob(job.id, { progress: { phase: 'done', cursor: runs, total: runs }, result: { saved: true, runs: results.length } })
   return 'done'
 }
 

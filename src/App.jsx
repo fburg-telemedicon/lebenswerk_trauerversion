@@ -25,6 +25,7 @@ import { docExtractSystem } from './careerDocs.js'
 import { matchSystem, downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
 import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
 import { avocaSystem } from './avoca.js'
+import { AVOCA_DIMENSIONS } from './avocaRubric.js'
 import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
 import { IMAGE_STYLES, DEFAULT_IMAGE_STYLE, imageStyleLabel } from './imageStyles.js'
 import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } from './bookLayouts.js'
@@ -2980,6 +2981,10 @@ Regeln:
         // Stammbaum und Betreuungsverfügung: ein einzelner KI-Aufruf, Ergebnis ist
         // das JSON, aus dem der Browser sein PDF zeichnet.
         : { resultType: 'json', field, kind: field, memorialCode: selected.id, label: ex.firstStep,
+            // Kompetenzprofil: DREI unabhaengige Durchgaenge. Weichen sie um mehr
+            // als eine Stufe ab, wird die Dimension als uneindeutig ausgewiesen
+            // statt gemittelt (api/_lib/avocaconsensus.js). Kostet das Dreifache.
+            ...(kind === 'avoca' ? { runs: 3, merge: 'avoca', dimensionCodes: AVOCA_DIMENSIONS.map(d => d.code) } : {}),
             // Der Lebenslauf entsteht in einer waehlbaren Sprache (DE/EN) aus
             // demselben Gespraech; alle uebrigen Extras folgen der Buchsprache.
             system: (kind === 'cv' || kind === 'avoca')

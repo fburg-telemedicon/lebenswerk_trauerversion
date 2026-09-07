@@ -2962,8 +2962,10 @@ function AvocaCard({ selected, contributions, generating, genOwner, genPct, genP
           <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#3730a3', background:'#eef2ff', border:'1px solid #c7d2fe', borderRadius:6, padding:'8px 10px' }}>
             Kein psychologisches Verfahren: Beschrieben wird Handeln in erzählten Situationen, nicht
             Persönlichkeit oder Eignung. Ohne mindestens zwei tragfähige Belege bleibt eine Dimension
-            ausdrücklich „nicht belegbar" — geraten wird keine Stufe. Rubrik {RUBRIC_VERSION}, im Dokument
-            ausgewiesen.
+            ausdrücklich „nicht belegbar" — geraten wird keine Stufe. Jede Dimension wird
+            <strong> dreimal unabhängig eingestuft</strong>; weichen die Durchgänge um mehr als eine Stufe
+            voneinander ab, wird keine Stufe vergeben, sondern die Uneindeutigkeit ausgewiesen.
+            Rubrik {RUBRIC_VERSION}, im Dokument ausgewiesen.
           </p>
         </div>
         {has && !busy && (
@@ -3005,6 +3007,7 @@ function AvocaCard({ selected, contributions, generating, genOwner, genPct, genP
                   </span>
                   <span style={{ ...S.muted, fontSize:12 }}>
                     {isUnclear ? 'nicht belegbar' : `Stufe ${lvl} · ${d.evidence_strength || '—'} · ${ev} Belege${ce ? `, ${ce} Gegenbelege` : ''}`}
+                    {d?.consistency?.runs > 1 ? ` · ${d.consistency.runs} Durchgänge (${(d.consistency.levels || []).map(x => x == null ? '–' : x).join('/')})` : ''}
                   </span>
                 </div>
               )
