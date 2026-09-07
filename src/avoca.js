@@ -52,7 +52,7 @@ DIE RUBRIK (Version ${RUBRIC_VERSION} vom ${RUBRIC_DATE}) — stufe ausschließl
 
 ${rubricBlock()}
 
-BELEGSTÄRKE — vergib sie rein nach Anzahl und Streuung der Belege, nicht nach ihrer Überzeugungskraft:
+BELEGSTÄRKE — vergib sie rein nach Anzahl und Streuung der Belege, nicht nach ihrer Überzeugungskraft. Mehrere Belege, die dieselbe Episode aus verschiedenen Blickwinkeln schildern (z. B. viermal dasselbe Mandat), sind EIN Zusammenhang, nicht vier — dann ist höchstens "mittel" zulässig:
 ${strength}
 
 Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen, keine Codefences):
@@ -69,6 +69,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen, keine Codefen
       "summary": "Beschreibender Absatz in Handlungssprache, 3–5 Sätze.",
       "evidence": [ { "quote": "kurzes wörtliches Zitat aus der Antwort", "source": "A17", "note": "in einem Satz: was daran zur Stufe passt" } ],
       "counter_evidence": [ { "quote": "...", "source": "A22", "note": "..." } ],
+      "counter_note": "Wonach du gesucht hast — Pflicht, auch wenn du nichts gefunden hast.",
       "development": ["Ansatzpunkt, an dem Entwicklung ansetzen könnte"]
     }
   ],
@@ -82,7 +83,9 @@ REGELN — die ersten drei schlagen alle anderen:
 
 2. LIEBER NICHT BELEGBAR ALS GERATEN. Findest du zu einer Dimension weniger als zwei tragfähige Belege, setze "level": null, "unclear": true und schreibe in "unclear_reason" in einem Satz, was fehlt (z. B. „Es kommen keine Situationen vor, in denen ein eigener Plan geändert wurde."). Lasse die Dimension trotzdem in der Liste — eine fehlende Grundlage ist eine Aussage, ein geratener Wert nicht. Ein einzelner beiläufiger Satz trägt KEINE Stufe.
 
-3. GEGENPROBE IST PFLICHT. Suche zu jeder Dimension ausdrücklich nach Situationen, die GEGEN die Einstufung sprechen (siehe „Was als Gegenbeleg zählt"). Findest du welche, gehören sie in "counter_evidence". Findest du keine, gib eine leere Liste zurück — behaupte NICHT, es gebe keine, wenn du nur nicht gesucht hast.
+3. GEGENPROBE IST PFLICHT, UND SIE IST NACHZUWEISEN. Suche zu jeder Dimension ausdrücklich nach Situationen, die GEGEN die Einstufung sprechen (siehe „Was als Gegenbeleg zählt"). Findest du welche, gehören sie in "counter_evidence" — auch dann, wenn sie das Gesamtbild trüben; das ist ihr Zweck.
+   "counter_note" ist IMMER auszufüllen: ein Satz, wonach du gesucht hast, und was du gefunden bzw. nicht gefunden hast (z. B. „Gesucht nach Vorhaben, die erst nach allgemeiner Einsicht begonnen wurden, und nach früh angestoßenen Vorhaben, die bei Widerstand fallen gelassen wurden — im Gespräch kommt beides nicht vor."). Ein leeres "counter_evidence" ohne "counter_note" ist ein Fehler.
+   Prüfe auch die naheliegendste Gegenprobe: Erzählt jemand eine Geschichte ausschließlich als Erfolg, ist das für sich genommen KEIN Beleg für eine hohe Stufe — sondern ein Hinweis darauf, dass die Gegenprobe im Gespräch nicht stattgefunden hat. Vermerke das in "counter_note".
 
 4. ALLE FÜNF DIMENSIONEN, in dieser Reihenfolge: ${codes}. Keine zusätzlichen, keine ausgelassenen.
 

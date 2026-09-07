@@ -186,10 +186,14 @@ export async function buildAvocaDoc(data, memorial = null) {
     const ev = rows(d.evidence)
     if (ev.length) { s.section(t.evidence); for (const q of ev) s.quote(q, t.source) }
 
+    // Die Gegenprobe steht auch dann im Dokument, wenn sie nichts ergeben hat —
+    // dann als Notiz, WONACH gesucht wurde. Ein stillschweigend leerer Abschnitt
+    // liesse offen, ob gesucht oder nur nichts gefunden wurde.
     const ce = rows(d.counter_evidence)
     s.section(t.counter)
     if (ce.length) for (const q of ce) s.quote(q, t.source)
-    else s.text(t.noCounter, { size: 9, color: SOFT, gapAfter: 1 })
+    if (str(d.counter_note)) s.text(str(d.counter_note), { size: 9, color: SOFT, gapAfter: 1 })
+    else if (!ce.length) s.text(t.noCounter, { size: 9, color: SOFT, gapAfter: 1 })
 
     const dev = list(d.development)
     if (dev.length) {
@@ -266,7 +270,9 @@ export async function downloadAvocaDocx(filename, data, memorial = null) {
         const tail = [str(q.source) ? `${t.source} ${str(q.source)}` : '', str(q.note)].filter(Boolean).join(' · ')
         if (tail) P(tail, { run: { color: '777777', size: 16 } })
       }
-    } else P(t.noCounter, { run: { color: '777777', size: 17 } })
+    }
+    if (str(d.counter_note)) P(str(d.counter_note), { run: { color: '777777', size: 17 } })
+    else if (!ce.length) P(t.noCounter, { run: { color: '777777', size: 17 } })
 
     const dev = list(d.development)
     if (dev.length) {

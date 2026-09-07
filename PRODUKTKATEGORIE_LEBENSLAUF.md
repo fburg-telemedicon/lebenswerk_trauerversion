@@ -1,6 +1,9 @@
 # Produktkategorie „Lebenslauf" (`career`) — Produktdefinition
 
-Stand 7. September 2026. Entwurf zur Abstimmung, noch nicht gebaut.
+Stand 7. September 2026. **Stufe 1 und Stufe 2 sind gebaut und live** (Kategorie, Fragenkatalog,
+Interview, Lebenslauf mit fünf Vorlagen, Gesprächsleitfaden, Kompetenzprofil). Offen ist allein der
+Dokumenten-Upload mit OCR (siehe Abschnitt 8). Ein vollständiger Testlauf liegt vor: Demo-Zugang
+`DZMXP8UPEC`, Katrin Berger (Demo), 47 Antworten, alle Erzeugnisse geprüft.
 
 Grundlage: das externe Briefing „Lebenswerk Talent Edition" (Version 3) — **als Inspiration, nicht
 als Vorgabe**. Dieses Dokument definiert stattdessen ein Produkt, das sich als **13. Produktkategorie
@@ -232,8 +235,11 @@ und kein verbotenes Wort enthält.
 
 ## 9. Offene Punkte
 
-1. **AVOCA-Rubrik** (Definitionen, fünf Stufen, Belegsituationen, Ausschlüsse) — von Tobias. Ohne
-   sie bleibt das Kompetenzprofil im Entwurfsmodus.
+1. ~~**AVOCA-Rubrik** von Tobias.~~ **Erledigt, aber anders als geplant:** Es kommt keine Rubrik mehr.
+   Sie ist deshalb hausintern formuliert und liegt als `src/avocaRubric.js` vor — fünf Dimensionen mit
+   je fünf Stufen in Handlungssprache, Belegsituationen und Gegenbelegen, Version 1.0. Jedes erzeugte
+   Profil trägt die Version sichtbar, damit eine spätere Rubrik sie ersetzen kann, ohne bereits
+   erzeugte Profile zweideutig zu machen.
 2. **Produktname und Slug.** Arbeitsname hier: Kategorie „Lebenslauf", Slug `career`.
 3. **Rechtliche Einordnung.** Der EU AI Act stuft KI-Systeme für Auswahlentscheidungen als
    Hochrisiko ein (Anhang III Nr. 4, Pflichten ab 2. Dezember 2027). Ob das hier greift, hängt an
