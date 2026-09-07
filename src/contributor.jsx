@@ -12,7 +12,7 @@ import { proofT } from './proofI18n.js'
 import { xt } from './uiExtra.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, detailFollowups, detailLevelOf, isLifework } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, detailFollowups, detailLevelOf, isLifework as isLifeworkCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION, normVariant } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -1146,7 +1146,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               selbst — „Name · Ich selbst" wäre nur die Zeile darüber ein zweites Mal.
               Nur bei Beitragenden-Kategorien zeigt die untere Zeile Name + Beziehung —
               beim Lebenswerk also nur für GÄSTE (die erzählen über die Person). */}
-          {(!isLifework(memorial?.product_category) || memorial?.guest) && !isAnamnesisCategory(memorial?.product_category) && !isCareerCategory(memorial?.product_category) && (
+          {(!isLifeworkCategory(memorial?.product_category) || memorial?.guest) && !isAnamnesisCategory(memorial?.product_category) && !isCareerCategory(memorial?.product_category) && (
             <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -1230,7 +1230,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         <Err msg={err} />
         {err && (
           <div style={{ marginTop:-4, marginBottom:12, textAlign:'center' }}>
-            <button onClick={() => openSupport({ role: (isLifework(memorial?.product_category) && !memorial?.guest) ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, micPerm, suggestedName: contribForm?.name })}
+            <button onClick={() => openSupport({ role: (isLifeworkCategory(memorial?.product_category) && !memorial?.guest) ? 'enduser' : 'contributor', code: memorial?.id, category: memorial?.product_category, view: 'interview', lang, lastError: err, micPerm, suggestedName: contribForm?.name })}
               className="secondary" style={{ fontSize:12.5, padding:'6px 14px' }}>
               ✉ {t.supportButton || 'Support kontaktieren'}
             </button>
@@ -1486,7 +1486,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
       <div style={{ flexShrink:0, borderBottom:'1px solid #e7e5e4', padding:'12px 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
         <div>
           <div style={{ fontWeight:600, fontSize:15 }}>{memorial.name}</div>
-          {(!isLifework(memorial?.product_category) || memorial?.guest) && !isCareerCategory(memorial?.product_category) && (
+          {(!isLifeworkCategory(memorial?.product_category) || memorial?.guest) && !isCareerCategory(memorial?.product_category) && (
             <div style={{ fontSize:12, color:'#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -3550,7 +3550,7 @@ function OnboardingCarousel({ memorial, lang = 'de', onClose }) {
   const s = ONBOARD_L10N[lang] || ONBOARD_L10N.de
   // Gäste (Gastbeiträge zum Lebenswerk) sind BEITRAGENDE, nicht der Endnutzer —
   // Einstellungen und Probedruck gibt es für sie nicht, also auch keine Slides dazu.
-  const isSelf = isLifework(memorial?.product_category) && !memorial?.guest
+  const isSelf = isLifeworkCategory(memorial?.product_category) && !memorial?.guest
   // Slides aus der Buch-Konfiguration ableiten — nur freigeschaltete Funktionen.
   const slides = []
   const add = (key, icon, color) => slides.push({ key, icon, color, title: s.slides[key][0], body: s.slides[key][1] })
@@ -3757,7 +3757,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
       // NICHT für Gäste: Der Gast-Link ist geteilt (viele Angehörige, ein Code) —
       // eine serverseitige Wiederaufnahme würde die Sitzung eines anderen Gastes
       // (bzw. gar nichts) liefern. Gäste laufen den normalen Beitragenden-Weg.
-      if (!memorial.guest && (isLifework(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category))) {
+      if (!memorial.guest && (isLifeworkCategory(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category))) {
         getEnduserResume(code)
           .then(contrib => {
             if (contrib && Array.isArray(contrib.messages) && contrib.messages.length) {
@@ -3791,7 +3791,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     // Gäste teilen sich EINEN Link — hier gilt (wie bei den geteilten Büchern)
     // die Rückfrage „Fortsetzen oder neu?", sonst landet der zweite Gast auf
     // demselben Gerät im Beitrag des ersten.
-    if (!memorial.guest && (isLifework(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category))) { setResumeGate(local); return }
+    if (!memorial.guest && (isLifeworkCategory(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category))) { setResumeGate(local); return }
     setResumePrompt(local)
   }, [memorial])
 
@@ -3986,8 +3986,8 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck) hängen dagegen
   // an isLifework, nicht an isSelf. Das Lebenswerk-LOGO gilt für beide Zugänge —
   // dafür steht isLifeworkBook.
-  const isSelf = (isLifework(memorial?.product_category) && !isGuest) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category)
-  const isLifeworkBook = isLifework(memorial?.product_category)
+  const isSelf = (isLifeworkCategory(memorial?.product_category) && !isGuest) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category)
+  const isLifeworkBook = isLifeworkCategory(memorial?.product_category)
   const isLifework = isLifeworkBook && !isGuest
   const isAnamnesis = isAnamnesisCategory(memorial?.product_category)
   const SELF_REL = 'Ich selbst'
@@ -4175,7 +4175,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                     // Gäste pinnen NICHTS: Ihre Sprachwahl gilt nur für sie, das
                     // Buch gehört dem Endnutzer (und /api/memorial würde den
                     // Gast-Code ohnehin nicht als Buch-Code akzeptieren).
-                    if (!isGuest && (isLifework(memorial?.product_category) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category)) && memorial?.id) {
+                    if (!isGuest && (isLifeworkCategory(memorial?.product_category) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category)) && memorial?.id) {
                       pinMemorialLang(memorial.id, lc).catch(() => { /* nicht kritisch */ })
                     }
                   }} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>

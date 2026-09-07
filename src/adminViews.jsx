@@ -6,7 +6,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework as isLifeworkCategory } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
@@ -1069,7 +1069,7 @@ function bookProgress(m, t) {
   if (p && p.done) return t('✓ abgeschlossen', '✓ completed')
   if (p) return `${t('Kapitel', 'Chapter')} ${p.chapter}/${p.chapterTotal} · ${t('Frage', 'Question')} ${p.questionLabel}/${p.questionTotal}`
   const a = m.answer_count || 0
-  const isEnduser = isLifework(m.product_category) || isAnamnesisCategory(m.product_category) || isCareerCategory(m.product_category)
+  const isEnduser = isLifeworkCategory(m.product_category) || isAnamnesisCategory(m.product_category) || isCareerCategory(m.product_category)
   if (isEnduser) {
     if (a === 0) return t('noch nicht begonnen', 'not started yet')
     return `${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
@@ -1726,7 +1726,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
     // Ohne Adresse entsteht kein Konto; der Zugang läuft dann über den
     // Einladungslink wie bei den anderen Kategorien. Eine ANGEGEBENE Adresse muss
     // aber gültig sein, sonst geht die Einladung ins Leere.
-    const isLifework = isLifework(createForm.productCategory)
+    const isLifework = isLifeworkCategory(createForm.productCategory)
     const isAnamnesis = isAnamnesisCategory(createForm.productCategory)
     // Lebenslauf: wie die Anamnese eine Endnutzer-Kategorie mit EINEM Pflichtfeld
     // beim Anlegen — dort der Anlass (Bewerbung/Outplacement/…), der den letzten
@@ -2057,7 +2057,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Macht das Anamnese-Gespräch kurzweiliger: die KI gibt nach jeder Antwort eine kurze, wertschätzende Rückmeldung und benennt Meilensteine; im Interview erscheinen Fortschritt, Punkte, Abzeichen und eine Abschluss-Feier. Respektvoll fürs medizinische Setting. Standard: an.</p>
         </div>
         )}
-        {isLifework(createForm.productCategory) && (
+        {isLifeworkCategory(createForm.productCategory) && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Begleiteter Modus (Co-Interview)</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2071,7 +2071,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
             Gast-Link in einem Zug. Bisher gab es den Schalter erst nach dem
             Speichern in den Auftragsdaten — wer beim Anlegen danach suchte, fand
             ihn nicht. Nachträglich umschaltbar bleibt er dort weiterhin. */}
-        {isLifework(createForm.productCategory) && (
+        {isLifeworkCategory(createForm.productCategory) && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Gastbeiträge (weitere Beitragende)</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2086,11 +2086,11 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           </p>
         </div>
         )}
-        {isLifework(createForm.productCategory) && (
+        {isLifeworkCategory(createForm.productCategory) && (
           <ExtraQuestionsSetting value={createForm.extraQuestions}
             onChange={eq => setCreateForm({ ...createForm, extraQuestions: eq })} />
         )}
-        {isLifework(createForm.productCategory) && (
+        {isLifeworkCategory(createForm.productCategory) && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Probedruck-Tab (Buchvorschau für den Endnutzer)</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2657,7 +2657,7 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
             ))}
             {/* Mitwirkenden-Liste: NICHT beim Lebenswerk (dort erzählt nur der
                 Endnutzer selbst) und nur, wenn die Namensliste aktiviert ist. */}
-            {contributions.length > 0 && !isLifework(selected.product_category) && selected.show_contributors !== false && (
+            {contributions.length > 0 && !isLifeworkCategory(selected.product_category) && selected.show_contributors !== false && (
               <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'1px solid #e7e5e4', textAlign:'center' }}>
                 <h3 style={{ fontSize:24, fontWeight:700, ...headFont, marginBottom:'1.5rem' }}>{bt.contributorsHeading}</h3>
                 {dedupeContributors(contributions).map(c => (
@@ -3378,7 +3378,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
     const { lang: adminLang } = useAdminLang()
-    const isLifework = isLifework(selected?.product_category)
+    const isLifework = isLifeworkCategory(selected?.product_category)
     // Anamnese: einziges Produkt ist der Bogen (eulogy). Buch/Bilder/Stammbaum/
     // Poster sind ausgeblendet.
     const isAnamnesis = isAnamnesisCategory(selected?.product_category)
@@ -3404,7 +3404,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     // kein Buch. Die Anlage-Maske blendet sie längst aus (`!isEnduser`); auf der
     // Detailseite stand sie trotzdem noch an drei Stellen und suggerierte eine
     // Auswahl, die es nicht gibt.
-    const isEnduserCat = isAnamnesis || isCareer || isLifework(selected.product_category)
+    const isEnduserCat = isAnamnesis || isCareer || isLifeworkCategory(selected.product_category)
     const orderLangLabels = sortLangs(selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
@@ -3438,18 +3438,18 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
         </div>
 
         <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1.5rem' }}>
-          {isLifework(selected.product_category) && selected.book_finalized && (
+          {isLifeworkCategory(selected.product_category) && selected.book_finalized && (
             <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#166534', fontWeight:600 }}>
               📕 {t('Vom Endnutzer abgeschlossen — muss gedruckt werden.', 'Finalized by the end user — needs to be printed.')}
             </div>
           )}
-          {isLifework(selected.product_category) && !selected.book_finalized && (enduserEditing || selected.edit_lock?.holder === 'enduser') && (
+          {isLifeworkCategory(selected.product_category) && !selected.book_finalized && (enduserEditing || selected.edit_lock?.holder === 'enduser') && (
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#92400e', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
               <span>🔒 {t('Wird gerade vom Endnutzer bearbeitet — nur Ansicht, Bearbeitung gesperrt.', 'Currently being edited by the end user — view only, editing locked.')}</span>
               <button className="secondary" onClick={() => adminProofAction({ releaseLock: true })} style={{ fontSize:12, padding:'4px 10px', color:'#b91c1c', borderColor:'#fecaca' }}>{t('Bearbeitung freigeben', 'Release editing')}</button>
             </div>
           )}
-          {isLifework(selected.product_category) && !selected.book_finalized && selected.edit_lock?.holder !== 'enduser' && selected.interview_closed && (
+          {isLifeworkCategory(selected.product_category) && !selected.book_finalized && selected.edit_lock?.holder !== 'enduser' && selected.interview_closed && (
             <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'12px 16px', marginBottom:18, fontSize:14, color:'#1e40af' }}>
               ✍️ {t('Interview abgeschlossen — der Endnutzer erstellt/bearbeitet die vorläufige Druckversion.', 'Interview finished — the end user is creating/editing the preliminary print version.')}
             </div>
@@ -3470,7 +3470,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 {/* Beim Lebenswerk ist dieser Link der Zugang des Endnutzers SELBST —
                     er öffnet Einstellungen, Korrekturabzug und Buchbearbeitung und darf
                     deshalb nicht an Beitragende gehen. Dafür gibt es den Gast-Link unten. */}
-                <Lbl>{isLifework(selected.product_category)
+                <Lbl>{isLifeworkCategory(selected.product_category)
                   ? 'Zugangslink (nur für den Endnutzer)'
                   : t('Einladungslink (für Beitragende)', 'Invitation link (for contributors)')}</Lbl>
                 <a
@@ -3494,7 +3494,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
 
           {/* Gastbeiträge: zweiter Link mit EIGENEM Code, für Angehörige und Freunde.
               Erscheint nur beim Lebenswerk und nur, wenn die Experteneinstellung an ist. */}
-          {isLifework(selected.product_category) && selected.guest_enabled === true && selected.guest_code && (
+          {isLifeworkCategory(selected.product_category) && selected.guest_enabled === true && selected.guest_code && (
             <div style={{ ...S.card, marginBottom:'1.5rem', borderColor:'#bbf7d0', background:'#f0fdf4' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
                 <div style={{ minWidth:0 }}>
@@ -3793,7 +3793,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                         // Lock) oder das Buch abgeschlossen ist. Gibt der Admin den Lock
                         // frei (edit_lock → null), ist Generieren wieder möglich —
                         // interview_closed allein sperrt NICHT dauerhaft.
-                        const enduserLocked = isLifework(selected.product_category) && (selected.book_finalized || enduserEditing || selected.edit_lock?.holder === 'enduser')
+                        const enduserLocked = isLifeworkCategory(selected.product_category) && (selected.book_finalized || enduserEditing || selected.edit_lock?.holder === 'enduser')
                         // Karte nur sichtbar, WEIL das Buch schon existiert, die
                         // Varianten-Sperre es aber sonst ausblenden wuerde: ansehen und
                         // herunterladen ja, neu erzeugen nein (der Server lehnt es ab).
@@ -4359,11 +4359,11 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
             ) : od && (
               <div>
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>{oci.subjectLabel || 'Name'}{(isAnamnesis || isLifework(selected.product_category)) ? '' : ' *'}</Lbl>
+                  <Lbl>{oci.subjectLabel || 'Name'}{(isAnamnesis || isLifeworkCategory(selected.product_category)) ? '' : ' *'}</Lbl>
                   <input value={od.name} onChange={e => setOd({ name: e.target.value })} />
                 </div>
                 <div style={{ marginBottom:14 }}>
-                  <Lbl>{isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : (isLifework(selected.product_category) ? 'Organisator (Optional)' : 'Organisator *')}</Lbl>
+                  <Lbl>{isAnamnesis ? 'Betreuende Ärztin/betreuender Arzt' : (isLifeworkCategory(selected.product_category) ? 'Organisator (Optional)' : 'Organisator *')}</Lbl>
                   <input value={od.organizer} onChange={e => setOd({ organizer: e.target.value })} placeholder={isAnamnesis ? 'Name der betreuenden Ärztin/des Arztes (optional)' : ''} />
                 </div>
                 {oci.useGender && (
@@ -4537,7 +4537,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Wertschätzende Rückmeldungen + Meilensteine der KI; Fortschritt, Punkte, Abzeichen und Abschluss-Feier im Interview. Greift beim nächsten (Neu-)Start. Standard: an.</p>
                 </div>
                 )}
-                {isLifework(selected.product_category) && (
+                {isLifeworkCategory(selected.product_category) && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Begleiteter Modus (Co-Interview)</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -4547,7 +4547,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Begleitperson (z. B. Pflegekraft) kann das Gespräch mit eigenem, blauem Mikrofon mitführen.</p>
                 </div>
                 )}
-                {isLifework(selected.product_category) && (
+                {isLifeworkCategory(selected.product_category) && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Gastbeiträge (weitere Beitragende)</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -4562,11 +4562,11 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   </p>
                 </div>
                 )}
-                {isLifework(selected.product_category) && (
+                {isLifeworkCategory(selected.product_category) && (
                   <ExtraQuestionsSetting value={od.extraQuestions}
                     onChange={eq => setOd({ extraQuestions: eq })} />
                 )}
-                {isLifework(selected.product_category) && (
+                {isLifeworkCategory(selected.product_category) && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Probedruck-Tab (Buchvorschau für den Endnutzer)</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
