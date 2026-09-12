@@ -13,7 +13,7 @@
 const { createClient } = require('./_lib/store')
 const { enforce } = require('./_lib/ratelimit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const IMAGE_BUCKET = 'memorial-images'
 const SIGNED_URL_TTL = 60 * 60
 

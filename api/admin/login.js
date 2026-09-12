@@ -16,7 +16,7 @@ const { ensureLifeworkSchema } = require('../_lib/lifework')
 const { ALLOWED_LANGS } = require('../_lib/languages')
 const { findPurgedByLogin, purgedMessage } = require('../_lib/tombstone')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Antwort-Nutzlast eines erfolgreichen Logins. Endnutzer (Kategorie Lebenswerk)
 // bekommen zusätzlich ihren Buch-Code + die vom Admin gesetzte Sprache: Das

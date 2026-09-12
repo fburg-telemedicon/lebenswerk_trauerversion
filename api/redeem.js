@@ -16,7 +16,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { ensureUnlockSchema, normalizeUnlockCode, formatUnlockCode } = require('./_lib/unlockcodes')
 const { audit } = require('./_lib/audit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Konto-Bezeichnung des Buch-Inhabers (Manager oder — bei Selbstregistrierung —
 // Endnutzer). `username` ist bei Endnutzer-Konten die E-Mail-Adresse.

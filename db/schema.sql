@@ -3,8 +3,10 @@
 -- (Flexible Server). Ausführen mit psql gegen die Ziel-DB:
 --     psql "$DATABASE_URL" -f db/schema.sql
 --
--- Vereint die zuvor inkrementellen supabase/*.sql-Dateien in EIN idempotentes
--- Skript. KEINE Row Level Security mehr: Azure Postgres ist nicht über eine
+-- Vereint ALLE zuvor inkrementellen Migrationen in EIN idempotentes Skript —
+-- es ist die einzige Schemaquelle, weitere .sql-Dateien gibt es nicht mehr.
+-- Neue Spalten/Tabellen gehoeren hierher (und in SELECT_COLS in
+-- api/admin/memorials.js). KEINE Row Level Security mehr: Azure Postgres ist nicht über eine
 -- öffentliche PostgREST-API erreichbar; ausschließlich das Backend verbindet
 -- sich (mit einem dedizierten DB-Benutzer). Der frühere RLS-als-Firewall-Schutz
 -- (gegen anon/authenticated über Supabase) entfällt damit ersatzlos.
@@ -30,7 +32,14 @@ create table if not exists app_users (
   logo               text,
   invite_token       text,
   invite_expires     timestamptz,
-  created_at         timestamptz default now()
+  created_at         timestamptz default now(),
+  -- Endnutzer-Konten (Kategorien Lebenswerk / mamazone / Anamnese / Lebenslauf):
+  -- eigenes Login, aber KEIN Dashboard — nach dem Login landet der Endnutzer
+  -- direkt in seinem Interview. enduser_memorial bindet das Konto an genau EIN
+  -- Buch; lang ist die vom Admin vorgegebene Sprache (NULL = Endnutzer waehlt).
+  is_enduser         boolean     not null default false,
+  enduser_memorial   varchar(16),
+  lang               text
 );
 create unique index if not exists app_users_invite_token_idx
   on app_users(invite_token) where invite_token is not null;
@@ -165,7 +174,12 @@ create table if not exists contributions (
   is_guest               boolean,
   -- Kuratierung des Managers, nur für Gastbeiträge: 'pending' (jeder neue
   -- Gastbeitrag) | 'approved' | 'rejected'. NULL bei allen anderen Beiträgen.
-  guest_status           text
+  guest_status           text,
+  -- Letzte Bearbeitung des Beitrags. Speist last_activity in
+  -- memorial_contrib_stats() und damit die Dashboard-Spalte „akt. Stand".
+  -- Bewusst ohne default: Altbeitraege bleiben NULL und fallen auf created_at
+  -- zurueck (siehe coalesce in der Funktion unten).
+  updated_at             timestamptz
 );
 create index if not exists contributions_memorial_id_idx on contributions(memorial_id);
 create index if not exists contributions_feedback_at_idx
@@ -328,13 +342,58 @@ create table if not exists usage_daily (
 create index if not exists usage_daily_day_idx on usage_daily(day desc);
 
 -- ----------------------------------------------------------------------------
+-- app_settings (anwendungsweite Einstellungen)
+-- ----------------------------------------------------------------------------
+-- Aktuell einzige Zeile: key = 'book_defaults' — die Standardwerte, mit denen
+-- die Maske „Neues Buch anlegen" vorbelegt wird (api/_lib/book-defaults.js).
+-- Ohne Zeile gelten die Fallback-Werte aus dem Code.
+create table if not exists app_settings (
+  key        text        primary key,
+  value      jsonb       not null,
+  updated_at timestamptz not null default now(),
+  updated_by uuid
+);
+
+-- ----------------------------------------------------------------------------
+-- unlock_codes (Freischaltcodes / Gutscheine)
+-- ----------------------------------------------------------------------------
+-- api/_lib/unlockcodes.js legt die Tabelle beim ersten Zugriff ebenfalls an
+-- (ensureUnlockSchema) — hier steht sie, damit schema.sql vollstaendig ist.
+-- redeemed_name/redeemed_owner sind eine MOMENTAUFNAHME vom Einloesezeitpunkt
+-- (api/redeem.js): bewusst kopiert statt ueber redeemed_memorial gejoint, damit
+-- die Zuordnung erhalten bleibt, wenn das Buch spaeter geloescht
+-- (Aufbewahrungsfrist) oder umbenannt wird.
+-- gross_price_cents ist der Bruttopreis in CENT (49,90 € = 4990) — ganzzahlig
+-- gegen Rundungsfehler und eine reine Kaufmanns-Notiz: das Einloesen prueft ihn
+-- nicht. Altcodes bleiben bei allen drei Spalten NULL.
+create table if not exists unlock_codes (
+  code              varchar(12) primary key,
+  recipient_name    text,
+  recipient_email   text,
+  note              text,
+  created_by        uuid,
+  created_at        timestamptz not null default now(),
+  redeemed_at       timestamptz,
+  redeemed_memorial varchar(16),
+  redeemed_name     text,
+  redeemed_owner    text,
+  gross_price_cents integer,
+  email_sent_at     timestamptz
+);
+
+-- ----------------------------------------------------------------------------
 -- memorial_contrib_stats() – Beitrags-/Antwortzahlen je Buch fürs Dashboard
 -- ----------------------------------------------------------------------------
+-- Rueckgabetyp hat sich um last_activity erweitert; create or replace allein
+-- reicht dafuer nicht aus, deshalb vorher droppen.
+drop function if exists memorial_contrib_stats();
+
 create or replace function memorial_contrib_stats()
 returns table (
   memorial_id        text,
   contribution_count bigint,
-  answer_count       bigint
+  answer_count       bigint,
+  last_activity      timestamptz
 )
 language sql
 stable
@@ -348,7 +407,8 @@ as $$
         case when jsonb_typeof(c.messages) = 'array' then c.messages else '[]'::jsonb end
       ) as e
       where e->>'role' = 'user'
-    )), 0) as answer_count
+    )), 0) as answer_count,
+    max(coalesce(c.updated_at, c.created_at)) as last_activity
   from contributions c
   group by c.memorial_id
 $$;

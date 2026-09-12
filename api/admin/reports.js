@@ -14,7 +14,7 @@ const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { buildAndSendReport } = require('../_lib/report-send')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 module.exports = async function handler(req, res) {

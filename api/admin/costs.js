@@ -5,7 +5,7 @@ const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (!checkAuth(req, res)) return

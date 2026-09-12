@@ -23,7 +23,7 @@ const { ensureLifeworkSchema, ensureLifeworkCatalog } = require('./_lib/lifework
 const { ALLOWED_LANGS } = require('./_lib/languages')
 const { audit } = require('./_lib/audit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()

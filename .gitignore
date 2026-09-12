@@ -17,7 +17,7 @@ dist/
 npm-debug.log*
 
 # Generierte Aufwandsschätzung (lokal, nicht versionieren)
-Aufwandsschaetzung_Spalten_N_O.xlsx
+Aufwandsschaetzung_Spalten_N_O*.xlsx
 
 # Editor / OS
 .DS_Store
@@ -32,6 +32,6 @@ Fotos*/
 
 # Lokale Live-API-Arbeitsdateien (Token, Kundendaten) - NIEMALS committen
 .lw_*
+.lwab/
 _demo_pdf/
 _demo_*.mjs
-.lw_*

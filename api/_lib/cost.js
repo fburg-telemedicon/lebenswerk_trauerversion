@@ -4,7 +4,7 @@
 
 const { createClient, pool } = require('./store')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const USD_TO_EUR = parseFloat(process.env.USD_TO_EUR || '0.92')
 
@@ -28,7 +28,10 @@ const PRICING = {
   'gpt-4.1':      { inputPerMTokens: 2.0,  outputPerMTokens: 8.0  },
   'gpt-4.1-mini': { inputPerMTokens: 0.4,  outputPerMTokens: 1.6  },
   'gpt-4o':       { inputPerMTokens: 2.5,  outputPerMTokens: 10.0 },
-  'gpt-5.5':      { inputPerMTokens: 0,    outputPerMTokens: 0    }, // TODO: Preis eintragen, sobald genutzt
+  // ACHTUNG bei einem Modellwechsel: ein hier UNBEKANNTER Deployment-Name kostet
+  // still 0 (siehe costLLM) — der Preis muss VOR dem Umstellen hier stehen. Eine
+  // Zeile mit Preis 0 als Platzhalter anzulegen hilft nicht, sie verschleiert es
+  // nur; deshalb steht hier nichts Spekulatives.
 
   // Hinweis: Die OpenAI-Sprach-Modelle (tts-1/-hd, whisper-1) wurden am
   // 2026-06-22 mit dem OpenAI-Sprach-Fallback entfernt – TTS/STT laufen nur

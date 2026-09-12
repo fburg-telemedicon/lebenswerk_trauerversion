@@ -23,7 +23,7 @@ const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 const { ALLOWED_LANGS, sanitizeLangs } = require('../_lib/languages')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const SIGNED_URL_TTL = 3600 // 1 h
 
@@ -538,7 +538,7 @@ module.exports = async function handler(req, res) {
 
       // Beiträge und Antworten (User-Nachrichten) pro Memorial aggregieren.
       // Bevorzugt serverseitig per RPC (zählt in Postgres, überträgt NICHT alle
-      // Transkripte) – siehe supabase/memorial-stats.sql. Fallback (bis die
+      // Transkripte) – siehe db/schema.sql. Fallback (bis die
       // Funktion angelegt ist): messages laden und im Node zählen.
       const contribCounts = {}
       const answerCounts  = {}
@@ -1198,7 +1198,7 @@ module.exports = async function handler(req, res) {
       const tsCol = { book_v1: 'book_v1_at', book_v2: 'book_v2_at', eulogy_text: 'eulogy_at' }[field]
       if (tsCol && text != null) upd[tsCol] = new Date().toISOString()
       let { error } = await supabase.from('memorials').update(upd).eq('id', code)
-      // Falls die Migration supabase/report.sql noch nicht lief, existiert die
+      // Falls db/schema.sql noch nicht angewandt wurde, existiert die
       // *_at-Spalte nicht → ohne Zeitstempel erneut speichern (Buch darf nie scheitern).
       if (error && tsCol && upd[tsCol] !== undefined && /column|does not exist|_at/i.test(error.message || '')) {
         delete upd[tsCol]

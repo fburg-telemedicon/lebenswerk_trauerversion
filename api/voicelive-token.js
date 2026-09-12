@@ -20,7 +20,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { isVoiceLiveConfigured, signTicket, TICKET_TTL_MS } = require('./_lib/voicelive')
 const { ALLOWED_TTS_VOICES } = require('./_lib/ttsvoices')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Sprachen, die das Live-Gespräch anbietet, mit ihrem Azure-Speech-Locale.
 // Bewusst dieselben Locales wie api/transcribe.js (dort LOCALE) — die STT-Seite

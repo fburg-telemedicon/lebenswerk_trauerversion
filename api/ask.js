@@ -1,5 +1,5 @@
 // api/ask.js
-// POST /api/ask  { system, messages, memorialCode?, kind?, provider? }  → { text }
+// POST /api/ask  { system, messages, memorialCode?, kind?, contributionId? }  → { text }
 //
 // Einziges LLM ist Azure OpenAI (EU, Microsoft Foundry) – KEIN Fallback.
 // Der frühere Anthropic-/Claude-Fallback (LLM_PROVIDER, { provider }-Override)
@@ -22,7 +22,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { verifyToken } = require('./_lib/auth')
 const { callAzure } = require('./_lib/llm')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })

@@ -21,7 +21,7 @@ const { ensureLifeworkSchema, ensureLifeworkCatalog } = require('./_lib/lifework
 const { ALLOWED_LANGS } = require('./_lib/languages')
 const { audit } = require('./_lib/audit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const TRIAL_TIMER_SECONDS = 300   // 5-Minuten-Testlimit für Selbstregistrierungen
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

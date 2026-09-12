@@ -29,7 +29,7 @@ const { loadAccessibleMemorial } = require('../_lib/access')
 const { genCode } = require('../_lib/codes')
 const { audit } = require('../_lib/audit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const IMAGE_BUCKET = 'memorial-images'
 
 // Spalten, die NICHT mitkopiert werden. Sie gehören zur Identität, zur

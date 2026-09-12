@@ -19,7 +19,7 @@ const { storeFullAudiobook } = require('../_lib/audiobook')
 const { ensureLifeworkSchema } = require('../_lib/lifework')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const SIGNED_URL_TTL = 60 * 60
 const ALLOWED_VARIANTS = new Set(['book_v1', 'book_v2'])
 

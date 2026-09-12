@@ -20,7 +20,7 @@ const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 const { stripForSpeech, speakAzure } = require('./_lib/tts')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()

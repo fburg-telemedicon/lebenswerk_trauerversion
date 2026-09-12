@@ -2,7 +2,7 @@
 // Einfaches, Supabase-gestütztes Rate-Limiting für die öffentlichen Endpunkte
 // (KI-Proxies + Login). Zählt Anfragen pro „Eimer" (i.d.R. Endpunkt + IP) in
 // einem festen Zeitfenster über die Postgres-Funktion rate_limit_hit
-// (siehe supabase/ratelimit.sql).
+// (siehe db/schema.sql).
 //
 // WICHTIG – Fail-open: Schlägt der Limiter selbst fehl (z.B. DB nicht
 // erreichbar oder Funktion/Tabelle noch nicht angelegt), wird die Anfrage
@@ -12,7 +12,7 @@
 const crypto = require('crypto')
 const { createClient } = require('./store')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Beste verfügbare Client-IP. Vercel setzt x-forwarded-for (erste Adresse =
 // ursprünglicher Client). Fallbacks für lokale Entwicklung.

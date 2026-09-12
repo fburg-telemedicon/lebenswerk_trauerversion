@@ -19,7 +19,7 @@ const { costLLM, recordCost, budgetExceeded, BUDGET_MESSAGE } = require('../_lib
 const { isCareerCategory } = require('../_lib/categories')
 const { screenQuestion, buildSystem } = require('../_lib/profileqa')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const COLS = 'id, name, product_category, owner_user, cv, avoca, documents, profile_queries'
 const MAX_LOG = 200   // Ringpuffer: das Protokoll darf die Zeile nicht sprengen.

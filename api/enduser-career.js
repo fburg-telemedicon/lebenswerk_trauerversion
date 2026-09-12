@@ -26,7 +26,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { isCareerCategory } = require('./_lib/categories')
 const { ensureLifeworkSchema } = require('./_lib/lifework')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const COLS = 'id, name, product_category, languages, cv, avoca, eulogy_text, job_match, documents, intake'
 

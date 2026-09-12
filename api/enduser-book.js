@@ -24,7 +24,7 @@ const { isLifeworkCategory } = require('./_lib/categories')
 const { sendMail } = require('./_lib/graphmail')
 const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const LOCK_TTL_MS = 5 * 60 * 1000    // 5 Min ohne Heartbeat → Lock läuft ab (Heartbeat alle 90 s)
 // „Buch fertig – muss gedruckt werden" geht IMMER an den Betreiber (Manager

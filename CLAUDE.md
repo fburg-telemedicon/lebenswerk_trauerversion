@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > **Production runs on Azure** (cutover 2026-07-13). Backend = **Azure Container Apps** (`lebenswerk-web`, Express `server.js` serves the `/api` handlers + the built SPA), DB = **Azure Database for PostgreSQL Flexible Server** (`lebenswerk-pg`, North Europe) via `api/_lib/store.js`, Storage = **Azure Blob** (`lebenswerkstore0713`, SAS-signed reads), Crons = **Container Apps Jobs** (`scripts/cron-run.js`), LLM/TTS/STT/Image = Azure OpenAI, Azure AI Speech, Azure FLUX. Domain `lebensgeschichten.ai` → Azure (managed certificate). RG `lebenswerk-rg`, Azure Sponsorship subscription. **Runbook: `infra/MIGRATION.md`.**
 >
-> Supabase and Vercel are **gone from production**. `vercel.json` and `supabase/*.sql` still exist as historical/rollback artifacts — see "Legacy artifacts" below. Do not treat them as live configuration.
+> Supabase and Vercel are **gone from production** and their leftover artifacts have been removed from the repo (cleanup 2026-09-12): no `vercel.json`, no `supabase/*.sql`, no `SUPABASE_*` env vars. Git history has them if a rollback reference is ever needed. See "Naming inherited from Supabase" below for the one thing that *does* still look like Supabase and isn't.
 
 ## Commands
 
@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Working agreement on commits (standing, since the start of the project):** finished work is committed and pushed to `main` **immediately** — no feature branches, no waiting to be asked. `main` is the deploy branch, so every push goes live; that is intended. Do not ask for permission per change. Commit messages are German with transliterated umlauts (`Hoerbuch`, `Groessenschaetzung`).
 
-There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail. `npm run dev` is still wired to `vercel dev` in `package.json` but is vestigial and not the way this project runs; use `node server.js`.
+There are **no tests, no linter, and no typechecker configured**. Do not invent commands like `npm test` — they will fail. The old `npm run dev` (`vercel dev`) is gone; run the server with `node server.js` (or `npm start`).
 
 All user-facing text is German; keep new strings German unless asked otherwise.
 
@@ -84,7 +84,7 @@ Two categories are **variants of another one** and are recognised by a family pr
 
 Consequences worth remembering:
 
-- **There are no per-function timeouts and no per-function memory settings any more.** The `functions` block in `vercel.json` is dead configuration. Long-running work must budget its own time (see the generation worker).
+- **There are no per-function timeouts and no per-function memory settings any more.** The old per-function `maxDuration` config is gone with `vercel.json`. Long-running work must budget its own time (see the generation worker).
 - Adding an endpoint = adding a file under `api/`. No route table to update.
 
 Two namespaces:
@@ -121,7 +121,7 @@ Four **Container Apps Jobs**, all running the same image, each `node scripts/cro
 | `lebenswerk-web-cron-report` | `0 23 * * *` | `report` — daily email report |
 | `lebenswerk-web-cron-generate` | `*/10 * * * *` | `generate` — backstop for the generation worker |
 
-The `crons` block in `vercel.json` is dead configuration.
+Scheduling lives in `infra/deploy.sh` (which creates the jobs), not in any config file in the repo root.
 
 ### Generation runs server-side
 
@@ -133,15 +133,15 @@ The LLM is required to return raw JSON; `tryParseJSON` strips stray markdown fen
 
 ### Data layer — `api/_lib/store.js`
 
-`store.js` is an **in-house replacement for `@supabase/supabase-js`**. It exposes the same call surface the codebase already used — `supabase.from('t').select/insert/update/delete/upsert`, `supabase.rpc`, `supabase.storage.from('container').upload/download/remove/list/createSignedUrls` — and returns supabase-shaped `{ data, error, count }`, but talks to **Postgres (pg pool)** and **Azure Blob** underneath. `createClient(url, key)` **ignores both arguments**; the connection comes from `DATABASE_URL`.
+`store.js` is an **in-house replacement for `@supabase/supabase-js`**. It exposes the same call surface the codebase already used — `supabase.from('t').select/insert/update/delete/upsert`, `supabase.rpc`, `supabase.storage.from('container').upload/download/remove/list/createSignedUrls` — and returns supabase-shaped `{ data, error, count }`, but talks to **Postgres (pg pool)** and **Azure Blob** underneath. `createClient()` takes **no arguments**; the connection comes from `DATABASE_URL`.
 
-That is why handlers still read like Supabase code and still say `createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)` — those env vars are unused leftovers, not a live dependency. When touching a handler, feel free to drop them; do not conclude the project talks to Supabase. `store.js` also carries a **column-type registry** (`JSONB_COLS` etc.) that decides how JS values are encoded on write — **add new `jsonb` / `text[]` columns there**, or an empty array will be written as the wrong type. `pool` is exported for the few places the query builder cannot express (e.g. `create table if not exists`).
+That is why handlers still read like Supabase code (see "Naming inherited from Supabase" below) — it is one local module, not a live dependency. `store.js` also carries a **column-type registry** (`JSONB_COLS` etc.) that decides how JS values are encoded on write — **add new `jsonb` / `text[]` columns there**, or an empty array will be written as the wrong type. `pool` is exported for the few places the query builder cannot express (e.g. `create table if not exists`).
 
 ### Database
 
 Azure Database for PostgreSQL Flexible Server (PG 16).
 
-- **`db/schema.sql` is the canonical, idempotent schema** — it consolidates all the earlier incremental migrations and can be re-run safely. Additional `db/*.sql` files cover later increments.
+- **`db/schema.sql` is the canonical, idempotent schema and now the *only* `.sql` file** — every earlier increment (including the ones that used to live in `supabase/` and in separate `db/*.sql` files) is folded in, and it can be re-run safely. New columns and tables go there. Note that several tables are *also* created on first use by `ensure*Schema()` helpers (`api/_lib/unlockcodes.js`, `api/_lib/lifework.js`, `api/admin/settings.js`); schema.sql now agrees with all of them, and it must stay that way — a divergence is how `memorial_contrib_stats()` silently lost `last_activity` before the 2026-09-12 cleanup.
 - **No Row Level Security.** Azure Postgres is not exposed through a public PostgREST-style API; only the backend connects, with a dedicated DB user. The old "RLS as a firewall" layer was dropped deliberately, not forgotten — do not re-add RLS expecting it to matter.
 - `gen_random_uuid()` comes from PG core; `pgcrypto` is deliberately avoided (would need the `azure.extensions` allowlist).
 
@@ -175,13 +175,15 @@ Pricing constants are keyed by exact model string (`gpt-4.1`, `flux-2-pro-1536x1
 
 When swapping models, update both the call site **and** `PRICING` in `api/_lib/cost.js`.
 
-## Legacy artifacts — present in the repo, NOT live
+## Naming inherited from Supabase — looks legacy, is live
 
-| Artifact | Status |
+The migration deliberately kept the *call surface* of the old client so ~45 handlers did not have to be rewritten. So this is all current, working code — do not "fix" it and do not conclude the project talks to Supabase:
+
+| What you see | What it actually is |
 |---|---|
-| `vercel.json` | Kept from the migration as a rollback reference. Its `functions` (maxDuration) and `crons` blocks have **no effect**; the `/demobuch` rewrite still points at an old Supabase URL. Superseded by `server.js` + Container Apps Jobs + `DEMO_BOOK_URL`. |
-| `supabase/*.sql` | The historical incremental migrations. Superseded by `db/schema.sql`. Useful as history; do not run against production. |
-| `supabase/rls.sql` | RLS no longer applies (see Database). |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | Unused. Still passed to `createClient()` in most handlers, where both arguments are ignored. |
-| `npm run dev` (`vercel dev`) | Vestigial. Use `node server.js`. |
-| `@supabase/supabase-js` | Not a dependency — `api/_lib/store.js` replaces it. |
+| `const supabase = createClient()` at the top of a handler | `api/_lib/store.js`, the in-house pg + Azure Blob client. It takes **no arguments** (the two dead `SUPABASE_*` ones were removed 2026-09-12). |
+| `supabase.from('t').select(...)`, `.rpc()`, `.storage.from(...)` | The same API shape as before, returning `{ data, error, count }` — implemented over the pg pool and Azure Blob. |
+| `IMAGE_BUCKET = 'memorial-images'`, "bucket" in comments | An Azure Blob **container**. There is no second storage system. |
+| `@supabase/supabase-js` | Not a dependency and never installed. `store.js` replaces it. |
+
+**Removed in the 2026-09-12 cleanup** (recover from git history if ever needed): `vercel.json` (its `functions` and `crons` blocks had no effect and its `/demobuch` rewrite pointed at a dead Supabase URL — `server.js` + `DEMO_BOOK_URL` own that now), the whole `supabase/` directory of historical incremental migrations including `rls.sql`, the `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` arguments, the `npm run dev` → `vercel dev` script (use `node server.js`, now also `npm start`), `scripts/migrate-updated-at.js` plus the six `db/*.sql` increment files (all folded into `db/schema.sql`).

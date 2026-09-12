@@ -1,5 +1,6 @@
 // api/cron/report.js
-// Täglicher E-Mail-Report (Vercel Cron, siehe vercel.json). Baut die Kennzahlen
+// Taeglicher E-Mail-Report, 23:00 vom Container Apps Job
+// lebenswerk-web-cron-report (scripts/cron-run.js report). Baut die Kennzahlen
 // des Vortags + PDF-Anhang und verschickt sie an alle aktiven report_recipients.
 //
 // Schutz wie beim Purge-Cron: Header `Authorization: Bearer <CRON_SECRET>`. Vercel
@@ -11,7 +12,7 @@ const { createClient } = require('../_lib/store')
 const { buildAndSendReport } = require('../_lib/report-send')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET

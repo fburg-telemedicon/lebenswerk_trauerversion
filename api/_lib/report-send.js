@@ -9,7 +9,7 @@ const render = require('./report-render')
 const { sendMail } = require('./graphmail')
 
 function client() {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+  return createClient()
 }
 
 async function getActiveRecipients(supabase) {

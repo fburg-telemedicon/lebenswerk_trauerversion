@@ -7,7 +7,7 @@
 const { createClient } = require('../_lib/store')
 const { checkAuth } = require('../_lib/auth')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Prüft, ob der/die eingeloggte Benutzer:in auf die Bewertung (Contribution)
 // zugreifen darf: Admin = alles; sonst nur eigene Bücher der erlaubten Kategorien.
@@ -92,7 +92,7 @@ module.exports = async function handler(req, res) {
       .order('feedback_at', { ascending: false })
       .limit(1000)
     if (error) {
-      // Spalten evtl. noch nicht migriert (supabase/feedback.sql) → leere Liste.
+      // Spalten evtl. noch nicht migriert (db/schema.sql) → leere Liste.
       if (/feedback_|column/i.test(error.message || '')) return res.json([])
       throw error
     }

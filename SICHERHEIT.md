@@ -120,4 +120,4 @@ Maßnahmen:
 `db/schema.sql` ist das vollständige, idempotente Schema und kann jederzeit erneut
 gegen die Datenbank gefahren werden (`psql "$DATABASE_URL" -f db/schema.sql`).
 Spätere Zuwächse liegen als weitere Dateien in `db/`. Die alten Einzelmigrationen
-unter `supabase/` sind historisch und werden nicht mehr ausgeführt.
+unter `supabase/` wurden entfernt; `db/schema.sql` ist der kanonische Stand.

@@ -1,12 +1,13 @@
 // server.js
 // ============================================================================
-// Azure Container Apps – HTTP-Server (ersetzt Vercel-Functions + vercel.json).
+// Azure Container Apps – HTTP-Server (ersetzt die fruehere Vercel-Funktions-
+// Architektur; deren vercel.json wurde am 2026-09-12 entfernt).
 //
 // Registriert jede Datei unter api/ (außer _lib/_fonts) als Route, exakt so wie
 // Vercel sie unter /api/<pfad> ausgeliefert hat, und übergibt (req, res) an den
 // vorhandenen Handler (module.exports = async (req, res) => …). Danach wird das
 // gebaute SPA aus dist/ statisch ausgeliefert (SPA-Fallback → index.html),
-// analog zum bisherigen vercel.json-Rewrite.
+// analog zum fruehen SPA-Rewrite.
 //
 // Die Handler funktionieren unverändert: Express liefert req.query/req.headers/
 // req.method und res.status().json()/res.send()/res.setHeader() wie Vercel.
@@ -73,7 +74,7 @@ for (const { route, abs } of collectHandlers(API_DIR)) {
 }
 console.log(`API-Routen registriert: ${registered}`)
 
-// Bekannte Weiterleitung aus vercel.json: Demo-Buch-PDF.
+// Weiterleitung auf das Demo-Buch-PDF im Blob Storage (ENV DEMO_BOOK_URL).
 app.get('/demobuch', (req, res) => {
   const url = process.env.DEMO_BOOK_URL
   if (!url) return res.status(404).send('Demo-Buch nicht konfiguriert')

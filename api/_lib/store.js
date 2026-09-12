@@ -34,7 +34,7 @@ const {
 } = require('@azure/storage-blob')
 
 // ----------------------------------------------------------------------------
-// Spaltentyp-Register (aus supabase/*.sql + CLAUDE.md abgeleitet)
+// Spaltentyp-Register (aus db/schema.sql + CLAUDE.md abgeleitet)
 // Entscheidet bei INSERT/UPDATE, wie ein JS-Wert kodiert wird. Nötig, weil sich
 // z. B. ein leeres Array [] nicht selbst ansehen lässt, ob es text[] oder jsonb
 // werden soll.

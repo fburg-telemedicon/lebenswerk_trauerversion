@@ -19,7 +19,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { sendMail } = require('./_lib/graphmail')
 const { isSuppressed } = require('./_lib/suppress')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 module.exports = async function handler(req, res) {

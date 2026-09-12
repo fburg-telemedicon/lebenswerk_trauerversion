@@ -21,7 +21,7 @@ const { ensureUnlockSchema, genUnlockCode, formatUnlockCode, parsePriceCents } =
 const { sendUnlockCodeMail } = require('../_lib/invitemail')
 const { audit } = require('../_lib/audit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

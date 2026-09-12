@@ -19,7 +19,7 @@ const { loadAccessibleMemorial } = require('../_lib/access')
 const { ensureLifeworkSchema } = require('../_lib/lifework')
 const crypto = require('crypto')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const IMAGE_BUCKET = 'memorial-images'
 const SIGNED_URL_TTL = 60 * 60

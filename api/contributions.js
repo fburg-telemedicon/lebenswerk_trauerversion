@@ -16,10 +16,7 @@ const { isEnduserCategory } = require('./_lib/categories')
 const { resolvePublicCode } = require('./_lib/access')
 const { ensureLifeworkSchema } = require('./_lib/lifework')
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -127,7 +124,7 @@ module.exports = async function handler(req, res) {
       // Zeitpunkt der letzten Bearbeitung – bei jedem Speichern (auch beim
       // Fortsetzen einer Session) neu gesetzt, damit das Dashboard "zuletzt
       // gearbeitet vor X Tagen" korrekt anzeigt. Die Spalte wird per
-      // supabase/memorial-stats.sql angelegt; solange sie fehlt (Deploy vor
+      // db/schema.sql angelegt; solange sie fehlt (Deploy vor
       // dem Einmal-SQL), scheitert der Upsert mit dieser Spalte an einem
       // "column ... does not exist" – dann wird ohne das Feld wiederholt, damit
       // der Beitragenden-Flow nie am fehlenden Migrationsschritt hängen bleibt.

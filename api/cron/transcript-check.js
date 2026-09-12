@@ -1,6 +1,7 @@
 // api/cron/transcript-check.js
 // Hintergrund-Prüfung der Beiträge auf Transkriptions-Rauschen (STT-Fehler,
-// Fremdgeräusche, Eigennamen). Läuft nächtlich (Cron, siehe vercel.json), damit
+// Fremdgeraeusche, Eigennamen). Laeuft naechtlich 22:00 als Container Apps Job
+// lebenswerk-web-cron-transcript (scripts/cron-run.js transcript-check), damit
 // die Buch-Detailseite sofort lädt (kein Live-KI-Call/Fortschrittsbalken im UI).
 //
 // Skalierungssicher: prüft ungeprüfte Beiträge (transcript_checked_at IS NULL)
@@ -18,7 +19,7 @@ const { costLLM, recordCost } = require('../_lib/cost')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 const { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parseCorrectionsJSON, fixMojibake, anchorInText } = require('../_lib/transcript')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Niedrige Parallelität + Backoff: das Azure-gpt-4.1-Rate-Limit (westeurope) ist
 // der Engpass, nicht die Serverless-Zeit. Zu viel Parallelität/zu schnelle Ketten

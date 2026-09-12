@@ -1,6 +1,6 @@
 // api/_lib/audit.js
 // Dauerhaftes Zugriffs-/Audit-Log sicherheitsrelevanter Aktionen
-// (siehe supabase/audit.sql). Bewusst PII-arm: nur Akteur, Aktion, Ziel und die
+// (siehe db/schema.sql). Bewusst PII-arm: nur Akteur, Aktion, Ziel und die
 // pseudonymisierte (gehashte) IP – keine Klartext-IP (DSGVO-Datenminimierung).
 //
 // Fail-open / non-fatal: Ein Logging-Fehler darf NIE die eigentliche Aktion
@@ -9,7 +9,7 @@
 const { createClient } = require('./store')
 const { clientIp, hashId } = require('./ratelimit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // req    : eingehende Anfrage (für die IP)
 // fields : { actor?, action, target?, detail? }

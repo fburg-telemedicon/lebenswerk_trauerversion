@@ -22,7 +22,7 @@ const { audit } = require('../_lib/audit')
 const { seedDemoData } = require('../_lib/demo-seed')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 function sanitizeCategories(input) {
   if (!Array.isArray(input)) return []

@@ -22,10 +22,7 @@ const { findPurgedByCode, purgedMessage } = require('./_lib/tombstone')
 // spricht selbst und darf über den Buch-Code (ohne Login) seine eigenen Stammdaten/
 // Sprache nachtragen. Prädikat zentral in api/_lib/categories.js.
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-)
+const supabase = createClient()
 
 // PATCH /api/memorial?code=ABC123  { imageStyle?, bookLayout? }
 // Der EINSTELLUNGS-Tab des Endnutzers (Kategorie Lebenswerk): Er darf Grafikstil

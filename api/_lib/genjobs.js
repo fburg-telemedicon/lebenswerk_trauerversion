@@ -7,7 +7,7 @@
 
 const { createClient } = require('./store')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Lock gilt 3 Minuten; danach darf ein anderer Worker einen „hängenden" Job
 // (z. B. abgestürzte Invocation) übernehmen.

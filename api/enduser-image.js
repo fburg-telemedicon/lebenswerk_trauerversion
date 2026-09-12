@@ -22,7 +22,7 @@ const { costImage, recordCost, enforceBudget } = require('./_lib/cost')
 const { normalizeStyle, styleDirective, styleAnchor, DEFAULT_STYLE } = require('./_lib/image-styles')
 const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const BUCKET = IMAGE_BUCKET
 const IMAGE_W = 1536, IMAGE_H = 1024

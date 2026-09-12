@@ -27,12 +27,12 @@ const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Bildunterschriften werden als SVG-Text gerendert. In der Serverless-Umgebung
 // (Linux) sind KEINE Serif-Fonts installiert → librsvg zeichnet sonst Platzhalter-
 // Kästchen statt Text. Deshalb liefern wir DejaVu Serif mit (api/_fonts, via
-// vercel.json includeFiles) und richten fontconfig einmalig darauf aus. Cross-
+// im Image, siehe Dockerfile) und richten fontconfig einmalig darauf aus. Cross-
 // Platform über os.tmpdir() (=/tmp auf Vercel, Temp lokal). Lokal mit vorhandenen
 // System-Fonts unschädlich – der gebündelte Font deckt die Bildunterschriften ab.
 try {

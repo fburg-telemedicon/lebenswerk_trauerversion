@@ -1,6 +1,7 @@
 // api/cron/purge.js
 // Automatische Löschung nach Aufbewahrungsfrist (DSGVO Art. 5 Abs. 1 e / Art. 17).
-// Wird von einem Vercel Cron Job täglich aufgerufen (siehe vercel.json).
+// Wird taeglich 03:00 vom Container Apps Job lebenswerk-web-cron-purge
+// aufgerufen (scripts/cron-run.js purge; angelegt in infra/deploy.sh).
 //
 // ZWEI REGIME (siehe api/_lib/retention.js):
 //   Anamnese      → 14 Tage nach Anlage VOLLSTAENDIGE Loeschung (medizinische Daten).
@@ -29,7 +30,7 @@ const { recordHeartbeat } = require('../_lib/heartbeat')
 const { isAnamnesisCategory } = require('../_lib/categories')
 const { recordPurgedMemorial, prunePurgedTombstones } = require('../_lib/tombstone')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const { RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS, DAY_MS, retentionDaysFor, isPurgeDue } = require('../_lib/retention')
 
 

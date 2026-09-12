@@ -22,7 +22,7 @@ const { ensureFairSchema, createBatch, formatFairCode, normalizeFairCode, MAX_BA
 const { pool } = require('../_lib/store')
 const { audit } = require('../_lib/audit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const toPublic = r => ({
   code: r.code,

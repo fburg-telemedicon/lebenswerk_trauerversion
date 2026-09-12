@@ -8,7 +8,7 @@ const { createClient } = require('./_lib/store')
 const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
       .eq('id', id).eq('memorial_id', target.id)
       .select('id').maybeSingle()
     if (error) {
-      // Spalten evtl. noch nicht migriert (supabase/feedback.sql) → still ignorieren.
+      // Spalten evtl. noch nicht migriert (db/schema.sql) → still ignorieren.
       if (/feedback_|column/i.test(error.message || '')) return res.json({ ok: true, skipped: true })
       throw error
     }

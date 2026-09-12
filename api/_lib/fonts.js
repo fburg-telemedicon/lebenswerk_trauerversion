@@ -3,7 +3,7 @@
 // librsvg (über sharp) in der Serverless-Linux-Umgebung Text zeichnen kann statt
 // Platzhalter-Kästchen. Idempotent; setzt FONTCONFIG_FILE nur einmal. Wird von
 // den Report-Funktionen genutzt (compose-image.js hat eine eigene Kopie).
-// Voraussetzung im Serverless-Bundle: vercel.json includeFiles "api/_fonts/**".
+// Voraussetzung: api/_fonts/** liegt im Container-Image (siehe Dockerfile).
 
 const os = require('os')
 const path = require('path')

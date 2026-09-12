@@ -13,7 +13,7 @@ const { costSTT, recordCost, enforceBudget } = require('./_lib/cost')
 const { resolvePublicCode } = require('./_lib/access')
 const { enforce } = require('./_lib/ratelimit')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 // Erkennungssprache je Interview-Sprache. `de-CH` ist der Grund, warum hier der
 // VOLLE Code steht: Azure erkennt Schweizerdeutsch (Mundart) nur mit dem Locale

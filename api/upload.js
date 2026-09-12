@@ -13,7 +13,7 @@ const { enforce } = require('./_lib/ratelimit')
 const { resolvePublicCode } = require('./_lib/access')
 const { appendUpload } = require('./_lib/upload-asset')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()

@@ -1,128 +1,87 @@
-# Lebenswerk – Gemeinsames Gedenkbuch
+# Lebenswerk – KI-Biograph für Lebensgeschichten
 
-Eine Web-App, mit der Familie, Freunde und Wegbegleiter gemeinsam ein Gedenkbuch erstellen. Der KI-Biograph führt jeden Beitragenden durch ein einfühlsames Interview; am Ende entsteht entweder ein Buch mit einzelnen Beiträgen oder ein literarischer Text „in einem Guss".
+Eine Web-App, in der ein KI-Biograph Menschen durch ein einfühlsames Interview
+führt und daraus ein fertiges Buch entsteht — als gemeinsames Gedenkbuch
+(mehrere Beitragende über einen geteilten Link) oder als Autobiographie
+(ein Mensch erzählt sein eigenes Leben). Zwölf Produktkategorien, vierzehn
+Sprachen, alle KI-Verarbeitung in der EU.
+
+Für Entwicklung und Betrieb ist **`CLAUDE.md` die maßgebliche Dokumentation**
+(Architektur, Kategorien, alle Umgebungsvariablen). Dieses README ist nur der
+Einstieg.
 
 ---
 
 ## Technischer Stack
 
-| Schicht    | Technologie                              |
-|------------|------------------------------------------|
-| Frontend   | React + Vite                             |
-| Backend    | Vercel Serverless Functions (Node.js)    |
-| Datenbank  | Supabase (PostgreSQL)                    |
+| Schicht    | Technologie                                                        |
+|------------|--------------------------------------------------------------------|
+| Frontend   | React + Vite (SPA ohne Router, `view`-State-Machine)               |
+| Backend    | Express (`server.js`) auf **Azure Container Apps**                 |
+| Datenbank  | **Azure Database for PostgreSQL** Flexible Server (North Europe)   |
+| Speicher   | **Azure Blob Storage** (private Container, SAS-signierte Lesezugriffe) |
+| Crons      | **Azure Container Apps Jobs** (`scripts/cron-run.js`)              |
 | KI         | Azure OpenAI gpt-4.1 (Interviews + Synthese, EU) – einziges LLM, kein Fallback |
-| Stimme     | Azure AI Speech (Neural, EU) – einziges TTS/STT, kein Fallback |
-| Bilder     | FLUX.2 [pro] via Microsoft Azure (Foundry, EU) |
+| Stimme     | Azure AI Speech (Neural TTS + Fast Transcription, EU) – einziges TTS/STT, kein Fallback |
+| Bilder     | FLUX.2 [pro] via Microsoft Foundry (EU) – einziges Bildmodul, kein Fallback |
+
+Supabase und Vercel sind seit dem Cutover am 2026-07-13 **nicht mehr im
+Einsatz**. Handler rufen weiterhin `createClient()` auf, das ist aber
+`api/_lib/store.js` — ein hauseigener Ersatz für `@supabase/supabase-js`, der
+auf Postgres und Azure Blob aufsetzt.
 
 ---
 
-## Schritt 1 – Supabase einrichten
-
-1. Kostenloses Konto anlegen: [supabase.com](https://supabase.com)
-2. Neues Projekt erstellen (Region: **EU West** für DSGVO)
-3. Im Dashboard → **SQL Editor** → **New query** den Inhalt von `supabase/schema.sql` einfügen und ausführen
-4. Im Dashboard → **Project Settings** → **API** folgende Werte notieren:
-   - **Project URL** → `SUPABASE_URL`
-   - **service_role** Secret → `SUPABASE_SERVICE_KEY` ⚠️ nicht der `anon` key!
-
----
-
-## Schritt 2 – API-Keys besorgen
-
-Produktion läuft auf Microsoft Azure (EU). Die Keys stammen aus dem Azure-Portal
-(Ressource → „Schlüssel und Endpunkt" bzw. Foundry-Deployment-Detailseite):
-
-| Key                  | Wo / Zweck                                            |
-|----------------------|-------------------------------------------------------|
-| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_KEY` / `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI (LLM, EU). Endpoint = `https://<resource>.services.ai.azure.com`, Deployment z. B. `gpt-4.1`. Dazu `AZURE_OPENAI_API_VERSION=preview`. |
-| `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` | Azure AI Speech (TTS/STT, EU), Region z. B. `westeurope`. |
-| `AZURE_FLUX_ENDPOINT` / `AZURE_FLUX_KEY` | Azure Foundry FLUX.2 [pro] (Bilder, EU). |
-
----
-
-## Schritt 3 – Auf Vercel deployen
-
-### Option A – Direkt über GitHub (empfohlen)
-
-1. Diesen Ordner in ein GitHub-Repository pushen
-2. [vercel.com](https://vercel.com) → **New Project** → Repository auswählen
-3. Framework: **Vite** (wird automatisch erkannt)
-4. **Environment Variables** hinzufügen:
-   ```
-   AZURE_OPENAI_ENDPOINT   = https://<resource>.services.ai.azure.com
-   AZURE_OPENAI_KEY        = ...
-   AZURE_OPENAI_DEPLOYMENT = gpt-4.1
-   AZURE_SPEECH_KEY        = ...
-   AZURE_SPEECH_REGION     = westeurope
-   AZURE_FLUX_ENDPOINT     = https://<resource>.services.ai.azure.com
-   AZURE_FLUX_KEY          = ...
-   SUPABASE_URL            = https://xxx.supabase.co
-   SUPABASE_SERVICE_KEY    = eyJ...
-   # vollständige Liste (Admin/Cron/Retention) siehe CLAUDE.md
-   ```
-5. **Deploy** klicken → fertig ✅
-
-### Option B – Vercel CLI
+## Lokal starten
 
 ```bash
-# Vercel CLI installieren (einmalig)
-npm install -g vercel
-
-# Im Projektordner
 npm install
-vercel
-
-# Umgebungsvariablen setzen
-vercel env add AZURE_OPENAI_ENDPOINT
-vercel env add AZURE_OPENAI_KEY
-vercel env add AZURE_OPENAI_DEPLOYMENT
-vercel env add AZURE_SPEECH_KEY
-vercel env add AZURE_SPEECH_REGION
-vercel env add AZURE_FLUX_ENDPOINT
-vercel env add AZURE_FLUX_KEY
-vercel env add SUPABASE_URL
-vercel env add SUPABASE_SERVICE_KEY
-
-# Neu deployen
-vercel --prod
+npm run build          # Vite-Build nach dist/
+node server.js         # API + dist/ auf Port 8080 (oder $PORT)
 ```
+
+`server.js` registriert **jede Datei unter `api/` automatisch als Route** unter
+`/api/<pfad>` (Verzeichnisse mit `_` werden übersprungen) und serviert danach
+`dist/` statisch. Ein neuer Endpunkt = eine neue Datei, keine Routentabelle.
+
+Dafür braucht es eine `.env` mit mindestens `DATABASE_URL`,
+`AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY`, den Azure-KI-Keys und den
+Admin-Variablen. **Die vollständige Liste mit Erklärung steht in `CLAUDE.md`**
+(Abschnitt „Required environment variables") — sie ist die einzige Quelle, hier
+absichtlich nicht dupliziert.
+
+Es gibt **keine Tests, keinen Linter und keinen Typechecker**.
 
 ---
 
-## Lokale Entwicklung
+## Schema einspielen
 
 ```bash
-# Abhängigkeiten installieren
-npm install
-
-# .env anlegen
-cp .env.example .env
-# .env mit echten Keys befüllen
-
-# Entwicklungsserver starten (Frontend + API)
-npm run dev
-# → http://localhost:3000
+psql "$DATABASE_URL" -f db/schema.sql
 ```
 
-> `npm run dev` startet `vercel dev`, das sowohl den Vite-Dev-Server als auch
-> die Serverless Functions lokal emuliert.
+`db/schema.sql` ist das vollständige, idempotente Schema und kann jederzeit
+erneut gefahren werden. Es ist die **einzige** Schemaquelle; neue Spalten und
+Tabellen gehören dorthin.
 
 ---
 
-## Eigene Domain einrichten
+## Deployen
 
-In Vercel → Project → **Domains** → Domain hinzufügen.
-DNS beim Anbieter auf Vercels Nameserver zeigen lassen.
+**Push auf `main` deployt in die Produktion.**
+`.github/workflows/deploy.yml` baut das Image per OIDC in der Azure Container
+Registry und aktualisiert die Container App *und* alle vier Cron-Jobs auf
+dasselbe Image.
 
----
+Erstmalige Provisionierung bzw. Änderungen an Umgebungsvariablen laufen manuell:
 
-## DSGVO-Hinweise
+```bash
+infra/provision.sh     # Ressourcen anlegen (einmalig)
+infra/deploy.sh        # Env-Vars/Secrets + Cron-Jobs (die Action fasst sie bewusst nicht an)
+```
 
-- Supabase-Projekt auf **EU West** (Frankfurt) hosten
-- KI-Verarbeitung läuft **vollständig in der EU**: LLM (Azure OpenAI gpt-4.1), Sprache (Azure AI Speech) und Bild (FLUX via Azure) – kein Drittland-Transfer → AVV nach Art. 28 mit allen Anbietern abschließen. Es gibt **keine** US-Fallbacks: die Anthropic- (LLM) und OpenAI-Sprach-Pfade wurden am 2026-06-22 entfernt.
-- Datenschutzerklärung und Impressum ergänzen, bevor die App öffentlich zugänglich ist
-- Keine Nutzerkonten / Authentifizierung implementiert – jeder mit dem Code kann beitragen
+Runbook der Migration und des Betriebs: **`infra/MIGRATION.md`**.
+Domains, DNS und Mail: **`infra/DOMAIN-LEBENSWERK-AI.md`**.
 
 ---
 
@@ -130,20 +89,32 @@ DNS beim Anbieter auf Vercels Nameserver zeigen lassen.
 
 ```
 lebenswerk/
-├── api/                    ← Vercel Serverless Functions (Backend)
-│   ├── ask.js              ← LLM-Proxy (Azure OpenAI, EU)
-│   ├── speak.js            ← TTS-Proxy (Azure AI Speech, EU)
-│   ├── memorial.js         ← Gedenkbuch anlegen / abrufen
-│   └── contributions.js   ← Beiträge speichern / abrufen
-├── src/                    ← React Frontend
-│   ├── main.jsx
-│   ├── App.jsx             ← gesamte UI
-│   └── api.js              ← API-Client-Funktionen
-├── supabase/
-│   └── schema.sql          ← Datenbank-Schema
-├── index.html
-├── vite.config.js
-├── vercel.json
-├── package.json
-└── .env.example
+├── server.js               ← Express: /api-Autorouting, Marketing-Sites, SPA-Fallback
+├── api/
+│   ├── _lib/               ← gemeinsame Module (store, llm, cost, auth, access …)
+│   ├── admin/              ← /api/admin/* (Bearer-Token-Auth)
+│   ├── cron/               ← purge | report | transcript-check | generate
+│   └── ask.js, speak.js, transcribe.js, memorial.js, contributions.js …
+├── src/
+│   ├── App.jsx             ← Boot, Admin-State-Machine, Generierungs-Orchestrierung
+│   ├── contributor.jsx     ← der komplette Beitragenden-/Endnutzer-Flow
+│   ├── adminViews.jsx      ← die Dashboard-Ansichten
+│   ├── categories.js       ← alle kategoriespezifischen Texte + KI-Prompts
+│   └── bookExport.js, coverExport.js, audiobook.js … ← PDF/DOCX/E-Book/Hörbuch
+├── public-site/            ← die beiden Marketing-Websites (nach Host getrennt)
+├── db/schema.sql           ← kanonisches Datenbankschema
+├── infra/                  ← Provisionierung, Deploy, Runbooks
+├── scripts/                ← cron-run.js + Dokument-/Paketgeneratoren
+└── CLAUDE.md               ← maßgebliche Architektur- und Betriebsdokumentation
 ```
+
+---
+
+## Datenschutz
+
+Die gesamte KI-Verarbeitung läuft **in der EU** (Azure OpenAI, Azure AI Speech,
+FLUX via Foundry) — kein Drittlandtransfer, keine US-Fallbacks. Die
+Rechtsdokumente liegen im Repo: `DSFA.md`, `VERFAHRENSVERZEICHNIS.md`, `AVV.md`,
+`BETRIEB-DSGVO.md`, `SICHERHEIT.md`, `AGB.md` sowie die Einwilligungsvorlagen.
+Aufbewahrungsfristen und die automatische Löschung: `api/_lib/retention.js` —
+die einzige Quelle für die Frist, sie wird nirgends sonst neu berechnet.

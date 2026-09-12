@@ -23,7 +23,7 @@ const { ensureLifeworkSchema } = require('../_lib/lifework')
 const { audit } = require('../_lib/audit')
 const { retentionDaysFor } = require('../_lib/retention')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()

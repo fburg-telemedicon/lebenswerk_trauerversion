@@ -11,7 +11,7 @@
 const crypto = require('crypto')
 const { createClient, pool } = require('./store')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const norm = e => String(e || '').trim().toLowerCase()
 

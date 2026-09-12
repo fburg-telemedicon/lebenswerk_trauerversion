@@ -13,7 +13,7 @@ const { loadAccessibleMemorial } = require('../_lib/access')
 const { appendUpload, removeUpload } = require('../_lib/upload-asset')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 const SIGNED_URL_TTL = 3600
 
 module.exports = async function handler(req, res) {

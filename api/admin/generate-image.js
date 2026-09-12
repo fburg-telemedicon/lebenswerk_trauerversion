@@ -22,7 +22,7 @@ const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { normalizeStyle, styleDirective, styleAnchor, DEFAULT_STYLE } = require('../_lib/image-styles')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const supabase = createClient()
 
 const BUCKET = IMAGE_BUCKET
 // Pricing-Key (cost.js): FLUX nach `${model}-${size}`. Zielformat 1536×1024.
