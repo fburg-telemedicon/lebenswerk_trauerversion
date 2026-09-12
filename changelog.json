@@ -2,6 +2,14 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-12",
+      "items": [
+        "Repo aufgeraeumt: alle Reste der Azure-Umstellung entfernt, die wir nur einmalig gebraucht haben — vercel.json (functions/crons ohne Wirkung, /demobuch zeigte noch auf eine tote Supabase-URL), das komplette supabase/-Verzeichnis mit 25 alten Einzelmigrationen inkl. rls.sql, scripts/migrate-updated-at.js sowie sechs db/*.sql-Zuwaechse. Ausserdem raus: die toten Argumente SUPABASE_URL/SUPABASE_SERVICE_KEY aus 45 Handlern (createClient() nimmt jetzt sichtbar keine Argumente mehr), das vestigiale npm run dev (vercel dev) — dafuer npm start = node server.js — und ein spekulativer Nullpreis-Eintrag fuer gpt-5.5 in cost.js.",
+        "Dabei einen echten Fehler gefunden und behoben: db/schema.sql war trotz der Zusage, das kanonische Schema zu sein, nicht mehr aktuell. Es fehlten contributions.updated_at, die Tabellen app_settings und unlock_codes (samt der drei nachtraeglich ergaenzten Spalten) und die Endnutzer-Spalten in app_users; memorial_contrib_stats() stand noch in der alten Fassung ohne last_activity. Ein erneutes Einspielen des 'idempotenten' Schemas haette die Funktion zurueckgesetzt und die Dashboard-Spalte 'akt. Stand' zerstoert. Alles nachgezogen — db/schema.sql ist jetzt wieder die einzige Schemaquelle.",
+        "Dokumentation an die Wirklichkeit angepasst: Das README beschrieb noch Schritt-fuer-Schritt das Anlegen eines Supabase-Projekts und ein Vercel-Deployment und ist jetzt auf den Azure-Stand umgeschrieben. In CLAUDE.md ist die Tabelle der Legacy-Artefakte durch einen Abschnitt ersetzt, der erklaert, was nur noch WIE Supabase aussieht (store.js, das Wort 'bucket') und deshalb bleiben muss. Kommentare, die auf vercel.json verwiesen (Cron-Zeitplaene, includeFiles fuer die Schriften), zeigen jetzt auf die Container-Apps-Jobs bzw. das Dockerfile."
+      ]
+    },
+    {
       "date": "2026-09-07",
       "items": [
         "Produktdefinition fuer eine 13. Produktkategorie „Lebenslauf“ geschrieben (PRODUKTKATEGORIE_LEBENSLAUF.md): Ein Mensch erzaehlt seinen beruflichen Weg, daraus entstehen ein Lebenslauf in fuenf waehlbaren Vorlagen, ein Kompetenzprofil entlang der fuenf AVOCA Future Skills mit Belegstellen und ein Gespraechsleitfaden. Zielgruppe sind Personalberatung, Outplacement und Personalentwicklung.",
