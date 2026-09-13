@@ -46,6 +46,20 @@ Set on the Container App (via `infra/deploy.sh`) and in a local `.env` for `node
 
 ## Architecture
 
+### Sharing code between backend and SPA — read this before copying anything
+
+The backend is CommonJS (Node 20), the SPA is ESM (Vite). That gap used to be bridged by **hand-copying** modules, with comments telling you to keep both in sync. Every one of those copies is gone (2026-09-13). The bridge is one line in `vite.config.js`:
+
+```js
+build: { commonjsOptions: { include: [/api[\\/]_lib[\\/]/, /node_modules/] } }
+```
+
+With it, **`src/` can `import` a CommonJS module from `api/_lib/` directly**, and Rollup bundles it. `/node_modules/` must stay in that list — the option replaces Vite's default rather than extending it. Without the line the build fails with `"<name>" is not exported by "api/_lib/<file>.js"`.
+
+So: **a helper needed on both sides goes in `api/_lib/` as CommonJS, and the SPA imports it from there.** Never copy it into `src/`. This works only for **runtime-neutral** modules — no `require` of Node builtins, no `Buffer`/`fs`/`crypto`, or the browser bundle breaks. `api/_lib/transcript-core.js` exists precisely to hold the neutral half of `api/_lib/transcript.js`; follow that split when a module is partly Node-specific.
+
+Currently shared this way: `repetition.js` (`withRepetitionCheck`), `genprompts.js` (`tryParseJSON`, `faceRefSystem`), `transcript-core.js` (apply/revert corrections).
+
 ### Frontend — SPA, no router
 
 A `view` string state machine drives everything; there is no router. The UI is split across several files in `src/` (App.jsx alone is ~3700 lines — do not expect one file to hold it all):
@@ -125,7 +139,7 @@ Scheduling lives in `infra/deploy.sh` (which creates the jobs), not in any confi
 
 ### Generation runs server-side
 
-Book, image and eulogy generation is **not** a browser loop any more. The browser enqueues a job (`enqueueGeneration` → `api/admin/generate-job.js`) and polls it (`pollGeneration`); the worker `api/cron/generate.js` executes it in phases (chapters → images → save) with a time budget and self-continuation, backed by `api/_lib/genjobs.js`. Single-shot prompts are still **built in the browser** from `src/categories.js` and passed as `steps:[{system,user,label}]`, so most prompt builders never had to be ported; `api/_lib/genprompts.js` holds the ones the worker needs itself (book_v2 chapters, image assignment, face refs, `tryParseJSON`). Closing the tab no longer kills a generation.
+Book, image and eulogy generation is **not** a browser loop any more. The browser enqueues a job (`enqueueGeneration` → `api/admin/generate-job.js`) and polls it (`pollGeneration`); the worker `api/cron/generate.js` executes it in phases (chapters → images → save) with a time budget and self-continuation, backed by `api/_lib/genjobs.js`. Single-shot prompts are still **built in the browser** from `src/categories.js` and passed as `steps:[{system,user,label}]`, so most prompt builders never had to be ported; `api/_lib/genprompts.js` holds the ones the worker needs itself (book_v2 chapters, image assignment, face refs, `tryParseJSON`) — and the SPA imports `tryParseJSON`/`faceRefSystem` back out of it (see "Sharing code between backend and SPA"). Closing the tab no longer kills a generation.
 
 **Hörbuch** (`resultType:'audiobook'`) follows the same split, but with **no LLM at all**: `src/audiobook.js` turns the stored book JSON into read-aloud blocks (`[{kind,track,speaker,text}]`) — the browser owns them because i18n and the contributor list live there — and the worker speaks them via `api/_lib/tts.js` (the shared Azure TTS layer that `api/speak.js` also uses). One MP3 per chapter under `<CODE>/audio/<variant>-NN.mp3`, stored in `memorials.audiobooks` (jsonb, per book variant) and signed like images. Two facts the design rests on, both measured: MAI voices ignore `<break>` (paragraph pauses must be `<p>`), and Azure MP3s are bare MPEG frames without ID3, so chunks and chapters can simply be concatenated — which is why the single-file download is assembled in the browser instead of stored a second time. Voice choice is female / male / mixed (chapters alternate, guest voice boxes take the other voice; in book V1 the chapter follows the contributor's gender). Optionally the chapters are also concatenated **server-side** into one file at `<CODE>/audio/full-<variant>.mp3` (`api/_lib/audiobook.js`, used by the worker via `params.storeFull` and by `api/admin/store-audiobook.js` so a link can be added later without paying for TTS again); it is shared through `GET /api/audio?code=…&v=…&s=<slug>` — the audio counterpart of `api/pdf.js`, but a **302 to a fresh SAS URL** rather than a proxied stream, because a ~90 MB file must not be buffered per request and players need Azure's range support for seeking.
 
