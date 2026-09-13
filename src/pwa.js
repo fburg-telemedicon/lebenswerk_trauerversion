@@ -35,12 +35,6 @@ export function isIOS() {
   return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 }
 
-// Nur echtes Safari kann „Zum Home-Bildschirm" (Chrome/Firefox auf iOS nicht).
-export function isIOSSafari() {
-  if (!isIOS()) return false
-  const ua = navigator.userAgent || ''
-  return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)
-}
 
 export function canPromptInstall() { return !!deferredPrompt }
 

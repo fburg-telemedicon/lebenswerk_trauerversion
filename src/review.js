@@ -3,26 +3,6 @@
 // Lebensgeschichte, Trauerrede). Eine zusätzliche KI-Anfrage prüft den
 // fertigen Text und liefert strukturierte Befunde als JSON zurück.
 
-// Geprüfte Kategorien. Die KI MUSS exakt diese Bezeichnungen im Feld
-// "category" verwenden, damit die Anzeige stabil ist.
-export const REVIEW_CATEGORIES = [
-  // Faktentreue: die beiden wichtigsten Befunde. Ein Buch, das Ereignisse
-  // erfindet oder sich wiederholt, um Länge zu erzeugen, ist wertlos — deshalb
-  // prüft dieselbe KI-Runde auch das, nicht nur Datenschutz/Compliance.
-  'Nicht belegt/erfunden',
-  'Wiederholung',
-  'Verunglimpfung/Herabwürdigung',
-  'Kritische Aussage über andere Person',
-  'Gesundheitsdaten',
-  'Kriminelle Handlung/Straftat',
-  'Weitere besondere Daten (Religion, Politik, Herkunft, Gewerkschaft, Sexualleben)',
-  'Personenbezogene Daten Dritter',
-  'Finanzielle Verhältnisse/Erbschaft',
-  'Ehrverletzung/strafrechtlich relevant',
-  'Urheberrecht (Liedtext, Gedicht, längeres Zitat)',
-  'Sensible/entwürdigende persönliche Umstände',
-  'Vertrauliches/Geschäftsgeheimnis',
-]
 
 // System-Prompt für die Prüfung. Verlangt rohes JSON.
 // :

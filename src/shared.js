@@ -160,11 +160,6 @@ export function formatPriceCents(cents) {
   return formatEurSum(Number(cents) / 100)
 }
 
-// Cent → "49,90" fürs Eingabefeld (ohne Währungszeichen).
-export function priceCentsToInput(cents) {
-  if (cents === null || cents === undefined || cents === '') return ''
-  return (Number(cents) / 100).toFixed(2).replace('.', ',')
-}
 
 const COST_KIND_LABEL = {
   interview:  'Interview-Fragen (KI)',

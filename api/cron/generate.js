@@ -484,9 +484,11 @@ async function processJson(job, deadline) {
   return 'done'
 }
 
-// Motiv-Prompt für das Poster-Gesamtbild (aus den Stationen). Muss zu
-// posterSceneSystem() in src/lifeworkExtras.js passen — hier serverseitig, weil
-// er erst gebaut werden kann, wenn die Stationen feststehen.
+// Motiv-Prompt für das Poster-Gesamtbild (aus den Stationen). Er kann erst
+// gebaut werden, wenn die Stationen feststehen, deshalb liegt er hier im Worker.
+// Bis 2026-09-13 gab es in src/lifeworkExtras.js eine ungenutzte Zwillings-
+// funktion (posterSceneSystem), die mitgepflegt werden sollte; sie ist entfernt.
+// DIES hier ist die einzige Fassung.
 function sceneSystemFor(data) {
   const scenes = []
   for (const sec of (data.sections || [])) {

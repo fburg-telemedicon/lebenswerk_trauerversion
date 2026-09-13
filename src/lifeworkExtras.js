@@ -494,7 +494,6 @@ export const POSTER_STYLES = [
     heading: 'times', body: 'times', titleUpper: false,
   },
 ]
-export const DEFAULT_POSTER_STYLE = 'storybook'
 export const getPosterStyle = k => POSTER_STYLES.find(s => s.key === k) || POSTER_STYLES[0]
 
 export function posterSystem(memorial, allContributions) {
@@ -550,16 +549,6 @@ Sonstiges:
 ${guestNote}\n\nInterview mit ${memorial.name}:\n\n${lines.join('\n')}${guestBlock}`
 }
 
-// Alle Bild-Aufträge des Posters, in Reihenfolge. Schlüssel "si:ti" = Abschnitt/Station.
-export function posterImageJobs(data) {
-  const jobs = []
-  ;(Array.isArray(data?.sections) ? data.sections : []).slice(0, 6).forEach((sec, si) => {
-    ;(Array.isArray(sec.stations) ? sec.stations : []).slice(0, 4).forEach((st, ti) => {
-      if (st?.image_prompt) jobs.push({ key: `${si}:${ti}`, si, ti, prompt: st.image_prompt })
-    })
-  })
-  return jobs
-}
 
 const P = { W: 594, H: 420, margin: 22 }
 
@@ -927,258 +916,9 @@ export async function downloadPosterPdf(filename, data, urls = {}, styleKey, lan
 // messen dabei mit derselben Schrift, mit der das PDF gesetzt wird.
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
-// Grob, aber ausreichend: die äußersten Koordinaten des SVG-Inhalts. Wir lesen die
-// Positions-Attribute aller Elemente und zusätzlich die Zahlen aus Pfaddaten. Das
-// reicht, um zu erkennen, dass das Modell z. B. in Pixeln gerechnet hat (Werte weit
-// jenseits von 594/420) und um den Inhalt aufs Blatt zurückzuholen.
-function svgExtent(svg) {
-  let maxX = 0, maxY = 0
-  const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0 }
-  for (const el of svg.querySelectorAll('*')) {
-    const t = el.tagName.toLowerCase()
-    if (t === 'rect' || t === 'image') {
-      maxX = Math.max(maxX, num(el.getAttribute('x')) + num(el.getAttribute('width')))
-      maxY = Math.max(maxY, num(el.getAttribute('y')) + num(el.getAttribute('height')))
-    } else if (t === 'circle' || t === 'ellipse') {
-      maxX = Math.max(maxX, num(el.getAttribute('cx')) + num(el.getAttribute('r') || el.getAttribute('rx')))
-      maxY = Math.max(maxY, num(el.getAttribute('cy')) + num(el.getAttribute('r') || el.getAttribute('ry')))
-    } else if (t === 'text' || t === 'tspan') {
-      maxX = Math.max(maxX, num(el.getAttribute('x')))
-      maxY = Math.max(maxY, num(el.getAttribute('y')))
-    } else if (t === 'line') {
-      maxX = Math.max(maxX, num(el.getAttribute('x1')), num(el.getAttribute('x2')))
-      maxY = Math.max(maxY, num(el.getAttribute('y1')), num(el.getAttribute('y2')))
-    } else if (t === 'path' || t === 'polyline' || t === 'polygon') {
-      const d = el.getAttribute('d') || el.getAttribute('points') || ''
-      const nums = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number)
-      for (let i = 0; i + 1 < nums.length; i += 2) {
-        maxX = Math.max(maxX, nums[i])
-        maxY = Math.max(maxY, nums[i + 1])
-      }
-    }
-  }
-  return { maxX, maxY }
-}
 
-export function posterLayoutSystem(data, styleKey) {
-  const st = getPosterStyle(styleKey)
-  const hex = c => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')
-  const palette = st.accents.map(hex).join(', ')
-  const stations = []
-  ;(data.sections || []).forEach((sec, si) => {
-    ;(sec.stations || []).forEach((s, ti) => {
-      stations.push(`  IMG:${si}:${ti} | Abschnitt „${sec.heading}" (${sec.period || ''}) | Jahr: ${s.year || '—'} | Titel: ${s.title} | Bedeutung: ${s.weight || 1}\n     Text: ${s.text}`)
-    })
-  })
 
-  return `Du bist Infografik-Designerin. Du gestaltest ein LEBENSPOSTER im Format DIN A2 quer als SVG.
 
-BLATTMASSE — HALTE DICH EXAKT DARAN:
-- Das Wurzelelement lautet GENAU: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 594 420">
-- KEIN width-Attribut, KEIN height-Attribut am <svg>. Keine Pixel, keine "px"-Einheiten irgendwo.
-- ALLE Koordinaten liegen zwischen 0 und 594 (x) bzw. 0 und 420 (y) — die Einheit ist Millimeter. Eine Schriftgröße von 4 bedeutet 4 mm, nicht 4 px.
-- Sicherheitsrand 14 mm rundum: dort darf NICHTS Wichtiges liegen. Nichts darf über den Blattrand hinausragen.
-
-STIL „${st.label}":
-- Papierfarbe (Hintergrund-Rechteck über das ganze Blatt): ${hex(st.paper)}
-- Schriftfarbe: ${hex(st.ink)}, gedämpft: ${hex(st.soft)}
-- Akzentfarben (für Wege, Bänder, Jahreszahlen): ${palette}
-- Schriften: NUR font-family="times" (Serifen) oder font-family="helvetica" (serifenlos). Überschriften bevorzugt ${st.heading}, Fließtext ${st.body}.
-
-INHALTE (alles davon MUSS aufs Poster, wörtlich, ohne Änderung):
-Titel: ${data.title}
-Untertitel: ${data.subtitle || ''}
-Person: ${[data.person?.name, data.person?.years].filter(Boolean).join(' · ')}
-Stationen (chronologisch — jede hat ein Bild, das du über den Platzhalter einsetzt):
-${stations.join('\n')}
-Werte: ${(data.values || []).join(' · ')}
-Orte: ${(data.places || []).join(' · ')}
-Zitat: ${data.quote || ''}
-
-SO BAUST DU DAS BLATT:
-- Ein geschwungener Weg (ein oder mehrere <path> mit Bézier-Kurven, stroke-width 2–3, stroke-linecap="round") führt CHRONOLOGISCH durch das Blatt und verbindet die Stationen. Er darf sich krümmen, aufsteigen, abfallen — er ist die Lebenslinie, kein Lineal. Die Farbe wechselt je Lebensabschnitt (nutze die Akzentfarben in der Reihenfolge der Abschnitte).
-- Die Stationen liegen ENTLANG dieses Weges, NICHT auf einem Raster: unterschiedliche Höhen, mal über, mal unter dem Weg, unregelmäßige Abstände.
-- Bilder als <image href="IMG:si:ti" x="…" y="…" width="…" height="…" preserveAspectRatio="xMidYMid slice"/>. Die Platzhalter-href MUSS exakt so bleiben (IMG:Abschnitt:Station), sie wird beim Rendern durch das echte Bild ersetzt.
-  • Bedeutung 3 → großes Bild, etwa 90–110 mm breit
-  • Bedeutung 2 → mittleres Bild, etwa 60–75 mm breit
-  • Bedeutung 1 → kleines Bild, etwa 40–50 mm breit
-  • Seitenverhältnis IMMER 3:2 (Breite:Höhe = 1.5), sonst wird das Bild beschnitten.
-  • Bilder dürfen sich NICHT überlappen und keinen Text überdecken.
-- Je Abschnitt EIN Band/eine Pille (<rect rx="4"> in der Akzentfarbe, weiße Schrift darauf) mit dem Namen des Abschnitts und dem Zeitraum, am Beginn der Gruppe.
-- Zu jeder Station: Jahreszahl (fett, in der Akzentfarbe), Titel (fett, Schriftfarbe) und der Text. Setze sie WECHSELND neben, über oder unter das Bild — nicht immer gleich.
-- Titel des Posters groß (font-size 26–34) im Kopfbereich, Untertitel darunter, Person klein darunter.
-- Werte, Orte und das Zitat in einer ruhigen Fußzone.
-
-TEXT — WICHTIG (SVG kann nicht umbrechen, das erledigt der Renderer):
-- Jeder mehrzeilige Text ist EIN <text>-Element mit dem Attribut data-w="Breite in mm". Der Renderer bricht ihn innerhalb dieser Breite um. Schreibe den Text als reinen Inhalt, OHNE <tspan>.
-- Beispiel: <text x="120" y="180" data-w="52" font-family="helvetica" font-size="3.4" fill="${hex(st.soft)}">Der Satz zur Station.</text>
-- text-anchor="start" (Standard), "middle" oder "end" — der Umbruch respektiert das.
-- Schriftgrößen: Stationstext 3.2–3.8, Stationstitel 4.5–5.5, Jahreszahl 5–6, Abschnittsband 4, Poster-Titel 26–34.
-- Ändere KEINEN der oben gelieferten Texte: kein Umformulieren, keine Kürzung, keine neuen Sätze. Du gestaltest nur.
-
-ERLAUBTE ELEMENTE: svg, g, rect, circle, ellipse, line, path, polyline, polygon, text, image. KEINE style-Blöcke, KEIN <foreignObject>, KEIN Filter, KEIN Skript, KEINE externen Verweise (außer den IMG:-Platzhaltern).
-
-Gib AUSSCHLIESSLICH das SVG aus — beginnend mit <svg und endend mit </svg>. Kein Markdown, keine Erklärung.`
-}
-
-// SVG der KI → echtes DOM-SVG, Bilder eingesetzt, Text umbrochen.
-// `images` = { "si:ti": dataURL }
-function prepareSvg(svgText, images, doc) {
-  const clean = String(svgText || '').trim().replace(/^```(?:svg|xml)?/i, '').replace(/```$/, '').trim()
-  const start = clean.indexOf('<svg')
-  const end = clean.lastIndexOf('</svg>')
-  if (start < 0 || end < 0) throw new Error('Die KI hat kein SVG geliefert.')
-  const src = clean.slice(start, end + 6)
-
-  const parsed = new DOMParser().parseFromString(src, 'image/svg+xml')
-  if (parsed.querySelector('parsererror')) throw new Error('Das SVG der KI ist fehlerhaft.')
-  const svg = parsed.documentElement
-
-  // ── Bilder bändigen ──
-  // Zwei Dinge zwingend geradeziehen:
-  //  1. Breite deckeln (das Modell setzt gelegentlich ein Bild über das halbe Blatt).
-  //  2. preserveAspectRatio auf "none": svg2pdf setzt ein Bild mit "…slice" in
-  //     seiner NATÜRLICHEN Pixelgröße ins PDF — ein 1536-px-Bild deckte damit das
-  //     halbe Poster zu. Die Illustrationen sind exakt 3:2, die Rahmen ebenfalls,
-  //     also verzerrt "none" nichts.
-  for (const img of [...svg.querySelectorAll('image')]) {
-    let w = parseFloat(img.getAttribute('width') || '0')
-    if (!(w > 0)) w = 60
-    if (w > 130) w = 130
-    img.setAttribute('width', String(w))
-    img.setAttribute('height', String(Math.round((w / 1.5) * 100) / 100))
-    img.setAttribute('preserveAspectRatio', 'none')
-  }
-
-  // ── Auf Millimeter normalisieren ──
-  // Trotz klarer Vorgabe arbeitet die KI gern in Pixeln (viewBox z. B.
-  // "0 0 1600 1131"). Würden wir die viewBox einfach auf 594×420 setzen, läge der
-  // Inhalt weit außerhalb — man sähe nur die linke obere Ecke. Also: vorhandene
-  // viewBox lesen, den Inhalt in eine skalierte Gruppe hängen und DANN das Blatt
-  // auf A2 in mm festlegen. Der Skalierungsfaktor gilt auch für den Textumbruch.
-  const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number)
-  let vbW = vb.length === 4 && vb[2] > 0 ? vb[2] : parseFloat(svg.getAttribute('width')) || P.W
-  let vbH = vb.length === 4 && vb[3] > 0 ? vb[3] : parseFloat(svg.getAttribute('height')) || P.H
-
-  // Selbst mit korrekter viewBox schreibt das Modell Elemente über den Blattrand
-  // hinaus. Deshalb messen wir die TATSÄCHLICHE Ausdehnung des Inhalts (Attribute
-  // + Pfadkoordinaten) und rechnen damit — so passt das Blatt am Ende immer.
-  const extent = svgExtent(svg)
-  if (extent.maxX > vbW * 1.02) vbW = extent.maxX
-  if (extent.maxY > vbH * 1.02) vbH = extent.maxY
-
-  const scale = Math.min(P.W / vbW, P.H / vbH)
-  if (Math.abs(scale - 1) > 0.001) {
-    const g = parsed.createElementNS(SVG_NS, 'g')
-    g.setAttribute('transform', `scale(${scale})`)
-    while (svg.firstChild) g.appendChild(svg.firstChild)
-    svg.appendChild(g)
-  }
-  svg.setAttribute('viewBox', `0 0 ${P.W} ${P.H}`)
-  svg.setAttribute('width', String(P.W))
-  svg.setAttribute('height', String(P.H))
-  svg.removeAttribute('preserveAspectRatio')
-
-  // Sicherheit: nur erlaubte Elemente behalten (kein Skript, kein externer Verweis).
-  const ALLOWED = new Set(['svg', 'g', 'rect', 'circle', 'ellipse', 'line', 'path', 'polyline', 'polygon', 'text', 'tspan', 'image', 'defs', 'title', 'desc'])
-  for (const el of [...svg.querySelectorAll('*')]) {
-    if (!ALLOWED.has(el.tagName.toLowerCase())) el.remove()
-  }
-
-  // Bilder NICHT von svg2pdf zeichnen lassen: Es ignoriert width/height eines
-  // <image> und setzt die Datei in ihrer natürlichen Pixelgröße ins PDF — ein
-  // 1536-px-Bild deckte damit das halbe Poster zu. Wir sammeln die Bilder mit
-  // ihren SVG-Maßen ein, entfernen die Elemente und zeichnen sie anschließend
-  // selbst mit jsPDF (unter die Vektorebene).
-  const placed = []
-  for (const img of [...svg.querySelectorAll('image')]) {
-    const href = img.getAttribute('href') || img.getAttribute('xlink:href') || ''
-    const m = /^IMG:(\d+):(\d+)$/.exec(href.trim())
-    const data = m ? images[`${m[1]}:${m[2]}`] : null
-    const x = parseFloat(img.getAttribute('x') || '0')
-    const y = parseFloat(img.getAttribute('y') || '0')
-    const w = parseFloat(img.getAttribute('width') || '0')
-    const h = parseFloat(img.getAttribute('height') || '0')
-    if (data && w > 0 && h > 0) placed.push({ data, x: x * scale, y: y * scale, w: w * scale, h: h * scale })
-    img.remove()
-  }
-
-  // Zeilenumbruch: <text data-w="…"> → tspans, gemessen mit der PDF-Schrift.
-  for (const t of [...svg.querySelectorAll('text[data-w]')]) {
-    const w = parseFloat(t.getAttribute('data-w'))
-    const size = parseFloat(t.getAttribute('font-size') || '4')
-    const fam = (t.getAttribute('font-family') || 'helvetica').includes('times') ? 'times' : 'helvetica'
-    const bold = (t.getAttribute('font-weight') || '').toString() === 'bold' || Number(t.getAttribute('font-weight')) >= 600
-    const italic = (t.getAttribute('font-style') || '') === 'italic'
-    const content = (t.textContent || '').replace(/\s+/g, ' ').trim()
-    if (!content || !(w > 0)) continue
-
-    // Gemessen wird im PDF (Millimeter). Arbeitet das SVG in anderen Einheiten,
-    // müssen Schriftgröße und Breite erst mit demselben Faktor umgerechnet werden,
-    // mit dem der Inhalt später skaliert wird — sonst bricht der Text falsch um.
-    doc.setFont(fam, bold ? 'bold' : (italic ? 'italic' : 'normal'))
-    doc.setFontSize(size * scale)
-    const lines = doc.splitTextToSize(content, w * scale).map(l => l)
-    const x = t.getAttribute('x') || '0'
-    while (t.firstChild) t.removeChild(t.firstChild)
-    lines.forEach((line, i) => {
-      const ts = parsed.createElementNS(SVG_NS, 'tspan')
-      ts.setAttribute('x', x)
-      if (i > 0) ts.setAttribute('dy', String(size * 1.25))
-      ts.textContent = line
-      t.appendChild(ts)
-    })
-  }
-  // Das vollflächige Papier-Rechteck muss VOR den Bildern liegen — svg2pdf malt
-  // die Vektorebene aber ZULETZT und würde die Illustrationen sonst zudecken.
-  // Also: Papierfarbe herausziehen, Rechteck entfernen, Papier selbst zeichnen.
-  let paper = null
-  for (const r of [...svg.querySelectorAll('rect')]) {
-    const w = parseFloat(r.getAttribute('width') || '0')
-    const h = parseFloat(r.getAttribute('height') || '0')
-    if (w >= vbW * 0.97 && h >= vbH * 0.97) {
-      paper = r.getAttribute('fill') || null
-      r.remove()
-      break
-    }
-  }
-  return { svg, placed, paper }
-}
-
-// Rendert das KI-SVG als Vektor-PDF (A2 quer). `urls` = { "si:ti": signierte URL }
-export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
-  await loadPdfFonts()
-  const images = {}
-  await Promise.all(Object.entries(urls).map(async ([k, url]) => {
-    if (!url) return
-    try { const im = await loadImage(url); images[k] = im.data } catch { /* Bild fällt weg */ }
-  }))
-
-  const doc = newPdfDoc({ orientation: 'landscape', unit: 'mm', format: [P.W, P.H] })
-  const { svg, placed, paper } = prepareSvg(svgText, images, doc)
-
-  // Reihenfolge: Papier, dann die Illustrationen (Pixel), dann die Vektorebene
-  // (Wege, Bänder, Schrift) darüber.
-  if (paper) { doc.setFillColor(paper); doc.rect(0, 0, P.W, P.H, 'F') }
-  for (const im of placed) {
-    try { doc.addImage(im.data, 'PNG', im.x, im.y, im.w, im.h, undefined, 'FAST') } catch { /* Bild überspringen */ }
-  }
-
-  // svg2pdf braucht das Element im Dokument (Layout-Messung).
-  const host = document.createElement('div')
-  host.style.cssText = 'position:fixed;left:-10000px;top:0;width:594mm;height:420mm;'
-  host.appendChild(svg)
-  document.body.appendChild(host)
-  try {
-    // Gezielt den ESM-Build laden: Die Paket-Auflösung liefert sonst je nach
-    // Umgebung das UMD-Bündel, dessen Default-Export kein Aufruf-Ziel ist.
-    const { svg2pdf } = await import('svg2pdf.js/dist/svg2pdf.es.js')
-    await svg2pdf(svg, doc, { x: 0, y: 0, width: P.W, height: P.H })
-    doc.save(filename)
-  } finally {
-    host.remove()
-  }
-}
 
 // ════════════════════════════════════════════════════════════════
 // 4) POSTER ALS ILLUSTRIERTES BLATT (Szene + Vektortext)
@@ -1192,26 +932,6 @@ export async function downloadPosterSvgPdf(filename, svgText, urls = {}) {
 // Analyse des fertigen Bildes: Wir messen die Detaildichte je Rasterzelle und
 // setzen jede Beschriftung in die ruhigste Zelle in ihrer Nähe.
 
-// Motiv-Prompt fürs Gesamtblatt: aus den Stationen destilliert.
-export function posterSceneSystem(data) {
-  const st = []
-  ;(data.sections || []).forEach(sec => (sec.stations || []).forEach(s => {
-    if (s.image_prompt) st.push(String(s.image_prompt))
-  }))
-  const scenes = st.slice(0, 12).map((s, i) => `${i + 1}. ${s}`).join('\n')
-  return `Du bist Illustrator. Beschreibe EIN einziges, weites Illustrationsblatt (Lebenskarte) in ENGLISCH — es zeigt den Lebensweg als mäandernden Pfad, an dem die folgenden Szenen liegen (in dieser Reihenfolge, von links unten nach rechts oben):
-
-${scenes}
-
-Gib NUR die englische Bildbeschreibung aus (60–110 Wörter), keine Erklärung, kein Markdown, KEINE Anführungszeichen.
-
-Regeln:
-- Beschreibe den Weg und die Szenen entlang des Weges, ihre Anordnung und die Atmosphäre.
-- Verlange ausdrücklich große, ruhige, leere Papierflächen zwischen und um die Szenen (dort wird später Text gedruckt).
-- KEIN Text im Bild, keine Schrift, keine Zahlen, keine Schilder.
-- Keine Gesichter, keine Porträts.
-- Nenne kein Medium und keinen Kunststil (der kommt separat).`
-}
 
 // Detaildichte je Rasterzelle: viel Kontrast = Bild, wenig = ruhige Fläche.
 function densityGrid(imgEl, cols, rows) {
@@ -1244,28 +964,6 @@ function densityGrid(imgEl, cols, rows) {
 
 const SCENE = { cols: 6, rows: 5, margin: 16, headH: 44, footH: 22 }
 
-// Zellen belegen: Jede Station bekommt die ruhigste noch freie Zelle möglichst
-// nahe ihrer chronologischen Spalte — so bleibt die Leserichtung erhalten, ohne
-// dass Text auf einer Illustration landet.
-function placeLabels(grid, count, cols, rows, used) {
-  const out = []
-  for (let i = 0; i < count; i++) {
-    const wantCol = Math.min(cols - 1, Math.floor(i * cols / count))
-    let best = null
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (used.has(`${r}:${c}`)) continue
-        // Ruhe + Nähe zur Wunschspalte (Detaildichte zählt stärker)
-        const score = grid[r][c] + Math.abs(c - wantCol) * 3.5
-        if (!best || score < best.score) best = { r, c, score }
-      }
-    }
-    if (!best) break
-    used.add(`${best.r}:${best.c}`)
-    out.push(best)
-  }
-  return out
-}
 
 
 // ── Szenen im Bild FINDEN statt raten ─────────────────────────────
@@ -1335,95 +1033,8 @@ function colorMap(imgEl) {
   return g
 }
 
-// Zusammenhängende dichte Bereiche = Szenen. Sortiert in Leserichtung (zeilenweise).
-function findScenes(grid) {
-  const vals = grid.flat().slice().sort((a, b) => a - b)
-  const thr = vals[Math.floor(vals.length * 0.45)] * 1.6 + 1.5   // „deutlich mehr als ruhig"
-  const seen = Array.from({ length: GRID_ROWS }, () => new Array(GRID_COLS).fill(false))
-  const blobs = []
-  for (let r = 0; r < GRID_ROWS; r++) {
-    for (let c = 0; c < GRID_COLS; c++) {
-      if (seen[r][c] || grid[r][c] < thr) continue
-      const stack = [[r, c]]; seen[r][c] = true
-      let minR = r, maxR = r, minC = c, maxC = c, n = 0
-      while (stack.length) {
-        const [y, x] = stack.pop(); n++
-        minR = Math.min(minR, y); maxR = Math.max(maxR, y)
-        minC = Math.min(minC, x); maxC = Math.max(maxC, x)
-        for (const [dy, dx] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const ny = y + dy, nx = x + dx
-          if (ny < 0 || nx < 0 || ny >= GRID_ROWS || nx >= GRID_COLS) continue
-          if (seen[ny][nx] || grid[ny][nx] < thr) continue
-          seen[ny][nx] = true; stack.push([ny, nx])
-        }
-      }
-      if (n >= 6) blobs.push({ minR, maxR, minC, maxC, n })   // Rauschen verwerfen
-    }
-  }
-  // Leserichtung: nach Zeilenband, darin nach x
-  const bandH = 6
-  blobs.sort((a, b) => {
-    const ba = Math.floor(((a.minR + a.maxR) / 2) / bandH)
-    const bb = Math.floor(((b.minR + b.maxR) / 2) / bandH)
-    return ba !== bb ? ba - bb : ((a.minC + a.maxC) / 2) - ((b.minC + b.maxC) / 2)
-  })
-  return blobs
-}
 
-// Freier Platz für eine Beschriftung: unter, über, links oder rechts der Szene —
-// derjenige Kandidat mit der geringsten Detaildichte gewinnt, belegte Plätze sind
-// gesperrt. So steht der Text IMMER in einer Papiergasse an seiner Szene.
-function captionSpot(grid, blob, taken, W, H) {
-  const cw = W / GRID_COLS, ch = H / GRID_ROWS
-  const cx = ((blob.minC + blob.maxC) / 2 + 0.5) * cw
-  const cands = [
-    { x: cx, y: (blob.maxR + 2.2) * ch, cells: [[blob.maxR + 1, blob.minC, blob.maxC], [blob.maxR + 2, blob.minC, blob.maxC]] },
-    { x: cx, y: (blob.minR - 1.6) * ch, cells: [[blob.minR - 1, blob.minC, blob.maxC], [blob.minR - 2, blob.minC, blob.maxC]] },
-    { x: (blob.minC - 2.5) * cw, y: ((blob.minR + blob.maxR) / 2 + 0.5) * ch, cells: [[Math.round((blob.minR + blob.maxR) / 2), blob.minC - 3, blob.minC - 1]] },
-    { x: (blob.maxC + 3.5) * cw, y: ((blob.minR + blob.maxR) / 2 + 0.5) * ch, cells: [[Math.round((blob.minR + blob.maxR) / 2), blob.maxC + 1, blob.maxC + 3]] },
-  ]
-  let best = null
-  for (const c of cands) {
-    if (c.y < 34 || c.y > H - 8 || c.x < 25 || c.x > W - 25) continue
-    let dens = 0, n = 0, blocked = false
-    for (const [r, c0, c1] of c.cells) {
-      if (r < 0 || r >= GRID_ROWS) { blocked = true; break }
-      for (let cc = Math.max(0, c0); cc <= Math.min(GRID_COLS - 1, c1); cc++) {
-        if (taken.has(`${r}:${cc}`)) { blocked = true; break }
-        dens += grid[r][cc]; n++
-      }
-      if (blocked) break
-    }
-    if (blocked || !n) continue
-    const score = dens / n
-    if (!best || score < best.score) best = { ...c, score }
-  }
-  if (!best) return null
-  for (const [r, c0, c1] of best.cells) {
-    for (let cc = Math.max(0, c0); cc <= Math.min(GRID_COLS - 1, c1); cc++) taken.add(`${r}:${cc}`)
-  }
-  return best
-}
 
-// Das gemalte Schild einer Station als Rechteck in mm — oder null, wenn die
-// Angabe unbrauchbar ist. Geprüft wird beides: die Maße (ein Schild ist ein
-// liegender Streifen, kein halbes Blatt) und der BILDINHALT an dieser Stelle. Das
-// feine Detaildichte-Raster (`bg.grid`) verrät, ob dort wirklich eine ruhige Fläche
-// liegt; ein Schild ist per Definition leer. Greift das Modell daneben, fällt die
-// Beschriftung auf die bisherige Kartuschen-Logik zurück, statt im Motiv zu landen.
-// Wie weit ist die Bildfarbe an dieser Stelle vom Papier entfernt? Dient als
-// Aufschlag bei der Platzsuche: helle, papiernahe Flächen sind billig, dunkle oder
-// kräftig gefärbte teuer.
-function notPaperPenalty(xMm, yMm, bg, st) {
-  if (!bg.colors || !st) return 0
-  const rows = bg.colors.length, cols = bg.colors[0].length
-  const r = Math.min(rows - 1, Math.max(0, Math.floor(yMm / P.H * rows)))
-  const c = Math.min(cols - 1, Math.max(0, Math.floor(xMm / P.W * cols)))
-  const col = bg.colors[r][c]
-  const dist = Math.hypot(col[0] - st.paper[0], col[1] - st.paper[1], col[2] - st.paper[2])
-  const luma = 0.299 * col[0] + 0.587 * col[1] + 0.114 * col[2]
-  return dist / 6 + Math.max(0, 190 - luma) / 3
-}
 
 function plaqueRect(loc, bg, st) {
   const { W, H } = P

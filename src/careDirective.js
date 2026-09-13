@@ -10,9 +10,10 @@
 //
 // Diese Datei bleibt, damit die vor diesem Datum erzeugten Verfügungen
 // weiterhin als PDF geladen werden können — `downloadCareDirectivePdf` wird
-// aus App.jsx genau dafür noch aufgerufen. `careDirectiveSystem` (der Prompt)
-// wird nirgends mehr verwendet und steht nur noch als Beleg dafür, woraus die
-// gespeicherten Daten entstanden sind. Nichts hier anfassen, ohne zu prüfen,
+// aus App.jsx genau dafür noch aufgerufen. Der zugehörige Prompt
+// (`careDirectiveSystem`) wurde am 2026-09-13 entfernt: Er wurde nirgends mehr
+// aufgerufen, und wer nachsehen will, woraus die gespeicherten Daten entstanden
+// sind, findet ihn in der Git-Historie. Nichts hier anfassen, ohne zu prüfen,
 // ob bestehende `care_directive`-Daten weiter zeichenbar bleiben.
 //
 // Die ursprüngliche Beschreibung:
@@ -79,69 +80,6 @@ export const CARE_AREAS = [
 // 1) KI-Prompt: Wertesystem lesen, Wünsche ableiten
 // ════════════════════════════════════════════════════════════════
 
-export function careDirectiveSystem(memorial, allContributions) {
-  // Bewusst OHNE Gastbeiträge (siehe Kopfkommentar, Punkt 1).
-  const contributions = selfOnly(allContributions)
-  const who = memorial?.name || 'die erzählende Person'
-  const areaSpec = CARE_AREAS
-    .map(a => `  • "${a.key}" (${a.title}): ${a.guide}`)
-    .join('\n')
-
-  return `Du bist eine erfahrene Betreuungsrichterin mit biografischer Ausbildung. Du liest die Lebensgeschichte von ${who} — erzählt von ${who} selbst — und arbeitest daraus das WERTESYSTEM heraus: woran dieser Mensch sein Leben ausrichtet, was ihm Würde bedeutet, wie er entscheidet und behandelt werden möchte.
-
-Daraus entwirfst du eine BETREUUNGSVERFÜGUNG: das Dokument, mit dem ein Mensch dem Betreuungsgericht im Voraus sagt, WER ihn betreuen soll und WIE diese Betreuung zu führen ist, falls er seine Angelegenheiten einmal nicht mehr selbst besorgen kann.
-
-Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen, keine Code-Fences):
-{
-  "values_summary": "3–5 Sätze in der dritten Person: das Wertesystem dieses Menschen, so wie es aus seiner Erzählung hervorgeht.",
-  "values": [
-    { "value": "Wert in 1–3 Wörtern, z. B. Selbstbestimmung",
-      "evidence": "kurzes wörtliches Zitat aus dem Interview (max. 25 Wörter), das diesen Wert belegt",
-      "consequence": "EIN Satz in der ICH-FORM: was daraus für eine Betreuung folgt" }
-  ],
-  "guardian_hints": [
-    { "name": "Name der Person", "relation": "Beziehung, z. B. Tochter, Nachbar, Freundin",
-      "evidence": "kurzes wörtliches Zitat, das das Vertrauensverhältnis belegt" }
-  ],
-  "exclusion_hints": [
-    { "name": "Name", "relation": "Beziehung",
-      "evidence": "kurzes wörtliches Zitat, das ein Zerwürfnis oder ausdrückliche Ablehnung belegt" }
-  ],
-  "areas": [
-    { "key": "gesundheit",
-      "wishes": [ { "text": "EIN Wunsch in der ICH-FORM, konkret und umsetzbar",
-                    "evidence": "kurzes wörtliches Zitat aus dem Interview, das ihn trägt" } ],
-      "gaps": [ "Wozu die Erzählung nichts hergibt — knapp benannt, damit es beim Ausfüllen ergänzt wird" ] },
-    { "key": "vermoegen",  "wishes": [], "gaps": [] },
-    { "key": "wohnung",    "wishes": [], "gaps": [] },
-    { "key": "aufenthalt", "wishes": [], "gaps": [] }
-  ],
-  "daily_life": [ "Gewohnheit, Ritual oder Vorliebe, die eine Betreuung achten soll — ICH-FORM, ein Satz" ],
-  "open_points": [ "Was vor der Unterschrift entschieden oder ergänzt werden muss" ]
-}
-
-DIE VIER AUFGABENBEREICHE — worum es jeweils geht:
-${areaSpec}
-
-REGELN — verbindlich:
-- ERFINDE NICHTS. Jeder Wunsch, jeder Wert, jeder Name muss sich auf eine Stelle der Erzählung stützen. Ohne Beleg kein Eintrag. "evidence" ist ein WÖRTLICHES Zitat aus dem Interview, nicht deine Zusammenfassung.
-- ABLEITEN ist erlaubt und erwünscht: Aus „Ich habe unser Haus mit eigenen Händen gebaut und will hier nicht weg" darf „Ich möchte so lange wie irgend möglich in meiner eigenen Wohnung leben" werden. Aus dem Nichts erfinden ist verboten.
-- ICH-FORM für alles, was im Dokument steht ("wishes", "consequence", "daily_life") — die Verfügung ist die Erklärung dieses Menschen. "values_summary" bleibt in der dritten Person.
-- KEINE BEHANDLUNGSENTSCHEIDUNGEN. Bei "gesundheit" geht es darum, WIE und mit wem entschieden wird, wie mit mir gesprochen und umgegangen wird — NIEMALS darum, welche Behandlung erfolgen oder unterbleiben soll (keine Wiederbelebung, keine künstliche Ernährung, keine Medikamente). Das ist Sache einer Patientenverfügung und lässt sich aus einer Lebensgeschichte nicht ableiten. Ebenso: keine Diagnosen, keine medizinischen Empfehlungen.
-- KEINE PERSON BESTIMMEN. Du schlägst NIEMANDEN als Betreuer vor und stellst keine Rangfolge auf. "guardian_hints" sammelt ausschließlich Menschen, die die Erzählung als enge Vertrauenspersonen ausweist — als Gedächtnisstütze für die Person selbst, die dann entscheidet. Nenne höchstens 4. Gibt die Erzählung niemanden her: leere Liste.
-- "exclusion_hints" nur bei einem AUSDRÜCKLICHEN Zerwürfnis oder einer klaren Ablehnung. Bloße Distanz oder Streit reichen nicht. Im Zweifel: leere Liste.
-- KEINE RECHTSBERATUNG, keine Paragraphen, keine Vollmachtsformeln — der rechtliche Rahmen steht bereits im Formular.
-- Umfang: 4–7 "values"; je Aufgabenbereich 3–6 "wishes" und 1–3 "gaps"; höchstens 6 "daily_life"; 3–8 "open_points".
-- Gibt die Erzählung zu einem Aufgabenbereich nichts her, lass "wishes" LEER und benenne das in "gaps". Eine leere Liste ist besser als ein erfundener Wunsch.
-- AUSLANDSBEZUG: Spielt die Lebensgeschichte erkennbar außerhalb Deutschlands (Wohnort, Beruf, Staatsangehörigkeit), dann nimm als ERSTEN "open_points"-Eintrag einen Hinweis auf, dass dieses Formular deutschem Recht folgt und zu prüfen ist, welches Recht tatsächlich gilt — im angelsächsischen Raum entsprechen ihm am ehesten „Power of Attorney" und „Health Care Proxy", in Österreich die Erwachsenenvertretung, in der Schweiz der Vorsorgeauftrag. Spielt sie in Deutschland, lass diesen Hinweis weg.
-- Alle vier Aufgabenbereiche müssen in "areas" vorkommen, mit genau diesen "key"-Werten: gesundheit, vermoegen, wohnung, aufenthalt.
-- Antworte AUSSCHLIESSLICH auf Deutsch — auch wenn das Interview in einer anderen Sprache geführt wurde. Das Dokument geht an ein deutsches Betreuungsgericht.
-- Gültiges JSON, keine trailing commas.
-
-Interview mit ${who} (Selbstauskunft):
-
-${contributionBlocks(contributions)}`
-}
 
 // ════════════════════════════════════════════════════════════════
 // 2) Das Formular (DIN A4 hoch)

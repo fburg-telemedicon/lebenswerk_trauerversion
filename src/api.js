@@ -576,12 +576,6 @@ export async function adminProfileAsk(token, code, question) {
   return parseResponse(res) // { answer, blocked?, topic?, hint?, redirect?, queries? }
 }
 
-export async function adminProfileQueries(token, code) {
-  const res = await fetch(`/api/admin/profile-ask?code=${encodeURIComponent(code)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  return parseResponse(res) // { queries }
-}
 
 export async function adminSaveMemorialText(token, code, field, text) {
   const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
@@ -807,15 +801,6 @@ export async function adminUpdateUpload(token, code, uploadEdit) {
   return parseResponse(res) // { ok }
 }
 
-// Setzt aus 1..4 Uploads EIN Landscape-Doppelseiten-Bild zusammen (auth).
-export async function adminComposeImage(token, memorialCode, images, meta = {}) {
-  const res = await fetch('/api/admin/compose-image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ memorialCode, images, ...meta }),
-  })
-  return parseResponse(res) // { storagePath }
-}
 
 export async function getMemorial(code) {
   const res = await fetch(`/api/memorial?code=${encodeURIComponent(code)}`)

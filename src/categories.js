@@ -101,18 +101,6 @@ function companionNote(contributions) {
   return `\n\nBEGLEITETER MODUS: Manche Antworten sind mit „[Begleitperson]" markiert — sie stammen NICHT vom Erzähler selbst, sondern von einer begleitenden Person (z. B. einer Pflegekraft), die das Gespräch unterstützt hat. Maßgeblich für das Buch ist, was der ERZÄHLER selbst gesagt hat. Verwende „[Begleitperson]"-Beiträge NUR, wenn sie zusätzliche, konkrete Fakten ÜBER den Erzähler beisteuern; ihre bloßen Fragen, Impulse oder Bestätigungen gehören NICHT ins Buch und dürfen NICHT als Aussagen des Erzählers ausgegeben werden.`
 }
 
-// ── Gastbeiträge zum Lebenswerk ───────────────────────────────────
-// Ein Gastbeitrag ist ein EIGENES Interview mit einer anderen Person ÜBER den
-// Erzähler. Er darf niemals in die Ich-Erzählung einfließen — dort spricht der
-// Mensch selbst, und ihm fremde Sätze in den Mund zu legen wäre das Gegenteil
-// einer Autobiographie. Verwendet wird er ausschließlich als abgesetzter
-// „Stimmen-Kasten" am Kapitelende. Deshalb trennen die Prompt-Builder die
-// beiden Quellen strikt, statt eine gemischte Liste zu verarbeiten.
-//
-// Alle anderen Kategorien kennen keine Gastbeiträge; dort ist is_guest nie
-// gesetzt und selfOnly() liefert schlicht die unveränderte Liste.
-export const isGuestContribution = c => c?.is_guest === true
-
 // Die Stimmen-Kästen EINES Kapitels, bereinigt. Eine Stimme ohne Text ist keine;
 // alte Bücher (vor den Gastbeiträgen) haben das Feld gar nicht. Alle Render-
 // Stellen — Bildschirm, Korrekturabzug, DOCX, Druck-PDF, E-Book — gehen durch
@@ -732,10 +720,6 @@ export function withoutMarkerRule(prompt) {
   return s.includes(CATALOG_MARKER_RULE) ? s.replace(CATALOG_MARKER_RULE, CATALOG_NO_MARKER_RULE) : s
 }
 
-// True, wenn der Prompt die Marker-Pflicht (noch) enthält — für Selbsttests.
-export function hasMarkerRule(prompt) {
-  return String(prompt || '').includes(CATALOG_MARKER_RULE)
-}
 
 function catalogRules(cb, name) {
   return `${CATALOG_MARKER_RULE}
@@ -1076,7 +1060,6 @@ export function normalizeTextStyle(category, v) {
   const a = textStylesFor(category)
   return a.includes(v) ? v : a[0]
 }
-export function textStyleLabel(key) { return TEXT_STYLES[key]?.label || key }
 // Prompt-Regelzeile (eigener Bullet) für den gewählten Textstil; leer bei „literary".
 function textStyleRule(memorial) {
   const d = TEXT_STYLES[normalizeTextStyle(memorial?.product_category, memorial?.text_style)]?.directive
