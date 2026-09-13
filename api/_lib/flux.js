@@ -158,8 +158,9 @@ async function generateAzureFlux(fullPrompt, referenceB64) {
   return { buffer, model: FLUX_MODEL, provider: 'azure-flux' }
 }
 
+// Bewusst nur das, was die beiden Handler wirklich brauchen. IMAGE_W/IMAGE_H,
+// FLUX_MODEL und bytesFromResult sind Interna von generateAzureFlux (das den
+// Pricing-Key als `model` mitliefert).
 module.exports = {
-  IMAGE_W, IMAGE_H, FLUX_MODEL,
-  stripMedium, isContentPolicyError, bytesFromResult, generateAzureFlux,
-  SAFE_FALLBACK_PROMPT,
+  stripMedium, isContentPolicyError, generateAzureFlux, SAFE_FALLBACK_PROMPT,
 }

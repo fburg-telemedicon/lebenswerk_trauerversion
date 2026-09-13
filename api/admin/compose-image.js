@@ -20,32 +20,19 @@
 
 const { createClient } = require('../_lib/store')
 const crypto = require('crypto')
-const os = require('os')
-const path = require('path')
-const fs = require('fs')
 const { checkAuth } = require('../_lib/auth')
 const { loadAccessibleMemorial } = require('../_lib/access')
 const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
+const { setupFonts, SERIF } = require('../_lib/fonts')
 
 const supabase = createClient()
 
-// Bildunterschriften werden als SVG-Text gerendert. In der Serverless-Umgebung
-// (Linux) sind KEINE Serif-Fonts installiert → librsvg zeichnet sonst Platzhalter-
-// Kästchen statt Text. Deshalb liefern wir DejaVu Serif mit (api/_fonts, via
-// im Image, siehe Dockerfile) und richten fontconfig einmalig darauf aus. Cross-
-// Platform über os.tmpdir() (=/tmp auf Vercel, Temp lokal). Lokal mit vorhandenen
-// System-Fonts unschädlich – der gebündelte Font deckt die Bildunterschriften ab.
-try {
-  const fontDir = path.join(__dirname, '..', '_fonts')
-  if (fs.existsSync(path.join(fontDir, 'DejaVuSerif.ttf'))) {
-    const cacheDir = path.join(os.tmpdir(), 'lw-fontconfig')
-    try { fs.mkdirSync(cacheDir, { recursive: true }) } catch {}
-    const confPath = path.join(os.tmpdir(), 'lw-fonts.conf')
-    fs.writeFileSync(confPath,
-      `<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig>\n  <dir>${fontDir}</dir>\n  <cachedir>${cacheDir}</cachedir>\n</fontconfig>\n`)
-    process.env.FONTCONFIG_FILE = confPath
-  }
-} catch (e) { console.warn('Fontconfig-Setup übersprungen:', e.message) }
+// Bildunterschriften werden als SVG-Text gerendert. In der Container-Umgebung
+// (Linux) sind KEINE Serif-Fonts installiert → librsvg zeichnet sonst
+// Platzhalter-Kästchen statt Text. setupFonts() richtet fontconfig auf die
+// mitgelieferten Fonts aus (api/_fonts, siehe Dockerfile). Bis 2026-09-13 stand
+// derselbe Block hier nochmal wörtlich – nur ohne die Idempotenz-Prüfung.
+setupFonts()
 
 // ── Druckgeometrie ────────────────────────────────────────────────
 // Zielformat der Doppelseite: 2× DIN A5 (je 154 mm inkl. 3 mm Beschnitt) =
@@ -133,10 +120,11 @@ function cellsFor(n, oris = [], weights = []) {
 }
 
 const MATTE = '#fbfaf7'          // cremefarbenes Passepartout
-const SERIF = 'DejaVu Serif, Georgia, serif'
 
+// s == null statt !s: sonst verschwindet eine Bildunterschrift "0" komplett
+// (api/_lib/report-charts.js macht es schon immer so).
 function escapeXml(s) {
-  return String(s || '').replace(/[<>&'"]/g, c =>
+  return String(s == null ? '' : s).replace(/[<>&'"]/g, c =>
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]))
 }
 
