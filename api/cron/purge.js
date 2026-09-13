@@ -32,16 +32,10 @@ const { recordPurgedMemorial, prunePurgedTombstones } = require('../_lib/tombsto
 
 const supabase = createClient()
 const { RETENTION_DAYS, ANAMNESIS_RETENTION_DAYS, DAY_MS, retentionDaysFor, isPurgeDue } = require('../_lib/retention')
-
-
-function authorized(req) {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  return req.headers.authorization === `Bearer ${secret}`
-}
+const { cronAuthorized } = require('../_lib/auth')
 
 module.exports = async function handler(req, res) {
-  if (!authorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
+  if (!cronAuthorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
   const dryRun = req.query?.dry === '1' || req.query?.dry === 'true'
   try {
     const { data: rows, error } = await supabase

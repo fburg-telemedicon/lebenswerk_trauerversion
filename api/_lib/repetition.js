@@ -1,7 +1,8 @@
 // api/_lib/repetition.js
-// WÖRTLICHE KOPIE von src/repetition.js (dort ist die Quelle) — nur die
-// Modulform unterscheidet sich: Der Worker läuft CommonJS, die SPA ESM. Bei
-// Änderungen IMMER beide Dateien anfassen (gleiches Muster wie genprompts.js).
+// EINZIGE Quelle der Wiederholungsprüfung — genutzt vom Worker (CommonJS) UND
+// von der SPA (src/App.jsx importiert direkt hierher; möglich durch
+// `build.commonjsOptions.include` in vite.config.js). Bis 2026-09-13 lag hier
+// eine wörtliche Kopie von src/repetition.js, die mitgepflegt werden musste.
 //
 // Deterministische Wiederholungsprüfung über die FERTIGEN Kapitel eines Buches.
 // Ohne KI, ohne Kosten, immer reproduzierbar.

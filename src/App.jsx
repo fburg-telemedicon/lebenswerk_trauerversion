@@ -32,7 +32,10 @@ import { BOOK_LAYOUTS, DEFAULT_BOOK_LAYOUT, getBookLayout, bookLayoutLabel } fro
 import { LANGUAGES, LANGUAGE_CODES, DEFAULT_LANGUAGE, langDirective, uiText, contributorL10n } from './i18n.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { reviewSystemPrompt, extractReviewText, contributionsContext } from './review.js'
-import { withRepetitionCheck } from './repetition.js'
+import { withRepetitionCheck } from '../api/_lib/repetition.js'
+// tryParseJSON/faceRefSystem liegen gemeinsam mit dem Generierungs-Worker in
+// api/_lib/genprompts.js — frueher hier als Kopie gepflegt.
+import { tryParseJSON, faceRefSystem } from '../api/_lib/genprompts.js'
 import { applyCorrectionToMessages, revertCorrectionInMessages } from './transcript.js'
 import { BOOK_DISCLAIMER, BOOK_DISCLAIMER_TITLE, FORM_DISCLAIMER, FORM_DISCLAIMER_TITLE, formatContribution, downloadBlob, downloadFile, safeName, buildContributionPdf, dedupeContributors, downloadStructuredDocx, downloadPrintPdf, downloadEbookPdf, downloadAsDocx, downloadTextPdf } from './bookExport.js'
 import { prepareCover, drawCoverPreview, downloadCoverPdf, spineWidthMm, renderFrontCoverJpeg, MIN_PAGES, BOX_POSITIONS } from './coverExport.js'
@@ -215,51 +218,6 @@ function renderRichText(text) {
     return <p key={i} style={{ marginBottom:'1.4rem' }}>{c}</p>
   }).filter(Boolean)
 }
-
-function tryParseJSON(raw) {
-  if (!raw) return null
-  let s = String(raw).trim()
-  if (s.startsWith('```')) s = s.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
-  // Falls die KI doch noch Text drumherum schreibt: ersten { bis letzten } isolieren
-  const first = s.indexOf('{')
-  const last  = s.lastIndexOf('}')
-  if (first > 0 || (first === 0 && last > 0 && last < s.length - 1)) s = s.slice(first, last + 1)
-  try { return JSON.parse(s) } catch {}
-  // Zweiter Versuch: häufigen LLM-Ausrutscher „trailing comma" (Komma vor } oder ]) entfernen.
-  try { return JSON.parse(s.replace(/,(\s*[}\]])/g, '$1')) } catch { return null }
-}
-
-// Prompt: pro Kapitel das am besten passende REFERENZFOTO einer Person wählen
-// (für die Personen-Ähnlichkeit der KI-Bilder, image-to-image). Nutzt Bildtitel/
-// Beschreibung, um das Foto der im Kapitel behandelten Person zuzuordnen.
-// Liefert JSON { refs: [{ chapter, image_id }] } – nur Kapitel mit klar passendem
-// Personenfoto. Ein Foto darf für mehrere Kapitel dienen.
-function faceRefSystem(chapters, uploads) {
-  const chapLines = chapters.map(c => `${c.number}. ${c.heading || ''}`).join('\n')
-  const upLines = uploads.map(u =>
-    `- id ${u.id}: ${u.caption ? '„' + u.caption + '" – ' : ''}${u.description || '(keine Beschreibung)'} [${u.orientation}]`
-  ).join('\n')
-  return `Du wählst für die Kapitel eines Erinnerungsbuchs jeweils das am besten geeignete REFERENZFOTO einer Person. Dieses Foto dient später als Vorlage, damit ein KI-generiertes Bild die abgebildete Person ähnlich darstellt.
-
-Kapitel:
-${chapLines}
-
-Hochgeladene Fotos:
-${upLines}
-
-Wähle je Kapitel EIN Foto, das die im Kapitel behandelte Person am klarsten zeigt. Nutze Bildtitel und Beschreibung, um Namen/Beziehung dem Kapitel zuzuordnen; Porträts/Hochkant-Fotos eignen sich meist besser. Ein Foto darf für mehrere Kapitel gewählt werden. Gibt es für ein Kapitel kein klar passendes Personenfoto (z. B. reines Landschafts-/Sachfoto oder unpassende Person), lass das Kapitel weg.
-
-Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärung):
-{
-  "refs": [
-    { "chapter": <Kapitelnummer als Zahl>, "image_id": "<id>" }
-  ]
-}`
-}
-
-
-
-
 
 // Leeres Anlage-Formular (inkl. Produktkategorie + kategorieabhängige Felder).
 const EMPTY_CREATE = {

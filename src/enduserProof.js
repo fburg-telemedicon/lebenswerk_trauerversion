@@ -8,18 +8,9 @@
 import { getCategory } from './categories.js'
 import { langDirective } from './i18n.js'
 import { askLLM } from './api.js'
+import { tryParseJSON } from '../api/_lib/genprompts.js'
 
 // Robustes JSON-Parsen der KI-Antwort (identisch zur Admin-Logik in App.jsx).
-function tryParseJSON(raw) {
-  if (!raw) return null
-  let s = String(raw).trim()
-  if (s.startsWith('```')) s = s.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
-  const first = s.indexOf('{')
-  const last = s.lastIndexOf('}')
-  if (first > 0 || (first === 0 && last > 0 && last < s.length - 1)) s = s.slice(first, last + 1)
-  try { return JSON.parse(s) } catch {}
-  try { return JSON.parse(s.replace(/,(\s*[}\]])/g, '$1')) } catch { return null }
-}
 
 // memorial + contributions (i. d. R. genau der eine Beitrag des Endnutzers) → Buch.
 // onProgress({ pct, text }) für die Fortschrittsanzeige. cancelRef?.current === true

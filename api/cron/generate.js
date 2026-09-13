@@ -20,7 +20,7 @@ const { callAzure } = require('../_lib/llm')
 const { costLLM, costTTS, recordCost, budgetExceeded, BUDGET_MESSAGE } = require('../_lib/cost')
 const tts = require('../_lib/tts')
 const { recordHeartbeat } = require('../_lib/heartbeat')
-const { issueToken } = require('../_lib/auth')
+const { issueToken, cronAuthorized } = require('../_lib/auth')
 const genjobs = require('../_lib/genjobs')
 const genprompts = require('../_lib/genprompts')
 const { mergeAvocaRuns } = require('../_lib/avocaconsensus')
@@ -37,10 +37,6 @@ const isRateLimit = msg => /rate limit|exceeded|429|too many requests|throttl/i.
 const isContentFilter = msg => /content management policy|content[_ ]?filter|responsibleai|filtered due to/i.test(String(msg || ''))
 const SOFTEN = '\n\nWICHTIG (Formulierung): Schreibe bewusst zurückhaltend, sanft und pietätvoll. Vermeide drastische, explizite oder belastende Formulierungen sowie detaillierte Schilderungen von Tod, Sterben, Krankheit, Gewalt, Suizid oder körperlichem Leid. Halte den Text ruhig, würdevoll, tröstlich und wertschätzend.'
 
-function authorized(req) {
-  const secret = process.env.CRON_SECRET
-  return Boolean(secret) && req.headers.authorization === `Bearer ${secret}`
-}
 const canceled = async id => (await genjobs.jobStatus(id)) === 'canceled'
 
 // Azure-Aufruf mit Backoff. Content-Policy → sofort abbrechen (ein erneuter
@@ -1078,7 +1074,7 @@ async function processJob(job, deadline) {
 }
 
 module.exports = async function handler(req, res) {
-  if (!authorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
+  if (!cronAuthorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
   const chain = Math.max(0, parseInt(req.query?.chain || '0', 10))
   const startedAt = Date.now()
   const deadline = startedAt + TIME_BUDGET_MS

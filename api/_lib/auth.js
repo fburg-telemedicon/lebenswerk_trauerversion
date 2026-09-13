@@ -169,8 +169,18 @@ function verifyPassword(password, hash, salt) {
   return crypto.timingSafeEqual(candidate, expected)
 }
 
+// Autorisierung der Cron-Endpunkte (api/cron/*): Der Runner
+// (scripts/cron-run.js) schickt `Authorization: Bearer <CRON_SECRET>`. Ist
+// CRON_SECRET nicht gesetzt, wird ALLES abgelehnt — kein offener Endpunkt.
+// Lag bis 2026-09-13 in allen vier Cron-Dateien als eigene Kopie.
+function cronAuthorized(req) {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return false
+  return req.headers.authorization === `Bearer ${secret}`
+}
+
 module.exports = {
-  checkAuth, verifyCredentials, issueToken, verifyToken, isConfigured,
+  checkAuth, cronAuthorized, verifyCredentials, issueToken, verifyToken, isConfigured,
   canAccessCategory, hashPassword, verifyPassword,
   validatePasswordPolicy, PASSWORD_RULES_TEXT,
   generateInviteToken, INVITE_TTL_MS,

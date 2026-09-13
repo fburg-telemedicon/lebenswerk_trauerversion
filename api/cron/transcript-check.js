@@ -18,6 +18,7 @@ const { callAzure } = require('../_lib/llm')
 const { costLLM, recordCost } = require('../_lib/cost')
 const { recordHeartbeat } = require('../_lib/heartbeat')
 const { transcriptCheckSystem, applyCorrectionToMessages, newCorrectionId, parseCorrectionsJSON, fixMojibake, anchorInText } = require('../_lib/transcript')
+const { cronAuthorized } = require('../_lib/auth')
 
 const supabase = createClient()
 
@@ -31,11 +32,6 @@ const MAX_CHAIN = 40      // Sicherheitskappe gegen Endlos-Ketten
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const isRateLimit = msg => /rate limit|exceeded|429|too many requests|throttl/i.test(String(msg || ''))
-
-function authorized(req) {
-  const secret = process.env.CRON_SECRET
-  return Boolean(secret) && req.headers.authorization === `Bearer ${secret}`
-}
 
 // Azure-Aufruf mit Backoff bei Rate-Limit (pausiert und wiederholt), damit sich
 // der Cron auf das TPM-Kontingent einpegelt statt es zu hämmern.
@@ -150,7 +146,7 @@ async function triggerNext(chain) {
 }
 
 module.exports = async function handler(req, res) {
-  if (!authorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
+  if (!cronAuthorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
   const dry = req.query?.dry === '1' || req.query?.dry === 'true'
   const chain = Math.max(0, parseInt(req.query?.chain || '0', 10))
   const startedAt = Date.now()

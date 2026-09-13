@@ -5,9 +5,10 @@
 // als Job-Plan (port-frei). Diese hier hängen von den erzeugten Kapiteln ab, müssen
 // also im Worker gebaut werden.
 //
-// WICHTIG: `tryParseJSON`, `imageAssignSystem`, `faceRefSystem` sind wörtliche
-// Kopien der gleichnamigen Funktionen in src/App.jsx – bei Änderungen dort HIER
-// mitziehen (und umgekehrt).
+// Das Modul ist bewusst laufzeit-neutral (keine requires, keine Node-Builtins):
+// Die SPA importiert `tryParseJSON` und `faceRefSystem` direkt von hier
+// (src/App.jsx, src/enduserProof.js) — moeglich durch `build.commonjsOptions`
+// in vite.config.js. Bis 2026-09-13 waren das Handkopien in beiden Welten.
 
 function tryParseJSON(raw) {
   if (!raw) return null

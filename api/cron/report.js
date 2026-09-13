@@ -11,17 +11,12 @@
 const { createClient } = require('../_lib/store')
 const { buildAndSendReport } = require('../_lib/report-send')
 const { recordHeartbeat } = require('../_lib/heartbeat')
+const { cronAuthorized } = require('../_lib/auth')
 
 const supabase = createClient()
 
-function authorized(req) {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  return req.headers.authorization === `Bearer ${secret}`
-}
-
 module.exports = async function handler(req, res) {
-  if (!authorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
+  if (!cronAuthorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
   try {
     const dry = req.query?.dry === '1' || req.query?.dry === 'true'
     const result = await buildAndSendReport({ dryRun: dry })

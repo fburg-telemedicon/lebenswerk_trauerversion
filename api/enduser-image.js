@@ -25,8 +25,11 @@ const { IMAGE_BUCKET } = require('./_lib/delete-memorial')
 const supabase = createClient()
 
 const BUCKET = IMAGE_BUCKET
-const IMAGE_W = 1536, IMAGE_H = 1024
-const FLUX_MODEL = `flux-2-pro-${IMAGE_W}x${IMAGE_H}`
+// Bilderzeugung + Prompt-Saeuberung: gemeinsam mit dem Admin-Pfad in
+// api/_lib/flux.js. generateAzureFlux liefert den Pricing-Key (model) mit.
+const {
+  stripMedium, isContentPolicyError, generateAzureFlux, SAFE_FALLBACK_PROMPT,
+} = require('./_lib/flux')
 
 // — Kompositions-Direktive (Doppelseiten-Landschaft), identisch zum Admin-Pfad —
 const SPREAD_DIRECTIVE =
@@ -37,88 +40,6 @@ const SPREAD_DIRECTIVE =
   'Do NOT depict a book, an open book, pages, a page spread, a printed photograph, a poster, a postcard, a screen, a frame, a border, a mat, a passe-partout, a tabletop, a desk, a wall, or any object that contains or displays the picture. No mockup, no product shot. ' +
   'Keep the main focal elements — especially faces — away from the exact vertical center and away from all four outer edges (these zones may be folded or trimmed). ' +
   'Balanced, warm, atmospheric, edge-to-edge and spanning the full width; no text, no lettering, no captions.'
-
-const MEDIUM_SRC =
-  '\\b(?:hyper-?realistic|photo-?realistic|photorealism|cinematic|filmic|movie still|film still|' +
-  '(?:vintage|sepia|black[- ]and[- ]white|b&w|analog|polaroid|old|archival|documentary|candid|studio|dslr|35mm|film)?\\s*' +
-  '(?:photograph|photography|photo|snapshot)|' +
-  'oil painting|watercolou?r(?:\\s+painting)?|gouache|acrylic|pastel|charcoal|ink drawing|pencil (?:drawing|sketch)|sketch|' +
-  'etching|engraving|woodcut|lithograph|painting|painterly|illustration|illustrated|drawing|artwork|' +
-  'digital art|concept art|matte painting|3-?d render|3-?d|render(?:ed|ing)?|cgi|unreal engine|octane|' +
-  'anime|manga|comic|cartoon|storybook|pixar|disney|impressionist|expressionist|art nouveau|art deco)\\b'
-const MEDIUM_WORDS = new RegExp(MEDIUM_SRC, 'gi')
-const MEDIUM_LEAD = new RegExp('^[^,.]{0,40}?(?:(?:' + MEDIUM_SRC + ')[\\s,:;-]*){1,3}(?:of|showing|depicting|featuring|capturing)?[\\s,:;-]*', 'i')
-function stripMedium(text) {
-  const cleaned = String(text || '')
-    .replace(MEDIUM_LEAD, '').replace(MEDIUM_WORDS, ' ')
-    .replace(/\b(?:in|as|a|an|the|of|with|style|styled|look|aesthetic|vibe|quality)\b(?=[\s,;.]*(?:$|[,;.]))/gi, ' ')
-    .replace(/,\s*(?=,)/g, '').replace(/\s{2,}/g, ' ').replace(/\s+([,;.])/g, '$1')
-    .replace(/^[\s,;.\-]+|[\s,;.\-]+$/g, '').trim()
-  return cleaned.length >= 15 ? cleaned : String(text || '').trim()
-}
-
-const SAFE_FALLBACK_PROMPT =
-  'A serene, atmospheric memorial scene: a peaceful natural landscape at soft golden-hour light, a gentle meadow with wildflowers, distant calm hills and a tender sky. ' +
-  'Quiet, comforting and dignified mood, evoking remembrance, love and gratitude. No people, no faces, no text, no lettering, no logos, no symbols, no religious icons.'
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-function isContentPolicyError(msg) {
-  return /RAI policy|BingBlockList|responsible ai|content (policy|filter|management)|blocklist|block list|moderat|flagged/i.test(String(msg || ''))
-}
-async function bytesFromResult(out) {
-  if (out?.b64) return Buffer.from(out.b64, 'base64')
-  if (out?.url) {
-    const r = await fetch(out.url)
-    if (!r.ok) throw new Error(`Bild-Download fehlgeschlagen: HTTP ${r.status}`)
-    return Buffer.from(await r.arrayBuffer())
-  }
-  throw new Error('Keine Bilddaten erhalten.')
-}
-async function generateAzureFlux(fullPrompt) {
-  const endpoint = (process.env.AZURE_FLUX_ENDPOINT || '').replace(/\/+$/, '')
-  const key = process.env.AZURE_FLUX_KEY
-  const model = process.env.AZURE_FLUX_MODEL || 'FLUX.2-pro'
-  const modelPath = process.env.AZURE_FLUX_MODEL_PATH || 'flux-2-pro'
-  const apiVersion = process.env.AZURE_FLUX_API_VERSION || 'preview'
-  if (!endpoint || !key) throw new Error('Azure FLUX ist nicht konfiguriert (AZURE_FLUX_ENDPOINT/KEY).')
-  const startedAt = Date.now()
-  const url = `${endpoint}/providers/blackforestlabs/v1/${modelPath}?api-version=${apiVersion}`
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, prompt: fullPrompt, width: IMAGE_W, height: IMAGE_H, output_format: 'png', num_images: 1 }),
-  })
-  if (!resp.ok) {
-    const errBody = await resp.text()
-    let msg = `HTTP ${resp.status}`
-    try { const j = JSON.parse(errBody); msg = j?.error?.message || j?.error?.code || j?.detail || msg } catch {}
-    throw new Error(msg)
-  }
-  let data = await resp.json()
-  const hasImageData = (d) => Boolean(d?.b64_json || d?.image || d?.data?.[0]?.b64_json || d?.result?.sample || d?.sample || d?.url || d?.data?.[0]?.url)
-  const POLL_DEADLINE_MS = 50000
-  let polled = false
-  const pollUrl = data?.polling_url || data?.poll_url
-  if (pollUrl && !hasImageData(data)) {
-    polled = true
-    while (Date.now() - startedAt < POLL_DEADLINE_MS) {
-      await sleep(1500)
-      const pr = await fetch(pollUrl, { headers: { Authorization: `Bearer ${key}` } })
-      data = await pr.json().catch(() => ({}))
-      const st = String(data?.status || data?.state || '')
-      if (hasImageData(data)) break
-      if (/error|fail|moderat/i.test(st)) throw new Error(`FLUX: ${st || 'Fehler'}`)
-    }
-  }
-  const b64 = data?.b64_json || data?.image || data?.data?.[0]?.b64_json
-  const out = b64 ? { b64 } : { url: data?.result?.sample || data?.sample || data?.url || data?.data?.[0]?.url }
-  if (!b64 && !out.url) {
-    const st = String(data?.status || data?.state || '')
-    throw new Error(polled ? `FLUX-Bild nicht rechtzeitig fertig (timeout, Status: ${st || 'pending'}).` : 'Keine Bilddaten von FLUX erhalten.')
-  }
-  const buffer = await bytesFromResult(out)
-  return { buffer, model: FLUX_MODEL, provider: 'azure-flux' }
-}
 
 // Autorisierung + Laden (mirror von enduser-book.js).
 async function authAndLoad(req, res, code) {
