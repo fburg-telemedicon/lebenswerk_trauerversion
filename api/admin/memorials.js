@@ -33,7 +33,7 @@ const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, 
 // family_tree/life_poster/care_directive: die Nebenprodukte des Lebenswerks.
 // Fehlen die Spalten (Migration noch nicht gelaufen), fällt der GET auf
 // SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions, history_mode, history_parallels, usage_ends_override, audiobooks, cv, avoca, documents, profile_queries, job_match`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions, history_mode, history_parallels, delete_on, audiobooks, cv, avoca, documents, profile_queries, job_match`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -527,7 +527,7 @@ module.exports = async function handler(req, res) {
       // show_contributors evtl. noch nicht migriert (db/show-contributors.sql) →
       // ohne die Spalte erneut lesen. Eine fehlende Migration darf niemals das
       // gesamte Dashboard lahmlegen; der Default (an) greift dann im Frontend.
-      if (error && /show_contributors|family_tree|life_poster|care_directive|power_of_attorney|archived_at|cv|avoca|documents|profile_queries|job_match|history_mode|history_parallels|usage_ends_override|column/i.test(error.message || '')) {
+      if (error && /show_contributors|family_tree|life_poster|care_directive|power_of_attorney|archived_at|cv|avoca|documents|profile_queries|job_match|history_mode|history_parallels|delete_on|column/i.test(error.message || '')) {
         ;({ data, error } = await listQuery(SELECT_COLS_LEGACY))
       }
       if (error) throw error
@@ -1068,13 +1068,13 @@ module.exports = async function handler(req, res) {
         if ('detailChoice' in meta)  update.detail_choice = meta.detailChoice === true
         // Geschichtsbuch-Funktion: Interview fragt aktiv nach Datierungen.
         if ('historyMode' in meta)   update.history_mode = meta.historyMode === true
-        // Spaeteres Ende der Nutzungsdauer; leeres Feld setzt auf die Regelfrist zurueck.
+        // Manuell vereinbarter, spaeterer Loeschtag; leeres Feld = automatisches Datum.
         // Schema hier ausdruecklich sicherstellen: Faellt die Spalte, greift unten
         // die defensive Ruecknahme — der Manager haette ein Datum gesetzt, gespeichert
         // und NICHTS passiert waere. Bei einem Loeschdatum ist das der falsche Ausgang.
-        if ('usageEndsOverride' in meta) {
+        if ('deleteOn' in meta) {
           await ensureLifeworkSchema()
-          update.usage_ends_override = meta.usageEndsOverride || null
+          update.delete_on = meta.deleteOn || null
         }
         // Nur der Superadmin (siehe Anlage oben). Bei allen anderen wird das Feld
         // stillschweigend ignoriert — ein Manager kann das Live-Gespräch weder
@@ -1110,8 +1110,8 @@ module.exports = async function handler(req, res) {
 
         let { error } = await supabase.from('memorials').update(update).eq('id', code)
         // image_style/book_layout/show_contributors evtl. noch nicht migriert → ohne sie erneut speichern.
-        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|detail_choice|realtime_enabled|guest_enabled|guest_code|extra_questions|history_mode|usage_ends_override|column/i.test(error.message || '')) {
-          delete update.usage_ends_override
+        if (error && /image_style|book_layout|text_style|interview_timer_seconds|companion_mode|show_contributors|proof_enabled|proof_max|proof_used|edit_lock|show_onboarding|tts_voice|gamification|hands_free|mic_manual_stop|mic_mode_switch|detail_choice|realtime_enabled|guest_enabled|guest_code|extra_questions|history_mode|delete_on|column/i.test(error.message || '')) {
+          delete update.delete_on
           delete update.history_mode
           delete update.guest_enabled
           delete update.guest_code

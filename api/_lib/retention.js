@@ -75,25 +75,7 @@ function addMonths(d, months) {
 //   • sonst (Lebenswerk, Firma, Ermutigung …): Anlage + Nutzungsdauer.
 //   • Anamnese: keine Lizenzlaufzeit, hier zählt allein die Anlage.
 function usageEndsAt(m) {
-  // Manuell verlaengerte Nutzungsdauer (memorials.usage_ends_override).
-  // Gedacht fuer Faelle, in denen mit dem Nutzer ein spaeteres Ende vereinbart
-  // wurde. Der Automatismus bleibt: Es verschiebt sich NUR der Stichtag, die
-  // Loeschung laeuft danach unveraendert weiter.
-  //
-  // Zwei Grenzen, bewusst hier und nicht in der Oberflaeche:
-  //  - Bei den Anamnese-Kategorien wird der Wert IGNORIERT. Die 14 Tage sind
-  //    mit der besonderen Schutzbeduerftigkeit von Gesundheitsdaten begruendet
-  //    (AGB Abs. 6); ein Eintrag in der Datenbank darf das nicht aushebeln.
-  //  - Nur ein SPAETERES Datum zaehlt. Ein frueheres wuerde eine zugesagte
-  //    Nutzungsdauer verkuerzen; frueher loeschen geht ueber den Knopf.
   const anlass = parseDate(m?.funeral_date)
-  if (!isAnamnesisCategory(m?.product_category)) {
-    const manuell = parseDate(m?.usage_ends_override)
-    if (manuell) {
-      const regulaer = anlass || (parseDate(m?.created_at) ? addMonths(parseDate(m.created_at), LICENSE_MONTHS) : null)
-      if (!regulaer || manuell.getTime() > regulaer.getTime()) return manuell
-    }
-  }
   if (anlass) return anlass
   const angelegt = parseDate(m?.created_at)
   if (!angelegt) return null
@@ -106,8 +88,28 @@ const retentionAnchor = usageEndsAt
 // Zeitpunkt, ab dem aufgeräumt werden soll (ISO-String) — null, wenn unbestimmbar.
 function purgeDueAt(m) {
   const ende = usageEndsAt(m)
-  if (!ende) return null
-  return new Date(ende.getTime() + retentionDaysFor(m) * DAY_MS).toISOString()
+  const regulaer = ende ? new Date(ende.getTime() + retentionDaysFor(m) * DAY_MS) : null
+
+  // Manuell vereinbartes Loeschdatum (memorials.delete_on). Der Manager traegt
+  // hier den Tag ein, an dem geloescht werden soll — nicht das Ende der
+  // Nutzungsdauer. Die vertragliche Nutzungsdauer (usageEndsAt) bleibt davon
+  // unberuehrt; es verschiebt sich nur, wann der Purge-Cron zugreift. Der
+  // Automatismus bleibt: Ist der Tag da, wird geloescht wie sonst auch.
+  //
+  // Zwei Grenzen, bewusst hier und nicht in der Oberflaeche — so greifen sie
+  // auch, wenn jemand direkt in die Datenbank schreibt:
+  //  - Bei den Anamnese-Kategorien wird der Wert IGNORIERT. Die 14 Tage sind
+  //    mit der besonderen Schutzbeduerftigkeit von Gesundheitsdaten begruendet
+  //    (AGB Abs. 6); ein Datumsfeld darf das nicht aushebeln.
+  //  - Nur ein SPAETERES Datum zaehlt. Ein frueheres wuerde eine zugesagte
+  //    Aufbewahrung verkuerzen; frueher loeschen geht ueber den Knopf.
+  if (!isAnamnesisCategory(m?.product_category)) {
+    const manuell = parseDate(m?.delete_on)
+    if (manuell && (!regulaer || manuell.getTime() > regulaer.getTime())) {
+      return manuell.toISOString()
+    }
+  }
+  return regulaer ? regulaer.toISOString() : null
 }
 
 // Ist die Frist abgelaufen und noch nicht aufgeräumt worden?

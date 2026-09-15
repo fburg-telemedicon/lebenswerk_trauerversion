@@ -15,7 +15,7 @@ import { parallelsStats, GENAUIGKEIT_LABEL } from './historyParallels.js'
 
 // Nur fuer den Hinweistext an der Nutzungsdauer. Die MASSGEBLICHE Frist steht
 // in api/_lib/retention.js (RETENTION_DAYS) — hier wird nichts nachgerechnet.
-const RETENTION_HINT = '90 Tage nach Ende der Nutzungsdauer'
+const RETENTION_HINT = '90 Tage nach Ende der Nutzungsdauer'  // nur Ersatztext, falls das Datum fehlt
 import { adminProfileAsk, adminHistoryBox } from './api.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
@@ -4589,18 +4589,18 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     in der Datenbank steht. */}
                 {!isAnamnesis && (
                   <div style={{ marginBottom:14 }}>
-                    <Lbl>Nutzungsdauer verlängern (optional)</Lbl>
-                    <input type="date" value={od.usageEndsOverride || ''}
-                      onChange={e => setOd({ usageEndsOverride: e.target.value })} />
+                    <Lbl>Löschdatum (optional)</Lbl>
+                    <input type="date" value={od.deleteOn || ''}
+                      onChange={e => setOd({ deleteOn: e.target.value })} />
                     <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
-                      Leer = Regelfrist ({oci.useDate ? 'Anlass-Termin' : 'Anlage + Lizenzlaufzeit'}).
-                      Ein späteres Datum verschiebt das Ende der Nutzungsdauer; die
-                      automatische Löschung läuft danach unverändert weiter
-                      ({RETENTION_HINT}). Ein früheres Datum wird ignoriert — früher
-                      löschen geht über die Aufbewahrungs-Karte.
-                      {selected.usage_ends_override && (
-                        <> Derzeit verlängert bis <strong>{new Date(selected.usage_ends_override).toLocaleDateString('de-DE')}</strong>.</>
-                      )}
+                      Der Tag, an dem die Eingangsdaten gelöscht werden. Leer lassen,
+                      dann gilt das automatische Löschdatum
+                      {selected.purge_due_at
+                        ? <> — derzeit der <strong>{new Date(selected.purge_due_at).toLocaleDateString('de-DE')}</strong></>
+                        : <> ({RETENTION_HINT})</>}.
+                      Ein späteres Datum verschiebt die Löschung; gelöscht wird dann
+                      automatisch an diesem Tag. Ein früheres Datum wird ignoriert —
+                      früher löschen geht über die Aufbewahrungs-Karte.
                     </p>
                   </div>
                 )}

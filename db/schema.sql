@@ -110,10 +110,11 @@ create table if not exists memorials (
   -- fragt aktiv nach Datierungen -- moeglichst taggenau, mindestens die Jahreszahl.
   -- Siehe historyDirective() in src/categories.js.
   history_mode     boolean,
-  -- Manuell vereinbartes, SPAETERES Ende der Nutzungsdauer. Verschiebt nur den
-  -- Stichtag; die automatische Loeschung laeuft danach unveraendert weiter.
-  -- Wird bei den Anamnese-Kategorien ignoriert (siehe api/_lib/retention.js).
-  usage_ends_override date,
+  -- Manuell vereinbarter, SPAETERER Loeschtag. Der Automatismus bleibt: Ist der
+  -- Tag da, wird geloescht wie sonst auch. Die vertragliche Nutzungsdauer bleibt
+  -- unberuehrt. Wird bei den Anamnese-Kategorien ignoriert und ein frueheres
+  -- Datum ebenfalls (siehe purgeDueAt in api/_lib/retention.js).
+  delete_on        date,
   -- Historische Parallelen: die im Buch genannten Datierungen samt Zeitgeschehen,
   -- { erzeugt_am, variante, eintraege: [{ datum, anzeige, genauigkeit, fundstelle,
   -- zitat, parallelen: [...] }] }. Erzeugt aus dem FERTIGEN Buch, nicht aus den
