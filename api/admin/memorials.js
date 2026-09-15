@@ -73,6 +73,14 @@ function sanitizePickupAddress(addr) {
 function collectImagePaths(book) {
   if (!book) return []
   const out = (book.chapters || []).map(c => c?.image_path).filter(Boolean)
+  // Kästen koennen ein eigenes Bild tragen (Zeitgeschehen-Kasten aus
+  // api/admin/history-box.js). Ohne das Einsammeln bliebe es unsigniert und
+  // damit unsichtbar.
+  for (const c of (book.chapters || [])) {
+    for (const b of (Array.isArray(c?.boxes) ? c.boxes : [])) {
+      if (b?.image_path) out.push(b.image_path)
+    }
+  }
   if (book.cover_image_path) out.push(book.cover_image_path)
   return out
 }
@@ -80,6 +88,11 @@ function collectImagePaths(book) {
 function applySignedUrls(book, urlMap) {
   if (!book) return
   for (const ch of (book.chapters || [])) {
+    for (const b of (Array.isArray(ch?.boxes) ? ch.boxes : [])) {
+      if (!b?.image_path) continue
+      const bk = String(b.image_path).replace(/^\/+/, '')
+      if (urlMap[bk]) b.image_url = urlMap[bk]
+    }
     if (!ch?.image_path) continue
     const key = String(ch.image_path).replace(/^\/+/, '')
     if (urlMap[key]) ch.image_url = urlMap[key]

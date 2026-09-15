@@ -577,6 +577,17 @@ export async function adminProfileAsk(token, code, question) {
 }
 
 
+// Erzeugt zu EINEM zeitgeschichtlichen Ereignis einen Kasten im Buch
+// (api/admin/history-box.js schreibt ihn serverseitig ins Kapitel).
+export async function adminHistoryBox(token, { code, variant, kapitel, ereignis, anzeige, ort, withImage }) {
+  const res = await fetch('/api/admin/history-box', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ code, variant, kapitel, ereignis, anzeige, ort, withImage }),
+  })
+  return parseResponse(res) // { ok, box, chapter, chapterHeading, imageError }
+}
+
 export async function adminSaveMemorialText(token, code, field, text) {
   const res = await fetch(`/api/admin/memorials?code=${encodeURIComponent(code)}`, {
     method: 'PATCH',

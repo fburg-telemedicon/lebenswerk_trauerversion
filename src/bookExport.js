@@ -688,6 +688,23 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
       y += 4
       const title = String(b.title || '').trim()
       if (title) flow(title, { size: 11, style: 'bold', color: [120, 113, 108], indent: 10, gapAfter: 0.3 })
+      // Zeitgeschehen-Kästen koennen eine KI-Grafik tragen (history-box.js).
+      // Sie steht eingerückt über dem Text, in halber Satzbreite — sie illustriert
+      // den Kasten, sie ist kein Kapitelbild und bekommt keine Doppelseite.
+      if (b.image_url) {
+        let bimg = await fetchImageForPdf(b.image_url)
+        if (bimg && opts.imageMaxPx) bimg = await downscaleToJpeg(bimg, Math.min(opts.imageMaxPx, 900), opts.imageQuality || 0.72)
+        if (bimg) {
+          const bw = (maxW - 10) * 0.6
+          const bh = bw * (bimg.h && bimg.w ? bimg.h / bimg.w : 0.6)
+          if (y + bh > PDF_PAGE_H - MB) { newPage(); y = MT }
+          // Format aus der Data-URL ableiten wie bei den Kapitelbildern —
+          // fetchImageForPdf liefert nur { dataUrl, w, h }, kein Formatfeld.
+          const bfmt = /^data:image\/jpe?g/i.test(bimg.dataUrl) ? 'JPEG' : 'PNG'
+          try { doc.addImage(bimg.dataUrl, bfmt, ML + 10, y, bw, bh) } catch { /* Bild ueberspringen */ }
+          y += bh + 3
+        }
+      }
       flow(String(b.text).trim(), { size: 11, color: [68, 64, 60], indent: 10, gapAfter: 0.7 })
     }
   }

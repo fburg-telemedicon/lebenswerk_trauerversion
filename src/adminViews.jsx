@@ -12,7 +12,7 @@ import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
 import { docKindLabel } from './careerDocs.js'
 import { parallelsStats, GENAUIGKEIT_LABEL } from './historyParallels.js'
-import { adminProfileAsk } from './api.js'
+import { adminProfileAsk, adminHistoryBox } from './api.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
 
@@ -2651,6 +2651,11 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 {chapterBoxes(ch).map((b, bi) => (
                   <div key={bi} style={{ marginTop:'1.5rem', padding:'14px 18px', background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8 }}>
                     {b.title && <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', margin:'0 0 8px' }}>{b.title}</p>}
+                    {/* Zeitgeschehen-Kasten kann eine KI-Grafik tragen (history-box.js). */}
+                    {b.image_url && (
+                      <img src={b.image_url} alt={b.title || ''} loading="lazy"
+                           style={{ width:'100%', maxHeight:220, objectFit:'cover', borderRadius:6, marginBottom:10 }} />
+                    )}
                     <p style={{ fontSize:16, lineHeight:1.75, color:'#44403c', ...bodyFont, margin:0, whiteSpace:'pre-wrap' }}>{b.text}</p>
                   </div>
                 ))}
@@ -3287,7 +3292,15 @@ function ProfileQaCard({ selected, token, contributions }) {
 // erfindet Geschichte bereitwillig, und ein falsches Datum neben einer echten
 // Familiengeschichte waere schlimmer als gar keins.
 function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgress, genErr,
-                                cancelGenerate, cancelGenRef, generateExtra }) {
+                                cancelGenerate, cancelGenRef, generateExtra, token, reloadMemorial }) {
+  // Welcher Kasten wird gerade erzeugt / was ist zuletzt passiert.
+  const [boxBusy, setBoxBusy] = useState(null)      // "i:k" des laufenden Ereignisses
+  const [boxMsg, setBoxMsg]   = useState(null)      // { key, text, fehler? }
+  const [mitBild, setMitBild] = useState(true)
+  // Welche Buchfassung zuletzt analysiert wurde. Steht NICHT im Ergebnis —
+  // der Worker speichert das LLM-JSON unveraendert. Beim Neuladen der Seite
+  // faellt es auf die einzige vorhandene Fassung zurueck.
+  const [variante, setVariante] = useState(null)
   const daten = selected.history_parallels
   const busy  = !!generating.history && genOwner.history === selected.id
   const st    = parallelsStats(daten)
@@ -3297,6 +3310,10 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
     { key: 'book_v1', label: 'Variante 1' },
     { key: 'book_v2', label: 'Variante 2' },
   ].filter(v => selected[v.key])
+  // Ziel der Kasten-Einfuegung: die zuletzt analysierte Fassung; nach einem
+  // Neuladen die einzige vorhandene. Gibt es zwei und ist nichts gemerkt,
+  // bleibt der Knopf gesperrt, statt in die falsche Fassung zu schreiben.
+  const zielFassung = variante || (fassungen.length === 1 ? fassungen[0].key : null)
 
   return (
     <div style={{ ...S.card }}>
@@ -3326,7 +3343,7 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
 
       {!busy && fassungen.map(v => (
         <button key={v.key} type="button" className="secondary" style={{ fontSize:13, padding:'8px 14px', marginRight:8 }}
-                onClick={() => generateExtra('history', undefined, { variant: v.key })}>
+                onClick={() => { setVariante(v.key); generateExtra('history', undefined, { variant: v.key }) }}>
           {daten ? '↻ ' : ''}Historische Parallelen anzeigen{fassungen.length > 1 ? ` (${v.label})` : ''}
         </button>
       ))}
@@ -3350,6 +3367,12 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
           {st.eintraege === 0 && (
             <p style={{ ...S.muted, fontSize:13 }}>Im Buch kommt keine verwertbare Datierung vor. Mit eingeschalteter Geschichtsbuch-Funktion fragt das Interview künftig danach.</p>
           )}
+          {st.eintraege > 0 && (
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', margin:'0 0 8px' }}>
+              <input type="checkbox" checked={mitBild} onChange={ev => setMitBild(ev.target.checked)} style={{ width:16, height:16, cursor:'pointer', accentColor:'#1c1917' }} />
+              <span style={{ fontSize:12, color:'#57534e' }}>Kasten mit KI-Grafik im Stil des Buchs erzeugen (kostet zusätzlich ein Bild)</span>
+            </label>
+          )}
           {(daten.eintraege || []).map((e, i) => (
             <div key={i} style={{ borderTop:'1px solid #e7e5e4', padding:'10px 0' }}>
               <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
@@ -3368,6 +3391,37 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
                     {pa.sicher === false && (
                       <span style={{ fontSize:11, color:'#92400e', background:'#fef3c7', padding:'1px 6px', borderRadius:4, marginLeft:6 }}>ungeprüft</span>
                     )}
+                    {(() => {
+                      const key = `${i}:${k}`
+                      const busy = boxBusy === key
+                      const msg = boxMsg && boxMsg.key === key ? boxMsg : null
+                      return (
+                        <>
+                          <button type="button" className="ghost" disabled={!!boxBusy || !zielFassung}
+                            title={zielFassung ? '' : 'Bitte oben zuerst die Buchfassung wählen (Parallelen neu anzeigen).'}
+                            onClick={async () => {
+                              setBoxBusy(key); setBoxMsg(null)
+                              try {
+                                const r = await adminHistoryBox(token, {
+                                  code: selected.id, variant: zielFassung,
+                                  kapitel: e.kapitel, ereignis: pa.was, anzeige: e.anzeige, ort: pa.ort,
+                                  withImage: mitBild,
+                                })
+                                setBoxMsg({ key, text: `Kasten in Kapitel ${r.chapter} eingefügt${r.imageError ? ' (ohne Bild: ' + r.imageError + ')' : ''}.` })
+                                reloadMemorial && reloadMemorial()
+                              } catch (err) {
+                                setBoxMsg({ key, text: err.message || 'Fehlgeschlagen.', fehler: true })
+                              } finally { setBoxBusy(null) }
+                            }}
+                            style={{ fontSize:11, padding:0, marginLeft:8, textDecoration:'underline', color:'#1c1917' }}>
+                            {busy ? 'wird erzeugt …' : '＋ Kasten ins Buch'}
+                          </button>
+                          {msg && (
+                            <span style={{ fontSize:11, marginLeft:8, color: msg.fehler ? '#b91c1c' : '#16a34a' }}>{msg.text}</span>
+                          )}
+                        </>
+                      )
+                    })()}
                   </li>
                 ))}
               </ul>
@@ -3472,7 +3526,7 @@ function MatchCard({ selected, contributions, generating, genOwner, genPct, genP
   )
 }
 
-export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, generateDocs, setDocConfirmed, docBusy, generateMatch, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
+export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, selected, catalogs = [], orderDraft, setOrderDraft, setView, reloadContributions, reloadMemorial, loading, contributions, dlAll, logout, err, copyInvite, copied, copyQR, setTranscriptReport, setSelectedContrib, dlOne, deleteContribution, token, setSelected, GENERATORS, generating, genOwner, setEulogyStyleModal, requestGenerate, setEditMode, setEditDraft, downloadGenerated, downloadGeneratedPdf, downloadGeneratedEbook, downloadCover, openImgEdit, recheck, reviewingKey, genPct, genProgress, cancelGenerate, cancelGenRef, genErr, reviewPct, skipImages, setSkipImages, setReportModal, orderEdit, startOrderEdit, saveOrderData, orderSaving, cancelOrderEdit, adminProofAction, handleDelete, deletingId, eulogyStyleOverlay, genLangOverlay, imgEditOverlay, coverOverlay, imgZoomOverlay, reportOverlay, transcriptReportOverlay, ManagerPhotos, bookHasImages, dlBusy, generateExtra, downloadExtra, extraDl, generateDocs, setDocConfirmed, docBusy, generateMatch, requestDownload, dlLangOverlay, setPosterZoom, posterZoomOverlay, requestPoster, posterStyleOverlay, requestAudiobook, audiobookOverlay, downloadAudiobookFull, downloadAudiobookZip, storeAudiobookOnServer, generateM4b, audiobookDl, enduserEditing, bookCodes = [], runRetention, retentionBusy }) {
     // Lebenswerk (Autobiographie): nur Variante 2, Pflegeexzerpt statt Rede,
     // zusätzlich Stammbaum und Lebensposter.
     const t = useAdminT()
@@ -4250,7 +4304,8 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 <HistoryParallelsCard selected={selected} generating={generating} genOwner={genOwner}
                                       genPct={genPct} genProgress={genProgress} genErr={genErr}
                                       cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef}
-                                      generateExtra={generateExtra} />
+                                      generateExtra={generateExtra} token={token}
+                                      reloadMemorial={reloadMemorial} />
               )}
 
               {isCareer && (

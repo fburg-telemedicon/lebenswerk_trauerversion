@@ -49,6 +49,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
       "anzeige": "13. August 1961",
       "jahr": 1961,
       "genauigkeit": "tag",
+      "kapitel": 3,
       "fundstelle": "Kapitel 3: Die Jahre in Berlin",
       "zitat": "kurzes wörtliches Zitat aus dem Buch, max. 15 Wörter",
       "parallelen": [
@@ -61,6 +62,7 @@ Gib REINES, GÜLTIGES JSON aus (kein Markdown, keine Erklärungen):
 Feldregeln:
 - "genauigkeit": "tag" | "monat" | "jahr" | "zeitraum" — die Genauigkeit der ANGABE IM BUCH.
 - "jahr": vierstellige Zahl. Bei einem Zeitraum das erste Jahr. Ist kein Jahr bestimmbar, lass den Eintrag weg.
+- "kapitel": die NUMMER des Kapitels, in dem die Datierung steht (Zahl, wie oben im Text angegeben). Sie entscheidet spaeter, wo ein Kasten eingefuegt wird — gib sie immer an.
 - "fundstelle": Kapitelnummer und -überschrift, wie oben im Text angegeben.
 - "zitat": wörtlich aus dem Buch, damit die Stelle wiederzufinden ist.
 - "sicher": true nur bei gesichertem Allgemeinwissen; false, wenn du dir bei Datum oder Hergang nicht sicher bist. Bei false wird das Ereignis in der Anzeige als ungeprüft gekennzeichnet.
