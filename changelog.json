@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-15",
+      "items": [
+        "25 Demozugaenge fuer Florian angelegt (Lebenswerk, Projekt-Nr. 294-318): 15 Minuten Sprechzeit, sonst die volle Ausstattung wie bei den Vertriebs-Demos vom 29.08. Zugangsblaetter als ein PDF mit 25 DIN-A4-Seiten, je Blatt QR-Code und Zugangscode, oben im roten Rahmen die Version ('DEMO-ZUGANG - 15 MINUTEN INTERVIEWZEIT'), in der Fusszeile Projekt-Nr. und Gueltigkeit (15.03.2027). Gegengeprueft: alle 25 Buecher tragen 900 Sekunden, die gedruckten Codes stimmen in Reihenfolge und Inhalt mit der Anlage ueberein, zwei Codes live abgefragt.",
+        "Die Anlege- und Blatt-Skripte sind dabei von 'fest auf 5 Minuten bzw. unbegrenzt verdrahtet' auf einen Minuten-Parameter umgestellt worden (neu: .lwab/demo-codes-anlegen.mjs und .lwab/demo-codes-blaetter.mjs). Der naechste Schwung mit beliebiger Sprechzeit braucht damit keine dritte Kopie mehr; die alten Vertriebs-Skripte bleiben unveraendert als Beleg fuer die 95 vom 29.08. Die Gueltigkeitsfristen kommen weiterhin aus usageEndsAt()/purgeDueAt() in api/_lib/retention.js, werden also nicht im Skript nachgebaut."
+      ]
+    },
+    {
       "date": "2026-09-13",
       "items": [
         "Code entschlackt, Teil 1 - Handkopien beseitigt: Mehrere Bausteine lagen doppelt im Repo und mussten laut ihrer eigenen Kommentare 'IMMER in beiden Dateien' gepflegt werden. Ursache war die Laufzeitgrenze zwischen Backend (CommonJS) und SPA (ESM). Eine Zeile in vite.config.js hebt sie fuer api/_lib auf, seither importiert die SPA die Backend-Module direkt. Zusammengefuehrt: die Wiederholungspruefung (src/repetition.js, 303 Zeilen Kopie, geloescht), die Transkript-Helfer (src/transcript.js von 41 auf 10 Zeilen), die FLUX-Bilderzeugung (neu api/_lib/flux.js; admin/generate-image.js 483->338, enduser-image.js 212->133 Zeilen - die Endnutzer-Fassung war die aeltere ohne Bild-zu-Bild und ohne Fehler-Logging und bekommt beides jetzt mit), die Autorisierung der vier Cron-Endpunkte (jetzt cronAuthorized in api/_lib/auth.js) sowie tryParseJSON (3 Kopien) und faceRefSystem (2 Kopien).",
