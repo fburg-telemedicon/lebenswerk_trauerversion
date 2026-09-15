@@ -78,6 +78,7 @@ import { fileToDownscaledDataURL, imageErrorDe, saveLocalSession, loadLocalSessi
 import { ContributorFlow } from './contributor.jsx'
 import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadPosterScenePdf, downloadPosterVariantPdf, POSTER_STYLES } from './lifeworkExtras.js'
 import { downloadCareDirectivePdf } from './careDirective.js'
+import { historyParallelsSystem } from './historyParallels.js'
 import { powerOfAttorneySystem } from './powerOfAttorney.js'
 import { downloadProvisionFolderPdf } from './provisionFolder.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
@@ -109,6 +110,13 @@ const LIFEWORK_EXTRAS = {
   care: {
     field: 'care_directive', filename: 'Betreuungsverfuegung', article: 'Die Betreuungsverfügung',
     missing: 'Es gibt keine Betreuungsverfügung.', legacy: true,
+  },
+  // Historische Parallelen: liest das fertige Buch statt der Interviews
+  // (`fromBook`) und liefert kein PDF — die Detailansicht zeigt das Ergebnis.
+  history: {
+    field: 'history_parallels', filename: 'Historische-Parallelen', article: 'Die historischen Parallelen',
+    firstStep: 'Datierungen werden gesucht', missing: 'Es gibt noch keine historischen Parallelen.',
+    system: historyParallelsSystem, fromBook: true, noPdf: true,
   },
   poa: {
     field: 'power_of_attorney', filename: 'Vorsorgemappe', article: 'Die Vorsorgemappe',
@@ -241,6 +249,7 @@ const EMPTY_CREATE = {
   handsFree: true,                   // Mikro öffnet automatisch (alle Produkte, Default AN)
   micManualStop: true,               // Mischform = STANDARD: Mikro öffnet automatisch, der Erzähler beendet selbst per Tippen (kein Stopp durch Sprechpause — man darf beliebig lange überlegen)
   detailChoice: false,               // Nutzer darf die Nachfrage-Tiefe selbst einstellen (Default AUS)
+  historyMode: false,                // Geschichtsbuch-Funktion: Interview fragt nach Datierungen (nur Lebenswerk, Default AUS)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
@@ -1020,6 +1029,7 @@ function Dashboard() {
       handsFree: m.hands_free !== false,
       micManualStop: m.mic_manual_stop === true,
       detailChoice: m.detail_choice === true,
+      historyMode: m.history_mode === true,
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       guestEnabled: m.guest_enabled === true,
@@ -1081,6 +1091,7 @@ function Dashboard() {
         handsFree: d.handsFree !== false,
         micManualStop: d.micManualStop === true,
         detailChoice: d.detailChoice === true,
+        historyMode: d.historyMode === true,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
@@ -1120,6 +1131,7 @@ function Dashboard() {
         hands_free: d.handsFree !== false,
         mic_manual_stop: d.micManualStop === true,
         detail_choice: d.detailChoice === true,
+        history_mode: d.historyMode === true,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
@@ -2919,7 +2931,10 @@ Regeln:
     const ex = LIFEWORK_EXTRAS[kind]
     if (!ex || ex.legacy) return
     const field = ex.field
-    if (contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
+    // `fromBook` arbeitet auf dem erzeugten Buch; ohne Buch gibt es nichts zu lesen.
+    const quellBuch = ex.fromBook ? selected[opts.variant || 'book_v2'] : null
+    if (ex.fromBook && !quellBuch) { setErr('Für diese Buchfassung liegt noch kein Text vor. Bitte zuerst das Buch erzeugen.'); return }
+    if (!ex.fromBook && contributions.length === 0) { setErr('Es liegt noch kein Interview vor.'); return }
     if (selected[field] && !window.confirm(`${ex.article} wird neu erzeugt und ersetzt die bisherige Fassung. Fortfahren?`)) return
 
     setErr('')
@@ -2945,9 +2960,11 @@ Regeln:
             ...(kind === 'avoca' ? { runs: 3, merge: 'avoca', dimensionCodes: AVOCA_DIMENSIONS.map(d => d.code) } : {}),
             // Der Lebenslauf entsteht in einer waehlbaren Sprache (DE/EN) aus
             // demselben Gespraech; alle uebrigen Extras folgen der Buchsprache.
-            system: (kind === 'cv' || kind === 'avoca')
-              ? ex.system(selected, bookContribs, opts.lang || 'de')
-              : ex.system(selected, bookContribs),
+            system: ex.fromBook
+              ? ex.system(selected, quellBuch)
+              : (kind === 'cv' || kind === 'avoca')
+                ? ex.system(selected, bookContribs, opts.lang || 'de')
+                : ex.system(selected, bookContribs),
             user: 'Gib jetzt das JSON aus.' }
       const { jobId } = await enqueueGeneration(token, selected.id, kind, params)
       genJobRef.current[kind] = jobId

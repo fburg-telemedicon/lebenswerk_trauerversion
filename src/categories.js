@@ -641,6 +641,29 @@ function detailDirective(memorial) {
   return ''
 }
 
+// Geschichtsbuch-Funktion (Buch-Einstellung `history_mode`, Standard aus).
+// Wunsch dahinter: Das fertige Buch soll sich zeitlich einordnen lassen — wer es
+// spaeter liest, will wissen WANN etwas war, nicht nur DASS es war. Das Interview
+// fragt deshalb aktiv nach Datierungen: moeglichst taggenau, sonst Monat/Jahr,
+// mindestens die Jahreszahl.
+//
+// Bewusst als Zusatz und nicht im Kategorie-Prompt: Er gilt dann fuer jede
+// Kategorie gleich und ueberlebt Aenderungen an den Kategorie-Buildern. Die
+// Einfuehlsamkeit hat Vorrang — ein Verhoer soll daraus nicht werden, und
+// "weiss ich nicht mehr" muss ohne Nachbohren akzeptiert werden. Sonst verliert
+// man die Erzaehlung fuer eine Jahreszahl.
+function historyDirective(memorial) {
+  if (memorial?.history_mode !== true) return ''
+  return `
+
+Zeitliche Einordnung (Geschichtsbuch-Funktion):
+- Dieses Buch soll historisch einzuordnen sein. Frage deshalb zu JEDER erzaehlten Begebenheit nach, WANN sie war — moeglichst auf den Tag genau ("Welches Datum war das?"), sonst Monat und Jahr, mindestens aber die Jahreszahl.
+- Nenne die Frage nach dem Zeitpunkt beilaeufig im selben Atemzug wie deine inhaltliche Nachfrage; sie ersetzt keine der erlaubten Nachfragen und zaehlt nicht gegen deren Hoechstzahl.
+- Hilf beim Erinnern, statt zu draengen: Biete Ankerpunkte an ("War das vor oder nach der Hochzeit?", "In welchem Lebensjahr etwa?", "Welche Jahreszeit?") oder frage nach dem Alter zu diesem Zeitpunkt — daraus laesst sich das Jahr erschliessen.
+- Ist sich die erzaehlende Person unsicher, ist eine Naeherung ausdruecklich willkommen ("Anfang der Sechziger", "im Sommer, so um 1975"). Uebernimm sie genau so, wie sie gesagt wurde, und erfinde NIEMALS ein Datum dazu.
+- Kommt keine Angabe, akzeptiere das nach EINER Nachfrage und erzaehle weiter. Die Geschichte ist wichtiger als die Jahreszahl; bohre nicht nach und entschuldige dich nicht dafuer.`
+}
+
 function catalogFollowups(v) {
   const n = parseInt(v, 10)
   if (!Number.isFinite(n) || n < 0) return 7
@@ -2830,5 +2853,8 @@ export function interviewSystemFor(memorial) {
   // Selbst gewählte Nachfrage-Tiefe an JEDEN Interview-Prompt anhängen — hier
   // zentral, damit keine der sechs Aufrufstellen im Beitragenden-Flow sie vergisst.
   const depth = detailDirective(memorial)
-  return depth ? ((...args) => `${build(...args)}${depth}`) : build
+  // Geschichtsbuch-Funktion: ebenfalls zentral, aus demselben Grund.
+  const hist = historyDirective(memorial)
+  const zusatz = `${depth}${hist}`
+  return zusatz ? ((...args) => `${build(...args)}${zusatz}`) : build
 }

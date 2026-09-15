@@ -219,6 +219,8 @@ async function ensureLifeworkSchema() {
       add column if not exists guest_enabled boolean,
       add column if not exists guest_code varchar(16),
       add column if not exists extra_questions jsonb,
+      add column if not exists history_mode boolean,
+      add column if not exists history_parallels jsonb,
       add column if not exists audiobooks jsonb,
       add column if not exists cv jsonb,
       add column if not exists avoca jsonb,

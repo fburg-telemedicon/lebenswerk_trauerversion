@@ -106,6 +106,15 @@ create table if not exists memorials (
   -- { enabled, own: [Freitext-Fragen], presets: [Themenbloecke], events: [Zeitgeschehen] }
   -- Siehe EXTRA_QUESTION_PRESETS in src/categories.js.
   extra_questions  jsonb,
+  -- Geschichtsbuch-Funktion (nur Lebenswerk-Familie, Standard aus): Das Interview
+  -- fragt aktiv nach Datierungen -- moeglichst taggenau, mindestens die Jahreszahl.
+  -- Siehe historyDirective() in src/categories.js.
+  history_mode     boolean,
+  -- Historische Parallelen: die im Buch genannten Datierungen samt Zeitgeschehen,
+  -- { erzeugt_am, variante, eintraege: [{ datum, anzeige, genauigkeit, fundstelle,
+  -- zitat, parallelen: [...] }] }. Erzeugt aus dem FERTIGEN Buch, nicht aus den
+  -- Interviews. Siehe historyParallelsSystem() in src/categories.js.
+  history_parallels jsonb,
   -- Hoerbuch je Buchfassung: { book_v1|book_v2: { voice_mode, voices:{f,m}, language,
   -- title, created_at, chars, tracks:[{index,title,path,chars,bytes}] } }. Die
   -- MP3-Spuren liegen im Bild-Container unter <CODE>/audio/, die Links werden beim

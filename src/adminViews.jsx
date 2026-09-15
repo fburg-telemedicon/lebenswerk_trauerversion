@@ -11,6 +11,7 @@ import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
 import { docKindLabel } from './careerDocs.js'
+import { parallelsStats, GENAUIGKEIT_LABEL } from './historyParallels.js'
 import { adminProfileAsk } from './api.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
@@ -3280,6 +3281,104 @@ function ProfileQaCard({ selected, token, contributions }) {
 
 // Abgleich mit EINER Stellenausschreibung. Bewusst ohne Punktzahl und ohne
 // Empfehlung: je Anforderung eine Einstufung mit Beleg, mehr nicht.
+// Historische Parallelen: liest das FERTIGE Buch und stellt den dort genannten
+// Datierungen das Zeitgeschehen gegenueber. Kein PDF — das Ergebnis steht hier.
+// Die Sicherheitsangabe je Ereignis wird sichtbar gemacht: Ein Sprachmodell
+// erfindet Geschichte bereitwillig, und ein falsches Datum neben einer echten
+// Familiengeschichte waere schlimmer als gar keins.
+function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgress, genErr,
+                                cancelGenerate, cancelGenRef, generateExtra }) {
+  const daten = selected.history_parallels
+  const busy  = !!generating.history && genOwner.history === selected.id
+  const st    = parallelsStats(daten)
+  // Die beiden Buchfassungen liegen als eigene Spalten vor. BOOK_VARIANTS taugt
+  // hier NICHT: das sind die Auswahlwerte 1/2/null der Anlage-Maske, keine Feldnamen.
+  const fassungen = [
+    { key: 'book_v1', label: 'Variante 1' },
+    { key: 'book_v2', label: 'Variante 2' },
+  ].filter(v => selected[v.key])
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontWeight:600, marginBottom:4 }}>🕰 Historische Parallelen</div>
+          <p style={{ ...S.muted, fontSize:13, margin:0 }}>
+            Durchsucht das fertige Buch nach genannten Datierungen — Tagesdaten, Monate, Jahreszahlen —
+            und stellt jedem Zeitpunkt gegenüber, was damals geschah. Passt zur Geschichtsbuch-Funktion,
+            braucht sie aber nicht: Es zählt, was im Buch steht.
+          </p>
+          <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'8px 10px' }}>
+            Die Ereignisse kommen aus dem Sprachmodell und sind <strong>nicht geprüft</strong>. Was die KI
+            selbst als unsicher meldet, ist unten gekennzeichnet. Vor dem Druck bitte nachschlagen.
+          </p>
+        </div>
+        {daten && !busy && (
+          <span style={{ fontSize:11, color:'#16a34a', background:'#dcfce7', padding:'3px 8px', borderRadius:6, whiteSpace:'nowrap' }}>
+            ✓ {st.eintraege} {st.eintraege === 1 ? 'Zeitpunkt' : 'Zeitpunkte'}
+          </span>
+        )}
+      </div>
+
+      {fassungen.length === 0 && (
+        <p style={{ ...S.muted, fontSize:13, margin:0 }}>Es gibt noch kein Buch. Bitte zuerst eine Buchfassung erzeugen.</p>
+      )}
+
+      {!busy && fassungen.map(v => (
+        <button key={v.key} type="button" className="secondary" style={{ fontSize:13, padding:'8px 14px', marginRight:8 }}
+                onClick={() => generateExtra('history', undefined, { variant: v.key })}>
+          {daten ? '↻ ' : ''}Historische Parallelen anzeigen{fassungen.length > 1 ? ` (${v.label})` : ''}
+        </button>
+      ))}
+
+      {busy && (
+        <div style={{ marginTop:4 }}>
+          <div style={{ fontSize:13, marginBottom:6 }}>{genProgress.history || 'Datierungen werden gesucht …'} {genPct.history ? `${genPct.history} %` : ''}</div>
+          <button type="button" className="ghost" style={{ fontSize:12, padding:0, textDecoration:'underline' }}
+                  onClick={() => { cancelGenRef.current.history = true; cancelGenerate && cancelGenerate('history') }}>Abbrechen</button>
+        </div>
+      )}
+
+      {genErr.history && <p style={{ color:'#b91c1c', fontSize:13, marginTop:10 }}>{genErr.history}</p>}
+
+      {daten && !busy && (
+        <div style={{ marginTop:14 }}>
+          <p style={{ ...S.muted, fontSize:12, margin:'0 0 10px' }}>
+            {st.eintraege} Zeitpunkte · {st.taggenau} taggenau · {st.parallelen} Ereignisse
+            {st.unsicher > 0 ? ` · ${st.unsicher} davon von der KI als unsicher gemeldet` : ''}
+          </p>
+          {st.eintraege === 0 && (
+            <p style={{ ...S.muted, fontSize:13 }}>Im Buch kommt keine verwertbare Datierung vor. Mit eingeschalteter Geschichtsbuch-Funktion fragt das Interview künftig danach.</p>
+          )}
+          {(daten.eintraege || []).map((e, i) => (
+            <div key={i} style={{ borderTop:'1px solid #e7e5e4', padding:'10px 0' }}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
+                <strong style={{ fontSize:15 }}>{e.anzeige || e.jahr}</strong>
+                <span style={{ fontSize:11, color:'#78716c', background:'#f5f5f4', padding:'2px 6px', borderRadius:4 }}>
+                  {GENAUIGKEIT_LABEL[e.genauigkeit] || e.genauigkeit}
+                </span>
+                {e.fundstelle && <span style={{ fontSize:12, color:'#78716c' }}>{e.fundstelle}</span>}
+              </div>
+              {e.zitat && <p style={{ fontSize:13, fontStyle:'italic', color:'#57534e', margin:'4px 0 6px' }}>„{e.zitat}"</p>}
+              <ul style={{ margin:'4px 0 0', paddingLeft:18 }}>
+                {(e.parallelen || []).map((pa, k) => (
+                  <li key={k} style={{ fontSize:13, marginBottom:3 }}>
+                    {pa.was}
+                    {pa.ort && <span style={{ color:'#78716c' }}> · {pa.ort}</span>}
+                    {pa.sicher === false && (
+                      <span style={{ fontSize:11, color:'#92400e', background:'#fef3c7', padding:'1px 6px', borderRadius:4, marginLeft:6 }}>ungeprüft</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MatchCard({ selected, contributions, generating, genOwner, genPct, genProgress, genErr,
                      cancelGenerate, cancelGenRef, generateMatch, downloadExtra, extraDl }) {
   const has  = !!selected.job_match
@@ -4147,6 +4246,13 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 )
               })}
 
+              {isLifeworkCategory(selected.product_category) && (
+                <HistoryParallelsCard selected={selected} generating={generating} genOwner={genOwner}
+                                      genPct={genPct} genProgress={genProgress} genErr={genErr}
+                                      cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef}
+                                      generateExtra={generateExtra} />
+              )}
+
               {isCareer && (
                 <CvCard selected={selected} contributions={contributions} generating={generating} genOwner={genOwner}
                         genPct={genPct} genProgress={genProgress} genErr={genErr} cancelGenerate={cancelGenerate}
@@ -4545,6 +4651,22 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     <span style={{ fontSize:14 }}>Umschalter für den begleiteten Modus anbieten</span>
                   </label>
                   <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>Begleitperson (z. B. Pflegekraft) kann das Gespräch mit eigenem, blauem Mikrofon mitführen.</p>
+                </div>
+                )}
+                {isLifeworkCategory(selected.product_category) && (
+                <div style={{ marginBottom:14 }}>
+                  <Lbl>Geschichtsbuch-Funktion</Lbl>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
+                    <input type="checkbox" checked={od.historyMode === true} onChange={e => setOd({ historyMode: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+                    <span style={{ fontSize:14 }}>Im Interview nach Datierungen fragen</span>
+                  </label>
+                  <p style={{ ...S.muted, fontSize:12, margin:'6px 0 0', marginLeft:28 }}>
+                    Standard: aus. Die KI fragt dann zu jeder Begebenheit, wann sie war — möglichst
+                    auf den Tag genau, sonst Monat und Jahr, mindestens die Jahreszahl. Sie hilft mit
+                    Ankerpunkten beim Erinnern („vor oder nach der Hochzeit?"), nimmt Näherungen wie
+                    „Anfang der Sechziger" an und erfindet nie ein Datum. Kommt keine Angabe, geht es
+                    ohne Nachbohren weiter. Greift ab der nächsten Frage.
+                  </p>
                 </div>
                 )}
                 {isLifeworkCategory(selected.product_category) && (
