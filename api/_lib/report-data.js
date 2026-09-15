@@ -93,7 +93,7 @@ async function gatherReport(supabase, opts = {}) {
   // *_at-Spalten existieren evtl. noch nicht (Migration report.sql). Fallback.
   let memorials = await safe('memorials(full)', async () => {
     const { data, error } = await supabase.from('memorials')
-      .select('id, product_category, created_at, book_v1_at, book_v2_at, eulogy_at, funeral_date, uploaded_images, languages, purge_info')
+      .select('id, product_category, created_at, book_v1_at, book_v2_at, eulogy_at, funeral_date, usage_ends_override, uploaded_images, languages, purge_info')
     if (error) throw error
     return data || []
   }, null)
@@ -102,7 +102,7 @@ async function gatherReport(supabase, opts = {}) {
     genTimestamps = false
     memorials = await safe('memorials(minimal)', async () => {
       const { data, error } = await supabase.from('memorials')
-        .select('id, product_category, created_at, funeral_date, uploaded_images, languages, purge_info')
+        .select('id, product_category, created_at, funeral_date, usage_ends_override, uploaded_images, languages, purge_info')
       if (error) throw error
       return data || []
     }, [])

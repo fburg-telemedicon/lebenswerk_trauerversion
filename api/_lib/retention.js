@@ -75,7 +75,25 @@ function addMonths(d, months) {
 //   • sonst (Lebenswerk, Firma, Ermutigung …): Anlage + Nutzungsdauer.
 //   • Anamnese: keine Lizenzlaufzeit, hier zählt allein die Anlage.
 function usageEndsAt(m) {
+  // Manuell verlaengerte Nutzungsdauer (memorials.usage_ends_override).
+  // Gedacht fuer Faelle, in denen mit dem Nutzer ein spaeteres Ende vereinbart
+  // wurde. Der Automatismus bleibt: Es verschiebt sich NUR der Stichtag, die
+  // Loeschung laeuft danach unveraendert weiter.
+  //
+  // Zwei Grenzen, bewusst hier und nicht in der Oberflaeche:
+  //  - Bei den Anamnese-Kategorien wird der Wert IGNORIERT. Die 14 Tage sind
+  //    mit der besonderen Schutzbeduerftigkeit von Gesundheitsdaten begruendet
+  //    (AGB Abs. 6); ein Eintrag in der Datenbank darf das nicht aushebeln.
+  //  - Nur ein SPAETERES Datum zaehlt. Ein frueheres wuerde eine zugesagte
+  //    Nutzungsdauer verkuerzen; frueher loeschen geht ueber den Knopf.
   const anlass = parseDate(m?.funeral_date)
+  if (!isAnamnesisCategory(m?.product_category)) {
+    const manuell = parseDate(m?.usage_ends_override)
+    if (manuell) {
+      const regulaer = anlass || (parseDate(m?.created_at) ? addMonths(parseDate(m.created_at), LICENSE_MONTHS) : null)
+      if (!regulaer || manuell.getTime() > regulaer.getTime()) return manuell
+    }
+  }
   if (anlass) return anlass
   const angelegt = parseDate(m?.created_at)
   if (!angelegt) return null

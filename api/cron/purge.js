@@ -38,9 +38,15 @@ module.exports = async function handler(req, res) {
   if (!cronAuthorized(req)) return res.status(401).json({ error: 'Nicht autorisiert.' })
   const dryRun = req.query?.dry === '1' || req.query?.dry === 'true'
   try {
-    const { data: rows, error } = await supabase
-      .from('memorials')
-      .select('id, name, product_category, funeral_date, created_at, purge_info')
+    // usage_ends_override MUSS mitgelesen werden — sonst rechnet usageEndsAt()
+    // hier mit der Regelfrist weiter und loescht trotz vereinbarter Verlaengerung.
+    // Faellt die Spalte (alte DB), wird ohne sie erneut gelesen.
+    const COLS = 'id, name, product_category, funeral_date, created_at, purge_info'
+    let { data: rows, error } = await supabase
+      .from('memorials').select(`${COLS}, usage_ends_override`)
+    if (error && /usage_ends_override|column/i.test(error.message || '')) {
+      ;({ data: rows, error } = await supabase.from('memorials').select(COLS))
+    }
     if (error) throw error
 
     const now = Date.now()

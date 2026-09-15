@@ -12,6 +12,10 @@ import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
 import { docKindLabel } from './careerDocs.js'
 import { parallelsStats, GENAUIGKEIT_LABEL } from './historyParallels.js'
+
+// Nur fuer den Hinweistext an der Nutzungsdauer. Die MASSGEBLICHE Frist steht
+// in api/_lib/retention.js (RETENTION_DAYS) — hier wird nichts nachgerechnet.
+const RETENTION_HINT = '90 Tage nach Ende der Nutzungsdauer'
 import { adminProfileAsk, adminHistoryBox } from './api.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { LANGUAGES, uiText, canPrintPdf, sortLangs, langLabelFor } from './i18n.js'
@@ -4574,6 +4578,30 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   <div style={{ marginBottom:14 }}>
                     <Lbl>{oci.dateLabel}</Lbl>
                     <input type="date" value={od.funeralDate} onChange={e => setOd({ funeralDate: e.target.value })} />
+                  </div>
+                )}
+                {/* Spaeteres Ende der Nutzungsdauer. Beim Lebenswerk gibt es keinen
+                    Anlass-Termin (oci.useDate = false), die Frist haengt dort sonst
+                    fest an "Anlage + Lizenzlaufzeit" und waere nicht verschiebbar.
+                    Bei den Anamnese-Kategorien nicht angeboten: Die 14 Tage sind mit
+                    der Schutzbeduerftigkeit von Gesundheitsdaten begruendet (AGB Abs. 6)
+                    und werden in retention.js auch dann ignoriert, wenn doch ein Wert
+                    in der Datenbank steht. */}
+                {!isAnamnesis && (
+                  <div style={{ marginBottom:14 }}>
+                    <Lbl>Nutzungsdauer verlängern (optional)</Lbl>
+                    <input type="date" value={od.usageEndsOverride || ''}
+                      onChange={e => setOd({ usageEndsOverride: e.target.value })} />
+                    <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
+                      Leer = Regelfrist ({oci.useDate ? 'Anlass-Termin' : 'Anlage + Lizenzlaufzeit'}).
+                      Ein späteres Datum verschiebt das Ende der Nutzungsdauer; die
+                      automatische Löschung läuft danach unverändert weiter
+                      ({RETENTION_HINT}). Ein früheres Datum wird ignoriert — früher
+                      löschen geht über die Aufbewahrungs-Karte.
+                      {selected.usage_ends_override && (
+                        <> Derzeit verlängert bis <strong>{new Date(selected.usage_ends_override).toLocaleDateString('de-DE')}</strong>.</>
+                      )}
+                    </p>
                   </div>
                 )}
                 {oci.useCutoff && (

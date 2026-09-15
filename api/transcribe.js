@@ -70,6 +70,28 @@ async function transcribeAzure({ buffer, mimeType, ext, language }) {
   const key    = process.env.AZURE_SPEECH_KEY
   if (!region || !key) throw new Error('Azure Speech ist nicht konfiguriert (AZURE_SPEECH_REGION/KEY).')
   const base = (process.env.AZURE_SPEECH_ENDPOINT || `https://${region}.api.cognitive.microsoft.com`).replace(/\/+$/, '')
+// Azure stuft Audio-Abschnitte, die es nicht als Sprache liest (Atmen, Husten,
+// Stuhlruecken, Anstossen ans Mikrofon, Hintergrund), als Geraeusch ein — und
+// schreibt das in der Fast-Transcription-Ausgabe als WORTE in den Text, statt es
+// zu unterdruecken. Im baskischen Buch MX7YEW standen so 61 "Spoken noise" in
+// 25 von 42 Antworten, mitten im Satz. In der Erzaehlung haben sie nichts zu
+// suchen; sie landen sonst im Transkript, im Prompt und am Ende im Buch.
+//
+// Bewusst nur die Marker entfernen, nicht "aufraeumen": Was die Erzaehlerin
+// gesagt hat, bleibt Wort fuer Wort stehen. Danach nur noch die Luecken
+// schliessen, die das Herausschneiden hinterlaesst.
+const NOISE_TOKENS = /\b(?:spoken\s+noise|inaudible|unintelligible)\b[.,;:!?]*/gi
+
+function stripNoiseTokens(raw) {
+  const ohne = String(raw || '').replace(NOISE_TOKENS, ' ')
+  return ohne
+    .replace(/\s{2,}/g, ' ')          // doppelte Leerzeichen vom Ausschneiden
+    .replace(/\s+([.,;:!?])/g, '$1')  // Leerzeichen vor Satzzeichen
+    .replace(/([.,;:!?])\1+/g, '$1')  // doppelte Satzzeichen
+    .replace(/^[\s.,;:!?]+/, '')      // Satzzeichen am Anfang
+    .trim()
+}
+
   const url  = `${base}/speechtotext/transcriptions:transcribe?api-version=2025-10-15`
 
   const locales = LOCALE[language] ? [LOCALE[language]] : [] // [] = automatische Spracherkennung
@@ -87,7 +109,7 @@ async function transcribeAzure({ buffer, mimeType, ext, language }) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.error?.message || data.message || `Azure STT HTTP ${response.status}`)
-  const text = (data.combinedPhrases || []).map(p => p.text).join(' ').trim()
+  const text = stripNoiseTokens((data.combinedPhrases || []).map(p => p.text).join(' '))
   return { text, provider: 'azure', model: 'azure-stt' }
 }
 

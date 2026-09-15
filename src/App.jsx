@@ -250,6 +250,7 @@ const EMPTY_CREATE = {
   micManualStop: true,               // Mischform = STANDARD: Mikro öffnet automatisch, der Erzähler beendet selbst per Tippen (kein Stopp durch Sprechpause — man darf beliebig lange überlegen)
   detailChoice: false,               // Nutzer darf die Nachfrage-Tiefe selbst einstellen (Default AUS)
   historyMode: false,                // Geschichtsbuch-Funktion: Interview fragt nach Datierungen (nur Lebenswerk, Default AUS)
+  usageEndsOverride: '',             // manuell vereinbartes spaeteres Ende der Nutzungsdauer (leer = Regelfrist)
   proofEnabled: false, proofMax: 3,  // Probedruck-Tab (Endnutzer-Buchvorschau, nur Lebenswerk)
   showOnboarding: true,              // Einführungs-Overlay beim ersten Öffnen (Standard AN)
   // nur Kategorie Lebenswerk
@@ -1045,6 +1046,7 @@ function Dashboard() {
       micManualStop: m.mic_manual_stop === true,
       detailChoice: m.detail_choice === true,
       historyMode: m.history_mode === true,
+      usageEndsOverride: (m.usage_ends_override || '').slice(0, 10),
       proofEnabled: m.proof_enabled === true,
       proofMax: Number.isFinite(m.proof_max) ? m.proof_max : 3,
       guestEnabled: m.guest_enabled === true,
@@ -1107,6 +1109,7 @@ function Dashboard() {
         micManualStop: d.micManualStop === true,
         detailChoice: d.detailChoice === true,
         historyMode: d.historyMode === true,
+        usageEndsOverride: d.usageEndsOverride || null,
         proofEnabled: d.proofEnabled === true,
         proofMax: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         showOnboarding: d.showOnboarding !== false,
@@ -1147,6 +1150,7 @@ function Dashboard() {
         mic_manual_stop: d.micManualStop === true,
         detail_choice: d.detailChoice === true,
         history_mode: d.historyMode === true,
+        usage_ends_override: d.usageEndsOverride || null,
         proof_enabled: d.proofEnabled === true,
         proof_max: Number.isFinite(parseInt(d.proofMax, 10)) ? parseInt(d.proofMax, 10) : 3,
         show_onboarding: d.showOnboarding !== false,
