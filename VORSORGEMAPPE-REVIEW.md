@@ -13,14 +13,10 @@ Rechtslage 2026, Stand 09/2026) aufsetzt. Ein Mensch beantwortet im Gespräch di
 die Ihre acht Formulare stellen; daraus entsteht ein **ausgefüllter Entwurf** zum
 Ausdrucken und Unterschreiben.
 
-Wir bitten Sie um zweierlei:
-
-1. **Fachliche Durchsicht.** Wir haben Ihre Formulare nicht abfotografiert, sondern
-   nachgebaut — mit eigener Gliederung, eigener Nummerierung und Formulierungen in der
-   Ich-Form. Abschnitt 5 listet **jede Abweichung** auf, die uns bewusst ist. Uns
-   interessiert vor allem: Wo ändert eine dieser Abweichungen die Bedeutung?
-2. **Klärung des Verhältnisses.** Ihre Mappe ist die Grundlage. Wie sollen wir darauf
-   verweisen — und wäre Ihnen eine Abstimmung lieber als ein bloßer Quellenhinweis?
+Wir bitten Sie um eine **fachliche Durchsicht**. Wir haben Ihre Formulare nicht
+abfotografiert, sondern nachgebaut — mit eigener Gliederung, eigener Nummerierung und
+Formulierungen in der Ich-Form. Abschnitt 5 listet **jede Abweichung** auf, die uns bewusst
+ist. Uns interessiert vor allem: Wo ändert eine dieser Abweichungen die Bedeutung?
 
 Beigelegt ist ein vollständiger **Demo-Fall**: eine erfundene Person, ein von Hand
 geschriebenes Gespräch und die daraus erzeugte Mappe, 27 Seiten. Er ist so angelegt, dass
