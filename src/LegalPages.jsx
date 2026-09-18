@@ -162,7 +162,7 @@ export function Impressum() {
       <p>E-Mail: <a href="mailto:support@lebensgeschichten.ai">support@lebensgeschichten.ai</a><br/>Kontaktformular: <a href="/kontakt">lebensgeschichten.ai/kontakt</a></p>
       <p style={{ fontSize:14, color:'#78716c' }}>Wir verzichten bewusst auf eine Telefonnummer und antworten stattdessen schriftlich — in der Regel innerhalb eines Werktages.</p>
       <h2 style={LH}>Registereintrag</h2>
-      <p>Eintragung im Handelsregister ist beantragt.<br/>Registergericht: folgt<br/>Registernummer: folgt</p>
+      <p>Registergericht: Amtsgericht Stendal<br/>Registernummer: HRB 38195</p>
       <h2 style={LH}>Umsatzsteuer-Identifikationsnummer</h2>
       <p>USt-IdNr. gemäß § 27a UStG: DE291805257</p>
       <h2 style={LH}>Verantwortlich für den Inhalt</h2>
