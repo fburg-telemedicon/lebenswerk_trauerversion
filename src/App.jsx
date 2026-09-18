@@ -1269,6 +1269,17 @@ function Dashboard() {
     // festen Fragenkatalog ab; Nachfragen macht die KI ohnehin situativ nach Schema).
     // Allgemeiner Default für alle anderen Produkte ist 2.
     if (isAnamnesis(slug)) return { ...base, photoUploadTab: true, followups: 0, languages: LANGUAGES.map(l => l.code) }
+    // Vorsorgevollmacht: kein Buch, keine Bilder, kein Upload — und vor allem nur
+    // EINE Nachfrage je Frage. Der Interview-Prompt verbietet ausdruecklich, eine
+    // Festlegung durch Nachfragen herbeizufuehren („kein Draengen"); erlaubt ist
+    // genau eine Rueckfrage, wenn eine Antwort mehrdeutig ist. Ein Formularfeld,
+    // das dem widersprechen koennte, waere eine Falle — deshalb steht der Wert
+    // hier fest und die Maske zeigt ihn nicht.
+    // Transkript-Schalter hier AUSDRUECKLICH an: Wer eine Vollmacht diktiert, muss
+    // mitlesen koennen, was angekommen ist — ein verhoerter Name faellt sonst erst
+    // in der Prueflliste der fertigen Mappe auf. Der globale Standardwert wird hier
+    // bewusst ueberstimmt (beim Lebenswerk zog er die Maske einmal hart auf aus).
+    if (isPrecaution(slug)) return { ...base, photoUploadTab: false, followups: 1, detailChoice: false, showTranscript: true }
     if (!isLifework(slug)) return base
     // Lebenswerk hat feste Regeln, die die allgemeinen Standardwerte überstimmen:
     // nur Variante 2, keine Frist, Foto-Upload an, keine Mitwirkenden-Liste

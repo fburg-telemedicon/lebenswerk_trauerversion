@@ -2016,6 +2016,12 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           </p>
         </div>
         )}
+        {/* Vorsorgevollmacht: KEIN Upload. Hochgeladen wuerden hier Scans
+            vorhandener Verfuegungen — und die liest nichts in der Verarbeitung
+            aus (anders als bei Anamnese und Lebenslauf, wo es dafuer eine
+            Auslesung gibt). Ein Reiter, der Unterlagen entgegennimmt, die
+            niemand verwertet, ist ein Versprechen, das das Produkt nicht haelt. */}
+        {!isPrecaution && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview' : 'Foto-Upload als Tab im Interview'}</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2028,6 +2034,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
               : 'Standard: nicht aktiv. Wenn aktiviert, sehen Beitragende unten eine Tab-Leiste („Interview" / „Foto-Upload") und können Fotos hochladen. Ohne diese Option gibt es keine Möglichkeit, Fotos hochzuladen.'}
           </p>
         </div>
+        )}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Test-Zeitlimit fürs Interview</Lbl>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -2047,11 +2054,20 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           <RecordingModeRadio handsFree={createForm.handsFree} micManualStop={createForm.micManualStop}
             set={patch => setCreateForm({ ...createForm, ...patch })} t={t} />
           <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Das ist die Voreinstellung. Über den ☰-Punkt „Mikrofon-Modus" kann die erzählende Person jederzeit selbst wechseln — auch zum Live-Gespräch.', 'This is the default. Via the ☰ item “Microphone mode” the narrator can switch at any time — including to the live conversation.')}</p>
+          {/* Vorsorgevollmacht: keine Nachfrage-Tiefe — weder als Vorgabe noch zur
+              Wahl. Hier wird nicht vertieft, sondern protokolliert: Der Prompt
+              erlaubt genau EINE Rueckfrage bei einer mehrdeutigen Antwort und
+              verbietet ausdruecklich, auf eine Festlegung hinzuarbeiten. Eine
+              Stufe „intensiv (4 Nachfragen je Thema)" wuerde dem widersprechen —
+              bei „Wuenschen Sie eine Wiederbelebung?" ist Nachbohren keine
+              Gruendlichkeit, sondern Druck. */}
+          {!isPrecaution && (<>
           <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
             <input type="checkbox" checked={createForm.detailChoice === true} onChange={e => setCreateForm({ ...createForm, detailChoice: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
             <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
           </label>
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: aus. Eingeschaltet erscheint im ☰-Menü „Wie ausführlich nachfragen?" mit drei Stufen — wenig (1), ausgewogen (2, Voreinstellung) und intensiv (4 Nachfragen je Thema). Ohne eigene Wahl gilt weiter Ihre Vorgabe oben.', 'Default: off. When on, the ☰ menu shows “Depth of questions” with three levels — few (1), balanced (2, preselected) and in depth (4 follow-ups per topic). Without an explicit choice your setting above still applies.')}</p>
+          </>)}
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -2112,13 +2128,13 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>Blendet für den Endnutzer einen Tab ein, in dem sein Buch aus den bisherigen Antworten erzeugt und als Textansicht angezeigt wird (ohne Bilder). Jede Erzeugung ist eine KI-Generierung und zählt gegen dieses Limit. Der Endnutzer kann den Text bearbeiten; Änderungen werden gespeichert.</p>
         </div>
         )}
-        {/* Die Anamnese erzeugt kein Buch und keine Bilder — kein Schreib-/Text-/
-            Bildstil. Diese Auswahl entfällt für die Kategorie. */}
+        {/* Anamnese und Vorsorgevollmacht erzeugen kein Buch und keine Bilder —
+            kein Schreib-/Text-/Bildstil, kein Layout. Die Auswahl entfällt. */}
         {/* Keine manuelle Stimmauswahl mehr: Die Vorlese-Stimme folgt automatisch dem
             Geschlecht der sprechenden Person (männlich → männlich, sonst weiblich);
             Deutsch als HD-Stimme, andere Sprachen als passende HD-Multilingual- bzw.
             natürlichste Stimme pro Sprache (siehe api/speak.js). */}
-        {!isAnamnesis && (<>
+        {!isAnamnesis && !isPrecaution && (<>
         <div style={{ marginBottom: 24 }}>
           <Lbl>Textstil des Buchs</Lbl>
           <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Später im Dashboard änderbar.</p>
@@ -2135,8 +2151,8 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           <BookLayoutPicker value={createForm.bookLayout} onChange={k => setCreateForm({ ...createForm, bookLayout: k })} />
         </div>
         </>)}
-        {/* Anamnese: kein gedrucktes Buch → keine Sammelbestellungs-Adresse. */}
-        {!isAnamnesis && (
+        {/* Anamnese und Vorsorge: kein gedrucktes Buch → keine Sammelbestellung. */}
+        {!isAnamnesis && !isPrecaution && (
         <div style={{ marginBottom: 24 }}>
           <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
           <p style={{ fontSize:12, color:'#78716c', margin:'2px 0 10px' }}>
@@ -2162,7 +2178,6 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           if (avail.length === 0 && !isAnamnesis) return null
           // Vertiefungsfragen gelten, solange NICHT „frei" gewählt ist.
           const usesCatalog = isLifework
-            || isPrecaution
             || (isAnamnesis && createForm.catalogId !== '__free__')
             || (!!createForm.catalogId && createForm.catalogId !== '__free__')
           return (
@@ -4528,13 +4543,13 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   ...(selected.product_category === 'memorial' ? [['Einführungsvideo', selected.show_intro_video !== false ? 'Ja' : 'Nein']] : []),
                   ['Transkript-Anzeige', selected.show_transcript !== false ? 'Ja' : 'Nein'],
                   ['Namensliste im Buch', selected.show_contributors !== false ? 'Ja' : 'Nein'],
-                  [isAnamnesis ? 'Dokumenten-Upload als Tab' : 'Foto-Upload als Tab', selected.photo_upload_tab === true ? 'Ja' : 'Nein'],
+                  ...(isPrecaution ? [] : [[isAnamnesis ? 'Dokumenten-Upload als Tab' : 'Foto-Upload als Tab', selected.photo_upload_tab === true ? 'Ja' : 'Nein']]),
                   ['Bemerkung', selected.note || dash],
-                  ['Sammelbestellungs-Adresse', selected.pickup_address
+                  ...(isPrecaution ? [] : [['Sammelbestellungs-Adresse', selected.pickup_address
                     ? [selected.pickup_address.name, selected.pickup_address.addon, selected.pickup_address.street,
                        [selected.pickup_address.zip, selected.pickup_address.city].filter(Boolean).join(' '),
                        selected.pickup_address.country].filter(Boolean).join(', ')
-                    : dash],
+                    : dash]]),
                 ].map(([label, val], i) => (
                   <Fragment key={i}>
                     <div style={{ color:'#78716c', whiteSpace:'nowrap' }}>{label}</div>
@@ -4821,8 +4836,8 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 {/* Keine manuelle Stimmauswahl mehr: Die Vorlese-Stimme folgt automatisch
                     dem Geschlecht der sprechenden Person (Deutsch als HD-Stimme, andere
                     Sprachen als passende HD-Multilingual- bzw. natürlichste Stimme). */}
-                {/* Anamnese: kein Buch/keine Bilder → kein Text-/Grafik-/Layoutstil. */}
-                {!isAnamnesis && (<>
+                {/* Anamnese und Vorsorge: kein Buch/keine Bilder → kein Text-/Grafik-/Layoutstil. */}
+                {!isAnamnesis && !isPrecaution && (<>
                 <div style={{ marginBottom:14 }}>
                   <Lbl>Textstil des Buchs</Lbl>
                   <p style={{ ...S.muted, fontSize:12, margin:'0 0 8px' }}>Wie die KI schreibt. Wirkt auf die nächste Buch-Generierung.</p>
@@ -4875,6 +4890,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   </p>
                 </div>
                 )}
+                {!isPrecaution && (
                 <div style={{ marginBottom:14 }}>
                   <Lbl>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview' : 'Foto-Upload als Tab im Interview'}</Lbl>
                   <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:8 }}>
@@ -4883,6 +4899,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     <span style={{ fontSize:14 }}>{isAnamnesis ? 'Dokumenten-Upload als Tab im Interview (ohne diese Option kein Upload)' : 'Foto-Upload als Tab im Interview (ohne diese Option kein Foto-Upload)'}</span>
                   </label>
                 </div>
+                )}
                 {/* Fragebogen — nur Anamnese ist im Detail editierbar (Standard-Bogen
                     vs. freie Fragen, plus optionale Zusatzkataloge). App.jsx schickt
                     catalogId/followups nur für die Anamnese mit. */}
@@ -4931,8 +4948,8 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                     placeholder="Interne Notiz zu diesem Buch (optional)."
                     style={{ width:'100%', resize:'vertical', fontFamily:'inherit', fontSize:14 }} />
                 </div>
-                {/* Anamnese: kein gedrucktes Buch → keine Sammelbestellungs-Adresse. */}
-                {!isAnamnesis && (
+                {/* Anamnese und Vorsorge: kein gedrucktes Buch → keine Sammelbestellung. */}
+                {!isAnamnesis && !isPrecaution && (
                 <div style={{ marginBottom:20 }}>
                   <Lbl>Sammelbestellungs-Adresse (optional)</Lbl>
                   <input value={od.pickupAddress.name} onChange={e => setOdPa({ name: e.target.value })} placeholder="Name / Empfänger" style={{ marginBottom:8 }} />
