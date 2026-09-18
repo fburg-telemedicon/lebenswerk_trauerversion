@@ -565,6 +565,16 @@ export async function getEnduserCareer(code, token) {
   return parseResponse(res) // { name, language, cv, avoca, guide, match, documents }
 }
 
+// Was die vorsorgende Person von ihren eigenen Vorsorgedokumenten sieht
+// (Kategorie „Vorsorgevollmacht"). Ohne Token traegt der Zugangscode die
+// Berechtigung — die Mappe IST ihre Erklaerung, unterschreiben kann nur sie.
+export async function getEnduserPrecaution(code, token) {
+  const res = await fetch(`/api/enduser-precaution?code=${encodeURIComponent(code)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  return parseResponse(res) // { name, language, precaution, guide }
+}
+
 // Fragen an das Profil (Kategorie „Lebenslauf"). Der AGG-Filter sitzt
 // SERVERSEITIG (api/_lib/profileqa.js) — hier wird nur die Frage geschickt.
 export async function adminProfileAsk(token, code, question) {

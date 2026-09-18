@@ -6,7 +6,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework as isLifeworkCategory } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, isPrecaution as isPrecautionCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework as isLifeworkCategory } from './categories.js'
 import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
@@ -1074,7 +1074,7 @@ function bookProgress(m, t) {
   if (p && p.done) return t('✓ abgeschlossen', '✓ completed')
   if (p) return `${t('Kapitel', 'Chapter')} ${p.chapter}/${p.chapterTotal} · ${t('Frage', 'Question')} ${p.questionLabel}/${p.questionTotal}`
   const a = m.answer_count || 0
-  const isEnduser = isLifeworkCategory(m.product_category) || isAnamnesisCategory(m.product_category) || isCareerCategory(m.product_category)
+  const isEnduser = isLifeworkCategory(m.product_category) || isAnamnesisCategory(m.product_category) || isCareerCategory(m.product_category) || isPrecautionCategory(m.product_category)
   if (isEnduser) {
     if (a === 0) return t('noch nicht begonnen', 'not started yet')
     return `${a} ${a === 1 ? t('Antwort', 'response') : t('Antworten', 'responses')}`
@@ -1737,6 +1737,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
     // beim Anlegen — dort der Anlass (Bewerbung/Outplacement/…), der den letzten
     // Fragenblock des Interviews steuert.
     const isCareer = isCareerCategory(createForm.productCategory)
+    const isPrecaution = isPrecautionCategory(createForm.productCategory)
     // Endnutzer-Kategorien (Lebenswerk, Anamnese, Lebenslauf): EIN Endnutzer bekommt
     // einen eigenen Zugang; kein Organisator, kein Buch, Name/Geschlecht optional.
     const isEnduser = ci.useEnduser === true
@@ -2161,6 +2162,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           if (avail.length === 0 && !isAnamnesis) return null
           // Vertiefungsfragen gelten, solange NICHT „frei" gewählt ist.
           const usesCatalog = isLifework
+            || isPrecaution
             || (isAnamnesis && createForm.catalogId !== '__free__')
             || (!!createForm.catalogId && createForm.catalogId !== '__free__')
           return (
@@ -2169,6 +2171,8 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
               <p style={{ fontSize:12, color:'#78716c', margin:'0 0 8px' }}>
                 {isLifework
                   ? 'Das Lebenswerk folgt dem Standardkatalog (12 Sitzungen mit je 10 Fragen). Wird kein Katalog gewählt, überlegt sich die KI die Fragen selbst.'
+                  : isPrecaution
+                  ? 'Die Vorsorgevollmacht folgt dem Standardkatalog: Er fragt genau die Angaben ab, die die acht Formulare der Mappe brauchen. Ein eigener Katalog kann Felder unausgefüllt lassen.'
                   : isAnamnesis
                   ? 'Standard: fester Anamnese-Fragebogen (medizinisches Schema) mit KI-Vertiefungsfragen. Alternativ freie Fragen – die KI stellt die Anamnesefragen selbst. Empfohlen ist der feste Fragebogen.'
                   : 'Standard: die KI überlegt sich die Interviewfragen selbst. Alternativ führt sie das Interview entlang eines vordefinierten Katalogs.'}
@@ -2184,7 +2188,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
                     <option value="__free__">Freie Fragen – KI überlegt selbst</option>
                   </>
                 ) : (
-                  <option value="">{isLifework ? 'Lebenswerk-Standardkatalog' : 'KI überlegt selbst (Standard)'}</option>
+                  <option value="">{isLifework ? 'Lebenswerk-Standardkatalog' : isPrecaution ? 'Vorsorge-Standardkatalog (empfohlen)' : 'KI überlegt selbst (Standard)'}</option>
                 )}
                 {avail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -3542,6 +3546,10 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     // Lebenslauf: wie die Anamnese ohne Buch und ohne Bilder — die Produkte sind
     // der Lebenslauf (eigene Karte unten) und der Gespraechsleitfaden (finalText).
     const isCareer = isCareerCategory(selected?.product_category)
+    // Vorsorgevollmacht: wie der Lebenslauf ohne Buch und ohne Bilder — die
+    // Erzeugnisse sind die Vorsorgen-Mappe (eigene Karte unten) und der
+    // Gespraechsleitfaden fuers Beratungsgespraech (finalText).
+    const isPrecaution = isPrecautionCategory(selected?.product_category)
     const inviteUrl = `${window.location.origin}/?code=${selected.id}`
     // Experten-Einstellungen im Auftragsdaten-Formular: zunächst eingeklappt.
     const [odExpert, setOdExpert] = useState(false)
@@ -3561,7 +3569,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
     // kein Buch. Die Anlage-Maske blendet sie längst aus (`!isEnduser`); auf der
     // Detailseite stand sie trotzdem noch an drei Stellen und suggerierte eine
     // Auswahl, die es nicht gibt.
-    const isEnduserCat = isAnamnesis || isCareer || isLifeworkCategory(selected.product_category)
+    const isEnduserCat = isAnamnesis || isCareer || isPrecaution || isLifeworkCategory(selected.product_category)
     const orderLangLabels = sortLangs(selected.languages || ['de']).map(c => (LANGUAGES.find(l => l.code === c) || { label: c }).label).join(', ')
     return (
       <div style={{ minHeight: '100vh', background: '#fafaf9' }}>
@@ -3849,7 +3857,7 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
               onChange={next => setSelected(s => ({ ...s, uploaded_images: next }))}
             />
 
-            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{isAnamnesis || isCareer ? GENERATORS.eulogy.label : `Buch & ${GENERATORS.eulogy.label}`}</h3>
+            <h3 style={{ fontSize:16, fontWeight:600, marginBottom:'.75rem' }}>{isAnamnesis || isCareer || isPrecaution ? GENERATORS.eulogy.label : `Buch & ${GENERATORS.eulogy.label}`}</h3>
             {/* Anamnese: Hat der Patient den Bogen im Beitragenden-Flow selbst geprüft
                 und mit „ok" bestätigt (Step 2)? Dann ist eulogy_text die vom Patienten
                 bestätigte Fassung. */}
@@ -3904,11 +3912,13 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 // book_variant als TEXT mit einer Zahl verglichen wurde, griff die
                 // Sperre nicht; die damals erzeugten Fassungen waeren sonst
                 // unerreichbar (Ansehen/Download weg). Neu erzeugen bleibt gesperrt.
-                ...((isLifework || isAnamnesis || isCareer || (normVariant(selected.book_variant) === 2 && !selected.book_v1)) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
-                ...((isAnamnesis || isCareer || (normVariant(selected.book_variant) === 1 && !selected.book_v2)) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
+                ...((isLifework || isAnamnesis || isCareer || isPrecaution || (normVariant(selected.book_variant) === 2 && !selected.book_v1)) ? [] : [{ key:'book_v1', icon:'📄', title:GENERATORS.book_v1.label, sub:t('Jede Person als eigenes Kapitel (Ich-Form, fließender Text).', 'Each person as their own chapter (first person, flowing text).') }]),
+                ...((isAnamnesis || isCareer || isPrecaution || (normVariant(selected.book_variant) === 1 && !selected.book_v2)) ? [] : [{ key:'book_v2', icon:'✨', title:GENERATORS.book_v2.label, sub: isLifework
                   ? t('KI schreibt aus dem Interview die Autobiographie – chronologisch, in der Ich-Form.', 'The AI writes the autobiography from the interview – chronological, in the first person.')
                   : t('KI webt alle Beiträge zu einem stimmigen, literarischen Text.', 'The AI weaves all contributions into one coherent, literary text.') }]),
-                { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : isCareer ? '🗒' : '🕯', title:GENERATORS.eulogy.label, sub: isCareer
+                { key:'eulogy',  icon: isLifework ? '🩺' : isAnamnesis ? '🩺' : isCareer ? '🗒' : isPrecaution ? '🗣' : '🕯', title:GENERATORS.eulogy.label, sub: isPrecaution
+                  ? t('Leitfaden für das Beratungsgespräch bei Ärztin, Vorsorgeberatung oder Betreuungsbehörde: was festgelegt wurde, wo Unsicherheit blieb, welche Fragen zu stellen sind und was noch zu erledigen ist.', 'Guide for the advisory appointment with the doctor, an advance-care counsellor or the guardianship authority: what has been decided, where doubts remained, which questions to ask and what is still to be done.')
+                  : isCareer
                   ? t('Leitfaden für ein biografisches Gespräch: rote Fäden, Wendepunkte, dünne Stellen und offene Fragen – jeweils mit Anhaltspunkt aus der Erzählung.', 'Guide for a biographical interview: recurring threads, turning points, thin spots and open questions – each with its cue from the account.')
                   : isLifework
                   ? t('Zweiseitige Zusammenfassung für die Pflegeakte – Sprache wird beim Erzeugen abgefragt.', 'Two-page summary for the care record – language is asked when generating.')
@@ -4345,7 +4355,8 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                   strukturierte Daten und werden daraus gezeichnet — erneutes Laden
                   kostet deshalb keine KI. Karten mit `legacy` sind nicht mehr
                   erzeugbar und erscheinen nur, wenn es das Dokument schon gibt. */}
-              {isLifework && [
+              {(isLifework || isPrecaution) && [
+                ...(isLifework ? [
                 { kind:'tree',   field:'family_tree', icon:'🌳', title:t('Stammbaum', 'Family tree'),
                   sub:t('KI liest die Familie aus dem Interview; daraus entsteht ein Stammbaum (PDF, A3 hoch).', 'The AI reads the family from the interview; a family tree is created from it (PDF, A3 portrait).') },
                 { kind:'poster', field:'life_poster', icon:'🖼', title:t('Lebensposter', 'Life poster'),
@@ -4361,6 +4372,16 @@ export function DetailView({ auth, setGuestStatus, guestPendingCount = 0, select
                 { kind:'poa', field:'power_of_attorney', icon:'📜', title:t('Vorsorgemappe', 'Provision folder'),
                   sub:t('Ein PDF mit drei getrennt unterschreibbaren Teilen: Vorsorgevollmacht (Gesundheit, Aufenthalt und Wohnung, Vermögen, Behörden, Post — mit Ankreuzfeldern für die drei Sonderbefugnisse und der Betreuungsverfügung als Ziffer 7), die ausgewiesene Fehlstelle Patientenverfügung und die Werteerklärung aus dem Wertesystem der Lebensgeschichte. Dazu ein Beiblatt mit allen Erläuterungen und Belegstellen.', 'One PDF with three separately signable parts: power of attorney (health, residence and housing, finances, authorities, mail — with tick boxes for the three special powers and the care directive as clause 7), the flagged gap where the advance healthcare directive belongs, and the statement of values drawn from the life story. Plus a worksheet with all explanations and supporting quotes.'),
                   note:t('Entwurf, keine Rechtsberatung. Die Vollmacht wirkt SOFORT ab Unterschrift und ohne gerichtliche Kontrolle; die bevollmächtigte Person und die Wunsch-Betreuung bleiben deshalb leere Felder — die KI benennt niemanden. Sie kreuzt auch nichts an: § 1829 (lebensgefährliche Eingriffe), § 1831 (freiheitsentziehende Maßnahmen) und Immobilien erteilt nur der Mensch selbst; für Immobilien ist zwingend ein Notar nötig. Die Patientenverfügung ist NICHT enthalten und wird in der Mappe als fehlend ausgewiesen — sie verlangt konkrete Behandlungsfestlegungen, die sich aus einer Lebensgeschichte nicht ableiten lassen. Nur Selbstauskunft, keine Gastbeiträge. Deutsches Recht, jeder Teil eigenhändig zu unterschreiben.', 'Draft, not legal advice. The power of attorney takes effect IMMEDIATELY upon signature and without court supervision; the attorney-in-fact and the preferred guardian are therefore left blank — the AI names no one. It also ticks nothing: § 1829 (life-threatening procedures), § 1831 (measures restricting liberty) and real estate are granted by the person alone; real estate requires a notary. The advance healthcare directive is NOT included and is flagged as missing — it requires concrete treatment decisions that cannot be derived from a life story. Only the person’s own account, no guest contributions. German law, each part to be signed by hand.') },
+                ] : []),
+                // Die Vorsorgen-Mappe der Kategorie „Vorsorgevollmacht". Sie laeuft
+                // durch dieselbe Karte wie die Nebenprodukte des Lebenswerks
+                // (Erzeugen als Job, Download aus den gespeicherten Daten) — nur die
+                // Warnung ist eine andere, weil hier tatsaechlich AUSGEFUELLT wird.
+                ...(isPrecaution ? [
+                { kind:'vorsorge', field:'precaution', icon:'📜', title:t('Vorsorgen-Mappe', 'Advance-care folder'),
+                  sub:t('Ein PDF mit acht getrennt unterschreibbaren Teilen nach der „VORSORGEN! Mappe" der Deutschen PalliativStiftung: Vorsorgevollmacht, Betreuungsverfügung, Patientenverfügung, Wertvorstellungen, Bestattungsverfügung, Palliativ-Ampel sowie die Vordrucke Untervollmacht und Vertreterverfügung. Davor die Prüfliste mit jeder übernommenen Angabe und dem Satz, aus dem sie stammt; dahinter das Beiblatt mit allen Belehrungen.', 'One PDF with eight separately signable parts following the German PalliativStiftung advance-care folder: power of attorney, guardianship directive, advance healthcare directive, statement of values, funeral directive, palliative traffic light and the blank forms for sub-delegation and representative directive. Preceded by the verification list showing every recorded detail with the sentence it came from, followed by the worksheet with all explanations.'),
+                  note:t('Entwurf, keine Rechts- und keine medizinische Beratung. Anders als beim Lebenswerk werden hier Namen, Geburtsdaten, Anschriften und Kreuze EINGETRAGEN — die Person hat sie im Gespräch ausdrücklich für dieses Dokument diktiert. Spracherkennung verhört aber genau das: Die Prüfliste am Anfang der Mappe ist vor jeder Unterschrift Zeile für Zeile durchzugehen. Ein leeres Kästchen bedeutet „nicht festgelegt", nicht „abgelehnt". Nur Selbstauskunft, keine Gastbeiträge. Deutsches Recht; jeder Teil ist eigenhändig zu unterschreiben, die Vollmacht am besten mit beglaubigter Unterschrift.', 'Draft, neither legal nor medical advice. Unlike the life-work folder, names, dates of birth, addresses and tick marks are FILLED IN here — the person dictated them expressly for this document. Speech recognition mishears exactly that, so the verification list at the front must be checked line by line before signing. An empty box means “not decided”, not “refused”. Only the person’s own account, no guest contributions. German law; each part must be signed by hand.') },
+                ] : []),
               ].filter(c => !c.legacy || selected[c.field]).map(({ kind, field, icon, title, sub, note, legacy }) => {
                 const has  = !!selected[field]
                 // Läuft serverseitig als Job — Fortschritt und Abbrechen wie beim Buch.

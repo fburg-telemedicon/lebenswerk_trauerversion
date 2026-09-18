@@ -227,7 +227,8 @@ async function ensureLifeworkSchema() {
       add column if not exists avoca jsonb,
       add column if not exists documents jsonb,
       add column if not exists profile_queries jsonb,
-      add column if not exists job_match jsonb
+      add column if not exists job_match jsonb,
+      add column if not exists precaution jsonb
   `)
   // Fortlaufende Projektnummer: eine kurze, sprechbare Kennung fürs Dashboard und
   // für Rückfragen („Projekt 42"). Der Buch-Code taugt dafür nicht — er ist ein

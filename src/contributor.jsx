@@ -5,14 +5,14 @@
 // nach Änderungen ein echtes Interview live testen.
 
 import { useState, useEffect, useRef, useContext, useMemo } from 'react'
-import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink, getEnduserCareer } from './api.js'
+import { recordMetric, askLLM, speakText, stopSpeaking, addContribution, getContribution, getEnduserResume, uploadContributorImage, getMemorial, submitFeedback, updateOwnMemorial, claimEnduserStart, pinMemorialLang, getEnduserBook, acquireEditLock, heartbeatEditLock, releaseEditLock, consumeProof, saveEnduserBook, startPrintVersion, finalizeBook, enduserGenerateImage, redeemUnlockCode, saveAnamneseBogen, sendResumeLink, getEnduserCareer, getEnduserPrecaution } from './api.js'
 import { generateProofBook } from './enduserProof.js'
 import { generateAnamnesisBogen, reviseAnamnesisSection, translateToGerman, buildCanonical, isGermanReview } from './enduserAnamnesis.js'
 import { proofT } from './proofI18n.js'
 import { xt } from './uiExtra.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, detailFollowups, detailLevelOf, isLifework as isLifeworkCategory } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, isPrecaution as isPrecautionCategory, detailFollowups, detailLevelOf, isLifework as isLifeworkCategory } from './categories.js'
 import { GENDERS, CONSENT_VERSION, normVariant } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -24,6 +24,7 @@ import { downloadCvPdf, downloadCvDocx } from './cvExport.js'
 import { AVOCA_DIMENSIONS } from './avocaRubric.js'
 import { downloadAvocaPdf, downloadAvocaDocx } from './avocaExport.js'
 import { downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
+import { downloadPrecautionPdf } from './precautionExport.js'
 import { downloadTextPdf } from './bookExport.js'
 import { isPdf, pdfToPageImages, MAX_PDF_PAGES } from './pdfPages.js'
 import { fileToDownscaledDataURL, saveLocalSession, loadLocalSession, clearLocalSession, genContribId, unlockAudio, cutoffDays, cutoffDate, cutoffString } from './shared.js'
@@ -1146,7 +1147,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
               selbst — „Name · Ich selbst" wäre nur die Zeile darüber ein zweites Mal.
               Nur bei Beitragenden-Kategorien zeigt die untere Zeile Name + Beziehung —
               beim Lebenswerk also nur für GÄSTE (die erzählen über die Person). */}
-          {(!isLifeworkCategory(memorial?.product_category) || memorial?.guest) && !isAnamnesisCategory(memorial?.product_category) && !isCareerCategory(memorial?.product_category) && (
+          {(!isLifeworkCategory(memorial?.product_category) || memorial?.guest) && !isAnamnesisCategory(memorial?.product_category) && !isCareerCategory(memorial?.product_category) && !isPrecautionCategory(memorial?.product_category) && (
             <div style={{ fontSize: 12, color: '#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -1486,7 +1487,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
       <div style={{ flexShrink:0, borderBottom:'1px solid #e7e5e4', padding:'12px 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
         <div>
           <div style={{ fontWeight:600, fontSize:15 }}>{memorial.name}</div>
-          {(!isLifeworkCategory(memorial?.product_category) || memorial?.guest) && !isCareerCategory(memorial?.product_category) && (
+          {(!isLifeworkCategory(memorial?.product_category) || memorial?.guest) && !isCareerCategory(memorial?.product_category) && !isPrecautionCategory(memorial?.product_category) && (
             <div style={{ fontSize:12, color:'#78716c' }}>{contribForm.name} · {contribForm.relationship}</div>
           )}
         </div>
@@ -2619,6 +2620,135 @@ function CareerResults({ code, token, memorial, lang }) {
 
       {!nothing && (
         <button onClick={load} className="secondary" style={{ ...btn, marginTop:4 }}>{t.reload}</button>
+      )}
+    </div>
+  )
+}
+
+// ── Die eigenen Vorsorgedokumente (Kategorie „Vorsorgevollmacht") ──
+// Anders als beim Lebenslauf ist die Person hier nicht Zulieferin, sondern
+// Eigentümerin: Die Mappe IST ihre Erklärung, und unterschreiben kann nur sie
+// selbst. Deshalb steht der Download nicht am Ende einer Kette, sondern ist der
+// Zweck des ganzen Gesprächs — und deshalb steht über allem der Hinweis auf die
+// Prüfliste. Was die Spracherkennung verhört hat, fällt nur dort auf.
+const PRECAUTION_TAB_L10N = {
+  de: {
+    tab: 'Meine Vorsorge',
+    title: 'Meine Vorsorgedokumente',
+    intro: 'Hier liegen die Unterlagen, die aus Ihrem Vorsorgegespräch entstanden sind. Sie sind ein Entwurf zum Ausdrucken: Wirksam werden sie erst, wenn Sie sie von Hand unterschreiben.',
+    empty: 'Die Unterlagen sind noch nicht erstellt. Sobald das Gespräch ausgewertet wurde, können Sie sie hier herunterladen.',
+    mappe: 'Vorsorgen-Mappe',
+    mappeSub: 'Acht Dokumente in einem PDF: Vorsorgevollmacht, Betreuungsverfügung, Patientenverfügung, meine Wertvorstellungen, Bestattungsverfügung, Palliativ-Ampel sowie zwei Vordrucke für meine Vertretung. Jeder Teil beginnt auf einer eigenen Seite und wird einzeln unterschrieben.',
+    check: 'Bitte zuerst die Prüfliste durchgehen',
+    checkSub: 'Auf den ersten Seiten der Mappe steht jede übernommene Angabe — Namen, Geburtsdaten, Anschriften — zusammen mit dem Satz, aus dem sie stammt. Das Gespräch wurde per Spracherkennung aufgenommen, und die verhört genau solche Wörter. Gehen Sie die Liste Zeile für Zeile durch und korrigieren Sie im Zweifel von Hand direkt im Ausdruck.',
+    guide: 'Gesprächsleitfaden fürs Beratungsgespräch',
+    guideSub: 'Was Sie festgelegt haben, wo Sie unsicher waren, welche Fragen Sie stellen sollten und was noch zu erledigen ist — zum Mitnehmen zur Hausärztin, zur Vorsorgeberatung oder zur Betreuungsbehörde.',
+    open: 'Vor der Unterschrift noch zu klären',
+    hint: 'Diese Unterlagen sind keine Rechtsberatung und keine medizinische Beratung. Was die einzelnen Festlegungen der Patientenverfügung bedeuten, besprechen Sie am besten mit Ihrer Ärztin oder Ihrem Arzt.',
+    pdf: '⬇ PDF herunterladen', busy: '⏳ wird erstellt …',
+    reload: '↻ Aktualisieren',
+    error: 'Die Unterlagen konnten nicht geladen werden.',
+  },
+  en: {
+    tab: 'My advance care',
+    title: 'My advance-care documents',
+    intro: 'These are the documents created from your advance-care conversation. They are a draft for printing: they only take effect once you sign them by hand.',
+    empty: 'The documents have not been created yet. Once the conversation has been processed you can download them here.',
+    mappe: 'Advance-care folder',
+    mappeSub: 'Eight documents in one PDF: power of attorney, guardianship directive, advance healthcare directive, my statement of values, funeral directive, palliative traffic light and two blank forms for my representative. Each part starts on its own page and is signed separately.',
+    check: 'Please work through the verification list first',
+    checkSub: 'The first pages of the folder list every recorded detail — names, dates of birth, addresses — together with the sentence it came from. The conversation was recorded by speech recognition, which mishears exactly those words. Go through the list line by line and correct anything doubtful by hand on the printout.',
+    guide: 'Guide for your advisory appointment',
+    guideSub: 'What you decided, where you were unsure, which questions to ask and what is still to be done — to take along to your doctor, an advance-care counsellor or the guardianship authority.',
+    open: 'To be settled before signing',
+    hint: 'These documents are neither legal nor medical advice. What the individual choices in the advance healthcare directive mean is best discussed with your doctor.',
+    pdf: '⬇ Download PDF', busy: '⏳ creating …',
+    reload: '↻ Refresh',
+    error: 'The documents could not be loaded.',
+  },
+}
+const precautionTabT = lang => PRECAUTION_TAB_L10N[lang] || PRECAUTION_TAB_L10N[String(lang || '').split('-')[0]] || PRECAUTION_TAB_L10N.de
+
+function PrecautionResults({ code, token, memorial, lang }) {
+  const t = precautionTabT(lang)
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState('')
+
+  async function load() {
+    setLoading(true); setErr('')
+    try { setData(await getEnduserPrecaution(code, token)) }
+    catch (e) { setErr(e.message || t.error) }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [code])
+
+  const base = `${(memorial?.name || 'Vorsorge').replace(/[^\w\säöüÄÖÜß-]/g, '').trim().replace(/\s+/g, '_') || 'Vorsorge'}`
+  async function dl(key, fn) {
+    setBusy(key); setErr('')
+    try { await fn() } catch (e) { setErr(e.message) } finally { setBusy('') }
+  }
+
+  const card = { background:'#fff', border:'1px solid #e7e5e4', borderRadius:12, padding:'16px 18px', marginBottom:14 }
+  const h = { fontSize:16, fontWeight:600, margin:'0 0 4px' }
+  const sub = { fontSize:13.5, color:'#78716c', margin:'0 0 12px', lineHeight:1.5 }
+  const btn = { fontSize:13.5, padding:'9px 16px' }
+
+  if (loading) return <div style={{ padding:'2rem 1.25rem' }}><p style={{ color:'#78716c' }}>…</p></div>
+
+  const nothing = data && !data.precaution && !data.guide
+  const open = Array.isArray(data?.precaution?.open_points) ? data.precaution.open_points.filter(Boolean) : []
+
+  return (
+    <div style={{ padding:'1.25rem 1.25rem 6rem', maxWidth:760, margin:'0 auto' }}>
+      <h2 style={{ fontSize:22, fontWeight:600, margin:'0 0 6px' }}>{t.title}</h2>
+      <p style={{ fontSize:14.5, color:'#57534e', lineHeight:1.6, margin:'0 0 18px' }}>{t.intro}</p>
+      {err && <p style={{ color:'#b91c1c', fontSize:14 }}>{err}</p>}
+
+      {nothing && (
+        <div style={card}>
+          <p style={{ ...sub, margin:0 }}>{t.empty}</p>
+          <button onClick={load} className="secondary" style={{ ...btn, marginTop:12 }}>{t.reload}</button>
+        </div>
+      )}
+
+      {data?.precaution && (<>
+        <div style={{ ...card, borderColor:'#fecaca', background:'#fffbfb' }}>
+          <h3 style={{ ...h, color:'#b91c1c' }}>⚠ {t.check}</h3>
+          <p style={{ ...sub, margin:0 }}>{t.checkSub}</p>
+        </div>
+
+        <div style={card}>
+          <h3 style={h}>{t.mappe}</h3>
+          <p style={sub}>{t.mappeSub}</p>
+          <button onClick={() => dl('mappe', () => downloadPrecautionPdf(`Vorsorgen-Mappe_${base}.pdf`, data.precaution, memorial))} disabled={!!busy} style={btn}>
+            {busy === 'mappe' ? t.busy : t.pdf}
+          </button>
+          {open.length > 0 && (
+            <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #f0efec' }}>
+              <div style={{ fontSize:12.5, fontWeight:600, color:'#78716c', marginBottom:4 }}>{t.open}</div>
+              <ul style={{ margin:0, paddingLeft:18, fontSize:12.5, color:'#78716c', lineHeight:1.6 }}>
+                {open.slice(0, 8).map((o, i) => <li key={i}>{o}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      </>)}
+
+      {data?.guide && (
+        <div style={card}>
+          <h3 style={h}>{t.guide}</h3>
+          <p style={sub}>{t.guideSub}</p>
+          <button onClick={() => dl('guide', () => downloadTextPdf(`Gespraechsleitfaden_${base}.pdf`, t.guide, data.guide, data.language || 'de'))} disabled={!!busy} style={btn}>
+            {busy === 'guide' ? t.busy : t.pdf}
+          </button>
+        </div>
+      )}
+
+      <p style={{ fontSize:12.5, color:'#a8a29e', lineHeight:1.6, margin:'4px 0 12px' }}>{t.hint}</p>
+      {!nothing && (
+        <button onClick={load} className="secondary" style={{ ...btn }}>{t.reload}</button>
       )}
     </div>
   )
@@ -3757,7 +3887,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
       // NICHT für Gäste: Der Gast-Link ist geteilt (viele Angehörige, ein Code) —
       // eine serverseitige Wiederaufnahme würde die Sitzung eines anderen Gastes
       // (bzw. gar nichts) liefern. Gäste laufen den normalen Beitragenden-Weg.
-      if (!memorial.guest && (isLifeworkCategory(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category))) {
+      if (!memorial.guest && (isLifeworkCategory(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category) || isPrecautionCategory(memorial.product_category))) {
         getEnduserResume(code)
           .then(contrib => {
             if (contrib && Array.isArray(contrib.messages) && contrib.messages.length) {
@@ -3791,7 +3921,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
     // Gäste teilen sich EINEN Link — hier gilt (wie bei den geteilten Büchern)
     // die Rückfrage „Fortsetzen oder neu?", sonst landet der zweite Gast auf
     // demselben Gerät im Beitrag des ersten.
-    if (!memorial.guest && (isLifeworkCategory(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category))) { setResumeGate(local); return }
+    if (!memorial.guest && (isLifeworkCategory(memorial.product_category) || isAnamnesisCategory(memorial.product_category) || isCareerCategory(memorial.product_category) || isPrecautionCategory(memorial.product_category))) { setResumeGate(local); return }
     setResumePrompt(local)
   }, [memorial])
 
@@ -3986,7 +4116,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
   // Lifework-spezifische Extras (Einstellungen-Tab, Probedruck) hängen dagegen
   // an isLifework, nicht an isSelf. Das Lebenswerk-LOGO gilt für beide Zugänge —
   // dafür steht isLifeworkBook.
-  const isSelf = (isLifeworkCategory(memorial?.product_category) && !isGuest) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category)
+  const isSelf = (isLifeworkCategory(memorial?.product_category) && !isGuest) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category) || isPrecautionCategory(memorial?.product_category)
   const isLifeworkBook = isLifeworkCategory(memorial?.product_category)
   const isLifework = isLifeworkBook && !isGuest
   const isAnamnesis = isAnamnesisCategory(memorial?.product_category)
@@ -4175,7 +4305,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
                     // Gäste pinnen NICHTS: Ihre Sprachwahl gilt nur für sie, das
                     // Buch gehört dem Endnutzer (und /api/memorial würde den
                     // Gast-Code ohnehin nicht als Buch-Code akzeptieren).
-                    if (!isGuest && (isLifeworkCategory(memorial?.product_category) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category)) && memorial?.id) {
+                    if (!isGuest && (isLifeworkCategory(memorial?.product_category) || isAnamnesisCategory(memorial?.product_category) || isCareerCategory(memorial?.product_category) || isPrecautionCategory(memorial?.product_category)) && memorial?.id) {
                       pinMemorialLang(memorial.id, lc).catch(() => { /* nicht kritisch */ })
                     }
                   }} style={{ padding:'14px', fontSize:16 }}>{meta.label}</button>
@@ -4385,13 +4515,16 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
         const withBogen    = isAnamnesis
         // Der Lebenslauf zeigt der Person ihre eigenen Erzeugnisse — ohne diesen
         // Reiter erzaehlt sie eine Stunde und sieht das Ergebnis nie.
-        const withResults  = isCareerCategory(memorial?.product_category)
+        // Vorsorgevollmacht: dasselbe, nur zwingender — die Mappe IST die
+        // Erklaerung der Person, unterschreiben kann sie nur sie selbst.
+        const withResults  = isCareerCategory(memorial?.product_category) || isPrecautionCategory(memorial?.product_category)
         // Sicherheitsnetz: Zeigt `tab` auf einen Tab, den es in dieser Rolle gar
         // nicht gibt (z. B. ein Gast auf 'proof'), wäre die Seite vollständig leer —
         // nur das ☰-Menü stünde da. Dann auf das Interview zurückfallen.
         const tabOk = tab === 'interview'
           || (tab === 'photo' && withPhoto) || (tab === 'proof' && withProof)
           || (tab === 'bogen' && withBogen) || (tab === 'settings' && withSettings)
+          || (tab === 'results' && withResults)
         const cur = tabOk ? tab : 'interview'
         // Das ☰-Menü ist im Interview IMMER vorhanden — auch für Beitragende ohne
         // Foto-/Probedruck-Tab. „Später fortsetzen/beenden", der Transkript-Umschalter
@@ -4472,7 +4605,9 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
             )}
             {withResults && (
               <div style={{ display: cur === 'results' ? 'block' : 'none' }}>
-                <CareerResults code={code} token={endUserToken} memorial={memorial} lang={L} />
+                {isPrecautionCategory(memorial?.product_category)
+                  ? <PrecautionResults code={code} token={endUserToken} memorial={memorial} lang={L} />
+                  : <CareerResults code={code} token={endUserToken} memorial={memorial} lang={L} />}
               </div>
             )}
             {withSettings && (
@@ -4481,7 +4616,7 @@ export function ContributorFlow({ code, endUserToken = null, onLogout = null, fr
               </div>
             )}
             <ContribMenu tab={cur} setTab={setTab} t={t} lang={L} withPhoto={withPhoto} withSettings={withSettings} withProof={withProof} withBogen={withBogen} bogenLabel={anamneseT(L).tab}
-              withResults={withResults} resultsLabel={careerTabT(L).tab}
+              withResults={withResults} resultsLabel={isPrecautionCategory(memorial?.product_category) ? precautionTabT(L).tab : careerTabT(L).tab}
               photoLabel={isAnamnesis ? anamneseDocT(L).tabPhoto : isCareerCategory(memorial?.product_category) ? careerDocT(L).tabPhoto : null} photoIcon={(isAnamnesis || isCareerCategory(memorial?.product_category)) ? '📄' : null}
               showTx={showTx}
               onToggleTx={memorial?.show_transcript !== false ? () => setShowTx(v => !v) : null}

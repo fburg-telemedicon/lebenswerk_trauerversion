@@ -19,7 +19,7 @@ import {
   storeMemorialPdf,
   storeAudiobookFull,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, isPrecaution, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
 import { cvSystem, CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { docExtractSystem } from './careerDocs.js'
 import { matchSystem, downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
@@ -80,6 +80,8 @@ import { treeSystem, posterSystem, downloadTreePdf, downloadPosterPdf, downloadP
 import { downloadCareDirectivePdf } from './careDirective.js'
 import { historyParallelsSystem } from './historyParallels.js'
 import { powerOfAttorneySystem } from './powerOfAttorney.js'
+import { precautionSystem } from './precaution.js'
+import { downloadPrecautionPdf } from './precautionExport.js'
 import { downloadProvisionFolderPdf } from './provisionFolder.js'
 import { GENDERS, EMPTY_PICKUP, BOOK_VARIANTS, normVariant } from './constants.js'
 import { cutoffDays, cutoffDate, cutoffString } from './shared.js'
@@ -146,6 +148,17 @@ const LIFEWORK_EXTRAS = {
     field: 'avoca', filename: 'Kompetenzprofil', article: 'Das Kompetenzprofil',
     firstStep: 'Belege werden gesucht', missing: 'Es gibt noch kein Kompetenzprofil.',
     system: avocaSystem,
+  },
+  // Die Vorsorgen-Mappe der Kategorie „Vorsorgevollmacht" (precaution): acht
+  // Formulare nach der Mappe der Deutschen PalliativStiftung, AUSGEFUELLT aus
+  // dem Vorsorgegespraech. Technisch dasselbe Muster wie die uebrigen Extras —
+  // ein KI-Lauf liefert das JSON, der Browser zeichnet daraus das PDF. EIN Lauf
+  // fuer alle acht Urkunden, damit sie in sich stimmen (derselbe Mensch,
+  // dieselbe bevollmaechtigte Person, dieselben Daten ueberall).
+  vorsorge: {
+    field: 'precaution', filename: 'Vorsorgen-Mappe', article: 'Die Vorsorgen-Mappe',
+    firstStep: 'Angaben werden uebertragen', missing: 'Es gibt noch keine Vorsorgen-Mappe.',
+    system: precautionSystem,
   },
 }
 
@@ -3143,6 +3156,7 @@ Regeln:
       else if (kind === 'tree') await downloadTreePdf(`${base}.pdf`, data, mem)
       else if (kind === 'care') await downloadCareDirectivePdf(`${base}.pdf`, data, mem)
       else if (kind === 'poa') await downloadProvisionFolderPdf(`${base}.pdf`, data, mem)
+      else if (kind === 'vorsorge') await downloadPrecautionPdf(`${base}.pdf`, data, mem)
       // Aktuelles Poster: EIN gemaltes Blatt je Stil, Text als Vektor darüber.
       else if (Array.isArray(data.variants) && data.variants.length) {
         const v = data.variants.find(x => x.style === styleKey) || data.variants[0]

@@ -1,8 +1,9 @@
 // src/legalForms.js
 // Gemeinsamer Formular-Baukasten der Vorsorge-Dokumente des Lebenswerks:
 //
-//   src/careDirective.js    — Betreuungsverfügung
-//   src/powerOfAttorney.js  — Vorsorgevollmacht
+//   src/careDirective.js      — Betreuungsverfügung (Altbestand)
+//   src/powerOfAttorney.js    — Vorsorgevollmacht des Lebenswerks
+//   src/precautionExport.js   — die Vorsorgen-Mappe der Kategorie „Vorsorgevollmacht"
 //
 // Beide sind DIN-A4-Formulare mit derselben Anmutung: Abschnittsüberschriften,
 // Ausfüllfelder mit Linie, Ankreuzkästchen, Hinweisblöcke mit farbigem Balken,
@@ -65,15 +66,30 @@ export function newForm() {
     text(str, { size: 11, style: 'bold', color: [30, 30, 30], gapAfter: 1.5 })
   }
 
-  // Aufzählungspunkt; `box` setzt statt des Punktes ein Ankreuzkästchen.
-  function bullet(str, { box = false, size = 10.5, indent = 0, color = INK } = {}) {
+  // Ein Ankreuzkästchen zeichnen. `checked` setzt ein Kreuz hinein — gebraucht
+  // von der Vorsorgen-Mappe, die AUSGEFÜLLT ausgegeben wird (die übrigen
+  // Dokumente rufen ohne `checked` auf und sehen aus wie bisher).
+  function checkbox(x, top, side = 3.5, checked = false) {
+    doc.setDrawColor(checked ? 40 : 120); doc.setLineWidth(checked ? 0.45 : 0.35)
+    doc.rect(x, top, side, side)
+    if (checked) {
+      const i = side * 0.22
+      doc.setLineWidth(0.5); doc.setDrawColor(25)
+      doc.line(x + i, top + i, x + side - i, top + side - i)
+      doc.line(x + side - i, top + i, x + i, top + side - i)
+    }
+  }
+
+  // Aufzählungspunkt; `box` setzt statt des Punktes ein Ankreuzkästchen,
+  // `checked` kreuzt es an.
+  function bullet(str, { box = false, checked = false, size = 10.5, indent = 0, color = INK } = {}) {
     const x = M + indent + (box ? 6.5 : 5)
     const w = maxW - (x - M)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(...color)
     doc.splitTextToSize(String(str ?? ''), w).forEach((ln, i) => {
       ensure(lh(size))
       if (i === 0) {
-        if (box) { doc.setDrawColor(120); doc.setLineWidth(0.35); doc.rect(M + indent, y - 3.1, 3.5, 3.5) }
+        if (box) checkbox(M + indent, y - 3.1, 3.5, checked)
         else { doc.setFillColor(130); doc.circle(M + indent + 1.5, y - 1.2, 0.65, 'F') }
       }
       doc.setTextColor(...color)
@@ -126,16 +142,54 @@ export function newForm() {
   }
 
   // Ja/Nein-Ankreuzzeile für einen Aufgaben- oder Vollmachtsbereich.
-  function yesNo(yesLabel, noLabel) {
+  // `value` kennt DREI Zustände: true kreuzt links an, false rechts, null/undefined
+  // lässt beide Kästchen leer. Das ist keine Spielerei: In einer Verfügung ist
+  // „nicht festgelegt" etwas anderes als „abgelehnt", und ein irrtümliches Kreuz
+  // bei „Nein" würde im Ernstfall befolgt.
+  function yesNo(yesLabel, noLabel, { value = null, size = 10, gapAfter = 8 } = {}) {
     ensure(9)
-    doc.setDrawColor(90); doc.setLineWidth(0.4)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK)
-    doc.rect(M, y - 3.2, 3.8, 3.8)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(...INK)
+    checkbox(M, y - 3.2, 3.8, value === true)
     doc.text(yesLabel, M + 6, y)
     const x2 = M + 105
-    doc.rect(x2, y - 3.2, 3.8, 3.8)
+    checkbox(x2, y - 3.2, 3.8, value === false)
     doc.text(noLabel, x2 + 6, y)
-    y += 8
+    y += gapAfter
+  }
+
+  // Kompakte Festlegungszeile im Stil der PalliativStiftung-Formulare: Text
+  // links über die volle Breite, rechtsbündig dahinter „Ja  Nein" mit zwei
+  // Kästchen. Für die dichten Listen der Patientenverfügung, wo ein yesNo je
+  // Punkt eine halbe Seite fressen würde.
+  function decision(str, value, { size = 10, yes = 'Ja', no = 'Nein', indent = 0 } = {}) {
+    const boxW = 34                      // Platz für „Ja ☐  Nein ☐" am rechten Rand
+    const x = M + indent
+    const w = maxW - indent - boxW
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(...INK)
+    const lines = doc.splitTextToSize(String(str ?? ''), w)
+    ensure(lh(size) * lines.length)
+    const first = y
+    for (const ln of lines) { doc.text(ln, x, y); y += lh(size) }
+    // Kästchen auf Höhe der ERSTEN Zeile — dort steht die Frage.
+    doc.setFontSize(size - 0.5); doc.setTextColor(...SOFT)
+    doc.text(yes, PW - M - boxW + 1, first)
+    checkbox(PW - M - boxW + 8, first - 2.9, 3.2, value === true)
+    doc.text(no, PW - M - boxW + 15, first)
+    checkbox(PW - M - 3.4, first - 2.9, 3.2, value === false)
+    doc.setTextColor(...INK)
+    y += 2.2
+  }
+
+  // Auswahl aus mehreren Möglichkeiten (Bestattungsart, Grabart, Ampelstufe …):
+  // genau EINE ist angekreuzt, alle anderen bleiben leer, damit sichtbar bleibt,
+  // was NICHT gewählt wurde. `items` = [{ key, text, sub? }].
+  function choice(items, selected, { size = 10.5 } = {}) {
+    for (const it of items) {
+      const on = selected != null && it.key === selected
+      bullet(it.text, { box: true, checked: on, size, color: on ? INK : [70, 70, 70] })
+      if (it.sub) text(it.sub, { size: 9, color: SOFT, x: M + 6.5, w: maxW - 6.5, gapAfter: 1.5 })
+    }
+    y += 1
   }
 
   // Zwei nebeneinanderliegende Unterschriftszeilen (Ort/Datum | Unterschrift).
@@ -191,7 +245,7 @@ export function newForm() {
     doc, maxW, PW, PH, M,
     get y() { return y }, set y(v) { y = v },
     lh, ensure, gap: h => { y += h },
-    text, rule, h1, h2, bullet, field, blankLines, callout, yesNo, signatureRow, footer, footerSections,
+    text, rule, h1, h2, bullet, field, blankLines, callout, yesNo, decision, choice, checkbox, signatureRow, footer, footerSections,
     // Neue Seite erzwingen — jede Urkunde der Mappe beginnt auf einem eigenen
     // Blatt, sonst endet Teil 1 und beginnt Teil 2 auf derselben Seite und die
     // Teile lassen sich nicht mehr getrennt vorlegen.

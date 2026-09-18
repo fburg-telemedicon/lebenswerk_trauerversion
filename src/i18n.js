@@ -809,6 +809,9 @@ const CONTRIB = {
     anamnesis:     { nounBook: 'medical intake form', heading: 'Your medical intake', introNoun: 'Medical intake for', consentNoun: 'medical intake form', interviewButton: '🎙 Start the interview →' },
     anamnesis_kvsw:{ nounBook: 'medical intake form', heading: 'Your medical intake', introNoun: 'Medical intake for', consentNoun: 'medical intake form', interviewButton: '🎙 Start the interview →' },
     career:        { nounBook: 'curriculum vitae', heading: 'Your professional path', introNoun: 'Professional path of', consentNoun: 'curriculum vitae', interviewButton: '🎙 Start the conversation →' },
+    // Die Urkunden selbst bleiben deutsch (deutsches Recht) — übersetzt ist nur
+    // der Rahmen des Gesprächs.
+    precaution:    { nounBook: 'advance-care folder', heading: 'Your advance care', introNoun: 'Advance care for', consentNoun: 'advance-care documents', interviewButton: '🎙 Start the conversation →' },
   },
   es: {
     // 2026-08-23 ergänzt: Beitragenden-Kategorien; vorher fielen sie auf Deutsch zurück.

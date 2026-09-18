@@ -144,6 +144,13 @@ create table if not exists memorials (
   -- Abgleich mit EINER Stellenausschreibung: je Anforderung eine Einstufung mit
   -- Beleg. Kein Score, keine Empfehlung (src/careerMatch.js).
   job_match        jsonb,
+  -- Produktkategorie "Vorsorgevollmacht" (precaution): die ganze Vorsorgen-Mappe
+  -- als JSON — Person, Bevollmaechtigte, Vollmachtsumfang, Betreuungsverfuegung,
+  -- Patientenverfuegung, Wertvorstellungen, Bestattung, Palliativ-Ampel, dazu die
+  -- Pruefliste (jede uebernommene Angabe mit ihrem Zitat). Ja/Nein-Felder haben
+  -- DREI Zustaende: true, false und null ("nicht festgelegt") — das Dokument
+  -- unterscheidet das, siehe src/precautionExport.js. Gezeichnet wird im Browser.
+  precaution       jsonb,
   -- Fortlaufende Projektnummer fuers Dashboard und fuer Rueckfragen ("Projekt 42").
   -- Global aufsteigend aus einer Sequenz; eine Nummer gehoert dauerhaft zu genau
   -- einem Projekt (nach Loeschungen entstehen Luecken, das ist gewollt).

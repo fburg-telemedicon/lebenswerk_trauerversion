@@ -4,6 +4,19 @@
     {
       "date": "2026-09-18",
       "items": [
+        "Neue Produktkategorie \"Vorsorgevollmacht\". Anders als beim Lebenswerk, das Vorsorgewuensche aus einer erzaehlten Lebensgeschichte ABLEITET, fragt diese Kategorie gezielt alles ab, was fuer die Dokumente gebraucht wird. Endprodukt ist deshalb kein Buch, sondern eine fertig ausgefuellte Vorsorgen-Mappe zum Ausdrucken und Unterschreiben. Grundlage ist \"Die VORSORGEN! Mappe\" der Deutschen PalliativStiftung (13. Auflage, Rechtslage 2026) mit ihren acht Formularen.",
+        "Die Mappe ist ein PDF mit acht getrennt unterschreibbaren Teilen: Vorsorgevollmacht, Betreuungsverfuegung, Patientenverfuegung, Meine Wertvorstellungen, Bestattungsverfuegung, Palliativ-Ampel fuers Patientenzimmer sowie zwei Vordrucke (Untervollmacht, Vertreterverfuegung) fuer die bevollmaechtigte Person. Jeder Teil beginnt auf einer eigenen Seite und zaehlt seine Seiten selbst, weil die Teile verschiedenen Leuten vorgelegt werden - die Vollmacht der Bank, die Patientenverfuegung der Klinik, die Ampel haengt am Bett.",
+        "Erstmals werden Namen, Geburtsdaten, Anschriften und Kreuze wirklich EINGETRAGEN. Das durfte die Vorsorgemappe des Lebenswerks nie: Dort waeren sie eine KI-Schlussfolgerung, und eine Schlussfolgerung darf keine Vollmacht erteilen. Hier diktiert der Mensch sie ausdruecklich fuer dieses Dokument.",
+        "Weil Spracherkennung genau das verhoert - Eigennamen, Ziffern, Strassennamen -, steht vor allen Urkunden eine PRUEFLISTE: jede uebernommene Angabe mit dem Satz aus dem Gespraech, aus dem sie stammt, zum Abhaken. Im Gespraech selbst liest die KI jeden Namen und jedes Datum zurueck und laesst sich bestaetigen.",
+        "Jedes Ja/Nein-Feld hat DREI Zustaende. Nicht festgelegt ist nicht dasselbe wie abgelehnt: Wo sich jemand nicht festlegen wollte, bleiben beide Kaestchen leer statt bei \"Nein\" ein Kreuz zu tragen, das im Ernstfall befolgt wuerde. Zu jeder Frage ist \"das sollen andere entscheiden\" eine vollwertige Antwort, und die KI darf nicht nachfassen.",
+        "Die KI beraet nicht. Sie sagt nie, was eine gute oder richtige Entscheidung waere - weder rechtlich noch medizinisch -, sondern verweist auf das aerztliche Gespraech bzw. die Rechtsberatung. Dafuer erzeugt die Kategorie zusaetzlich einen Gespraechsleitfaden: was festgelegt wurde, wo Unsicherheit blieb, welche Fragen zu stellen sind und was noch zu erledigen ist - zum Mitnehmen zur Hausaerztin, zur Vorsorgeberatung oder zur Betreuungsbehoerde. Dazu ein Krisenprotokoll, weil dieses Gespraech ueber Sterben und Abschied fuehrt.",
+        "Der Fragenkatalog (rund 100 Fragen in elf Bloecken) ist als Standardkatalog hinterlegt und im Dashboard normal bearbeitbar. Die vorsorgende Person laedt ihre Mappe selbst herunter - neuer Reiter \"Meine Vorsorge\" im Gespraechs-Flow. Dabei fiel auf, dass der entsprechende Reiter beim Lebenslauf seit seiner Einfuehrung gar nicht erreichbar war (er fehlte in der Tab-Pruefung); das ist mitrepariert.",
+        "Produktdefinition und offene Punkte stehen in PRODUKTKATEGORIE_VORSORGE.md - darunter die noch ausstehende fachliche Durchsicht der Formulartexte und ein vollstaendiger Testlauf am echten Gespraech."
+      ]
+    },
+    {
+      "date": "2026-09-18",
+      "items": [
         "15 Demozugaenge fuer Maik angelegt (Lebenswerk, Projekt-Nr. 321-335): 15 Minuten Sprechzeit, sonst die volle Ausstattung wie bei den Demos vom 29.08. und 15.09. Der Name steht im Bemerkungsfeld, ein Manager-Konto gibt es nicht. Zugangsblaetter als ein PDF mit 15 DIN-A4-Seiten, je Blatt QR-Code und Zugangscode, oben im roten Rahmen die Version (\"DEMO-ZUGANG - 15 MINUTEN INTERVIEWZEIT\"), in der Fusszeile Projekt-Nr. und Gueltigkeit (18.03.2027). Gegengeprueft: alle 15 Buecher tragen 900 Sekunden und die vorgegebenen Einstellungen."
       ]
     },

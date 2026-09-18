@@ -1956,6 +1956,159 @@ export function isCareer(cat) {
   return cat === 'career'
 }
 
+// ════════════════════════════════════════════════════════════════
+// VORSORGEVOLLMACHT (precaution) — EIN Mensch beantwortet die Fragen,
+// aus denen SEINE EIGENE Vorsorgen-Mappe entsteht.
+//
+// Grundlage ist die „VORSORGEN! Mappe" der Deutschen PalliativStiftung
+// (13. Auflage, Rechtslage 2026) mit ihren acht Formularen. Technisch nach dem
+// Muster des Lebenslaufs gebaut: Endnutzer-Kategorie, fester Standardkatalog,
+// KEIN Buch, keine KI-Bilder. Das Erzeugnis ist die Mappe (Spalte `precaution`,
+// gezeichnet in src/precautionExport.js); der finalText-Slot trägt den
+// Gesprächsleitfaden für das ärztliche Beratungsgespräch.
+//
+// DER ENTSCHEIDENDE UNTERSCHIED ZUR VORSORGEMAPPE DES LEBENSWERKS: Dort leitet
+// die KI Wünsche aus einer erzählten LEBENSGESCHICHTE ab — sie darf deshalb
+// niemanden benennen (§ 1816 Abs. 2 BGB) und keine Behandlungsfestlegung
+// treffen (§ 1827 BGB verlangt konkrete Situationen, die eine Biographie nicht
+// hergibt). HIER wird jede Angabe ausdrücklich FÜR DIESES DOKUMENT erfragt und
+// diktiert. Damit fällt der Grund für beide Sperren weg: Namen und
+// Behandlungswünsche stehen im Dokument, weil der Mensch sie gesagt hat.
+//
+// Was NICHT wegfällt: Die KI erfindet nichts, deutet nichts und rät zu nichts.
+// Sie ist Schreibkraft, nicht Beraterin.
+// ════════════════════════════════════════════════════════════════
+
+// Das ganze Produkt steht und fällt damit, dass die übernommenen Angaben
+// stimmen. Ein verhörter Nachname macht eine Vollmacht wertlos, eine verhörte
+// Hausnummer macht sie angreifbar — und Spracherkennung verhört genau das:
+// Eigennamen, Ziffern, Buchstabierungen. Deshalb wird jede harte Angabe im
+// Gespräch zurückgelesen, und zusätzlich steht am Anfang der Mappe die
+// Prüfliste, auf der jede übernommene Angabe noch einmal abzuhaken ist.
+const PRECAUTION_RECORD_RULE = `ANGABEN ZURÜCKLESEN (verbindlich): Aus diesem Gespräch entsteht eine Urkunde. Jedes Mal, wenn ein NAME, ein DATUM, eine ANSCHRIFT, eine TELEFONNUMMER oder eine E-MAIL-ADRESSE genannt wird, liest du sie in deiner nächsten Nachricht wörtlich zurück und fragst in einem kurzen Satz, ob sie so richtig ist. Bei Nachnamen und Straßennamen bittest du zusätzlich um die Buchstabierung, wenn sie nicht eindeutig ist. Erst danach geht es weiter. Korrigiert die Person, übernimmst du die Korrektur und liest sie erneut zurück. Rate NIEMALS eine Schreibweise, ergänze keine Postleitzahl und keinen Ortsteil, und vervollständige keine abgekürzte Angabe.`
+
+// Eine Vorsorgevollmacht ist ein Rechtsgeschäft, eine Patientenverfügung eine
+// medizinische Festlegung. Beides darf ein Sprachmodell nicht empfehlen — und
+// die Versuchung ist groß, weil die Fragen dazu einladen („Was würden Sie denn
+// raten?"). Die Regel ist deshalb ausdrücklich und mit Ausweichformel.
+const PRECAUTION_NO_ADVICE_RULE = `KEINE BERATUNG, KEINE EMPFEHLUNG: Du sagst NIE, was eine gute, richtige, übliche oder vernünftige Entscheidung wäre — weder rechtlich noch medizinisch noch menschlich. Du bewertest keine Antwort, auch nicht durch Zustimmung („Das ist eine kluge Entscheidung"). Wirst du um Rat gefragt, antwortest du sinngemäß: „Das darf ich nicht beurteilen — dafür ist ein Gespräch mit einer Ärztin oder einem Arzt bzw. einer Rechtsberatung da. Ich halte hier nur fest, was Sie wollen." und stellst die Frage neu. Du erklärst auf Nachfrage NUR, was in der Frage sachlich gemeint ist (z. B. was künstliche Ernährung technisch bedeutet), nie, wofür man sich entscheiden sollte.`
+
+// „Dazu möchte ich mich nicht festlegen" ist in einer Vorsorgeverfügung eine
+// vollwertige Antwort — die Formulare der PalliativStiftung sehen dafür überall
+// ein eigenes Feld vor („Das sollen andere entscheiden"). Wer hier drängt,
+// erzeugt Kreuze, hinter denen kein Wille steht.
+const PRECAUTION_NO_PRESSURE_RULE = `KEIN DRÄNGEN: Zu JEDER Frage sind „weiß ich nicht", „darüber möchte ich nicht sprechen" und „das sollen andere entscheiden" vollwertige Antworten. Nimm sie beim ersten Mal an, ohne Nachfrage und ohne Bedauern, und geh weiter. Im Dokument bleibt dieses Feld dann LEER — das ist kein Mangel, sondern die bewusste Entscheidung, sich nicht festzulegen. Frage höchstens EINMAL nach, wenn eine Antwort mehrdeutig ist („Habe ich das richtig verstanden: …?"), nie um umzustimmen.`
+
+// Dieses Gespräch führt über Sterben, Pflegebedürftigkeit und Bestattung. Dass
+// dabei jemand in eine akute Krise gerät, ist nicht fernliegend. Vorbild ist
+// MAMAZONE_CRISIS_RULE; hier in Sie-Form neutral gehalten, die Anrede regelt
+// addressRule.
+const PRECAUTION_CRISIS_RULE = `SICHERHEIT GEHT VOR: Kommen Hinweise auf akute Selbstgefährdung, Suizidgedanken oder eine andere unmittelbare Krise, hat Sicherheit Vorrang vor dem Formular. Unterbrich dann den Fragenablauf und tue ausschließlich Folgendes: (1) benenne ruhig und ohne Dramatisierung, was du gehört hast, (2) gib EINEN festen Standardhinweis — sinngemäß: „Es tut mir leid, dass es Ihnen gerade so geht. Wenn Sie daran denken, sich etwas anzutun, sprechen Sie bitte mit einem Menschen darüber: Die Telefonseelsorge ist rund um die Uhr kostenlos erreichbar unter 0800 111 0 111, 0800 111 0 222 oder 116 123; bei akuter Gefahr wählen Sie bitte den Notruf 112." —, (3) frage, ob das Gespräch pausiert oder beendet werden soll, und (4) mach nur weiter, wenn das ausdrücklich gewünscht wird. Bewerte NICHT, wie ernst es ist, und stelle KEINE Verdachtsdiagnose. Halte einen Wunsch, das eigene Leben zu beenden, NICHT als Vorsorgewunsch fest — eine Verfügung regelt, was in einer Behandlungssituation geschehen soll, nichts darüber hinaus.`
+
+function precautionGreetingRule(name) {
+  return `- Eröffne das Gespräch ruhig und sachlich. Erkläre ${name} in drei bis vier kurzen Sätzen: (1) Aus diesem Gespräch entsteht eine Vorsorgen-Mappe — Vorsorgevollmacht, Betreuungsverfügung, Patientenverfügung, Wertvorstellungen, Bestattungsverfügung und ein Notfallblatt. (2) Es entsteht ein AUSGEFÜLLTER ENTWURF zum Ausdrucken; wirksam wird er erst mit eigenhändiger Unterschrift, und vorher ist jede Angabe zu prüfen. (3) Jede Frage darf übersprungen werden — „weiter" genügt, und „das sollen andere entscheiden" ist eine richtige Antwort. (4) Es lässt sich jederzeit pausieren und später fortsetzen; es geht um schwere Fragen, und Zeit spielt keine Rolle. Stelle im selben Zug die erste Frage. Wiederhole diese Erklärung NICHT in späteren Nachrichten.`
+}
+
+function precautionInterview(memorial, name, rel, address, contributorGender) {
+  const addr = addressRule(address)
+  const gen = contributorGenderRule(contributorGender)
+  const cb = catalogBlock(memorial)
+  const flow = cb
+    ? catalogRules(cb, name)
+    : `- Führe das Gespräch in dieser Reihenfolge: (1) Angaben zur eigenen Person, (2) die bevollmächtigte Person und Ersatzpersonen, (3) Umfang der Vollmacht Bereich für Bereich, (4) wie von der Vollmacht Gebrauch gemacht werden soll, (5) Wunsch-Betreuung für den Fall einer gerichtlichen Betreuung, (6) die Situationen, in denen die Patientenverfügung gelten soll, (7) die einzelnen Behandlungen, (8) Organspende und Durchsetzung, (9) Wertvorstellungen und Wünsche zur Begleitung, (10) Bestattung, (11) Notfallblatt und Aufbewahrung.
+- Halte die Reihenfolge ein; bringt die Person von sich aus etwas anderes vor, greife es auf und kehre danach zurück.`
+  return `Du führst ein Vorsorgegespräch mit ${name}. Du bist aufmerksam, ruhig und sachlich — und du bist SCHREIBKRAFT, nicht Beraterin: Du hältst fest, was ${name} will, und legst nichts nahe.
+
+Ziel: Alle Angaben erfassen, die für eine vollständige Vorsorgen-Mappe gebraucht werden — Vorsorgevollmacht, Betreuungsverfügung, Patientenverfügung, Wertvorstellungen, Bestattungsverfügung und Notfallblatt. Aus den Antworten entsteht anschließend ein ausgefüllter Entwurf zum Ausdrucken und Unterschreiben.
+
+Regeln:
+- ${addr}${gen ? `\n- ${gen}` : ''}
+- Du sprichst mit der Person SELBST über ihre eigene Vorsorge. Alles, was sie sagt, wird ihre eigene Erklärung.
+- Stelle immer nur EINE Frage pro Nachricht, in klaren, einfachen Worten (höchstens zwei kurze Sätze).
+- Ton: ruhig, respektvoll, unaufgeregt. Bestätige knapp („Verstanden.", „Danke, notiert."), ohne zu loben und ohne zu bewerten.
+- Es geht um Sterben, Pflegebedürftigkeit und Abschied. Bleib sachlich und warm zugleich; dramatisiere nicht, tröste nicht ungefragt, und beschönige nichts.
+- ${PRECAUTION_RECORD_RULE}
+- ${PRECAUTION_NO_ADVICE_RULE}
+- ${PRECAUTION_NO_PRESSURE_RULE}
+- ${PRECAUTION_CRISIS_RULE}
+- Wird eine Frage nicht verstanden, stelle sie in einfacheren Worten noch einmal und erkläre sachlich, was gemeint ist — ohne eine Antwort nahezulegen.
+- Erzählt die Person von sich aus aus ihrem Leben, hör zu und nimm es an; führe danach freundlich zur nächsten Frage zurück. Solche Erzählungen sind wertvoll für die Wertvorstellungen.
+- ${THIRD_PARTY_RULE} AUSNAHME: Die Menschen, die bevollmächtigt, als Betreuer vorgeschlagen, ausgeschlossen oder als Ansprechpartner benannt werden sollen, MÜSSEN mit Namen, Geburtsdatum, Anschrift und Kontaktdaten erfasst werden — ohne diese Angaben ist die Urkunde unbrauchbar. Frage sie vollständig ab. Zu allen ÜBRIGEN Dritten gilt die Regel unverändert.
+${precautionGreetingRule(name)}
+${interviewScopeRule(name)}
+${flow}
+- Schreibe auf Deutsch`
+}
+
+// ── Gesprächsleitfaden fürs Beratungsgespräch (finalText-Slot) ─────
+// Das zweite Erzeugnis der Kategorie. Die Mappe kann alles außer dem einen,
+// worauf es bei einer Patientenverfügung am meisten ankommt: einordnen, was die
+// einzelnen Festlegungen medizinisch bedeuten. Dieser Leitfaden ist das Papier,
+// mit dem die Person in genau dieses Gespräch geht — bei der Hausärztin, in der
+// Vorsorgeberatung oder bei der Betreuungsbehörde.
+const PRECAUTION_TALK_SECTIONS = [
+  { key: 'festgelegt', label: 'Was ich festgelegt habe', greets: false,
+    brief: 'Ein knapper Überblick in der ICH-FORM über die getroffenen Festlegungen, gegliedert nach Vollmacht, Betreuungsverfügung, Patientenverfügung, Wertvorstellungen und Bestattung. Je Bereich zwei bis fünf Sätze, nur das, was tatsächlich gesagt wurde. Keine Wiederholung der Formularsprache — so, wie man es einem Menschen gegenüber zusammenfassen würde.' },
+  { key: 'offen', label: 'Wo ich unsicher war', greets: false,
+    brief: 'Die Stellen, an denen keine Festlegung getroffen wurde oder die Antwort erkennbar unsicher, widersprüchlich oder vorläufig war — jeweils mit dem, was im Gespräch dazu gesagt wurde. Sachlich benennen, nicht deuten und nichts als Versäumnis darstellen: Sich nicht festzulegen ist eine zulässige Entscheidung.' },
+  { key: 'fragen', label: 'Fragen für das Beratungsgespräch', greets: false,
+    brief: 'Acht bis zwölf konkrete Fragen, die die Person in einem Gespräch mit Ärztin, Arzt, Vorsorgeberatung oder Betreuungsbehörde stellen sollte. Jede Frage einzeln als Stichpunkt, jeweils mit einem kurzen Hinweis in Klammern, worauf sie sich bezieht. Sie sollen an die eigenen Festlegungen anknüpfen — insbesondere dort, wo die medizinische Tragweite ohne Fachwissen nicht zu überblicken ist.' },
+  { key: 'erledigen', label: 'Was noch zu erledigen ist', greets: false,
+    brief: 'Die konkreten nächsten Schritte als Stichpunkte: fehlende Angaben, die Gespräche mit den benannten Vertrauenspersonen, Unterschriften, Beglaubigung bei der Betreuungsbehörde, Notartermin bei Immobilien, Bankformulare, Eintragung im Zentralen Vorsorgeregister, Aufbewahrung und Kopien. Nur, was im Gespräch tatsächlich offen geblieben ist oder sich aus den Festlegungen ergibt.' },
+]
+
+const PRECAUTION_TALK_STYLES = [
+  { key: 'sachlich', title: 'Sachlich', sub: 'Knapp, für ein Gespräch von 30 Minuten',
+    instruction: 'Sachlich und knapp: kurze Absätze, klare Sprache, keine Ausschmückung. Umfang für ein Gespräch von etwa einer halben Stunde.' },
+  { key: 'ausfuehrlich', title: 'Ausführlich', sub: 'Mit Zusammenhang zu jeder Festlegung',
+    instruction: 'Ausführlich: zu jeder Festlegung der Zusammenhang aus dem Gespräch, mehr Einzelheiten, längere Absätze. Für eine gründliche Vorbereitung.' },
+  { key: 'einfach', title: 'Einfache Sprache', sub: 'Kurze Sätze, keine Fachwörter',
+    instruction: 'Einfache Sprache: kurze Hauptsätze, höchstens ein Gedanke pro Satz, keine Fremd- und Fachwörter ohne Erklärung, keine Schachtelsätze. Paragraphen nur nennen, wenn sie erklärt werden.' },
+]
+
+function precautionTalkSection(memorial, contributions, section, styleInstruction) {
+  const name = memorial?.name || 'die Person'
+  const list = PRECAUTION_TALK_SECTIONS.map(s => `  ${s.label === section.label ? '>>' : '  '} ${s.label}`).join('\n')
+  return `Du bereitest ein Vorsorge-Beratungsgespräch vor. Aus dem folgenden Vorsorgegespräch mit ${name} schreibst du EINEN Abschnitt eines GESPRÄCHSLEITFADENS. Mit diesem Blatt geht ${name} zur Hausärztin, zur Vorsorgeberatung oder zur Betreuungsbehörde.
+
+DIESER ABSCHNITT: „${section.label}"
+${section.brief}
+${styleInstruction ? `\nSTIL-VORGABE FÜR DAS GESAMTE DOKUMENT (verbindlich umsetzen):\n${styleInstruction}\n` : ''}
+ABGRENZUNG ZU DEN ANDEREN ABSCHNITTEN (streng einhalten):
+Der Leitfaden besteht aus diesen Abschnitten; jeder wird getrennt aus demselben Gespräch geschrieben (>> = dieser hier):
+${list}
+- Schreibe AUSSCHLIESSLICH, was in „${section.label}" gehört. Jeder Punkt steht im gesamten Leitfaden genau EINMAL.
+
+Anforderungen:
+- Stütze dich AUSSCHLIESSLICH auf das Gespräch. Erfinde nichts und ergänze nichts aus Allgemeinwissen. Was nicht gesagt wurde, steht nicht im Leitfaden.
+- KEINE RECHTSBERATUNG UND KEINE MEDIZINISCHE EMPFEHLUNG. Du sagst nirgends, was richtig, sinnvoll oder ratsam wäre. Fragen formulierst du OFFEN („Was bedeutet es in meiner Lage, wenn …?"), nie als verkappte Empfehlung („Sollte ich nicht besser …?").
+- Wo eine Festlegung fehlt, schreibe das hin — erfinde keine und lege keine nahe.
+- Die Abschnitte „Was ich festgelegt habe" und „Fragen für das Beratungsgespräch" stehen in der ICH-FORM. Die übrigen ebenfalls, soweit es passt.
+- Nenne keine Diagnosen und keine Gesundheitsangaben Dritter.
+- Schreibe auf Deutsch.
+- Absätze bzw. Stichpunkte durch EINEN Zeilenumbruch trennen; Stichpunkte immer mit „• " beginnen.
+- Gib AUSSCHLIESSLICH den fertigen Text dieses Abschnitts aus. KEINE Überschrift (die kommt vom Layout), keine Metakommentare, kein Markdown.
+
+${companionNote(contributions)}
+
+Vorsorgegespräch mit ${name}:
+
+${blocks(contributions)}`
+}
+
+// Die Kategorie erzeugt kein Buch — Platzhalter wie bei der Anamnese, damit
+// GENERATORS in App.jsx nicht ins Leere greift.
+function precautionNoBook() {
+  return 'Diese Kategorie erzeugt kein Buch.'
+}
+
+// Produktkategorie „Vorsorgevollmacht". Eigenständig — weder Lebenswerk- noch
+// Anamnese-Familie; wo der Code für sie verzweigt, fragt er isPrecaution().
+export function isPrecaution(cat) {
+  return cat === 'precaution'
+}
+
+
 // Die Lebenswerk-FAMILIE: das Lebenswerk selbst und die mamazone Edition. Beide
 // sind technisch dasselbe Produkt (EIN Mensch erzählt über sich selbst, der
 // Buch-Code ist die Berechtigung, gleiche Einstellungen, gleiche Endprodukte) und
@@ -1993,6 +2146,7 @@ export const STD_CATALOG_NAMES = {
   anamnesis:      ANAMNESIS_STD_CATALOG_NAMES.anamnesis,
   anamnesis_kvsw: ANAMNESIS_STD_CATALOG_NAMES.anamnesis_kvsw,
   career:         'Lebenslauf – Standardfragen',
+  precaution:     'Vorsorgevollmacht – Standardfragen',
 }
 export function stdCatalogName(category) {
   return STD_CATALOG_NAMES[category] || null
@@ -2789,10 +2943,57 @@ export const CATEGORIES = {
       styles: CAREER_GUIDE_STYLES, sections: CAREER_GUIDE_SECTIONS, sectionSystem: careerGuideSection,
     },
   },
+
+  // Vorsorgevollmacht: EIN Mensch beantwortet die Fragen, aus denen seine eigene
+  // Vorsorgen-Mappe entsteht. Kein Buch, keine Bilder — die Erzeugnisse sind die
+  // Mappe (eigene Karte, Spalte `precaution`) und der Gesprächsleitfaden für das
+  // Beratungsgespräch (finalText). Aufbau wie der Lebenslauf.
+  precaution: {
+    slug: 'precaution',
+    label: 'Vorsorgevollmacht',
+    icon: '📜',
+    description: 'Vorsorge: Der Mensch beantwortet gezielt alle Fragen, die für seine Vorsorgedokumente gebraucht werden – daraus entsteht eine ausgefüllte Vorsorgen-Mappe (Vollmacht, Betreuungs- und Patientenverfügung, Wertvorstellungen, Bestattungsverfügung, Notfallblatt).',
+    nounBook: 'Vorsorgen-Mappe',
+    intake: {
+      subjectLabel: 'Name der Person (optional)',
+      subjectPlaceholder: 'Vollständiger Name – leer lassen, wenn unbekannt',
+      useGender: true,
+      genderLabel: 'Geschlecht',
+      genderSelfOption: true,
+      useAddressForm: true,
+      useDate: false,          // Kein Anlass, kein Anlass-Datum.
+      useCutoff: false,        // Keine Frist — die Person bestimmt ihr Tempo.
+      useEnduser: true,        // E-Mail-Adresse + Sprache (Einladung).
+      // Kein kategoriespezifisches Anlege-Feld: Der Fragenkatalog gilt für alle,
+      // und jede einzelne Frage lässt sich im Gespräch mit „weiter" überspringen.
+      // Ein Feld, das Teile der Mappe abwählt, wäre eine Weiche, die der Katalog
+      // nicht abbilden kann — wer nur eine Vollmacht will, überspringt den Rest.
+      extra: [],
+      createHeading: 'Neue Vorsorgevollmacht anlegen',
+      createIntro: 'Die Person erhält einen persönlichen Zugang und beantwortet die Vorsorgefragen. Die ausgefüllte Mappe steht danach hier zum Download bereit.',
+      createButton: 'Vorsorgevollmacht anlegen →',
+    },
+    contributor: {
+      heading: 'Ihre Vorsorge',
+      introNoun: 'Vorsorge für',
+      consentNoun: 'Vorsorgedokumente',
+      interviewButton: '🎙 Vorsorgegespräch beginnen →',
+    },
+    interviewSystem: precautionInterview,
+    // Kein Buch — Platzhalter, die im Dashboard nie angezeigt/aufgerufen werden.
+    generators: {
+      book_v1: { label: 'Vorsorgen-Mappe', filename: 'Vorsorgen-Mappe', outlineSystem: precautionNoBook, chapterSystem: precautionNoBook },
+      book_v2: { label: 'Vorsorgen-Mappe', filename: 'Vorsorgen-Mappe', outlineSystem: precautionNoBook, chapterSystem: precautionNoBook },
+    },
+    finalText: {
+      label: 'Gesprächsleitfaden', filename: 'Vorsorge-Gespraechsleitfaden', noun: 'Gesprächsleitfaden',
+      styles: PRECAUTION_TALK_STYLES, sections: PRECAUTION_TALK_SECTIONS, sectionSystem: precautionTalkSection,
+    },
+  },
 }
 
 // Lebenswerk steht bewusst GANZ OBEN (aktuelles Hauptprodukt).
-export const CATEGORY_ORDER = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw', 'career', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
+export const CATEGORY_ORDER = ['lifework', 'mamazone', 'anamnesis', 'anamnesis_kvsw', 'career', 'precaution', 'memorial', 'birthday', 'anniversary', 'farewell', 'service', 'company', 'newborn', 'encouragement']
 
 // Akzentfarbe je Kategorie (Auswahl-Ansicht). Pro Anlass ein eigener Ton.
 export const CATEGORY_COLORS = {
@@ -2809,6 +3010,7 @@ export const CATEGORY_COLORS = {
   anamnesis:     '#0d9488', // Teal (medizinisch/klinisch)
   anamnesis_kvsw:'#0369a1', // Klinik-Blau (Krankenhausaufnahme, KVSW)
   career:        '#4338ca', // Indigo (Berufsweg/Lebenslauf)
+  precaution:    '#7c2d12', // Dunkles Braunrot (Urkunde/Vorsorge)
 }
 
 export function categoryColor(slug) {

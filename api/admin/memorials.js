@@ -18,6 +18,7 @@ const { ensureLifeworkSchema, ensureLifeworkCatalog } = require('../_lib/lifewor
 const { MAMAZONE, ensureMamazoneCatalog } = require('../_lib/mamazone')
 const { ensureAnamnesisCatalog, ensureAnamnesisKvswCatalog } = require('../_lib/anamnesis')
 const { ensureCareerCatalog } = require('../_lib/career')
+const { ensurePrecautionCatalog } = require('../_lib/precaution')
 const { defaultTtsVoice, sanitizeVoice } = require('../_lib/ttsvoices')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
@@ -33,7 +34,7 @@ const SELECT_COLS_LEGACY = 'id, name, organizer, gender, book_variant, book_v1, 
 // family_tree/life_poster/care_directive: die Nebenprodukte des Lebenswerks.
 // Fehlen die Spalten (Migration noch nicht gelaufen), fällt der GET auf
 // SELECT_COLS_LEGACY zurück.
-const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions, history_mode, history_parallels, delete_on, audiobooks, cv, avoca, documents, profile_queries, job_match`
+const SELECT_COLS = `${SELECT_COLS_LEGACY}, show_contributors, family_tree, life_poster, care_directive, power_of_attorney, archived_at, text_style, stored_pdfs, interview_timer_seconds, companion_mode, proof_enabled, proof_max, proof_used, edit_lock, interview_closed, book_finalized, book_finalized_at, show_onboarding, tts_voice, gamification, hands_free, mic_manual_stop, mic_mode_switch, realtime_enabled, guest_enabled, guest_code, project_no, detail_choice, extra_questions, history_mode, history_parallels, delete_on, audiobooks, cv, avoca, documents, profile_queries, job_match, precaution`
 
 // Interview-Zeitlimit (Test-Timer) normalisieren: 0 = unbegrenzt; sonst Sekunden,
 // gedeckelt auf 24 h (Schutz vor Unsinn).
@@ -527,7 +528,7 @@ module.exports = async function handler(req, res) {
       // show_contributors evtl. noch nicht migriert (db/show-contributors.sql) →
       // ohne die Spalte erneut lesen. Eine fehlende Migration darf niemals das
       // gesamte Dashboard lahmlegen; der Default (an) greift dann im Frontend.
-      if (error && /show_contributors|family_tree|life_poster|care_directive|power_of_attorney|archived_at|cv|avoca|documents|profile_queries|job_match|history_mode|history_parallels|delete_on|column/i.test(error.message || '')) {
+      if (error && /show_contributors|family_tree|life_poster|care_directive|power_of_attorney|archived_at|cv|avoca|documents|profile_queries|job_match|precaution|history_mode|history_parallels|delete_on|column/i.test(error.message || '')) {
         ;({ data, error } = await listQuery(SELECT_COLS_LEGACY))
       }
       if (error) throw error
@@ -738,6 +739,7 @@ module.exports = async function handler(req, res) {
       else if (category === 'anamnesis' && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisCatalog(supabase)
       else if (category === 'anamnesis_kvsw' && catalogId !== '__free__' && !catalog) catalog = await ensureAnamnesisKvswCatalog(supabase)
       else if (category === 'career' && catalogId !== '__free__' && !catalog) catalog = await ensureCareerCatalog(supabase)
+      else if (category === 'precaution' && catalogId !== '__free__' && !catalog) catalog = await ensurePrecautionCatalog(supabase)
 
       const code = genCode()
       // Lebenswerk kennt nur Variante 2 (durchkomponierte Autobiographie).
@@ -1052,6 +1054,7 @@ module.exports = async function handler(req, res) {
           else if (meta.productCategory === 'anamnesis') update.catalog_id = await ensureAnamnesisCatalog(supabase)
           else if (meta.productCategory === 'anamnesis_kvsw') update.catalog_id = await ensureAnamnesisKvswCatalog(supabase)
           else if (meta.productCategory === 'career') update.catalog_id = await ensureCareerCatalog(supabase)
+          else if (meta.productCategory === 'precaution') update.catalog_id = await ensurePrecautionCatalog(supabase)
           else update.catalog_id = null
         }
         if ('followups' in meta)     update.followups = sanitizeFollowups(meta.followups)
@@ -1150,11 +1153,11 @@ module.exports = async function handler(req, res) {
       // cv: der strukturierte Lebenslauf der Kategorie „Lebenslauf" — gleiches
       // Muster wie die Nebenprodukte des Lebenswerks (KI liefert JSON, der
       // Browser zeichnet daraus die gewaehlte Vorlage).
-      const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text', 'content_reports', 'family_tree', 'life_poster', 'care_directive', 'power_of_attorney', 'cv', 'avoca', 'documents', 'job_match', 'history_parallels'])
+      const allowedFields = new Set(['book_v1', 'book_v2', 'eulogy_text', 'content_reports', 'family_tree', 'life_poster', 'care_directive', 'power_of_attorney', 'cv', 'avoca', 'documents', 'job_match', 'history_parallels', 'precaution'])
       if (!allowedFields.has(field)) {
         return res.status(400).json({ error: 'Ungültiges Feld.' })
       }
-      if (field === 'family_tree' || field === 'life_poster' || field === 'care_directive' || field === 'power_of_attorney' || field === 'cv' || field === 'avoca' || field === 'documents' || field === 'job_match' || field === 'history_parallels') await ensureLifeworkSchema()
+      if (field === 'family_tree' || field === 'life_poster' || field === 'care_directive' || field === 'power_of_attorney' || field === 'cv' || field === 'avoca' || field === 'documents' || field === 'job_match' || field === 'history_parallels' || field === 'precaution') await ensureLifeworkSchema()
 
       // content_reports atomar ZUSAMMENFÜHREN statt überschreiben. Sonst würde
       // beim parallelen Generieren beider Varianten der Prüf-Report der jeweils
