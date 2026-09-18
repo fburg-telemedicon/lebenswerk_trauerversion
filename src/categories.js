@@ -108,6 +108,20 @@ function companionNote(contributions) {
 export function chapterVoices(ch) {
   return (Array.isArray(ch?.voices) ? ch.voices : []).filter(v => String(v?.text || '').trim())
 }
+// Gastbeitraege (zweiter Link/QR zum Lebenswerk) tragen is_guest. Sie sind die
+// Stimme ANDERER ueber die erzaehlende Person und duerfen deshalb nie in ihren
+// eigenen Text geraten — in einer Autobiographie nicht und in einer
+// Willenserklaerung erst recht nicht. Alle anderen Kategorien kennen keine
+// Gastbeitraege; dort ist is_guest nie gesetzt und selfOnly() liefert die Liste
+// unveraendert zurueck.
+//
+// ACHTUNG, hier NICHTS entfernen: Die Zeile sah am 2026-09-13 wie toter Code aus
+// (Commit 7cf727d) und wurde geloescht — dabei benutzen die beiden Funktionen
+// direkt darunter sie. Ergebnis war ein ReferenceError in JEDER Generierung, die
+// ueber selfOnly/guestOnly laeuft: Lebenswerk-Buch, Pflegeexzerpt, Stammbaum,
+// Lebensposter, Vorsorgemappe, Lebenslauf, Kompetenzprofil, Stellenabgleich.
+export const isGuestContribution = c => c?.is_guest === true
+
 export const selfOnly = list => (list || []).filter(c => !isGuestContribution(c))
 export const guestOnly = list => (list || []).filter(isGuestContribution)
 
