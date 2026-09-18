@@ -2,6 +2,12 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-18",
+      "items": [
+        "15 Demozugaenge fuer Maik angelegt (Lebenswerk, Projekt-Nr. 321-335): 15 Minuten Sprechzeit, sonst die volle Ausstattung wie bei den Demos vom 29.08. und 15.09. Der Name steht im Bemerkungsfeld, ein Manager-Konto gibt es nicht. Zugangsblaetter als ein PDF mit 15 DIN-A4-Seiten, je Blatt QR-Code und Zugangscode, oben im roten Rahmen die Version (\"DEMO-ZUGANG - 15 MINUTEN INTERVIEWZEIT\"), in der Fusszeile Projekt-Nr. und Gueltigkeit (18.03.2027). Gegengeprueft: alle 15 Buecher tragen 900 Sekunden und die vorgegebenen Einstellungen."
+      ]
+    },
+    {
       "date": "2026-09-15",
       "items": [
         "Geraeusch-Marker aus den Transkripten entfernt. Azure AI Speech stuft Audio-Abschnitte, die es nicht als Sprache liest (Atmen, Husten, Stuhlruecken, Anstossen ans Mikrofon), als Geraeusch ein - und schreibt das in der Ausgabe als WORTE in den Text, statt es zu unterdruecken. Im baskischen Buch Nr. 50 standen so 61-mal 'Spoken noise' mitten in den Saetzen, in 25 von 42 Antworten; in 263 geprueften deutschen Antworten kein einziger. api/transcribe.js filtert sie jetzt und schliesst nur die Luecke, die das Ausschneiden hinterlaesst - Gesagtes bleibt Wort fuer Wort stehen. Die bestehenden Transkripte von Buch 50 wurden bereinigt (Sicherung vorher gezogen).",
