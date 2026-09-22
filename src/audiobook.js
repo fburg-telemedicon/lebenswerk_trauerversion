@@ -18,7 +18,7 @@
 // Absatzpause, die auch die MAI-Stimmen einhalten (die ignorieren <break>,
 // gemessen am 2026-08-17).
 
-import { chapterVoices, chapterBoxes } from './categories.js'
+import { chapterVoices, chapterBoxes, isHistoryBox } from './categories.js'
 import { uiText, bookDisclaimer } from './i18n.js'
 import { dedupeContributors, safeName } from './bookExport.js'
 
@@ -147,6 +147,8 @@ export function audiobookBlocks(book, contributors = [], opts = {}) {
     // Zusatzfragen-Kästen (Musik, Lieblingsessen, „wo warst du, als …"). Hier
     // spricht der Erzähler selbst — also die Kapitelstimme, kein Wechsel.
     for (const b of chapterBoxes(ch)) {
+      // Zeitgeschehen: vorab ansagen, dass jetzt kein Erinnerungstext folgt.
+      if (isHistoryBox(b)) push('para', track, speaker, bt.historyBoxNote)
       push('para', track, speaker, String(b.title || '').trim())
       push('para', track, speaker, String(b.text).trim())
     }

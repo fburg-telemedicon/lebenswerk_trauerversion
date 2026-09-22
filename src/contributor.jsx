@@ -12,7 +12,8 @@ import { proofT } from './proofI18n.js'
 import { xt } from './uiExtra.js'
 import { uiText, contributorL10n, langDirective, LANGUAGES, DEFAULT_LANGUAGE, isRTL, sortLangs } from './i18n.js'
 import { installState, promptInstall, onInstallChange, setPwaProduct } from './pwa.js'
-import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, isPrecaution as isPrecautionCategory, detailFollowups, detailLevelOf, isLifework as isLifeworkCategory } from './categories.js'
+import { getCategory, interviewSystemFor, chapterVoices, chapterBoxes, isHistoryBox, withExtraQuestions, defaultTextStyle, splitQuestionPos, posToMarker, withoutMarkerRule, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, isPrecaution as isPrecautionCategory, detailFollowups, detailLevelOf, isLifework as isLifeworkCategory } from './categories.js'
+import { HistoryBox } from './historyBox.jsx'
 import { GENDERS, CONSENT_VERSION, normVariant } from './constants.js'
 import { ImageStylePicker, BookLayoutPicker, TextStylePicker } from './pickers.jsx'
 import { DEFAULT_IMAGE_STYLE } from './imageStyles.js'
@@ -2310,7 +2311,9 @@ function BookRead({ book, imgUrl }) {
             </div>
           )}
           {/* Zusatzfragen-Kästen: eigene Überschrift statt Zuschreibung. */}
-          {chapterBoxes(c).map((b, bi) => (
+          {chapterBoxes(c).map((b, bi) => isHistoryBox(b) ? (
+            <HistoryBox key={bi} box={b} t={uiText(book.language)} compact />
+          ) : (
             <div key={bi} style={{ marginTop:14, padding:'12px 16px', background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8 }}>
               {b.title && <div style={{ fontSize:11, letterSpacing:1, textTransform:'uppercase', color:'#a8a29e', marginBottom:6 }}>{b.title}</div>}
               <p style={{ fontSize:15, lineHeight:1.7, margin:0, whiteSpace:'pre-wrap' }}>{b.text}</p>
@@ -3096,6 +3099,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
 
   function buildReadQueue(b) {
     const parts = []
+    const historyNote = uiText(b?.language || lang).historyBoxNote
     if (b?.title) parts.push(String(b.title))
     if (b?.subtitle) parts.push(String(b.subtitle))
     for (const c of (b?.chapters || [])) {
@@ -3109,6 +3113,7 @@ function ProofTab({ code, token, memorial, contribId, lang, t, onMemorialPatch }
       }
       // Zusatzfragen-Kästen ebenso — sie stehen im Buch und gehören mit vorgelesen.
       for (const b of chapterBoxes(c)) {
+        if (isHistoryBox(b)) parts.push(historyNote)
         parts.push(b.title ? `${b.title}: ${b.text}` : String(b.text))
       }
     }

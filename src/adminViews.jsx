@@ -6,7 +6,8 @@ import { Fragment, useState, useEffect } from 'react'
 import { S, Back, Err, Lbl, col, th, PartnerBanner, Dots } from './ui.jsx'
 import { POSTER_STYLES, getPosterStyle, renderPosterPreview } from './lifeworkExtras.js'
 import { formatEur, formatEurSum, formatPriceCents, costKindLabel, PASSWORD_RULES_TEXT, qrCodeDataUrl, cutoffDate, cutoffDays, cutoffString, imageErrorDe } from './shared.js'
-import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, isPrecaution as isPrecautionCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework as isLifeworkCategory } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, getCategory, categoryColor, TTS_VOICE_OPTIONS, isAnamnesis as isAnamnesisCategory, isCareer as isCareerCategory, isPrecaution as isPrecautionCategory, anamnesisStdCatalogName, stdCatalogName, chapterVoices, chapterBoxes, isHistoryBox, EXTRA_QUESTION_PRESETS, normalizeExtraQuestions, isLifework as isLifeworkCategory } from './categories.js'
+import { HistoryBox } from './historyBox.jsx'
 import CategoryIcon from './CategoryIcon.jsx'
 import { CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { AVOCA_DIMENSIONS, RUBRIC_VERSION } from './avocaRubric.js'
@@ -2673,7 +2674,9 @@ export function BookView({ view, selected, generating, genOwner, contributions, 
                 {/* Zusatzfragen-Kästen (Musik, Lieblingsessen, Zeitgeschehen …):
                     ebenfalls abgesetzt, aber mit eigener Überschrift statt
                     Zuschreibung — hier spricht der Erzähler selbst. */}
-                {chapterBoxes(ch).map((b, bi) => (
+                {chapterBoxes(ch).map((b, bi) => isHistoryBox(b) ? (
+                  <HistoryBox key={bi} box={b} t={bt} bodyFont={bodyFont} />
+                ) : (
                   <div key={bi} style={{ marginTop:'1.5rem', padding:'14px 18px', background:'#fafaf9', border:'1px solid #e7e5e4', borderRadius:8 }}>
                     {b.title && <p style={{ fontSize:12, letterSpacing:'.12em', textTransform:'uppercase', color:'#a8a29e', margin:'0 0 8px' }}>{b.title}</p>}
                     {/* Zeitgeschehen-Kasten kann eine KI-Grafik tragen (history-box.js). */}

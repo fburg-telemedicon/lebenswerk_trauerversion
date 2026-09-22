@@ -355,6 +355,18 @@ export function chapterBoxes(ch) {
   return (Array.isArray(ch?.boxes) ? ch.boxes : []).filter(b => String(b?.text || '').trim())
 }
 
+// Zeitgeschehen-Kasten (api/admin/history-box.js): Anders als die Zusatzfragen-
+// Kästen stammt er NICHT aus dem Gespräch, sondern ist KI-Sachtext über ein
+// Ereignis. Jede Render-Stelle muss ihn deshalb sichtbar als solchen kennzeichnen.
+export function isHistoryBox(b) {
+  return b?.kind === 'history'
+}
+// Das Jahr zum Etikett („Zeitgeschehen · 1983") — aus der Datierung, sonst leer.
+export function historyBoxYear(b) {
+  const m = String(b?.when || '').match(/\b(1[5-9]\d\d|20\d\d)\b/)
+  return m ? m[1] : ''
+}
+
 // Prompt-Teile für die Kapitelerzeugung. Ohne Zusatzfragen bleibt alles leer —
 // die Prompts bestehender Bücher ändern sich dadurch um kein Zeichen.
 function extraBoxParts(memorial) {

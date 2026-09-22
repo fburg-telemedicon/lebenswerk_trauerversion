@@ -2,9 +2,9 @@
 // Aus App.jsx ausgelagerte, ZUSTANDSLOSE Export-/Download-Helfer (TXT/DOCX/PDF).
 // Reine Modul-Funktionen ohne React-State/Hooks - 1:1 aus App.jsx verschoben.
 
-import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType, BorderStyle } from 'docx'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, TextRun, Footer, PageNumber, SectionType, BorderStyle, ShadingType } from 'docx'
 import { loadPdfFonts, newPdfDoc, registerUnicodeSerif } from './pdfFonts.js'
-import { getCategory, chapterVoices, chapterBoxes } from './categories.js'
+import { getCategory, chapterVoices, chapterBoxes, isHistoryBox, historyBoxYear } from './categories.js'
 import { getBookLayout } from './bookLayouts.js'
 import { uiText, bookDisclaimer, imageFacts, isRTL } from './i18n.js'
 import { prepareEbookCoverPage, drawEbookCoverPage } from './coverExport.js'
@@ -218,6 +218,24 @@ async function prepareLogoForExport(dataUrl) {
 // opts.showContributors: Namensliste der Beitragenden am Buchende drucken (Default an).
 // Die contributors-Liste wird unabhängig davon weiter gebraucht — aus ihr stammt
 // auch der Name unter der Kapitelüberschrift (Buch V1).
+// Zeitgeschehen-Kasten im DOCX: getönter Block mit Bronze-Rand, Etikett oben,
+// Hinweiszeile unten — das Gegenstück zu src/historyBox.jsx. Er ist KI-Sachtext,
+// nicht Erinnerung, und muss auch im Word-Export so erkennbar sein.
+function historyBoxDocx(b, bt, { rtl, HF, BF }) {
+  const shade = { type: ShadingType.CLEAR, color: 'auto', fill: 'f8f4ec' }
+  const side = { style: BorderStyle.SINGLE, size: 6, space: 6, color: 'e6dcc8' }
+  const border = { top: side, bottom: side, right: side, left: { style: BorderStyle.SINGLE, size: 24, space: 8, color: 'a8844a' } }
+  const year = historyBoxYear(b)
+  const title = String(b.title || '').trim()
+  const para = (children, spacing) => new Paragraph({ bidirectional: rtl, indent: { left: 340, right: 340 }, spacing, shading: shade, border, children })
+  return [
+    para([new TextRun({ text: `${bt.historyBoxLabel}${year ? ' · ' + year : ''}`.toUpperCase(), font: HF, size: 17, bold: true, color: '8a6d3b' })], { before: 300, after: 60 }),
+    ...(title ? [para([new TextRun({ text: title, font: HF, size: 24, bold: true, color: '3f3423' })], { after: 80 })] : []),
+    para([new TextRun({ text: String(b.text).trim(), font: BF, size: 22, color: '44403c' })], { after: 80 }),
+    para([new TextRun({ text: bt.historyBoxNote, font: BF, size: 16, italics: true, color: '8a7a60' })], { after: 240 }),
+  ]
+}
+
 export async function downloadStructuredDocx(filename, book, contributors = [], logoDataUrl = null, layout = getBookLayout(), opts = {}) {
   resetImageMisses()
   const showContributors = opts.showContributors !== false
@@ -286,7 +304,7 @@ export async function downloadStructuredDocx(filename, book, contributors = [], 
       // Zusatzfragen-Kästen (Musik, Lieblingsessen, „wo warst du, als …"). Optisch
       // wie die Stimmen abgesetzt, aber mit eigener Überschrift statt Zuschreibung —
       // hier spricht der Erzähler selbst, nur eben neben der Erzählung.
-      ...chapterBoxes(ch).flatMap(b => [
+      ...chapterBoxes(ch).flatMap(b => isHistoryBox(b) ? historyBoxDocx(b, bt, { rtl, HF, BF }) : [
         new Paragraph({
           bidirectional: rtl, indent: { left: 340 }, spacing: { before: 300, after: 60 },
           border: { left: { style: BorderStyle.SINGLE, size: 12, space: 10, color: 'd6d3d1' } },
@@ -594,10 +612,11 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
   const hyph = await loadHyphenator(book.language || 'de')
   const lh = pt => pt * 0.3528 * 1.5
   let y = MT
-  const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0, justify = false } = {}) => {
+  // `right` rückt den Satz rechts ein (nur der Zeitgeschehen-Kasten braucht das).
+  const flow = (chunk, { size = 12, style = 'normal', color = [40, 40, 40], gapAfter = 1, indent = 0, right = 0, justify = false } = {}) => {
     doc.setFont(BF, style); doc.setFontSize(size); doc.setTextColor(...color)
     const lineH = lh(size)
-    const width = maxW - indent
+    const width = maxW - indent - right
     const lines = wrapWithHyphens(doc, chunk, width, hyph)
     lines.forEach((line, i) => {
       if (y > PDF_PAGE_H - MB) { newPage(); y = MT }
@@ -619,6 +638,62 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
       y += lineH
     })
     y += gapAfter * lineH
+  }
+  // Höhe, die flow() für denselben Text verbrauchen würde (ohne zu zeichnen).
+  const measure = (chunk, { size = 12, style = 'normal', gapAfter = 1, indent = 0, right = 0 } = {}) => {
+    doc.setFont(BF, style); doc.setFontSize(size)
+    return wrapWithHyphens(doc, chunk, maxW - indent - right, hyph).length * lh(size) + gapAfter * lh(size)
+  }
+
+  // Zeitgeschehen-Kasten (Gegenstück zu src/historyBox.jsx): getönte Fläche mit
+  // Bronze-Rand, Etikett „Zeitgeschehen · Jahr", Hinweis „nicht Teil der
+  // Erinnerungen", Grafik als KI-generiert gekennzeichnet. Anders als die übrigen
+  // Kästen MIT Rahmen — damit der nicht über einen Umbruch zerreißt, wird der
+  // Kasten vorab vermessen und notfalls komplett auf die nächste Seite gesetzt.
+  // Nur wenn er nicht einmal auf eine leere Seite passt, entfällt die Fläche.
+  const drawHistoryBox = async (b) => {
+    const PAD = 5, IND = 10, TEXT_IND = IND + PAD + 2, RIGHT = PAD
+    const year = historyBoxYear(b)
+    const label = `${bt.historyBoxLabel}${year ? ' · ' + year : ''}`.toUpperCase()
+    const title = String(b.title || '').trim()
+    const text = String(b.text).trim()
+    let bimg = b.image_url ? await fetchImageForPdf(b.image_url) : null
+    if (bimg && opts.imageMaxPx) bimg = await downscaleToJpeg(bimg, Math.min(opts.imageMaxPx, 900), opts.imageQuality || 0.72)
+    const innerW = maxW - TEXT_IND - RIGHT
+    const bw = innerW * 0.7
+    const bh = bimg ? bw * (bimg.h && bimg.w ? bimg.h / bimg.w : 0.6) : 0
+    const first = 9 * 0.3528                        // Oberlänge der ersten Zeile
+    const H = PAD + first
+      + measure(label, { size: 9, style: 'bold', gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
+      + (title ? measure(title, { size: 12, style: 'bold', gapAfter: 0.4, indent: TEXT_IND, right: RIGHT }) : 0)
+      + (bimg ? bh + 2 + measure(bt.historyBoxImageNote, { size: 8, style: 'italic', gapAfter: 0.5, indent: TEXT_IND, right: RIGHT }) : 0)
+      + measure(text, { size: 11, gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
+      + measure(bt.historyBoxNote, { size: 8, style: 'italic', gapAfter: 0, indent: TEXT_IND, right: RIGHT })
+      + PAD - lh(8) + 8 * 0.3528
+    const room = PDF_PAGE_H - MB - MT
+    y += 6
+    if (H <= room && y + H > PDF_PAGE_H - MB) { newPage(); y = MT }
+    if (H <= room) {
+      const x0 = ML + IND, w = maxW - IND
+      doc.setFillColor(248, 244, 236); doc.setDrawColor(230, 220, 200); doc.setLineWidth(0.3)
+      doc.roundedRect(x0, y, w, H, 2, 2, 'FD')
+      doc.setFillColor(168, 132, 74); doc.rect(x0, y, 1.4, H, 'F')
+    }
+    const top = y
+    y += PAD + first
+    flow(label, { size: 9, style: 'bold', color: [138, 109, 59], gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
+    if (title) flow(title, { size: 12, style: 'bold', color: [63, 52, 35], gapAfter: 0.4, indent: TEXT_IND, right: RIGHT })
+    if (bimg) {
+      if (y + bh > PDF_PAGE_H - MB) { newPage(); y = MT }
+      const bfmt = /^data:image\/jpe?g/i.test(bimg.dataUrl) ? 'JPEG' : 'PNG'
+      const iy = y - lh(12) * 0.5
+      try { doc.addImage(bimg.dataUrl, bfmt, ML + TEXT_IND, iy, bw, bh) } catch { /* Bild ueberspringen */ }
+      y = iy + bh + 2 + lh(8) * 0.7
+      flow(bt.historyBoxImageNote, { size: 8, style: 'italic', color: [138, 122, 96], gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
+    }
+    flow(text, { size: 11, color: [68, 64, 60], gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
+    flow(bt.historyBoxNote, { size: 8, style: 'italic', color: [138, 122, 96], gapAfter: 0, indent: TEXT_IND, right: RIGHT })
+    y = Math.max(y, top + H) + 6
   }
 
   // ── Titelseite (recto) ──
@@ -684,6 +759,7 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
     // Zusatzfragen-Kästen: eigene Überschrift statt Zuschreibung, aufrecht statt
     // kursiv — hier spricht der Erzähler selbst, nur neben der Erzählung.
     for (const b of chapterBoxes(ch)) {
+      if (isHistoryBox(b)) { await drawHistoryBox(b); continue }
       if (y > PDF_PAGE_H - MB - 30) { newPage(); y = MT }   // nicht als Waise ans Seitenende
       y += 4
       const title = String(b.title || '').trim()

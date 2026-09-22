@@ -19,7 +19,7 @@ import {
   storeMemorialPdf,
   storeAudiobookFull,
 } from './api.js'
-import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, isPrecaution, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework } from './categories.js'
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_CATEGORY, getCategory, categoryColor, defaultTextStyle, defaultTtsVoice, isAnamnesis, isCareer, isPrecaution, anamnesisStdCatalogName, normalizeExtraQuestions, defaultExtraQuestions, isLifework, isHistoryBox } from './categories.js'
 import { cvSystem, CV_TEMPLATES, DEFAULT_CV_TEMPLATE } from './career.js'
 import { docExtractSystem } from './careerDocs.js'
 import { matchSystem, downloadMatchPdf, downloadMatchDocx } from './careerMatch.js'
@@ -645,6 +645,8 @@ function Dashboard() {
   const [orderSaving, setOrderSaving]         = useState(false)
   const [eulogyStyleModal, setEulogyStyleModal] = useState(false)
   const [genLangModal, setGenLangModal] = useState(null) // { key, extraArg } | null
+  // Zeitgeschehen-Kästen beim Neu-Generieren: behalten oder löschen?
+  const [boxKeepModal, setBoxKeepModal] = useState(null) // { count, label, resolve } | null
   const [imgEditModal, setImgEditModal] = useState(null) // { key } | null – Bilder überarbeiten
   const [imgEditSel, setImgEditSel]     = useState(new Set()) // ausgewählte Kapitelindizes
   const [imgEditBusy, setImgEditBusy]   = useState(false)
@@ -2372,7 +2374,21 @@ function Dashboard() {
         if (!ok) return
       }
     }
-    if (selected[gen.field] && !opts.skipConfirm && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
+    // Zeitgeschehen-Kästen (api/admin/history-box.js) hängen am alten Buch und
+    // gingen beim Überschreiben verloren. Gibt es welche, fragt der Dialog
+    // behalten / löschen / abbrechen — er ersetzt dann die Überschreiben-Frage.
+    let keepBoxes = []
+    const oldHistory = gen.kind === 'book'
+      ? (selected[gen.field]?.chapters || []).flatMap((c, i) => (Array.isArray(c?.boxes) ? c.boxes : [])
+          .filter(isHistoryBox)
+          .map(({ image_url, ...box }) => ({ number: c.number || i + 1, heading: c.heading || '', box })))
+      : []
+    if (oldHistory.length) {
+      const choice = await new Promise(resolve => setBoxKeepModal({ count: oldHistory.length, label: gen.label, resolve }))
+      setBoxKeepModal(null)
+      if (!choice) return
+      if (choice === 'keep') keepBoxes = oldHistory
+    } else if (selected[gen.field] && !opts.skipConfirm && !window.confirm(`„${gen.label}" wurde bereits generiert. Vorhandene Version überschreiben?`)) return
     // Sprache des Endprodukts: vom Admin gewählt (opts.lang) oder die einzige
     // angebotene Sprache, sonst Deutsch. Wird den Prompts vorangestellt.
     const genLang = opts.lang || ((selected.languages && selected.languages.length === 1) ? selected.languages[0] : DEFAULT_LANGUAGE)
@@ -2446,7 +2462,7 @@ function Dashboard() {
           resultType: 'book', field: gen.field, variant: key, language: genLang,
           title: outline.title, subtitle: outline.subtitle || '',
           dir, skipImages, imageStyle: selected.image_style || DEFAULT_IMAGE_STYLE,
-          uploads, oldChapters, chapterSteps,
+          uploads, oldChapters, chapterSteps, keepBoxes,
           // Die Gliederung wird am Buch mitgespeichert: Nur mit ihr kann die
           // Wiederholungsprüfung nachhalten, ob ein Motiv im Kapitel steht, dem
           // es laut owns-Liste gehört (repetition.js). Ohne sie greift nur der
@@ -3551,6 +3567,25 @@ Regeln:
     </div>
   ) : null
 
+  const boxKeepOverlay = boxKeepModal ? (
+    <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
+      <div style={{ ...S.card, maxWidth: 460, width:'100%' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>„{boxKeepModal.label}" neu generieren?</h2>
+        <p style={{ ...S.muted, marginBottom:16 }}>
+          Die vorhandene Version wird überschrieben. Sie enthält {boxKeepModal.count === 1 ? 'einen Zeitgeschehen-Kasten' : `${boxKeepModal.count} Zeitgeschehen-Kästen`}.
+          Beim Behalten werden sie in das neue Buch übernommen — in das Kapitel, das das Jahr des Ereignisses erwähnt, sonst in das gleichnamige oder gleich nummerierte Kapitel.
+        </p>
+        <div style={{ display:'grid', gap:10, marginBottom:14 }}>
+          <button onClick={() => boxKeepModal.resolve('keep')} style={{ fontSize:15, padding:'12px 16px' }}>Kästen behalten</button>
+          <button className="ghost" onClick={() => boxKeepModal.resolve('drop')} style={{ fontSize:15, padding:'12px 16px', border:'1px solid #e7e5e4' }}>Kästen löschen</button>
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e7e5e4', paddingTop:12 }}>
+          <button className="ghost" onClick={() => boxKeepModal.resolve(null)} style={{ fontSize:14 }}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   const genLangOverlay = genLangModal ? (
     <div style={{ position:'fixed', inset:0, background:'rgba(28,25,23,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem', overflowY:'auto' }}>
       <div style={{ ...S.card, maxWidth: 420, width:'100%' }}>
@@ -4305,7 +4340,7 @@ Regeln:
 
   // ── DETAIL ──
   if (view === 'detail') return (
-    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} reloadMemorial={reloadMemorial} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} generateDocs={generateDocs} setDocConfirmed={setDocConfirmed} docBusy={docBusy} generateMatch={generateMatch} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
+    <DetailView auth={auth} setGuestStatus={setGuestStatus} guestPendingCount={guestPendingCount} selected={selected} catalogs={catalogs} orderDraft={orderDraft} setOrderDraft={setOrderDraft} setView={setView} reloadContributions={reloadContributions} reloadMemorial={reloadMemorial} loading={loading} contributions={contributions} dlAll={dlAll} logout={logout} err={err} copyInvite={copyInvite} copied={copied} copyQR={copyQR} setTranscriptReport={setTranscriptReport} setSelectedContrib={setSelectedContrib} dlOne={dlOne} deleteContribution={deleteContribution} token={token} setSelected={setSelected} GENERATORS={GENERATORS} generating={generating} genOwner={genOwner} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} setEditMode={setEditMode} setEditDraft={setEditDraft} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadGeneratedEbook={downloadGeneratedEbook} downloadCover={downloadCover} dlBusy={dlBusy} openImgEdit={openImgEdit} recheck={recheck} reviewingKey={reviewingKey} genPct={genPct} genProgress={genProgress} cancelGenerate={cancelGenerate} cancelGenRef={cancelGenRef} genErr={genErr} reviewPct={reviewPct} skipImages={skipImages} setSkipImages={setSkipImages} setReportModal={setReportModal} orderEdit={orderEdit} startOrderEdit={startOrderEdit} saveOrderData={saveOrderData} orderSaving={orderSaving} cancelOrderEdit={cancelOrderEdit} adminProofAction={adminProofAction} handleDelete={handleDelete} deletingId={deletingId} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={<>{genLangOverlay}{boxKeepOverlay}</>} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} ManagerPhotos={ManagerPhotos} bookHasImages={bookHasImages} generateExtra={generateExtra} downloadExtra={downloadExtra} extraDl={extraDl} generateDocs={generateDocs} setDocConfirmed={setDocConfirmed} docBusy={docBusy} generateMatch={generateMatch} setPosterZoom={setPosterZoom} posterZoomOverlay={posterZoomOverlay} requestPoster={requestPoster} posterStyleOverlay={posterStyleOverlay} requestAudiobook={requestAudiobook} audiobookOverlay={audiobookOverlay} downloadAudiobookFull={downloadAudiobookFull} downloadAudiobookZip={downloadAudiobookZip} storeAudiobookOnServer={storeAudiobookOnServer} generateM4b={generateM4b} audiobookDl={audiobookDl} enduserEditing={enduserEditing} bookCodes={bookCodes} runRetention={runRetention} retentionBusy={retentionBusy} />
   )
 
   // ── KOSTEN-AUFSCHLÜSSELUNG ──
@@ -4320,7 +4355,7 @@ Regeln:
 
   // ── ANSEHEN (Bücher + Endtext/Rede) ──
   if (view === 'book-v1' || view === 'book-v2' || view === 'eulogy') return (
-    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={genLangOverlay} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} posterZoomOverlay={posterZoomOverlay} posterStyleOverlay={posterStyleOverlay} />
+    <BookView view={view} selected={selected} generating={generating} genOwner={genOwner} contributions={contributions} editMode={editMode} editDraft={editDraft} savingEdit={savingEdit} err={err} genErr={genErr} genPct={genPct} genProgress={genProgress} GENERATORS={GENERATORS} cancelGenRef={cancelGenRef} setEditMode={setEditMode} setEditDraft={setEditDraft} setView={setView} cancelGenerate={cancelGenerate} saveEdit={saveEdit} setReportModal={setReportModal} downloadGenerated={downloadGenerated} requestDownload={requestDownload} dlLangOverlay={dlLangOverlay} downloadGeneratedPdf={downloadGeneratedPdf} downloadCover={downloadCover} dlBusy={dlBusy} setEulogyStyleModal={setEulogyStyleModal} requestGenerate={requestGenerate} eulogyStyleOverlay={eulogyStyleOverlay} genLangOverlay={<>{genLangOverlay}{boxKeepOverlay}</>} imgEditOverlay={imgEditOverlay} coverOverlay={coverOverlay} imgZoomOverlay={imgZoomOverlay} reportOverlay={reportOverlay} transcriptReportOverlay={transcriptReportOverlay} highlightParagraph={highlightParagraph} renderRichText={renderRichText} posterZoomOverlay={posterZoomOverlay} posterStyleOverlay={posterStyleOverlay} />
   )
 
   return null

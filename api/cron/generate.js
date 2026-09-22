@@ -10,7 +10,7 @@
 // Job-Pläne (params, vom Client mit categories.js gebaut – Outline/Kapitel port-frei):
 //   Rede:  { resultType:'text-join', field, combine, kind, memorialCode, steps:[{system,user,label}] }
 //   Buch:  { resultType:'book', field, variant, kind, memorialCode, language, title, subtitle,
-//            dir, skipImages, imageStyle, uploads:[…], oldChapters:[…],
+//            dir, skipImages, imageStyle, uploads:[…], oldChapters:[…], keepBoxes?:[{number,heading,box}],
 //            chapterSteps:[{system,user,meta:{number,heading?,contribution_id?,contributor_name?,relationship?}}] }
 //   Hörbuch: { resultType:'audiobook', field:'audiobooks', variant, memorialCode, language,
 //              voiceMode:'f'|'m'|'mixed', voices:{f,m}, title,
@@ -181,6 +181,29 @@ async function processTextJoin(job, deadline) {
 // ─────────────────────────────── Buch ──────────────────────────────────
 const normH = s => String(s || '').trim().toLowerCase()
 
+// Zeitgeschehen-Kästen (api/admin/history-box.js) hängen am ALTEN Buch. Hat der
+// Admin beim Neu-Generieren „behalten" gewählt, schickt der Client sie als
+// keepBoxes:[{ number, heading, box }] mit; hier werden sie in das neue Buch
+// gesetzt. Das neue Kapitel wird gesucht über: das Jahr des Ereignisses im
+// Kapiteltext → gleiche Überschrift → gleiche Kapitelnummer → letztes Kapitel.
+function keepHistoryBoxes(chapters, keep) {
+  if (!Array.isArray(keep) || !keep.length || !chapters.length) return
+  for (const k of keep) {
+    const box = k?.box
+    if (!box || box.kind !== 'history' || !String(box.text || '').trim()) continue
+    const { image_url, ...clean } = box
+    const year = String(box.when || box.title || box.source || '').match(/\b(1[5-9]\d\d|20\d\d)\b/)
+    let idx = year ? chapters.findIndex(c => String(c.body || '').includes(year[1])) : -1
+    if (idx < 0 && k.heading) idx = chapters.findIndex(c => normH(c.heading) === normH(k.heading))
+    if (idx < 0) idx = chapters.findIndex((c, i) => (parseInt(c.number, 10) || i + 1) === parseInt(k.number, 10))
+    if (idx < 0) idx = chapters.length - 1
+    const ch = chapters[idx]
+    const boxes = Array.isArray(ch.boxes) ? ch.boxes : []
+    if (boxes.some(b => b?.kind === 'history' && String(b.source || '') === String(box.source || ''))) continue
+    ch.boxes = [...boxes, clean]
+  }
+}
+
 // Nach den Kapiteln: Fotos den Kapiteln zuordnen (deterministisch + KI) und je
 // Kapitel ein Referenzfoto wählen. Ergebnisse in result ablegen (crash-sicher).
 async function computeAssignments(job, p, result) {
@@ -316,6 +339,19 @@ async function processBook(job, deadline) {
       .slice(0, 2)
     return list.length ? { voices: list } : {}
   }
+  // Zusatzfragen-Kästen (extraBoxParts in categories.js) — genauso eindampfen
+  // und deckeln. Ohne diese Übernahme gingen sie beim Speichern verloren,
+  // obwohl der Kapitel-Prompt sie anfordert.
+  const normalizeBoxes = (b) => {
+    const list = (Array.isArray(b) ? b : [])
+      .map(x => ({
+        title: String(x?.title || '').trim().slice(0, 120),
+        text: String(x?.text || '').trim().slice(0, 1500),
+      }))
+      .filter(x => x.text)
+      .slice(0, 2)
+    return list.length ? { boxes: list } : {}
+  }
   if (!Array.isArray(result.errors)) result.errors = []
   // Initial ist progress.phase 'queued' → als Kapitelphase behandeln. Nur ein
   // ausdrückliches 'repair'/'images' (Wiederaufnahme nach den Kapiteln)
@@ -342,7 +378,7 @@ async function processBook(job, deadline) {
       }
       const extra = meta.contribution_id ? { contribution_id: meta.contribution_id, contributor_name: meta.contributor_name, relationship: meta.relationship } : {}
       result.chapters.push(ch
-        ? { number: ch.number || meta.number, heading: ch.heading || meta.heading || `Kapitel ${meta.number}`, body: ch.body || '', image_prompt: ch.image_prompt || '', ...normalizeVoices(ch.voices), ...extra }
+        ? { number: ch.number || meta.number, heading: ch.heading || meta.heading || `Kapitel ${meta.number}`, body: ch.body || '', image_prompt: ch.image_prompt || '', ...normalizeVoices(ch.voices), ...normalizeBoxes(ch.boxes), ...extra }
         : { number: meta.number, heading: meta.heading || `Kapitel ${meta.number}`, body: '', image_prompt: '', generate_error: 'Kapitel konnte nicht erzeugt werden', ...extra })
       await genjobs.saveProgress(job.id, { progress: { phase: 'chapters', cursor: result.chapters.length, total: steps.length, message: `Kapitel ${result.chapters.length}/${steps.length}` }, result })
     }
@@ -428,6 +464,7 @@ async function processBook(job, deadline) {
 
   // ── Phase 3: Speichern ──
   const chapters = result.chapters.map(c => { const { image_done, ...rest } = c; return rest })
+  keepHistoryBoxes(chapters, p.keepBoxes)
   // Die Gliederung (owns-Listen) wandert mit ins Buch — die Wiederholungs-
   // prüfung braucht sie, um Motive ihrem Kapitel zuordnen zu können.
   const outline = Array.isArray(p.outline) && p.outline.length ? p.outline : undefined
