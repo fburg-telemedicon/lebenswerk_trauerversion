@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-22",
+      "items": [
+        "Fix: \"Historische Parallelen\" im Lebenswerk brachen mit \"Ungueltige Generierungsart\" ab - die Job-Art fehlte in der Liste erlaubter Generierungen.",
+        "Antworten zeigen jetzt Datum und Uhrzeit, wann sie eingesprochen bzw. eingetippt wurden - in der Beitragsansicht des Managers und im Gespraechsverlauf der Beitragenden. Gilt fuer alle neuen Antworten; aeltere haben keinen Zeitstempel."
+      ]
+    },
+    {
       "date": "2026-09-18",
       "items": [
         "Neue Produktkategorie \"Vorsorgevollmacht\". Anders als beim Lebenswerk, das Vorsorgewuensche aus einer erzaehlten Lebensgeschichte ABLEITET, fragt diese Kategorie gezielt alles ab, was fuer die Dokumente gebraucht wird. Endprodukt ist deshalb kein Buch, sondern eine fertig ausgefuellte Vorsorgen-Mappe zum Ausdrucken und Unterschreiben. Grundlage ist \"Die VORSORGEN! Mappe\" der Deutschen PalliativStiftung (13. Auflage, Rechtslage 2026) mit ihren acht Formularen.",
