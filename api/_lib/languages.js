@@ -18,6 +18,15 @@ const ALLOWED_LANGS = ['de', 'en', 'es', 'eu', 'fr', 'it', 'pl', 'ro', 'de-CH', 
 const RTL_LANGS = ['he', 'ar']
 const DEFAULT_LANG = 'de'
 
+// Sprachname für Prompts („Schreibe auf …"). de-CH schreibt Schweizer
+// Hochdeutsch, de-CH-hd normales Deutsch — siehe oben.
+const LANG_NAMES_DE = {
+  de: 'Deutsch', en: 'Englisch', es: 'Spanisch', eu: 'Baskisch', fr: 'Französisch',
+  it: 'Italienisch', pl: 'Polnisch', ro: 'Rumänisch', 'de-CH': 'Schweizer Hochdeutsch (ohne ß)',
+  'de-CH-hd': 'Deutsch', tr: 'Türkisch', ru: 'Russisch', uk: 'Ukrainisch', he: 'Hebräisch', ar: 'Arabisch',
+}
+const langNameDe = l => LANG_NAMES_DE[l] || LANG_NAMES_DE[DEFAULT_LANG]
+
 const isLang = l => ALLOWED_LANGS.includes(l)
 const isRTL = l => RTL_LANGS.includes(l)
 
@@ -27,4 +36,4 @@ function sanitizeLangs(list) {
   return langs.length ? langs : [DEFAULT_LANG]
 }
 
-module.exports = { ALLOWED_LANGS, RTL_LANGS, DEFAULT_LANG, isLang, isRTL, sanitizeLangs }
+module.exports = { ALLOWED_LANGS, RTL_LANGS, DEFAULT_LANG, isLang, isRTL, sanitizeLangs, langNameDe }

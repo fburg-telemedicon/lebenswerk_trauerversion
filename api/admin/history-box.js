@@ -28,6 +28,7 @@ const { IMAGE_BUCKET } = require('../_lib/delete-memorial')
 const { normalizeStyle, styleDirective, styleAnchor, DEFAULT_STYLE } = require('../_lib/image-styles')
 const { stripMedium, isContentPolicyError, generateAzureFlux } = require('../_lib/flux')
 const { tryParseJSON } = require('../_lib/genprompts')
+const { langNameDe } = require('../_lib/languages')
 
 const supabase = createClient()
 const BUCKET = IMAGE_BUCKET
@@ -37,7 +38,7 @@ const MAX_BOXES_PER_CHAPTER = 4
 // Der Kasten soll das Ereignis erklaeren, nicht die Lebensgeschichte deuten.
 // Die Trennung ist wichtig: Sonst schreibt das Modell der Person Erlebnisse zu,
 // die nirgends erzaehlt wurden.
-function boxSystem(ereignis, anzeige, ort, kapitelTitel) {
+function boxSystem(ereignis, anzeige, ort, kapitelTitel, sprache) {
   return `Du bist Zeithistoriker und schreibst einen kurzen Informationskasten fuer ein Erinnerungsbuch.
 
 Das Ereignis: ${ereignis}${ort ? ` (${ort})` : ''}
@@ -51,7 +52,7 @@ Regeln:
 - NUR das Ereignis. Kein Bezug zur Person des Buchs, keine Vermutung, was sie dabei erlebt oder empfunden haben koennte, keine Anrede.
 - Nur gesichertes Wissen. Bist du dir bei einer Einzelheit nicht sicher, lass sie weg statt zu raten. Erfinde keine Namen, Zahlen oder Orte.
 - Keine Wertung, keine Moral, kein Ausblick auf Spaeteres.
-- Deutsch.
+- Sprache: ${sprache}. Überschrift und Text in dieser Sprache; nur image_prompt bleibt englisch.
 
 Gib REINES, GUELTIGES JSON aus (kein Markdown, keine Erklaerungen):
 {
@@ -100,7 +101,8 @@ module.exports = async function handler(req, res) {
     // ── Text ────────────────────────────────────────────────────────
     const kapitelTitel = String(ch.heading || ch.title || `Kapitel ${nr || idx + 1}`)
     const llm = await callAzure({
-      system: boxSystem(ereignis, anzeige, ort, kapitelTitel),
+      // Der Kasten steht im Buch — also in der Sprache des Buchs, nicht fest Deutsch.
+      system: boxSystem(ereignis, anzeige, ort, kapitelTitel, langNameDe(book.language)),
       messages: [{ role: 'user', content: 'Gib jetzt das JSON aus.' }],
     })
     await recordCost({
