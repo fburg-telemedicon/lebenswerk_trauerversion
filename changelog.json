@@ -4,6 +4,8 @@
     {
       "date": "2026-09-22",
       "items": [
+        "Historische Parallelen lesen die Datierungen jetzt aus den Originalantworten der Interviews statt aus dem fertigen Buch - das Ergebnis bleibt gleich, egal wie oft das Buch neu generiert wird. Auch Kurzformen (\"83\") und mittelbare Angaben (\"nach dem Krieg\") zaehlen; bloss bestaetigte Angaben erscheinen als \"ungefaehr\". Das Buch dient nur noch der Kapitelzuordnung.",
+        "Geschichtsbuch-Funktion: Die Buchgenerierung uebernimmt jetzt jede im Interview genannte Datierung in den Text (vorher konnten Jahreszahlen beim Neu-Generieren wegfallen).",
         "Zeitgeschehen-Kaesten gehen beim Neu-Generieren eines Buchs nicht mehr still verloren: Ein Dialog fragt, ob sie behalten oder geloescht werden sollen. Behaltene landen im Kapitel, das das Jahr des Ereignisses erwaehnt.",
         "Zeitgeschehen-Kaesten haben ein eigenes Design (Bildschirm, Druck-PDF, Word, Hoerbuch): Etikett \"Zeitgeschehen\" mit Jahr und der Hinweis, dass der Kasten nicht zu den erzaehlten Erinnerungen gehoert. Kastentext, Etikett und Hinweis erscheinen in der Sprache des Buchs (alle 14 Buchsprachen).",
         "Fix: Die Kaesten zu den Zusatzfragen (Musik, Lieblingsessen usw.) wurden bei der Buchgenerierung verworfen und erscheinen jetzt im Buch.",

@@ -690,6 +690,17 @@ Zeitliche Einordnung (Geschichtsbuch-Funktion):
 - Kommt keine Angabe, akzeptiere das nach EINER Nachfrage und erzaehle weiter. Die Geschichte ist wichtiger als die Jahreszahl; bohre nicht nach und entschuldige dich nicht dafuer.`
 }
 
+// Gegenstueck im Kapitel-Prompt: Was das Interview an Datierungen erfragt hat,
+// muss im Buch auch ankommen. Ohne diese Regel verbot der Prompt nur das
+// Erfinden von Jahreszahlen — genannte fielen beim Neu-Generieren still heraus
+// (Buch NPQXU5LC6G: „83 seid ihr umgezogen" stand in der ersten Fassung als
+// 1983 im Text, in der zweiten gar nicht mehr).
+function historyBookRule(memorial) {
+  if (memorial?.history_mode !== true) return ''
+  return `
+- Zeitliche Einordnung (Geschichtsbuch-Funktion): Übernimm JEDE Datierung, die im Interview zu den Begebenheiten dieses Kapitels genannt wird, in den Fließtext — Datum, Monat, Jahr oder Zeitraum. Schreibe Jahreszahlen vierstellig („83" → „1983"), wenn der Zusammenhang das Jahrhundert eindeutig macht. Eine Näherung bleibt eine Näherung („um 1983", „Anfang der Sechziger"). Erschließe KEINE Daten, die nicht genannt wurden.`
+}
+
 function catalogFollowups(v) {
   const n = parseInt(v, 10)
   if (!Number.isFinite(n) || n < 0) return 7
@@ -1401,7 +1412,7 @@ Regeln:
 - ${NO_FILLER_RULE}
 - "body": ERZÄHLT IN DER ICH-FORM aus Sicht von ${memorial.name} ("Ich erinnere mich …", "Als ich …") — es ist die eigene Lebensgeschichte, kein Bericht über eine dritte Person. ${chapterLengthRule(band.min, band.max, band.fromMaterial)}${textStyleRule(memorial)}
 - Mehrere Absätze (durch \\n\\n getrennt); schöpfe die Erinnerungen des Interviews ausführlich aus, OHNE etwas zu erfinden; die Interview-Frage/Antwort-Struktur darf NICHT erkennbar sein, keine Fragen im Text, keine „Der Interviewer fragte …"${voices.rules}${boxes.rules}
-- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll
+- "image_prompt": 15–30 Wörter, ENGLISCH; zeigt die Person dieses Kapitels bei einer typischen Szene/Handlung, eingebettet in die ZEIT (Epoche) des Kapitels — periodengerechte Kleidung, Umgebung und Requisiten; beschreibe NUR Motiv, Szene und Epoche — KEIN Medium, KEINE Technik, KEIN Grafikstil; warm und würdevoll${historyBookRule(memorial)}
 - Alles auf Deutsch (außer image_prompt)${extraRules ? `\n${extraRules}` : ''}
 - Gültiges JSON: Strings korrekt escapen, keine trailing commas, keine Kommentare
 

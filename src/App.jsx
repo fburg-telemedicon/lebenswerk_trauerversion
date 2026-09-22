@@ -3019,8 +3019,10 @@ Regeln:
             ...(kind === 'avoca' ? { runs: 3, merge: 'avoca', dimensionCodes: AVOCA_DIMENSIONS.map(d => d.code) } : {}),
             // Der Lebenslauf entsteht in einer waehlbaren Sprache (DE/EN) aus
             // demselben Gespraech; alle uebrigen Extras folgen der Buchsprache.
+            // fromBook (Historische Parallelen): Datierungen aus den Interviews,
+            // das Buch nur für die Kapitelzuordnung (src/historyParallels.js).
             system: ex.fromBook
-              ? ex.system(selected, quellBuch)
+              ? ex.system(selected, quellBuch, bookContribs)
               : (kind === 'cv' || kind === 'avoca')
                 ? ex.system(selected, bookContribs, opts.lang || 'de')
                 : ex.system(selected, bookContribs),

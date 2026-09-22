@@ -3314,8 +3314,8 @@ function ProfileQaCard({ selected, token, contributions }) {
 
 // Abgleich mit EINER Stellenausschreibung. Bewusst ohne Punktzahl und ohne
 // Empfehlung: je Anforderung eine Einstufung mit Beleg, mehr nicht.
-// Historische Parallelen: liest das FERTIGE Buch und stellt den dort genannten
-// Datierungen das Zeitgeschehen gegenueber. Kein PDF — das Ergebnis steht hier.
+// Historische Parallelen: liest die Datierungen aus den INTERVIEWS, ordnet sie
+// Buchkapiteln zu und stellt ihnen das Zeitgeschehen gegenueber. Kein PDF — das Ergebnis steht hier.
 // Die Sicherheitsangabe je Ereignis wird sichtbar gemacht: Ein Sprachmodell
 // erfindet Geschichte bereitwillig, und ein falsches Datum neben einer echten
 // Familiengeschichte waere schlimmer als gar keins.
@@ -3349,9 +3349,10 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
         <div>
           <div style={{ fontWeight:600, marginBottom:4 }}>🕰 Historische Parallelen</div>
           <p style={{ ...S.muted, fontSize:13, margin:0 }}>
-            Durchsucht das fertige Buch nach genannten Datierungen — Tagesdaten, Monate, Jahreszahlen —
-            und stellt jedem Zeitpunkt gegenüber, was damals geschah. Passt zur Geschichtsbuch-Funktion,
-            braucht sie aber nicht: Es zählt, was im Buch steht.
+            Durchsucht die Interviews nach genannten Datierungen — Tagesdaten, Monate, Jahreszahlen —
+            und stellt jedem Zeitpunkt gegenüber, was damals geschah. Jeder Zeitpunkt wird dem passenden
+            Buchkapitel zugeordnet, damit ein Kasten an der richtigen Stelle landet. Passt zur
+            Geschichtsbuch-Funktion, braucht sie aber nicht.
           </p>
           <p style={{ fontSize:12, lineHeight:1.5, margin:'8px 0 0', color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'8px 10px' }}>
             Die Ereignisse kommen aus dem Sprachmodell und sind <strong>nicht geprüft</strong>. Was die KI
@@ -3393,7 +3394,7 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
             {st.unsicher > 0 ? ` · ${st.unsicher} davon von der KI als unsicher gemeldet` : ''}
           </p>
           {st.eintraege === 0 && (
-            <p style={{ ...S.muted, fontSize:13 }}>Im Buch kommt keine verwertbare Datierung vor. Mit eingeschalteter Geschichtsbuch-Funktion fragt das Interview künftig danach.</p>
+            <p style={{ ...S.muted, fontSize:13 }}>In den Interviews kommt keine verwertbare Datierung vor. Mit eingeschalteter Geschichtsbuch-Funktion fragt das Interview künftig danach.</p>
           )}
           {st.eintraege > 0 && (
             <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', margin:'0 0 8px' }}>
