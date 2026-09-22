@@ -2336,11 +2336,12 @@ export function ContributionView({ setGuestStatus, selectedContrib, selected, se
         pairs.push({
           q: c.messages[j].content,
           a: hasAnswer ? c.messages[j + 1].content : undefined,
+          at: hasAnswer ? c.messages[j + 1].at : undefined,
           indices: hasAnswer ? [j, j + 1] : [j],
         })
         if (hasAnswer) j++
       } else {
-        pairs.push({ q: null, a: c.messages[j].content, indices: [j] })
+        pairs.push({ q: null, a: c.messages[j].content, at: c.messages[j].at, indices: [j] })
       }
     }
     return (
@@ -2444,6 +2445,7 @@ export function ContributionView({ setGuestStatus, selectedContrib, selected, se
                       <div>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                           <Lbl>{t('Antwort', 'Answer')}</Lbl>
+                          {p.at && <span style={{ fontSize:12, color:'#a8a29e' }}>{t('eingesprochen', 'recorded')} {new Date(p.at).toLocaleString('de-DE', { dateStyle:'medium', timeStyle:'short' })}</span>}
                           <button className="ghost" onClick={() => startAnsEdit(ansIdx, p.a)} title={t('Antwort bearbeiten', 'Edit answer')} style={{ fontSize:11, color:'#78716c', padding:'2px 6px' }}>{t('✏ bearbeiten', '✏ edit')}</button>
                         </div>
                         <p style={{ fontSize:15, lineHeight:1.7, color:'#1c1917', margin:'4px 0 0', whiteSpace:'pre-wrap' }}>{p.a}</p>

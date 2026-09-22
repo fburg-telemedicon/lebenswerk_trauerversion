@@ -613,7 +613,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
         // Mikrofon-Modus und wird sofort persistiert — Buchgenerierung, Exporte
         // und der Wiederaufnahme-Link bleiben dadurch unverändert.
         onUserText: text => {
-          const m = [...messagesRef.current, { role: 'user', content: text, speaker: 'self' }]
+          const m = [...messagesRef.current, { role: 'user', content: text, speaker: 'self', at: new Date().toISOString() }]
           applyMessages(m); setRound(r => r + 1); onSave?.(m)
         },
         onAiText: text => {
@@ -1040,7 +1040,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
     // Antwort landet sofort als Chat-Blase im Verlauf; dort trägt sie dauerhaft
     // die Buttons Löschen/Neu einsprechen (undoFrom/redoFrom). Der Sprecher
     // (self/companion) bleibt erhalten – die Buch-Synthese gewichtet danach.
-    const newMsgs = [...messagesRef.current, { role: 'user', content: text, speaker: speaker === 'companion' ? 'companion' : 'self' }]
+    const newMsgs = [...messagesRef.current, { role: 'user', content: text, speaker: speaker === 'companion' ? 'companion' : 'self', at: new Date().toISOString() }]
     applyMessages(newMsgs); setRound(r => r + 1)
     // Antwort sofort persistieren (inkrementell), Fehler in saveErr-Prop
     onSave?.(newMsgs)
@@ -1427,6 +1427,7 @@ function VoiceInterview({ memorial, contribForm, lang = 'de', onSave, onPause, h
             <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {isCompanion && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>👥 {t.micCompanion || 'Begleitung'}</span>}
               <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.6, opacity: .6, background: isCompanion ? '#dbeafe' : (m.role === 'user' ? '#e0f2fe' : '#f5f5f4'), border: isCompanion ? '1px solid #93c5fd' : 'none' }}>{m.content}</div>
+              {m.role === 'user' && m.at && <span style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>{new Date(m.at).toLocaleString(t.locale, { dateStyle: 'short', timeStyle: 'short' })}</span>}
               {m.role === 'user' && i === lastUserIdx && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                   <button className="secondary" disabled={micState !== 'idle' || aiLoading} onClick={() => undoFrom(i)} style={{ fontSize: 11, padding: '3px 9px' }}>{t.txDelete}</button>
@@ -1467,7 +1468,7 @@ function TextInterview({ memorial, contribForm, onDone }) {
   async function send() {
     if (!input.trim() || loading) return
     const text = input.trim(); setInput('')
-    const newMsgs = [...messages, { role:'user', content:text }]
+    const newMsgs = [...messages, { role:'user', content:text, at: new Date().toISOString() }]
     setMessages(newMsgs); setRound(r=>r+1); setLoading(true)
     try {
       const sys = interviewSystemFor(memorial)(memorial, contribForm.name, contribForm.relationship)
