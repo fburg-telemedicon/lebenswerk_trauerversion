@@ -5,7 +5,7 @@
       "date": "2026-09-22",
       "items": [
         "Zeitgeschehen-Kaesten gehen beim Neu-Generieren eines Buchs nicht mehr still verloren: Ein Dialog fragt, ob sie behalten oder geloescht werden sollen. Behaltene landen im Kapitel, das das Jahr des Ereignisses erwaehnt.",
-        "Zeitgeschehen-Kaesten haben ein eigenes Design (Bildschirm, Druck-PDF, Word, Hoerbuch): Etikett \"Zeitgeschehen\" mit Jahr, der Hinweis, dass der Kasten nicht zu den erzaehlten Erinnerungen gehoert, und die Grafik ist als KI-generiert gekennzeichnet.",
+        "Zeitgeschehen-Kaesten haben ein eigenes Design (Bildschirm, Druck-PDF, Word, Hoerbuch): Etikett \"Zeitgeschehen\" mit Jahr und der Hinweis, dass der Kasten nicht zu den erzaehlten Erinnerungen gehoert.",
         "Fix: Die Kaesten zu den Zusatzfragen (Musik, Lieblingsessen usw.) wurden bei der Buchgenerierung verworfen und erscheinen jetzt im Buch.",
         "Fix: \"Historische Parallelen\" im Lebenswerk brachen mit \"Ungueltige Generierungsart\" ab - die Job-Art fehlte in der Liste erlaubter Generierungen.",
         "Antworten zeigen jetzt Datum und Uhrzeit, wann sie eingesprochen bzw. eingetippt wurden - in der Beitragsansicht des Managers und im Gespraechsverlauf der Beitragenden. Gilt fuer alle neuen Antworten; aeltere haben keinen Zeitstempel."
