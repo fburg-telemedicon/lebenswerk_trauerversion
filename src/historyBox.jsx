@@ -1,9 +1,8 @@
 // Zeitgeschehen-Kasten am Bildschirm (Admin-Buchansicht und Endnutzer-Ansicht).
 // Er stammt NICHT aus dem Gespräch, sondern ist KI-Sachtext über ein Ereignis
 // (api/admin/history-box.js). Deshalb optisch klar vom Buch abgesetzt: eigener
-// Farbton, Etikett „Zeitgeschehen · Jahr", Hinweiszeile und — falls vorhanden —
-// die Kennzeichnung der Grafik als KI-generiert. Die Druckfassung zeichnet
-// dasselbe in src/bookExport.js nach.
+// Farbton, Etikett „Zeitgeschehen · Jahr" und Hinweiszeile. Die Druckfassung
+// zeichnet dasselbe in src/bookExport.js nach.
 import { historyBoxYear } from './categories.js'
 
 export function HistoryBox({ box, t, bodyFont, compact = false }) {
@@ -23,11 +22,8 @@ export function HistoryBox({ box, t, bodyFont, compact = false }) {
         <p style={{ fontSize: compact ? 16 : 18, fontWeight:700, color:'#3f3423', margin:'0 0 10px', ...(bodyFont || {}) }}>{box.title}</p>
       )}
       {box.image_url && (
-        <figure style={{ margin:'0 0 12px' }}>
-          <img src={box.image_url} alt={box.title || ''} loading="lazy"
-               style={{ width:'100%', maxHeight:240, objectFit:'cover', borderRadius:6, display:'block' }} />
-          <figcaption style={{ fontSize:11, fontStyle:'italic', color:'#8a7a60', marginTop:4 }}>{t.historyBoxImageNote}</figcaption>
-        </figure>
+        <img src={box.image_url} alt={box.title || ''} loading="lazy"
+             style={{ width:'100%', maxHeight:240, objectFit:'cover', borderRadius:6, display:'block', marginBottom:12 }} />
       )}
       <p style={{ fontSize: compact ? 15 : 16, lineHeight:1.75, color:'#44403c', margin:0, whiteSpace:'pre-wrap', ...(bodyFont || {}) }}>{box.text}</p>
       <p style={{ fontSize:11.5, fontStyle:'italic', color:'#8a7a60', margin:'12px 0 0', paddingTop:8, borderTop:'1px dashed #e6dcc8' }}>

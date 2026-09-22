@@ -647,7 +647,7 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
 
   // Zeitgeschehen-Kasten (Gegenstück zu src/historyBox.jsx): getönte Fläche mit
   // Bronze-Rand, Etikett „Zeitgeschehen · Jahr", Hinweis „nicht Teil der
-  // Erinnerungen", Grafik als KI-generiert gekennzeichnet. Anders als die übrigen
+  // Erinnerungen". Anders als die übrigen
   // Kästen MIT Rahmen — damit der nicht über einen Umbruch zerreißt, wird der
   // Kasten vorab vermessen und notfalls komplett auf die nächste Seite gesetzt.
   // Nur wenn er nicht einmal auf eine leere Seite passt, entfällt die Fläche.
@@ -666,7 +666,7 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
     const H = PAD + first
       + measure(label, { size: 9, style: 'bold', gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
       + (title ? measure(title, { size: 12, style: 'bold', gapAfter: 0.4, indent: TEXT_IND, right: RIGHT }) : 0)
-      + (bimg ? bh + 2 + measure(bt.historyBoxImageNote, { size: 8, style: 'italic', gapAfter: 0.5, indent: TEXT_IND, right: RIGHT }) : 0)
+      + (bimg ? bh + 4 + 11 * 0.3528 : 0)
       + measure(text, { size: 11, gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
       + measure(bt.historyBoxNote, { size: 8, style: 'italic', gapAfter: 0, indent: TEXT_IND, right: RIGHT })
       + PAD - lh(8) + 8 * 0.3528
@@ -688,8 +688,7 @@ export async function buildInteriorPdf(book, contributors = [], logoDataUrl = nu
       const bfmt = /^data:image\/jpe?g/i.test(bimg.dataUrl) ? 'JPEG' : 'PNG'
       const iy = y - lh(12) * 0.5
       try { doc.addImage(bimg.dataUrl, bfmt, ML + TEXT_IND, iy, bw, bh) } catch { /* Bild ueberspringen */ }
-      y = iy + bh + 2 + lh(8) * 0.7
-      flow(bt.historyBoxImageNote, { size: 8, style: 'italic', color: [138, 122, 96], gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
+      y = iy + bh + 4 + 11 * 0.3528
     }
     flow(text, { size: 11, color: [68, 64, 60], gapAfter: 0.5, indent: TEXT_IND, right: RIGHT })
     flow(bt.historyBoxNote, { size: 8, style: 'italic', color: [138, 122, 96], gapAfter: 0, indent: TEXT_IND, right: RIGHT })
