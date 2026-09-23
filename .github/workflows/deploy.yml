@@ -56,3 +56,23 @@ jobs:
               --image "$ACR.azurecr.io/lebenswerk:${{ github.sha }}" -o none
             echo "aktualisiert: $JOB"
           done
+
+      # Jeder Push legt ein Image ab. Ohne Aufraeumen lief die Registry voll: am
+      # 23.09.2026 lagen dort 528 Images mit 33 GB, die SKU Basic erlaubt aber nur
+      # 10 GB - jeder weitere Push scheiterte dann beim Hochladen ("Deploy: All
+      # jobs have failed"), ohne dass am Code etwas falsch war. Deshalb bleiben
+      # nur die KEEP neuesten stehen; aeltere Staende sind aus Git jederzeit neu
+      # baubar. Ein Fehler hier darf den Deploy nicht rot faerben - er ist
+      # laengst ausgerollt (|| true).
+      - name: Alte Images aufraeumen (die neuesten 20 bleiben)
+        run: |
+          KEEP=20
+          az acr repository show-tags -r "$ACR" --repository lebenswerk \
+            --orderby time_desc -o tsv > tags.txt || exit 0
+          tail -n +$((KEEP + 1)) tags.txt > alt.txt
+          echo "Images gesamt: $(wc -l < tags.txt), zu loeschen: $(wc -l < alt.txt)"
+          while read -r TAG; do
+            [ -n "$TAG" ] || continue
+            az acr repository delete -n "$ACR" --image "lebenswerk:$TAG" --yes -o none || true
+          done < alt.txt
+          az acr show-usage -n "$ACR" -o table || true
