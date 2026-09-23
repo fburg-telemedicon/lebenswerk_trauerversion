@@ -3342,6 +3342,17 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
   // Neuladen die einzige vorhandene. Gibt es zwei und ist nichts gemerkt,
   // bleibt der Knopf gesperrt, statt in die falsche Fassung zu schreiben.
   const zielFassung = variante || (fassungen.length === 1 ? fassungen[0].key : null)
+  // Welche Ereignisse stehen schon als Kasten im Buch? Geprüft wird das GANZE
+  // Buch (`box.source` = der Ereignistext), nicht nur ein Kapitel: Nach einem
+  // Neulauf der Parallelen kann dasselbe Ereignis einem anderen Kapitel
+  // zugeordnet sein, und dann landete es ein zweites Mal im Buch.
+  const imBuch = new Set(
+    ((zielFassung && selected[zielFassung]?.chapters) || [])
+      .flatMap(c => (Array.isArray(c?.boxes) ? c.boxes : []))
+      .filter(isHistoryBox)
+      .map(b => String(b?.source || ''))
+      .filter(Boolean)
+  )
 
   return (
     <div style={{ ...S.card }}>
@@ -3424,6 +3435,15 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
                       const key = `${i}:${k}`
                       const busy = boxBusy === key
                       const msg = boxMsg && boxMsg.key === key ? boxMsg : null
+                      // Schon im Buch: kein Knopf, sondern ein Vermerk. Entfernen
+                      // geht in der Buchansicht unter „Bearbeiten" (Papierkorb am
+                      // Kasten) — hier gäbe es dafür keinen sinnvollen Ort.
+                      if (imBuch.has(String(pa.was))) return (
+                        <span style={{ fontSize:11, marginLeft:8, color:'#15803d', background:'#dcfce7', padding:'1px 6px', borderRadius:4 }}
+                              title="Dieses Ereignis steht bereits als Kasten im Buch. Entfernen in der Buchansicht unter „Bearbeiten".">
+                          ✓ im Buch
+                        </span>
+                      )
                       return (
                         <>
                           <button type="button" className="ghost" disabled={!!boxBusy || !zielFassung}

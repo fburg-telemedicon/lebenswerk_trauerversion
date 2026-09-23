@@ -2,6 +2,13 @@
   "_comment": "Entwicklungs-Changelog. Speist den 'Gestern umgesetzt'-Abschnitt des Tagesreports (api/_lib/changelog.js liest die Einträge des Vortags). Neueste zuerst. Datum = YYYY-MM-DD. Bei jeder Sitzung pflegen (siehe Memory session-changelog-pflegen).",
   "entries": [
     {
+      "date": "2026-09-23",
+      "items": [
+        "Historische Parallelen: Ereignisse, zu denen schon ein Kasten im Buch steht, sind jetzt mit \"im Buch\" markiert statt mit einem Knopf - vorher liess sich derselbe Kasten ein zweites Mal einfuegen, wenn ihn ein neuer Durchlauf einem anderen Kapitel zugeordnet hatte. Die Sperre prueft jetzt das ganze Buch statt nur ein Kapitel.",
+        "Zeitgeschehen-Kaesten: Die Ueberschrift muss ein grammatisch vollstaendiger Ausdruck sein (\"Erster ZDF-Fernsehgarten\" statt \"Erstes Fernsehgarten\"); im Zweifel kuerzt die KI, statt mittendrin abzuschneiden."
+      ]
+    },
+    {
       "date": "2026-09-22",
       "items": [
         "Historische Parallelen lesen die Datierungen jetzt aus den Originalantworten der Interviews statt aus dem fertigen Buch - das Ergebnis bleibt gleich, egal wie oft das Buch neu generiert wird. Auch Kurzformen (\"83\") und mittelbare Angaben (\"nach dem Krieg\") zaehlen; bloss bestaetigte Angaben erscheinen als \"ungefaehr\". Das Buch dient nur noch der Kapitelzuordnung.",

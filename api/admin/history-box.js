@@ -52,11 +52,12 @@ Regeln:
 - NUR das Ereignis. Kein Bezug zur Person des Buchs, keine Vermutung, was sie dabei erlebt oder empfunden haben koennte, keine Anrede.
 - Nur gesichertes Wissen. Bist du dir bei einer Einzelheit nicht sicher, lass sie weg statt zu raten. Erfinde keine Namen, Zahlen oder Orte.
 - Keine Wertung, keine Moral, kein Ausblick auf Spaeteres.
+- Die Ueberschrift muss ein grammatisch vollstaendiger, richtig gebeugter Ausdruck sein — Artikel, Adjektive und Substantiv muessen zusammenpassen ("Erster ZDF-Fernsehgarten", NICHT "Erstes Fernsehgarten"). Kuerze lieber, als einen Ausdruck mittendrin abzuschneiden; im Zweifel nimm das blosse Substantiv ("Der Fernsehgarten"). Kein Satzpunkt am Ende.
 - Sprache: ${sprache}. Überschrift und Text in dieser Sprache; nur image_prompt bleibt englisch.
 
 Gib REINES, GUELTIGES JSON aus (kein Markdown, keine Erklaerungen):
 {
-  "title": "kurze Ueberschrift, max. 6 Woerter",
+  "title": "kurze Ueberschrift, hoechstens 6 Woerter",
   "text": "die 3-5 Saetze",
   "image_prompt": "englische Bildbeschreibung der Szene, 15-30 Woerter, ohne Personen der Familie, ohne Text/Schrift im Bild, ohne Logos"
 }`
@@ -91,9 +92,15 @@ module.exports = async function handler(req, res) {
     if (vorhandene.length >= MAX_BOXES_PER_CHAPTER) {
       return res.status(400).json({ error: `Dieses Kapitel hat schon ${vorhandene.length} Kästen. Bitte zuerst einen entfernen.` })
     }
-    // Denselben Kasten nicht zweimal: Ereignistext ist der Schlüssel.
-    if (vorhandene.some(b => b?.kind === 'history' && String(b?.source || '') === String(ereignis))) {
-      return res.status(400).json({ error: 'Zu diesem Ereignis gibt es in diesem Kapitel schon einen Kasten.' })
+    // Denselben Kasten nicht zweimal: Ereignistext ist der Schlüssel. Geprüft
+    // wird das GANZE Buch, nicht nur dieses Kapitel — nach einem Neulauf der
+    // Parallelen kann dasselbe Ereignis einem anderen Kapitel zugeordnet sein,
+    // und dann entstand lautlos ein zweiter Kasten.
+    const doppelt = book.chapters.findIndex((c, i2) =>
+      (Array.isArray(c?.boxes) ? c.boxes : []).some(b => b?.kind === 'history' && String(b?.source || '') === String(ereignis)))
+    if (doppelt >= 0) {
+      const nr = book.chapters[doppelt]?.number || doppelt + 1
+      return res.status(400).json({ error: `Zu diesem Ereignis steht in Kapitel ${nr} schon ein Kasten. Entfernen geht in der Buchansicht unter „Bearbeiten".` })
     }
 
     if (!(await enforceBudget(res, code))) return
