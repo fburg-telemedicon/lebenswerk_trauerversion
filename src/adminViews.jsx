@@ -2219,7 +2219,7 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
                     style={{ width:120 }}
                   />
                   <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>
-                    Wie viele vertiefende Nachfragen die KI höchstens zu jeder Frage stellt. Der {isEnduser ? (isAnamnesis ? 'Patient' : 'Endnutzer') : 'Beitragende'} kann jederzeit „weiter" sagen. Standard: 7.
+                    Wie viele vertiefende Nachfragen die KI höchstens zu jeder Frage stellt. Der {isEnduser ? (isAnamnesis ? 'Patient' : 'Endnutzer') : 'Beitragende'} kann jederzeit „weiter" sagen. Standard: {isAnamnesis ? 0 : isPrecaution ? 1 : 2}.
                   </p>
                 </div>
               )}

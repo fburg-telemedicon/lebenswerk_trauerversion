@@ -19,6 +19,7 @@ const { MAMAZONE, ensureMamazoneCatalog } = require('../_lib/mamazone')
 const { ensureAnamnesisCatalog, ensureAnamnesisKvswCatalog } = require('../_lib/anamnesis')
 const { ensureCareerCatalog } = require('../_lib/career')
 const { ensurePrecautionCatalog } = require('../_lib/precaution')
+const { ensureMemorialCatalog } = require('../_lib/memorial-catalog')
 const { defaultTtsVoice, sanitizeVoice } = require('../_lib/ttsvoices')
 const { generateInviteToken, INVITE_TTL_MS } = require('../_lib/auth')
 const { sendAccessMail, inviteLink } = require('../_lib/invitemail')
@@ -432,6 +433,8 @@ async function ensureStandardCatalogs() {
       ensureAnamnesisCatalog(supabase),
       ensureAnamnesisKvswCatalog(supabase),
       ensureCareerCatalog(supabase),
+      // Gedenkbuch: Wahl-Katalog im Expertenmodus, NICHT Standard (leer = freie KI-Fragen).
+      ensureMemorialCatalog(supabase),
     ])
     stdCatalogsEnsured = true
   } catch { /* nicht kritisch — die Liste kommt auch ohne Seeding */ }
