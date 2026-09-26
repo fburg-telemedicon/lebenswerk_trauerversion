@@ -22,7 +22,7 @@ const FALLBACK = {
   showContributors: true,
   photoUploadTab: false,
   languages: ['de'],
-  followups: 7,
+  followups: 2,          // Nachfragen je Katalogfrage (frueher 7 — ueberstimmte die 2 der Anlage-Maske)
   imageStyle: DEFAULT_STYLE,
   bookLayout: DEFAULT_BOOK_LAYOUT,
   pickupAddress: null,

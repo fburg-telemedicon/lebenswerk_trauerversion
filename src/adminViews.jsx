@@ -490,7 +490,7 @@ export function BookDefaultsView({ err, busy, bdForm, bdSaved, bdMsg, setBdForm,
                 onChange={e => { const v = e.target.value; set({ followups: v === '' ? '' : Math.max(0, Math.min(30, parseInt(v, 10) || 0)) }) }}
                 style={{ width:120 }}
               />
-              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Gilt nur, wenn beim Anlegen ein Fragenkatalog gewählt wird. Bisheriger Standard: 7.', 'Applies only if a question catalog is chosen when creating. Previous default: 7.')}</p>
+              <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Gilt nur, wenn beim Anlegen ein Fragenkatalog gewählt wird. Standard: 2.', 'Applies only if a question catalog is chosen when creating. Default: 2.')}</p>
             </div>
 
             <div style={{ marginBottom:22 }}>
@@ -2055,20 +2055,6 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
           <RecordingModeRadio handsFree={createForm.handsFree} micManualStop={createForm.micManualStop}
             set={patch => setCreateForm({ ...createForm, ...patch })} t={t} />
           <p style={{ fontSize:12, color:'#78716c', marginTop:6 }}>{t('Das ist die Voreinstellung. Über den ☰-Punkt „Mikrofon-Modus" kann die erzählende Person jederzeit selbst wechseln — auch zum Live-Gespräch.', 'This is the default. Via the ☰ item “Microphone mode” the narrator can switch at any time — including to the live conversation.')}</p>
-          {/* Vorsorgevollmacht: keine Nachfrage-Tiefe — weder als Vorgabe noch zur
-              Wahl. Hier wird nicht vertieft, sondern protokolliert: Der Prompt
-              erlaubt genau EINE Rueckfrage bei einer mehrdeutigen Antwort und
-              verbietet ausdruecklich, auf eine Festlegung hinzuarbeiten. Eine
-              Stufe „intensiv (4 Nachfragen je Thema)" wuerde dem widersprechen —
-              bei „Wuenschen Sie eine Wiederbelebung?" ist Nachbohren keine
-              Gruendlichkeit, sondern Druck. */}
-          {!isPrecaution && (<>
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:12 }}>
-            <input type="checkbox" checked={createForm.detailChoice === true} onChange={e => setCreateForm({ ...createForm, detailChoice: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
-            <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
-          </label>
-          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: aus. Eingeschaltet erscheint im ☰-Menü „Wie ausführlich nachfragen?" mit drei Stufen — wenig (1), ausgewogen (2, Voreinstellung) und intensiv (4 Nachfragen je Thema). Ohne eigene Wahl gilt weiter Ihre Vorgabe oben.', 'Default: off. When on, the ☰ menu shows “Depth of questions” with three levels — few (1), balanced (2, preselected) and in depth (4 follow-ups per topic). Without an explicit choice your setting above still applies.')}</p>
-          </>)}
         </div>
         {isAnamnesis && (
         <div style={{ marginBottom: 24 }}>
@@ -2226,6 +2212,24 @@ export function CreateView({ auth, createForm, busy, err, allowedSlugs, catalogs
             </div>
           )
         })()}
+        {/* Nutzerwahl der Nachfrage-Tiefe direkt unter „Nachfragen pro Frage" —
+            sie ist die Freigabe, genau diese Vorgabe zu übersteuern. Steht
+            außerhalb des Katalog-Blocks, weil sie auch im freien Interview wirkt
+            (detailDirective) und der Block ohne passende Kataloge ganz entfällt. */}
+          {/* Vorsorgevollmacht: keine Nachfrage-Tiefe — weder als Vorgabe noch zur
+              Wahl. Hier wird nicht vertieft, sondern protokolliert: Der Prompt
+              erlaubt genau EINE Rueckfrage bei einer mehrdeutigen Antwort und
+              verbietet ausdruecklich, auf eine Festlegung hinzuarbeiten. Eine
+              Stufe „intensiv (4 Nachfragen je Thema)" wuerde dem widersprechen —
+              bei „Wuenschen Sie eine Wiederbelebung?" ist Nachbohren keine
+              Gruendlichkeit, sondern Druck. */}
+          {!isPrecaution && (<div style={{ marginTop:-12, marginBottom: 24 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:0 }}>
+            <input type="checkbox" checked={createForm.detailChoice === true} onChange={e => setCreateForm({ ...createForm, detailChoice: e.target.checked })} style={{ width:18, height:18, cursor:'pointer', accentColor:'#1c1917', flexShrink:0 }} />
+            <span style={{ fontSize:14 }}>{t('Nutzer darf die Nachfrage-Tiefe selbst einstellen', 'User may set the depth of follow-up questions')}</span>
+          </label>
+          <p style={{ fontSize:12, color:'#78716c', marginTop:6, marginLeft:28 }}>{t('Standard: aus. Eingeschaltet erscheint im ☰-Menü „Wie ausführlich nachfragen?" mit drei Stufen — wenig (1), ausgewogen (2, Voreinstellung) und intensiv (4 Nachfragen je Thema). Ohne eigene Wahl gilt Ihre Vorgabe „Nachfragen pro Frage“.', 'Default: off. When on, the ☰ menu shows “Depth of questions” with three levels — few (1), balanced (2, preselected) and in depth (4 follow-ups per topic). Without an explicit choice your “follow-ups per question” setting applies.')}</p>
+          </div>)}
         <div style={{ marginBottom: 24 }}>
           <Lbl>Bemerkung</Lbl>
           <textarea
