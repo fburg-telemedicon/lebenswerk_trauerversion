@@ -3440,7 +3440,7 @@ function HistoryParallelsCard({ selected, generating, genOwner, genPct, genProgr
                       // Kasten) — hier gäbe es dafür keinen sinnvollen Ort.
                       if (imBuch.has(String(pa.was))) return (
                         <span style={{ fontSize:11, marginLeft:8, color:'#15803d', background:'#dcfce7', padding:'1px 6px', borderRadius:4 }}
-                              title="Dieses Ereignis steht bereits als Kasten im Buch. Entfernen in der Buchansicht unter „Bearbeiten".">
+                              title="Dieses Ereignis steht bereits als Kasten im Buch. Entfernen in der Buchansicht unter „Bearbeiten“.">
                           ✓ im Buch
                         </span>
                       )
